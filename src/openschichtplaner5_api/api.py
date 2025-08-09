@@ -315,7 +315,7 @@ class SchichtplanerAPI:
         async def get_dienstplan(
                 year: int = Query(2025),
                 month: int = Query(4, ge=1, le=12),
-                limit: int = Query(50, ge=1, le=500)
+                limit: Optional[int] = Query(None, ge=1, le=1000)
         ):
             """Get Dienstplan view - monthly schedule for all employees."""
             try:
@@ -325,12 +325,12 @@ class SchichtplanerAPI:
                 last_day = calendar.monthrange(year, month)[1]
                 end_date = date(year, month, last_day)
                 
-                # Get all employees (remove limit to get everyone)
-                employees_result = self.engine.query().select("5EMPL").execute()
+                # Get only active employees (empend is null)
+                employees_result = self.engine.query().select("5EMPL").where("empend", "is_null", None).execute()
                 employees = employees_result.to_dict()
                 
-                # Apply limit after we have all data if needed
-                if limit and limit < len(employees):
+                # Apply limit only if explicitly requested (optional for debugging/performance)
+                if limit is not None and limit < len(employees):
                     employees = employees[:limit]
                 
                 # Get shift assignments - COMBINE main and special assignments
@@ -424,7 +424,7 @@ class SchichtplanerAPI:
                 shift_defs_result = self.engine.query().select("5SHIFT").execute()
                 shift_definitions = {s['id']: s for s in shift_defs_result.to_dict()}
                 
-                # Get shift assignments for the month - COMBINE 5MASHI (main) + 5SPSHI (special/overrides)
+                # Get shift assignments for the month - COMBINE all relevant types
                 # 5MASHI = regular planned shifts, 5SPSHI = changes/overrides/special assignments
                 mashi_query = self.engine.query().select("5MASHI")
                 mashi_result = mashi_query.execute()
@@ -434,10 +434,25 @@ class SchichtplanerAPI:
                 spshi_result = spshi_query.execute()
                 spshi_assignments = spshi_result.to_dict()
                 
-                # Combine both assignment types
-                shift_assignments = mashi_assignments + spshi_assignments
+                # Add absences as special events
+                absences_query = self.engine.query().select("5ABSEN")
+                absences_result = absences_query.execute()
+                absences_data = absences_result.to_dict()
                 
-                print(f"DEBUG: Loaded {len(mashi_assignments)} main assignments (5MASHI) + {len(spshi_assignments)} special assignments (5SPSHI) = {len(shift_assignments)} total")
+                # Convert absences to shift-like format for display
+                absence_assignments = []
+                for absence in absences_data:
+                    absence_assignments.append({
+                        'employee_id': absence.get('employee_id'),
+                        'date': absence.get('date'),
+                        'shift_id': 99999,  # Special ID for absences
+                        'type': 'absence'
+                    })
+                
+                # Combine all assignment types
+                shift_assignments = mashi_assignments + spshi_assignments + absence_assignments
+                
+                print(f"DEBUG: Loaded {len(mashi_assignments)} main + {len(spshi_assignments)} special + {len(absence_assignments)} absences = {len(shift_assignments)} total")
                 
                 # Get employee data
                 employees_query = self.engine.query().select("5EMPL")
@@ -505,8 +520,15 @@ class SchichtplanerAPI:
                         if start_date <= shift_date <= end_date:
                             shift_id = shift.get('shift_id')
                             employee_id = shift.get('employee_id')
-                            shift_def = shift_definitions.get(shift_id, {})
-                            shift_name = shift_def.get('name', 'Unbekannte Schicht')
+                            
+                            # Handle special cases (absences)
+                            if shift.get('type') == 'absence':
+                                shift_def = {'name': 'Abwesenheit', 'startend0': '00:00', 'duration0': 0}
+                                shift_name = 'Abwesenheit'
+                            else:
+                                shift_def = shift_definitions.get(shift_id, {})
+                                shift_name = shift_def.get('name', 'Unbekannte Schicht')
+                            
                             employee = employees_dict.get(employee_id, {})
                             day = shift_date.day
                             
@@ -558,12 +580,15 @@ class SchichtplanerAPI:
         async def get_dienstplan_range(
                 start_date: date = Query(..., description="Start date for the range"),
                 end_date: date = Query(..., description="End date for the range"),
-                limit: int = Query(100, ge=1, le=500)
+                limit: Optional[int] = Query(None, ge=1, le=500)
         ):
             """Get Dienstplan view for a specific date range - optimized for infinite scrolling."""
             try:
-                # Get all employees
-                employees_result = self.engine.query().select("5EMPL").limit(limit).execute()
+                # Get only active employees (empend is null)
+                employees_query = self.engine.query().select("5EMPL").where("empend", "is_null", None)
+                if limit is not None:
+                    employees_query = employees_query.limit(limit)
+                employees_result = employees_query.execute()
                 employees = employees_result.to_dict()
                 
                 # Get shift assignments for the date range
@@ -627,18 +652,59 @@ class SchichtplanerAPI:
                 shift_defs_result = self.engine.query().select("5SHIFT").execute()
                 shift_definitions = {s['id']: s for s in shift_defs_result.to_dict()}
                 
-                # Get shift assignments for the date range
+                # Get shift assignments for the date range - COMBINE all relevant types
                 shift_assignments = []
                 try:
+                    # Get main assignments (5MASHI) - regular planned shifts
                     main_shifts_result = self.engine.query().select("5MASHI")\
                         .where_date_range("date", start_date, end_date).execute()
                     shift_assignments.extend(main_shifts_result.to_dict())
                     
+                    # Get special assignments (5SPSHI) - changes/overrides/special assignments
                     special_shifts_result = self.engine.query().select("5SPSHI")\
                         .where_date_range("date", start_date, end_date).execute()
                     shift_assignments.extend(special_shifts_result.to_dict())
+                    
+                    # Get absences (5ABSEN) - convert to shift-like format for display
+                    absences_result = self.engine.query().select("5ABSEN")\
+                        .where_date_range("date", start_date, end_date).execute()
+                    absences_data = absences_result.to_dict()
+                    
+                    # Convert absences to shift-like format for consistent processing
+                    for absence in absences_data:
+                        shift_assignments.append({
+                            'employee_id': absence.get('employee_id'),
+                            'date': absence.get('date'),
+                            'shift_id': 99999,  # Special ID for absences
+                            'type': 'absence'
+                        })
+                    
+                    # Get leave data (5LEAVE) - may not exist in all databases
+                    try:
+                        leave_result = self.engine.query().select("5LEAVE")\
+                            .where_date_range("date", start_date, end_date).execute()
+                        leave_data = leave_result.to_dict()
+                        
+                        # Convert leave to shift-like format for consistent processing
+                        for leave in leave_data:
+                            shift_assignments.append({
+                                'employee_id': leave.get('employee_id'),
+                                'date': leave.get('date'),
+                                'shift_id': 99998,  # Special ID for leave
+                                'type': 'leave'
+                            })
+                    except Exception as leave_error:
+                        # 5LEAVE table might not exist in all installations
+                        print(f"DEBUG: Could not load leave data (table may not exist): {leave_error}")
+                        
+                    # Debug: Report counts of each type loaded
+                    main_count = len([a for a in shift_assignments if not a.get('type') and a.get('shift_id') != 99999 and a.get('shift_id') != 99998])
+                    absence_count = len([a for a in shift_assignments if a.get('type') == 'absence'])
+                    leave_count = len([a for a in shift_assignments if a.get('type') == 'leave'])
+                    print(f"DEBUG einsatzplan-range: Loaded {main_count} main/special shifts + {absence_count} absences + {leave_count} leaves = {len(shift_assignments)} total assignments")
+                        
                 except Exception as e:
-                    logger.warning(f"Could not load shift assignments: {e}")
+                    print(f"Could not load shift assignments: {e}")
                 
                 # Get employee data for names
                 employees_result = self.engine.query().select("5EMPL").execute()
@@ -656,10 +722,33 @@ class SchichtplanerAPI:
                         'assignments': []
                     }
                 
+                # Add special shift types for absences and leave
+                shift_schedules[99999] = {
+                    'id': 99999,
+                    'name': 'Abwesenheit',
+                    'start_time': '00:00',
+                    'end_time': '00:00',
+                    'assignments': []
+                }
+                shift_schedules[99998] = {
+                    'id': 99998,
+                    'name': 'Urlaub',
+                    'start_time': '00:00',
+                    'end_time': '00:00',
+                    'assignments': []
+                }
+                
                 # Add assignments to shift schedules
                 for assignment in shift_assignments:
                     shift_id = assignment.get('shift_id')
                     emp_id = assignment.get('employee_id')
+                    
+                    # Handle special cases
+                    if assignment.get('type') == 'absence':
+                        shift_id = 99999  # Use special absence ID
+                    elif assignment.get('type') == 'leave':
+                        shift_id = 99998  # Use special leave ID
+                    
                     if shift_id in shift_schedules:
                         shift_schedules[shift_id]['assignments'].append({
                             'date': assignment.get('date'),
@@ -678,39 +767,11 @@ class SchichtplanerAPI:
                 raise HTTPException(status_code=500, detail=f"Error generating einsatzplan range: {str(e)}")
 
         @self.app.get("/schedule/jahresuebersicht")
-        async def get_jahresuebersicht_overview(
-                year: int = Query(2025)
-        ):
-            """Get Jahresübersicht overview - list all employees for yearly schedule selection."""
-            try:
-                # Get all active employees
-                emp_result = self.engine.query().select("5EMPL").execute()
-                employees = emp_result.to_dict()
-                
-                employee_list = []
-                for emp in employees:
-                    employee_list.append({
-                        'id': emp.get('id'),
-                        'name': f"{emp.get('firstname', '')} {emp.get('name', '')}".strip(),
-                        'position': emp.get('position', ''),
-                        'number': emp.get('number', '')
-                    })
-                
-                return {
-                    'year': year,
-                    'employees': sorted(employee_list, key=lambda x: x['name']),
-                    'total_employees': len(employee_list)
-                }
-                
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Error generating jahresübersicht overview: {str(e)}")
-
-        @self.app.get("/schedule/jahresuebersicht/{employee_id}")
         async def get_jahresuebersicht(
-                employee_id: int = Path(..., ge=1),
-                year: int = Query(2025)
+                employee_id: int = Query(..., description="Employee ID (required)"),
+                year: int = Query(..., description="Year (required)")
         ):
-            """Get Jahresübersicht view - yearly schedule for a specific employee."""
+            """Get Jahresübersicht view - yearly schedule matrix for a specific employee."""
             try:
                 # Get employee info
                 emp_result = self.engine.query().select("5EMPL").where("id", "=", employee_id).execute()
@@ -719,74 +780,196 @@ class SchichtplanerAPI:
                     raise HTTPException(status_code=404, detail="Employee not found")
                 employee = employees[0]
                 
-                # Get shift assignments for the year - COMBINE 5MASHI (main) + 5SPSHI (special/overrides)
+                # Create employee response object
+                employee_response = {
+                    "id": employee.get('id'),
+                    "displayName": f"{employee.get('firstname', '')} {employee.get('name', '')}".strip(),
+                    "firstName": employee.get('firstname', ''),
+                    "lastName": employee.get('name', '')
+                }
+                
+                # Get shift assignments for the year - COMBINE all relevant types
                 start_date = date(year, 1, 1)
                 end_date = date(year, 12, 31)
                 
-                # Get both main and special assignments for this employee
+                # Get main assignments (5MASHI)
                 mashi_query = self.engine.query().select("5MASHI").where("employee_id", "=", employee_id)
                 mashi_result = mashi_query.execute()
                 mashi_assignments = mashi_result.to_dict()
                 
+                # Get special assignments (5SPSHI) - these are manual/override assignments
                 spshi_query = self.engine.query().select("5SPSHI").where("employee_id", "=", employee_id)
                 spshi_result = spshi_query.execute()
                 spshi_assignments = spshi_result.to_dict()
                 
-                # Combine both assignment types
-                shift_assignments = mashi_assignments + spshi_assignments
+                # Get absences (5ABSEN)
+                absences_query = self.engine.query().select("5ABSEN").where("employee_id", "=", employee_id)
+                absences_result = absences_query.execute()
+                absences_data = absences_result.to_dict()
                 
-                print(f"DEBUG Jahresübersicht: Found {len(mashi_assignments)} main + {len(spshi_assignments)} special = {len(shift_assignments)} total assignments for employee {employee_id}")
+                # Get leave data (if separate table exists) - try 5LEAVE or similar
+                leave_assignments = []
+                try:
+                    leave_query = self.engine.query().select("5LEAVE").where("employee_id", "=", employee_id)
+                    leave_result = leave_query.execute()
+                    leave_assignments = leave_result.to_dict()
+                except:
+                    # 5LEAVE table might not exist or be named differently
+                    pass
+                
+                print(f"DEBUG Jahresübersicht: Found {len(mashi_assignments)} main + {len(spshi_assignments)} special + {len(absences_data)} absences + {len(leave_assignments)} leaves for employee {employee_id}")
                 
                 # Get shift definitions
                 shift_defs_result = self.engine.query().select("5SHIFT").execute()
                 shift_definitions = {s['id']: s for s in shift_defs_result.to_dict()}
                 
-                # Organize data by month and day
-                yearly_schedule = {}
-                for month in range(1, 13):
-                    import calendar
-                    days_in_month = calendar.monthrange(year, month)[1]
-                    yearly_schedule[month] = {
-                        'month_name': ['', 'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
-                                      'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'][month],
-                        'days': {}
-                    }
+                # Initialize months structure with German names
+                german_months = [
+                    "Jänner", "Februar", "März", "April", "Mai", "Juni",
+                    "Juli", "August", "September", "Oktober", "November", "Dezember"
+                ]
                 
-                # Process shift assignments
-                for shift in shift_assignments:
-                    shift_date = shift.get('date')
-                    if shift_date:
-                        if isinstance(shift_date, str):
+                months = []
+                for month_num in range(1, 13):
+                    import calendar
+                    days_in_month = calendar.monthrange(year, month_num)[1]
+                    
+                    # Initialize all days to null
+                    days = {}
+                    for day in range(1, 32):
+                        days[str(day)] = None
+                    
+                    months.append({
+                        "month": month_num,
+                        "name": german_months[month_num - 1],
+                        "days": days
+                    })
+                
+                # Process all assignment types, with priority: Leave > Absence > Special > Main
+                all_assignments = []
+                
+                # Add main assignments with lowest priority
+                for shift in mashi_assignments:
+                    if shift.get('date'):
+                        all_assignments.append({
+                            'date': shift.get('date'),
+                            'shift_id': shift.get('shift_id'),
+                            'type': 'main',
+                            'priority': 1
+                        })
+                
+                # Add special assignments with higher priority (manual overrides)
+                for shift in spshi_assignments:
+                    if shift.get('date'):
+                        all_assignments.append({
+                            'date': shift.get('date'),
+                            'shift_id': shift.get('shift_id'),
+                            'type': 'special',
+                            'priority': 2
+                        })
+                
+                # Add absences with highest priority
+                for absence in absences_data:
+                    if absence.get('date'):
+                        all_assignments.append({
+                            'date': absence.get('date'),
+                            'shift_id': None,
+                            'type': 'absence',
+                            'priority': 3,
+                            'absence_type': absence.get('type', 0)
+                        })
+                
+                # Add leave data with highest priority
+                for leave in leave_assignments:
+                    if leave.get('date'):
+                        all_assignments.append({
+                            'date': leave.get('date'),
+                            'shift_id': None,
+                            'type': 'leave',
+                            'priority': 4,
+                            'leave_type': leave.get('leave_type_id', 0)
+                        })
+                
+                # Create a dictionary to track assignments by date for priority handling
+                date_assignments = {}
+                
+                # Process assignments and apply to months structure
+                for assignment in all_assignments:
+                    assignment_date = assignment.get('date')
+                    if assignment_date:
+                        # Parse date
+                        if isinstance(assignment_date, str):
                             try:
-                                if '-' in shift_date:
-                                    shift_date = datetime.strptime(shift_date[:10], '%Y-%m-%d').date()
+                                if '-' in assignment_date:
+                                    parsed_date = datetime.strptime(assignment_date[:10], '%Y-%m-%d').date()
                                 else:
                                     continue
                             except ValueError:
                                 continue
-                        elif hasattr(shift_date, 'date'):
-                            shift_date = shift_date.date()
+                        elif hasattr(assignment_date, 'date'):
+                            parsed_date = assignment_date.date()
+                        elif hasattr(assignment_date, 'year'):
+                            parsed_date = assignment_date
+                        else:
+                            continue
                         
-                        if start_date <= shift_date <= end_date:
-                            month = shift_date.month
-                            day = shift_date.day
-                            shift_def = shift_definitions.get(shift.get('shift_id'), {})
+                        # Only process dates within the requested year
+                        if start_date <= parsed_date <= end_date:
+                            date_key = parsed_date.isoformat()
                             
-                            yearly_schedule[month]['days'][day] = {
-                                'shift_id': shift.get('shift_id'),
-                                'shift_code': shift_def.get('shortname', shift_def.get('name', 'T')[:1]),
-                                'shift_name': shift_def.get('name', 'Tagschicht'),
-                                'date': shift_date.isoformat()
-                            }
+                            # Use priority to determine which assignment to keep
+                            if date_key not in date_assignments or assignment['priority'] > date_assignments[date_key]['priority']:
+                                date_assignments[date_key] = assignment
+                
+                # Apply the final assignments to the months structure
+                for date_key, assignment in date_assignments.items():
+                    parsed_date = datetime.strptime(date_key, '%Y-%m-%d').date()
+                    month_idx = parsed_date.month - 1
+                    day_str = str(parsed_date.day)
+                    
+                    if assignment['type'] == 'absence':
+                        months[month_idx]['days'][day_str] = "AB"
+                    elif assignment['type'] == 'leave':
+                        months[month_idx]['days'][day_str] = "UA"
+                    elif assignment['type'] in ['main', 'special']:
+                        shift_def = shift_definitions.get(assignment.get('shift_id'), {})
+                        # Use shortname if available, otherwise first 2 characters of name
+                        shift_code = shift_def.get('shortname')
+                        if not shift_code and shift_def.get('name'):
+                            shift_code = shift_def['name'][:2].upper()
+                        if not shift_code:
+                            shift_code = "T"  # Default fallback
+                        
+                        # Use the actual shift code for both main and special assignments
+                        # Special assignments automatically override main ones due to priority system
+                        months[month_idx]['days'][day_str] = shift_code
+                
+                # Create legend
+                legend = {
+                    "SD": "Spätdienst",
+                    "FD": "Frühdienst", 
+                    "UA": "Urlaub",
+                    "AB": "Abwesenheit",
+                    "SP": "Special",
+                    "MN": "Manual"
+                }
+                
+                # Add shift-specific entries to legend based on available shift definitions
+                for shift_def in shift_definitions.values():
+                    shortname = shift_def.get('shortname')
+                    if shortname and shortname not in legend:
+                        legend[shortname] = shift_def.get('name', shortname)
                 
                 return {
-                    'employee': employee,
-                    'year': year,
-                    'schedule': yearly_schedule
+                    "employee": employee_response,
+                    "year": year,
+                    "months": months,
+                    "legend": legend
                 }
                 
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Error generating jahresübersicht: {str(e)}")
+
 
         # Export endpoint
         @self.app.post("/export")
