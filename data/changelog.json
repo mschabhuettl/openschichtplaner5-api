@@ -59,22 +59,6 @@
     "timestamp": "2026-02-22T04:49:06",
     "user": "api",
     "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
     "entity": "absence",
     "entity_id": 0,
     "details": "POST /api/absences"
@@ -7998,5 +7982,21 @@
     "entity": "schedule",
     "entity_id": 0,
     "details": "POST /api/schedule/swap"
+  },
+  {
+    "timestamp": "2026-02-26T17:41:52",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "wishes",
+    "entity_id": 0,
+    "details": "POST /api/wishes"
+  },
+  {
+    "timestamp": "2026-02-26T17:41:52",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "wishes",
+    "entity_id": 0,
+    "details": "POST /api/wishes"
   }
 ]

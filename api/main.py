@@ -5037,6 +5037,47 @@ def get_fairness_score(
     return {"year": year, "employees": result, "fairness": fairness}
 
 
+# ── Schicht-Wünsche & Sperrtage ─────────────────────────────────
+
+@app.get("/api/wishes")
+def get_wishes(
+    employee_id: Optional[int] = None,
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+):
+    return get_db().get_wishes(employee_id=employee_id, year=year, month=month)
+
+
+class WishCreate(BaseModel):
+    employee_id: int
+    date: str
+    wish_type: str  # WUNSCH | SPERRUNG
+    shift_id: Optional[int] = None
+    note: Optional[str] = ''
+
+
+@app.post("/api/wishes")
+def create_wish(body: WishCreate):
+    wish_type = body.wish_type.upper()
+    if wish_type not in ('WUNSCH', 'SPERRUNG'):
+        raise HTTPException(status_code=400, detail="wish_type must be WUNSCH or SPERRUNG")
+    return get_db().add_wish(
+        employee_id=body.employee_id,
+        date=body.date,
+        wish_type=wish_type,
+        shift_id=body.shift_id,
+        note=body.note or '',
+    )
+
+
+@app.delete("/api/wishes/{wish_id}")
+def delete_wish(wish_id: int):
+    deleted = get_db().delete_wish(wish_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Wish not found")
+    return {"deleted": wish_id}
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')

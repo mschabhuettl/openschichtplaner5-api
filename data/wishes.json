@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "employee_id": 1,
+    "date": "2026-02-26",
+    "wish_type": "WUNSCH",
+    "shift_id": null,
+    "note": "Frühschicht bevorzugt",
+    "created_at": "2026-02-26T17:41:52"
+  },
+  {
+    "id": 2,
+    "employee_id": 2,
+    "date": "2026-02-27",
+    "wish_type": "SPERRUNG",
+    "shift_id": null,
+    "note": "Arzttermin",
+    "created_at": "2026-02-26T17:41:52"
+  }
+]
