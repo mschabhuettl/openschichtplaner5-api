@@ -582,6 +582,93 @@ def get_statistics(
     return get_db().get_statistics(year, month, group_id=group_id)
 
 
+# ── Year Summary (Jahresrückblick) ────────────────────────────
+@app.get("/api/statistics/year-summary")
+def get_year_summary(
+    year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
+    group_id: Optional[int] = Query(None),
+):
+    """Return aggregated statistics for all 12 months of a year (Jahresrückblick)."""
+    from datetime import date as _date
+    if year is None:
+        year = _date.today().year
+    db = get_db()
+
+    # Collect stats for each month
+    monthly = []
+    for m in range(1, 13):
+        rows = db.get_statistics(year, m, group_id=group_id)
+        total_actual = sum(r.get("actual_hours", 0) or 0 for r in rows)
+        total_target = sum(r.get("target_hours", 0) or 0 for r in rows)
+        total_absences = sum(r.get("absence_days", 0) or 0 for r in rows)
+        total_vacation = sum(r.get("vacation_used", 0) or 0 for r in rows)
+        total_sick = sum(r.get("sick_days", 0) or 0 for r in rows)
+        total_shifts = sum(r.get("shifts_count", 0) or 0 for r in rows)
+        employee_count = len(rows)
+        monthly.append({
+            "month": m,
+            "actual_hours": round(total_actual, 1),
+            "target_hours": round(total_target, 1),
+            "absence_days": total_absences,
+            "vacation_days": total_vacation,
+            "sick_days": total_sick,
+            "shifts_count": total_shifts,
+            "employee_count": employee_count,
+            "overtime": round(total_actual - total_target, 1),
+        })
+
+    # Per-employee year totals
+    emp_totals: dict = {}
+    for m in range(1, 13):
+        rows = db.get_statistics(year, m, group_id=group_id)
+        for r in rows:
+            eid = r.get("employee_id")
+            if eid not in emp_totals:
+                emp_totals[eid] = {
+                    "employee_id": eid,
+                    "name": r.get("employee_name", r.get("name", "")),
+                    "group": r.get("group_name", r.get("group", "")),
+                    "actual_hours": 0.0,
+                    "target_hours": 0.0,
+                    "absence_days": 0,
+                    "vacation_days": 0,
+                    "sick_days": 0,
+                    "shifts_count": 0,
+                    "monthly_hours": [0.0] * 12,
+                }
+            emp_totals[eid]["actual_hours"] += r.get("actual_hours", 0) or 0
+            emp_totals[eid]["target_hours"] += r.get("target_hours", 0) or 0
+            emp_totals[eid]["absence_days"] += r.get("absence_days", 0) or 0
+            emp_totals[eid]["vacation_days"] += r.get("vacation_used", 0) or 0
+            emp_totals[eid]["sick_days"] += r.get("sick_days", 0) or 0
+            emp_totals[eid]["shifts_count"] += r.get("shifts_count", 0) or 0
+            emp_totals[eid]["monthly_hours"][m - 1] = round(r.get("actual_hours", 0) or 0, 1)
+
+    employees = sorted(emp_totals.values(), key=lambda x: x["actual_hours"], reverse=True)
+    for e in employees:
+        e["actual_hours"] = round(e["actual_hours"], 1)
+        e["target_hours"] = round(e["target_hours"], 1)
+        e["overtime"] = round(e["actual_hours"] - e["target_hours"], 1)
+
+    # Year totals
+    year_totals = {
+        "actual_hours": round(sum(m["actual_hours"] for m in monthly), 1),
+        "target_hours": round(sum(m["target_hours"] for m in monthly), 1),
+        "absence_days": sum(m["absence_days"] for m in monthly),
+        "vacation_days": sum(m["vacation_days"] for m in monthly),
+        "sick_days": sum(m["sick_days"] for m in monthly),
+        "shifts_count": sum(m["shifts_count"] for m in monthly),
+    }
+    year_totals["overtime"] = round(year_totals["actual_hours"] - year_totals["target_hours"], 1)
+
+    return {
+        "year": year,
+        "monthly": monthly,
+        "employees": employees,
+        "totals": year_totals,
+    }
+
+
 # ── Employee detailed statistics ─────────────────────────────
 @app.get("/api/statistics/employee/{emp_id}")
 def get_employee_statistics(
