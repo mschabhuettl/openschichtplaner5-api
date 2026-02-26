@@ -5165,6 +5165,188 @@ def delete_wish(wish_id: int):
     return {"deleted": wish_id}
 
 
+# ── Kapazitäts-Forecast ──────────────────────────────────────────
+@app.get("/api/capacity-forecast")
+def get_capacity_forecast(
+    year: int = Query(..., description="Year (YYYY)"),
+    month: int = Query(..., description="Month (1-12)"),
+    group_id: Optional[int] = Query(None, description="Filter by group"),
+):
+    """Return per-day capacity forecast for a month.
+
+    Each day:
+    - scheduled_count: employees with a shift entry
+    - absent_count: employees with an absence
+    - net_count: scheduled_count (absences are typically already subtracted from schedule)
+    - absent_employees: list of {id, name, absence_type}
+    - required_min: minimum requirement from staffing requirements
+    - coverage_status: ok | low | critical | unknown
+    - conflict_flag: True if absent_count is unusually high relative to total employees
+    """
+    import calendar as _cal
+    from collections import defaultdict
+
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+
+    db = get_db()
+    num_days = _cal.monthrange(year, month)[1]
+    prefix = f"{year:04d}-{month:02d}"
+
+    # Get all employees (optionally filtered by group)
+    all_employees = db.get_employees()
+    if group_id:
+        members = db.get_group_members(group_id)
+        member_ids = {m.get('id', m.get('ID')) for m in members}
+        all_employees = [e for e in all_employees if (e.get('id') or e.get('ID')) in member_ids]
+    total_emp = len(all_employees)
+
+    def _eid(e):
+        return e.get('id') or e.get('ID')
+
+    emp_by_id = {_eid(e): e for e in all_employees}
+
+    # Build employee name lookup
+    emp_name_by_id = {
+        _eid(e): f"{e.get('firstname', e.get('FIRSTNAME',''))} {e.get('lastname', e.get('NAME',''))}".strip()
+        for e in all_employees
+    }
+
+    # Get leave types for labels
+    leave_types_list = db.get_leave_types()
+    leave_label_by_id = {lt.get('id', lt.get('ID')): lt.get('short', lt.get('SHORTNAME', lt.get('name', lt.get('NAME', '?')))) for lt in leave_types_list}
+
+    # Get staffing requirements for minimum thresholds
+    staffing_req = db.get_staffing_requirements()
+    shift_reqs = staffing_req.get("shift_requirements", [])
+
+    # Build per-weekday minimum: max(min) across all shifts for that weekday
+    min_by_weekday: dict = {}
+    for req in shift_reqs:
+        wd = req.get("weekday", -1)
+        m = req.get("min", 0) or 0
+        if wd >= 0:
+            min_by_weekday[wd] = max(min_by_weekday.get(wd, 0), m)
+
+    # Read schedule entries for the month
+    all_mashi = [r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)]
+    all_spshi = [r for r in db._read("SPSHI") if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0]
+
+    # Read absences for the month
+    all_absences = [r for r in db._read("ABSEN") if r.get("DATE", "").startswith(prefix)]
+
+    # Per-day aggregation
+    day_scheduled: dict = defaultdict(set)  # day -> set of emp_ids
+    day_absent: dict = defaultdict(list)    # day -> [{id, name, type}]
+
+    for r in all_mashi:
+        d = r.get("DATE", "")
+        if d.startswith(prefix):
+            try:
+                day = int(d[8:10])
+                eid = r.get("EMPLOYEEID")
+                if eid and eid in emp_by_id:
+                    day_scheduled[day].add(eid)
+            except (ValueError, IndexError):
+                pass
+
+    for r in all_spshi:
+        d = r.get("DATE", "")
+        if d.startswith(prefix):
+            try:
+                day = int(d[8:10])
+                eid = r.get("EMPLOYEEID")
+                if eid and eid in emp_by_id:
+                    day_scheduled[day].add(eid)
+            except (ValueError, IndexError):
+                pass
+
+    for r in all_absences:
+        d = r.get("DATE", "")
+        if d.startswith(prefix):
+            try:
+                day = int(d[8:10])
+                eid = r.get("EMPLOYEEID")
+                if eid and eid in emp_by_id:
+                    lt_id = r.get("LEAVETYPID") or r.get("LEAVETYPEID", 0)
+                    lt_label = leave_label_by_id.get(lt_id, "Abw")
+                    day_absent[day].append({
+                        "id": eid,
+                        "name": emp_name_by_id.get(eid, f"MA {eid}"),
+                        "absence_type": lt_label,
+                    })
+            except (ValueError, IndexError):
+                pass
+
+    result = []
+    for day in range(1, num_days + 1):
+        import datetime as _dt
+        check_date = _dt.date(year, month, day)
+        weekday = check_date.weekday()  # 0=Mon
+
+        scheduled = len(day_scheduled.get(day, set()))
+        absent_list = day_absent.get(day, [])
+        absent_count = len(absent_list)
+
+        required_min = min_by_weekday.get(weekday, 0)
+
+        # Coverage status
+        if required_min > 0:
+            diff = scheduled - required_min
+            if diff >= 0:
+                status = "ok"
+            elif diff == -1:
+                status = "low"
+            else:
+                status = "critical"
+        else:
+            # No requirement set — judge by absolute count
+            if scheduled >= 3:
+                status = "ok"
+            elif scheduled >= 1:
+                status = "low"
+            elif scheduled == 0:
+                status = "unplanned"
+            else:
+                status = "unknown"
+
+        # Vacation conflict flag: more than 30% of team absent
+        conflict_flag = total_emp > 0 and absent_count >= max(2, total_emp * 0.3)
+
+        result.append({
+            "day": day,
+            "date": check_date.isoformat(),
+            "weekday": weekday,  # 0=Mon
+            "scheduled_count": scheduled,
+            "absent_count": absent_count,
+            "absent_employees": absent_list,
+            "required_min": required_min,
+            "coverage_status": status,
+            "conflict_flag": conflict_flag,
+            "total_employees": total_emp,
+        })
+
+    # Summary stats
+    critical_days = [r for r in result if r["coverage_status"] == "critical"]
+    low_days = [r for r in result if r["coverage_status"] == "low"]
+    conflict_days = [r for r in result if r["conflict_flag"]]
+    unplanned_days = [r for r in result if r["coverage_status"] == "unplanned"]
+
+    return {
+        "year": year,
+        "month": month,
+        "total_employees": total_emp,
+        "days": result,
+        "summary": {
+            "critical_count": len(critical_days),
+            "low_count": len(low_days),
+            "conflict_count": len(conflict_days),
+            "unplanned_count": len(unplanned_days),
+            "ok_count": len([r for r in result if r["coverage_status"] == "ok"]),
+        },
+    }
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
