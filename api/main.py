@@ -4732,6 +4732,84 @@ def get_warnings(
 
 
 # ── Woche kopieren ─────────────────────────────────────────────
+class SwapShiftsRequest(BaseModel):
+    employee_id_1: int
+    employee_id_2: int
+    dates: List[str]  # YYYY-MM-DD strings
+
+
+@app.post("/api/schedule/swap")
+def swap_shifts(body: SwapShiftsRequest):
+    """Swap schedule entries (shifts + absences) between two employees for the given dates."""
+    from sp5lib.dbf_reader import read_dbf, get_table_fields
+    from sp5lib.dbf_writer import find_all_records
+    from datetime import datetime as _dt3
+
+    if body.employee_id_1 == body.employee_id_2:
+        raise HTTPException(status_code=400, detail="Beide Mitarbeiter müssen verschieden sein")
+    if not body.dates:
+        raise HTTPException(status_code=400, detail="Mindestens ein Datum erforderlich")
+    for d in body.dates:
+        try:
+            _dt3.strptime(d, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
+
+    db = get_db()
+    swapped = 0
+    errors = []
+
+    def collect_entries(emp_id: int, date_str: str):
+        result = []
+        for table, kind in [('MASHI', 'shift'), ('SPSHI', 'special_shift'), ('ABSEN', 'absence')]:
+            filepath = db._table(table)
+            fields = get_table_fields(filepath)
+            matches = find_all_records(filepath, fields, EMPLOYEEID=emp_id, DATE=date_str)
+            for _, rec in matches:
+                if kind == 'shift':
+                    result.append({'kind': 'shift', 'shift_id': rec.get('SHIFTID'), 'workplace_id': rec.get('WORKPLACID', 0)})
+                elif kind == 'special_shift':
+                    result.append({'kind': 'special_shift', 'shift_id': rec.get('SHIFTID'), 'workplace_id': rec.get('WORKPLACID', 0)})
+                elif kind == 'absence':
+                    result.append({'kind': 'absence', 'leave_type_id': rec.get('LEAVETYPID')})
+        return result
+
+    def write_entries(emp_id: int, date_str: str, entries):
+        for entry in entries:
+            try:
+                if entry['kind'] == 'shift':
+                    db.add_schedule_entry(emp_id, date_str, entry['shift_id'])
+                elif entry['kind'] == 'absence' and entry.get('leave_type_id'):
+                    db.add_absence(emp_id, date_str, entry['leave_type_id'])
+                # special_shift: skip for now (complex custom fields)
+            except Exception as exc:
+                errors.append(f"MA {emp_id} / {date_str}: {exc}")
+
+    for date_str in body.dates:
+        try:
+            entries1 = collect_entries(body.employee_id_1, date_str)
+            entries2 = collect_entries(body.employee_id_2, date_str)
+            # Both empty → skip
+            if not entries1 and not entries2:
+                continue
+            # Delete both
+            db.delete_schedule_entry(body.employee_id_1, date_str)
+            db.delete_schedule_entry(body.employee_id_2, date_str)
+            # Write crossed
+            write_entries(body.employee_id_1, date_str, entries2)
+            write_entries(body.employee_id_2, date_str, entries1)
+            swapped += 1
+        except Exception as exc:
+            errors.append(f"{date_str}: {exc}")
+
+    return {
+        "ok": True,
+        "swapped_days": swapped,
+        "errors": errors,
+        "message": f"{swapped} Tag(e) getauscht" + (f", {len(errors)} Fehler" if errors else ""),
+    }
+
+
 class CopyWeekRequest(BaseModel):
     source_employee_id: int
     dates: List[str]               # YYYY-MM-DD strings (up to 7)
