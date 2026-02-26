@@ -2000,7 +2000,9 @@ def export_schedule(
         return _csv_response(rows, f"dienstplan_{month}.csv")
     else:
         # HTML export
-        month_name = _dt(year, mon, 1).strftime("%B %Y")
+        _month_names_de = ["Januar", "Februar", "März", "April", "Mai", "Juni",
+                           "Juli", "August", "September", "Oktober", "November", "Dezember"]
+        month_name = f"{_month_names_de[mon - 1]} {year}"
         day_headers = ""
         for d in range(1, num_days + 1):
             wd = _dt(year, mon, d).weekday()
@@ -2009,11 +2011,32 @@ def export_schedule(
             cls = "weekend" if is_weekend else ""
             day_headers += f'<th class="day-header {cls}">{d}<br><span style="font-weight:normal;font-size:9px">{wd_abbr}</span></th>'
 
+        # Build shift legend
+        shifts_all = db.get_shifts(include_hidden=False)
+        leave_types_all = db.get_leave_types(include_hidden=False)
+        legend_html = '<div class="no-print" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><strong style="font-size:11px;color:#334155">Legende:</strong>'
+        for s in shifts_all:
+            bg = s.get('COLORBK_HEX', '#fff')
+            fg = s.get('COLORTEXT_HEX', '#000')
+            name = s.get('NAME', '')
+            short = s.get('SHORTNAME', '')
+            legend_html += f'<span style="background:{bg};color:{fg};padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-size:10px;font-weight:bold" title="{name}">{short}</span>'
+        legend_html += '</div>'
+
         rows_html = ""
         for emp in employees:
             emp_name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(', ')
             short = emp.get('SHORTNAME', '')
-            rows_html += f'<tr><td class="emp-name">{emp_name}</td><td class="emp-short">{short}</td>'
+            # Use employee's label color (CBKLABEL) if not white/default
+            cbklabel = emp.get('CBKLABEL', 16777215)
+            cbklabel_hex = emp.get('CBKLABEL_HEX', '#f8fafc')
+            cfglabel_hex = emp.get('CFGLABEL_HEX', '#000000')
+            bold_style = 'font-weight:bold;' if emp.get('BOLD') else ''
+            if cbklabel and cbklabel != 16777215 and cbklabel != 0:
+                emp_style = f'background:{cbklabel_hex};color:{cfglabel_hex};{bold_style}'
+            else:
+                emp_style = f'background:#f8fafc;{bold_style}'
+            rows_html += f'<tr><td class="emp-name" style="{emp_style}">{emp_name}</td><td class="emp-short">{short}</td>'
             for date in days:
                 wd = _dt(year, mon, int(date.split('-')[2])).weekday()
                 is_weekend = wd >= 5
@@ -2053,6 +2076,7 @@ def export_schedule(
 <body>
 <h1>📅 Dienstplan — {month_name}</h1>
 <p class="no-print" style="color:#64748b;font-size:11px">Gedruckt am {_dt.now().strftime("%d.%m.%Y %H:%M")}</p>
+{legend_html}
 <table>
 <thead>
 <tr>
