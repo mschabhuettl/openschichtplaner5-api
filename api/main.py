@@ -4164,6 +4164,26 @@ def compact_database():
     }
 
 
+# ── Burnout-Radar ────────────────────────────────────────────
+
+@app.get("/api/burnout-radar")
+def get_burnout_radar(
+    year: int = Query(..., description="Year"),
+    month: int = Query(..., description="Month 1-12"),
+    streak_threshold: int = Query(6, description="Min consecutive days to flag"),
+    overtime_threshold_pct: float = Query(20.0, description="Min overtime % to flag"),
+    group_id: Optional[int] = Query(None, description="Filter by group"),
+):
+    """Return list of at-risk employees (long streaks or significant overtime)."""
+    return get_db().get_burnout_radar(
+        year=year,
+        month=month,
+        streak_threshold=streak_threshold,
+        overtime_threshold_pct=overtime_threshold_pct,
+        group_id=group_id,
+    )
+
+
 # ── Changelog / Aktivitätsprotokoll ─────────────────────────
 
 @app.get("/api/changelog")
