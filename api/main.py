@@ -4918,6 +4918,125 @@ def copy_week(body: CopyWeekRequest):
     }
 
 
+# ── Fairness-Score ───────────────────────────────────────────────
+@app.get("/api/fairness")
+def get_fairness_score(
+    year: int = Query(..., description="Year"),
+    group_id: Optional[int] = Query(None, description="Filter by group"),
+):
+    """
+    Berechnet den Fairness-Score: Wie gleichmäßig sind Wochenend-, Nacht-
+    und Feiertagsschichten unter den Mitarbeitern verteilt?
+    """
+    import math
+    from datetime import date, timedelta
+
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    if group_id:
+        members = {m["employee_id"] for m in db.get_group_members(group_id)}
+        employees = [e for e in employees if e["ID"] in members]
+
+    shifts_map = {s["ID"]: s for s in db.get_shifts()}
+    holidays_raw = db.get_holidays(year=year)
+    holiday_dates = set()
+    for h in holidays_raw:
+        if isinstance(h, dict):
+            d = h.get("DATE") or h.get("date")
+            if d:
+                holiday_dates.add(str(d)[:10])
+
+    # Identify "night" shifts: start hour >= 20 or end hour <= 6
+    def is_night(shift):
+        t = shift.get("STARTEND0", "")
+        if not t or "-" not in t:
+            return False
+        start = t.split("-")[0].strip()
+        try:
+            h = int(start.split(":")[0])
+            return h >= 20 or h < 6
+        except Exception:
+            return False
+
+    night_shift_ids = {sid for sid, s in shifts_map.items() if is_night(s)}
+
+    # Collect all schedule entries for the year (month by month)
+    all_entries: list[dict] = []
+    for month in range(1, 13):
+        entries = db.get_schedule(year=year, month=month, group_id=group_id)
+        all_entries.extend(entries)
+
+    # Count per employee
+    stats: dict[int, dict] = {}
+    for emp in employees:
+        eid = emp["ID"]
+        stats[eid] = {
+            "employee_id": eid,
+            "name": f"{emp.get('FIRSTNAME','')} {emp.get('NAME','')}".strip(),
+            "shortname": emp.get("SHORTNAME", ""),
+            "total": 0,
+            "weekend": 0,
+            "night": 0,
+            "holiday": 0,
+        }
+
+    for entry in all_entries:
+        eid = entry.get("employee_id")
+        if eid not in stats:
+            continue
+        if entry.get("kind") != "shift":
+            continue
+        date_str = str(entry.get("date", ""))[:10]
+        try:
+            d = date.fromisoformat(date_str)
+        except Exception:
+            continue
+        weekday = d.weekday()  # 0=Mo … 6=So
+        stats[eid]["total"] += 1
+        if weekday >= 5:
+            stats[eid]["weekend"] += 1
+        shift_id = entry.get("shift_id")
+        if shift_id in night_shift_ids:
+            stats[eid]["night"] += 1
+        if date_str in holiday_dates:
+            stats[eid]["holiday"] += 1
+
+    result = [v for v in stats.values() if v["total"] > 0]
+    if not result:
+        return {"year": year, "employees": [], "fairness": {}}
+
+    # Compute fairness metrics (std-dev based, lower = more fair)
+    def score(values):
+        if len(values) < 2:
+            return 100.0
+        mean = sum(values) / len(values)
+        if mean == 0:
+            return 100.0
+        variance = sum((x - mean) ** 2 for x in values) / len(values)
+        cv = math.sqrt(variance) / mean  # coefficient of variation
+        return round(max(0, 100 - cv * 100), 1)
+
+    weekend_vals = [r["weekend"] for r in result]
+    night_vals   = [r["night"] for r in result]
+    holiday_vals = [r["holiday"] for r in result]
+    total_vals   = [r["total"] for r in result]
+
+    fairness = {
+        "weekend_score": score(weekend_vals),
+        "night_score":   score(night_vals),
+        "holiday_score": score(holiday_vals),
+        "total_score":   score(total_vals),
+        "overall":       round((score(weekend_vals) + score(night_vals) + score(total_vals)) / 3, 1),
+        "avg_weekend":   round(sum(weekend_vals) / len(weekend_vals), 1),
+        "avg_night":     round(sum(night_vals)   / len(night_vals),   1) if sum(night_vals) else 0,
+        "avg_holiday":   round(sum(holiday_vals) / len(holiday_vals), 1) if sum(holiday_vals) else 0,
+        "avg_total":     round(sum(total_vals)   / len(total_vals),   1),
+    }
+
+    result.sort(key=lambda x: x["name"])
+    return {"year": year, "employees": result, "fairness": fairness}
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
