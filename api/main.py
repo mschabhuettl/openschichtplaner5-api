@@ -5347,6 +5347,269 @@ def get_capacity_forecast(
     }
 
 
+
+# ── Qualitätsbericht ─────────────────────────────────────────────────────────
+
+@app.get("/api/quality-report")
+def get_quality_report(
+    year: int = Query(...),
+    month: int = Query(...),
+):
+    """Monatlicher Qualitätsbericht: Besetzung, Stunden-Compliance, Konflikte, Score."""
+    import calendar as _cal
+    from collections import defaultdict
+
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+
+    db = get_db()
+    num_days = _cal.monthrange(year, month)[1]
+    prefix = f"{year:04d}-{month:02d}"
+    month_name = _cal.month_name[month]
+
+    # ── Mitarbeiter laden ───────────────────────────────────────────────────
+    employees = {e["ID"]: e for e in db._read("EMPL") if not e.get("HIDE", 0)}
+    active_emp_ids = set(employees.keys())
+
+    # ── Schicht-Definitionen (Stunden) ──────────────────────────────────────
+    shifts_by_id: dict = {}
+    for s in db._read("SHIFT"):
+        sid = s.get("ID")
+        if sid:
+            # Stunden = Dauer in h; DURATION in Minuten oder schon Stunden?
+            dur_min = s.get("DURATION", 0)  # meist Minuten
+            shifts_by_id[sid] = s.get("HOURS", dur_min / 60.0 if dur_min > 60 else dur_min)
+
+    # ── Geplante Schichten (MASHI) ───────────────────────────────────────────
+    day_emp_sets: dict = defaultdict(set)
+    emp_actual_hours: dict = defaultdict(float)
+    emp_shifts_count: dict = defaultdict(int)
+    for r in db._read("MASHI"):
+        d = r.get("DATE", "")
+        if d.startswith(prefix):
+            eid = r.get("EMPLOYEEID")
+            if eid and eid in active_emp_ids:
+                try:
+                    day_num = int(d[8:10])
+                    day_emp_sets[day_num].add(eid)
+                    emp_shifts_count[eid] += 1
+                    sid = r.get("SHIFTID")
+                    hrs = shifts_by_id.get(sid, 8.0) if sid else 8.0
+                    emp_actual_hours[eid] += hrs
+                except (ValueError, IndexError):
+                    pass
+
+    # ── Abwesenheiten (ABSEN) ────────────────────────────────────────────────
+    emp_absence_days: dict = defaultdict(int)
+    emp_vacation_days: dict = defaultdict(int)
+    emp_sick_days: dict = defaultdict(int)
+    try:
+        leave_types = {lt["ID"]: lt for lt in db._read("LEAVETYP")}
+    except Exception:
+        leave_types = {}
+    for r in db._read("ABSEN"):
+        d = r.get("DATE", "")
+        if d.startswith(prefix):
+            eid = r.get("EMPLOYEEID")
+            if eid and eid in active_emp_ids:
+                emp_absence_days[eid] += 1
+                lt_id = r.get("LEAVETYPEID")
+                lt = leave_types.get(lt_id, {})
+                name = (lt.get("NAME") or lt.get("SHORTNAME") or "").lower()
+                if "urlaub" in name or "vacation" in name or "holiday" in name:
+                    emp_vacation_days[eid] += 1
+                elif "krank" in name or "sick" in name:
+                    emp_sick_days[eid] += 1
+
+    # ── Tages-Besetzungs-Check ───────────────────────────────────────────────
+    required_min = max(2, len(active_emp_ids) // 8)  # dynamisch
+    coverage_days = []
+    critical_days = []
+    low_days = []
+    ok_days = []
+    unplanned_days = []
+
+    for day in range(1, num_days + 1):
+        date_obj = f"{year:04d}-{month:02d}-{day:02d}"
+        wd = _cal.weekday(year, month, day)  # 0=Mon
+        is_weekend = wd >= 5
+        scheduled = len(day_emp_sets.get(day, set()))
+
+        if scheduled == 0 and not is_weekend:
+            status = "unplanned"
+            unplanned_days.append(day)
+        elif scheduled >= required_min:
+            status = "ok"
+            ok_days.append(day)
+        elif scheduled == required_min - 1:
+            status = "low"
+            low_days.append(day)
+        else:
+            status = "critical"
+            critical_days.append(day)
+
+        coverage_days.append({
+            "day": day,
+            "date": date_obj,
+            "weekday": wd,
+            "is_weekend": is_weekend,
+            "scheduled": scheduled,
+            "required": required_min,
+            "status": status,
+        })
+
+    # ── Stunden-Compliance (via get_statistics für korrekte Stunden-Berechnung) ──
+    hours_issues = []
+    hours_ok = []
+    total_target = 0.0
+    total_actual = 0.0
+
+    try:
+        stats_list = db.get_statistics(year, month)
+    except Exception:
+        stats_list = []
+
+    for stat in stats_list:
+        target = stat.get("target_hours") or 0.0
+        actual = stat.get("actual_hours") or 0.0
+        if target <= 0:
+            continue
+        total_target += target
+        total_actual += actual
+        deviation_pct = ((actual - target) / target * 100) if target else 0
+        absence_days = stat.get("absence_days", 0) or 0
+        issue_type = None
+        if deviation_pct > 15:
+            issue_type = "over"
+        elif actual < target * 0.5 and absence_days < 10 and stat.get("shifts_count", 0) > 0:
+            # stark unterstunden ohne Abwesenheiten = ungewöhnlich
+            issue_type = "under"
+        if issue_type:
+            hours_issues.append({
+                "employee_id": stat.get("employee_id"),
+                "name": stat.get("employee_name", ""),
+                "short": stat.get("employee_short", ""),
+                "target_hours": round(target, 1),
+                "actual_hours": round(actual, 1),
+                "deviation_pct": round(deviation_pct, 1),
+                "issue_type": issue_type,
+                "shifts_count": stat.get("shifts_count", 0),
+            })
+        else:
+            hours_ok.append(stat.get("employee_id"))
+
+    # ── Score berechnen ──────────────────────────────────────────────────────
+    # Formel: Gewichte Coverage 50%, Hours 30%, Konflikte 20%
+    work_days_count = sum(1 for d in coverage_days if not d["is_weekend"])
+    covered_work_days = sum(1 for d in coverage_days
+                            if not d["is_weekend"] and d["status"] in ("ok", "low"))
+    coverage_score = (covered_work_days / work_days_count * 100) if work_days_count else 100
+    hours_score = max(0, 100 - len(hours_issues) * 5)
+    # Conflicts: critical days & unplanned days penalty
+    conflict_penalty = len(critical_days) * 5 + len(unplanned_days) * 3
+    conflict_score = max(0, 100 - conflict_penalty)
+
+    overall_score = round(coverage_score * 0.5 + hours_score * 0.3 + conflict_score * 0.2)
+    if overall_score >= 90:
+        grade = "A"
+        grade_label = "Ausgezeichnet"
+        grade_color = "green"
+    elif overall_score >= 75:
+        grade = "B"
+        grade_label = "Gut"
+        grade_color = "blue"
+    elif overall_score >= 60:
+        grade = "C"
+        grade_label = "Verbesserungsbedarf"
+        grade_color = "yellow"
+    else:
+        grade = "D"
+        grade_label = "Kritisch"
+        grade_color = "red"
+
+    # ── Issues-Liste zusammenstellen ─────────────────────────────────────────
+    findings = []
+    if critical_days:
+        findings.append({
+            "severity": "critical",
+            "category": "Besetzung",
+            "message": f"{len(critical_days)} Tag(e) kritisch unterbesetzt",
+            "days": critical_days,
+        })
+    if unplanned_days:
+        findings.append({
+            "severity": "warning",
+            "category": "Planung",
+            "message": f"{len(unplanned_days)} Werktag(e) ohne Planung",
+            "days": unplanned_days,
+        })
+    if low_days:
+        findings.append({
+            "severity": "info",
+            "category": "Besetzung",
+            "message": f"{len(low_days)} Tag(e) knapp besetzt",
+            "days": low_days,
+        })
+    over_emp = [h for h in hours_issues if h["issue_type"] == "over"]
+    under_emp = [h for h in hours_issues if h["issue_type"] == "under"]
+    if over_emp:
+        findings.append({
+            "severity": "warning",
+            "category": "Überstunden",
+            "message": f"{len(over_emp)} Mitarbeiter mit >15% Überstunden",
+            "employees": [h["short"] for h in over_emp],
+        })
+    if under_emp:
+        findings.append({
+            "severity": "warning",
+            "category": "Unterstunden",
+            "message": f"{len(under_emp)} Mitarbeiter stark unterstundet",
+            "employees": [h["short"] for h in under_emp],
+        })
+    if not findings:
+        findings.append({
+            "severity": "ok",
+            "category": "Allgemein",
+            "message": "Keine Auffälligkeiten — Monat kann abgeschlossen werden.",
+        })
+
+    return {
+        "year": year,
+        "month": month,
+        "month_name": month_name,
+        "overall_score": overall_score,
+        "grade": grade,
+        "grade_label": grade_label,
+        "grade_color": grade_color,
+        "active_employees": len(active_emp_ids),
+        "work_days": work_days_count,
+        "total_days": num_days,
+        "required_min_per_day": required_min,
+        "coverage": {
+            "ok_days": len(ok_days),
+            "low_days": len(low_days),
+            "critical_days": len(critical_days),
+            "unplanned_days": len(unplanned_days),
+            "score": round(coverage_score, 1),
+        },
+        "hours": {
+            "total_target": round(total_target, 1),
+            "total_actual": round(total_actual, 1),
+            "employees_ok": len(hours_ok),
+            "employees_issues": len(hours_issues),
+            "issues": hours_issues,
+            "score": round(hours_score, 1),
+        },
+        "conflicts": {
+            "score": round(conflict_score, 1),
+            "critical_days": critical_days,
+            "unplanned_days": unplanned_days,
+        },
+        "findings": findings,
+        "coverage_days": coverage_days,
+    }
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
