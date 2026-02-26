@@ -4731,6 +4731,95 @@ def get_warnings(
     }
 
 
+# ── Woche kopieren ─────────────────────────────────────────────
+class CopyWeekRequest(BaseModel):
+    source_employee_id: int
+    dates: List[str]               # YYYY-MM-DD strings (up to 7)
+    target_employee_ids: List[int]
+    skip_existing: bool = True     # True = don't overwrite existing entries
+
+
+@app.post("/api/schedule/copy-week")
+def copy_week(body: CopyWeekRequest):
+    """Copy one employee's schedule entries (shifts + absences) for given dates to one or more target employees."""
+    db = get_db()
+    if not body.dates or not body.target_employee_ids:
+        raise HTTPException(status_code=400, detail="dates and target_employee_ids must not be empty")
+
+    # Validate dates
+    from datetime import datetime as _dt2
+    for d in body.dates:
+        try:
+            _dt2.strptime(d, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid date: {d}")
+
+    # Collect source entries grouped by date
+    # We query each date individually via the schedule tables
+    from sp5lib.dbf_reader import read_dbf, get_table_fields
+    from sp5lib.dbf_writer import find_all_records
+    source_entries: dict[str, list[dict]] = {}  # date → list of entry dicts
+    for date_str in body.dates:
+        entries_for_date = []
+        for table, kind in [('MASHI', 'shift'), ('SPSHI', 'special_shift'), ('ABSEN', 'absence')]:
+            filepath = db._table(table)
+            fields = get_table_fields(filepath)
+            matches = find_all_records(filepath, fields, EMPLOYEEID=body.source_employee_id, DATE=date_str)
+            for _, rec in matches:
+                if kind == 'shift':
+                    entries_for_date.append({'kind': 'shift', 'shift_id': rec.get('SHIFTID'), 'workplace_id': rec.get('WORKPLACID', 0)})
+                elif kind == 'special_shift':
+                    entries_for_date.append({'kind': 'special_shift', 'shift_id': rec.get('SHIFTID'), 'workplace_id': rec.get('WORKPLACID', 0)})
+                elif kind == 'absence':
+                    entries_for_date.append({'kind': 'absence', 'leave_type_id': rec.get('LEAVETYPID')})
+        source_entries[date_str] = entries_for_date
+
+    # Apply to targets
+    created = 0
+    skipped = 0
+    errors = []
+    for target_id in body.target_employee_ids:
+        if target_id == body.source_employee_id:
+            continue
+        for date_str, entries in source_entries.items():
+            if not entries:
+                continue
+            # Check existing
+            existing_any = False
+            if body.skip_existing:
+                for table in ['MASHI', 'SPSHI', 'ABSEN']:
+                    filepath = db._table(table)
+                    fields = get_table_fields(filepath)
+                    if find_all_records(filepath, fields, EMPLOYEEID=target_id, DATE=date_str):
+                        existing_any = True
+                        break
+            if existing_any:
+                skipped += len(entries)
+                continue
+            # Delete existing first (if not skip_existing)
+            if not body.skip_existing:
+                db.delete_schedule_entry(target_id, date_str)
+            for entry in entries:
+                try:
+                    if entry['kind'] == 'shift':
+                        db.add_schedule_entry(target_id, date_str, entry['shift_id'])
+                        created += 1
+                    elif entry['kind'] == 'absence' and entry.get('leave_type_id'):
+                        db.add_absence(target_id, date_str, entry['leave_type_id'])
+                        created += 1
+                    # special_shift: skip for now (complex custom fields)
+                except Exception as exc:
+                    errors.append(f"MA {target_id} / {date_str}: {exc}")
+
+    return {
+        "ok": True,
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+        "message": f"{created} Einträge kopiert, {skipped} übersprungen" + (f", {len(errors)} Fehler" if errors else ""),
+    }
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')

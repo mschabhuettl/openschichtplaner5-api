@@ -3,14 +3,6 @@
     "timestamp": "2026-02-22T04:49:06",
     "user": "api",
     "action": "CREATE",
-    "entity": "absence",
-    "entity_id": 0,
-    "details": "POST /api/absences"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
     "entity": "schedule",
     "entity_id": 0,
     "details": "POST /api/schedule"
@@ -7998,5 +7990,13 @@
     "entity": "schedule",
     "entity_id": 0,
     "details": "POST /api/schedule"
+  },
+  {
+    "timestamp": "2026-02-26T15:12:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule/copy-week"
   }
 ]
