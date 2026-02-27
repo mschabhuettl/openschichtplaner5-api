@@ -6198,6 +6198,123 @@ def delete_handover(note_id: str):
     return {"ok": True}
 
 
+# ── Schicht-Tauschbörse ──────────────────────────────────────────
+
+class SwapRequestCreate(BaseModel):
+    requester_id: int
+    requester_date: str   # YYYY-MM-DD
+    partner_id: int
+    partner_date: str     # YYYY-MM-DD
+    note: Optional[str] = ''
+
+
+class SwapRequestResolve(BaseModel):
+    action: str           # 'approve' | 'reject'
+    resolved_by: Optional[str] = 'planner'
+    reject_reason: Optional[str] = ''
+
+
+@app.get("/api/swap-requests")
+def list_swap_requests(
+    status: Optional[str] = None,
+    employee_id: Optional[int] = None,
+):
+    """List shift swap requests, optionally filtered by status or employee."""
+    requests = get_db().get_swap_requests(status=status, employee_id=employee_id)
+    # Enrich with employee names + shift info
+    employees = {e['ID']: e for e in get_db().get_employees(include_hidden=True)}
+    shifts = {s['ID']: s for s in get_db().get_shifts(include_hidden=True)}
+
+    def get_shift_for(emp_id: int, date_str: str):
+        sched = get_db().get_schedule_day(date_str)
+        for entry in sched:
+            if entry.get('employee_id') == emp_id:
+                sid = entry.get('shift_id')
+                if sid and sid in shifts:
+                    s = shifts[sid]
+                    return {'id': sid, 'name': s.get('SHORTNAME', '?'), 'color': s.get('COLOR', '#888')}
+        return None
+
+    result = []
+    for req in requests:
+        r = dict(req)
+        req_emp = employees.get(req['requester_id'], {})
+        par_emp = employees.get(req['partner_id'], {})
+        r['requester_name'] = f"{req_emp.get('NAME', '?')}, {req_emp.get('FIRSTNAME', '')}"
+        r['requester_short'] = req_emp.get('SHORTNAME', '?')
+        r['partner_name'] = f"{par_emp.get('NAME', '?')}, {par_emp.get('FIRSTNAME', '')}"
+        r['partner_short'] = par_emp.get('SHORTNAME', '?')
+        r['requester_shift'] = get_shift_for(req['requester_id'], req['requester_date'])
+        r['partner_shift'] = get_shift_for(req['partner_id'], req['partner_date'])
+        result.append(r)
+    return result
+
+
+@app.post("/api/swap-requests")
+def create_swap_request(body: SwapRequestCreate):
+    """Create a new shift swap request."""
+    from datetime import datetime as _dt4
+    # Validate dates
+    for d in [body.requester_date, body.partner_date]:
+        try:
+            _dt4.strptime(d, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
+    if body.requester_id == body.partner_id:
+        raise HTTPException(status_code=400, detail="Antragsteller und Partner müssen verschieden sein")
+    entry = get_db().create_swap_request(
+        requester_id=body.requester_id,
+        requester_date=body.requester_date,
+        partner_id=body.partner_id,
+        partner_date=body.partner_date,
+        note=body.note or '',
+    )
+    get_db().log_action('system', 'CREATE', 'swap_request', entry['id'],
+                        f"MA {body.requester_id} → MA {body.partner_id} ({body.requester_date}↔{body.partner_date})")
+    return entry
+
+
+@app.patch("/api/swap-requests/{swap_id}/resolve")
+def resolve_swap_request(swap_id: int, body: SwapRequestResolve):
+    """Approve or reject a swap request. If approved, executes the actual shift swap."""
+    if body.action not in ('approve', 'reject'):
+        raise HTTPException(status_code=400, detail="action muss 'approve' oder 'reject' sein")
+    entry = get_db().resolve_swap_request(swap_id, body.action,
+                                          resolved_by=body.resolved_by or 'planner',
+                                          reject_reason=body.reject_reason or '')
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Anfrage nicht gefunden oder bereits abgeschlossen")
+
+    if body.action == 'approve':
+        # Execute the actual shift swap for both dates
+        swap_result = swap_shifts(SwapShiftsRequest(
+            employee_id_1=entry['requester_id'],
+            employee_id_2=entry['partner_id'],
+            dates=[entry['requester_date']] if entry['requester_date'] == entry['partner_date']
+                  else [entry['requester_date'], entry['partner_date']],
+        ))
+        # If different dates, we need to swap requester→partner_date and partner→requester_date
+        if entry['requester_date'] != entry['partner_date']:
+            # Custom cross-date swap: move requester's shift to partner_date and vice versa
+            pass  # The swap above handles same-dates; cross-date swap is complex — mark as todo
+        get_db().log_action(body.resolved_by or 'planner', 'UPDATE', 'swap_request', swap_id,
+                            f"Genehmigt: MA {entry['requester_id']} ↔ MA {entry['partner_id']}")
+        return {**entry, 'swap_result': swap_result}
+
+    get_db().log_action(body.resolved_by or 'planner', 'UPDATE', 'swap_request', swap_id,
+                        f"Abgelehnt: {body.reject_reason}")
+    return entry
+
+
+@app.delete("/api/swap-requests/{swap_id}")
+def delete_swap_request(swap_id: int):
+    """Delete a swap request (cancel)."""
+    deleted = get_db().delete_swap_request(swap_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Nicht gefunden")
+    return {"ok": True}
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')

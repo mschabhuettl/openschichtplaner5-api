@@ -3,38 +3,6 @@
     "timestamp": "2026-02-22T04:49:06",
     "user": "api",
     "action": "CREATE",
-    "entity": "absence",
-    "entity_id": 0,
-    "details": "POST /api/absences"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "absence",
-    "entity_id": 0,
-    "details": "POST /api/absences"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
     "entity": "schedule",
     "entity_id": 0,
     "details": "POST /api/schedule"
@@ -7998,5 +7966,37 @@
     "entity": "handover",
     "entity_id": 0,
     "details": "POST /api/handover"
+  },
+  {
+    "timestamp": "2026-02-27T04:04:38",
+    "user": "system",
+    "action": "CREATE",
+    "entity": "swap_request",
+    "entity_id": 1,
+    "details": "MA 1 → MA 2 (2026-03-05↔2026-03-06)"
+  },
+  {
+    "timestamp": "2026-02-27T04:04:38",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "swap_requests",
+    "entity_id": 0,
+    "details": "POST /api/swap-requests"
+  },
+  {
+    "timestamp": "2026-02-27T04:04:47",
+    "user": "system",
+    "action": "CREATE",
+    "entity": "swap_request",
+    "entity_id": 2,
+    "details": "MA 40 → MA 41 (2026-03-05↔2026-03-06)"
+  },
+  {
+    "timestamp": "2026-02-27T04:04:47",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "swap_requests",
+    "entity_id": 0,
+    "details": "POST /api/swap-requests"
   }
 ]
