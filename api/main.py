@@ -1383,7 +1383,11 @@ def delete_schedule_entry(employee_id: int, date: str, _cur_user: dict = Depends
         raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
     try:
         count = get_db().delete_schedule_entry(employee_id, date)
+        if count == 0:
+            raise HTTPException(status_code=404, detail="Schedule entry not found")
         return {"ok": True, "deleted": count}
+    except HTTPException:
+        raise
     except Exception as e:
         raise _sanitize_500(e)
 
@@ -1646,7 +1650,11 @@ def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends
 def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_employee(emp_id)
+        if count == 0:
+            raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
         return {"ok": True, "hidden": count}
+    except HTTPException:
+        raise
     except Exception as e:
         raise _sanitize_500(e, f'delete_employee/{emp_id}')
 
