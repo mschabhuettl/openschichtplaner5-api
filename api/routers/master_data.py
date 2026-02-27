@@ -531,6 +531,8 @@ def delete_special_staffing(record_id: int, _cur_user: dict = Depends(require_pl
 
 # ── Kompetenz-Matrix / Skills ────────────────────────────────────
 import uuid as _uuid
+import os
+import json as _json
 
 def _skills_path() -> str:
     data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
