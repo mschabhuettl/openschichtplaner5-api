@@ -3,14 +3,6 @@
     "timestamp": "2026-02-22T04:49:06",
     "user": "api",
     "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
     "entity": "absence",
     "entity_id": 0,
     "details": "POST /api/absences"
@@ -7993,6 +7985,14 @@
   },
   {
     "timestamp": "2026-02-27T03:45:58",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "simulation",
+    "entity_id": 0,
+    "details": "POST /api/simulation"
+  },
+  {
+    "timestamp": "2026-02-27T03:49:05",
     "user": "api",
     "action": "CREATE",
     "entity": "simulation",
