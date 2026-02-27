@@ -1,1221 +1,5 @@
 [
   {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "leave_type",
-    "entity_id": 19,
-    "details": "PUT /api/leave-types/19"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "leave_type",
-    "entity_id": 19,
-    "details": "DELETE /api/leave-types/19"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "holiday",
-    "entity_id": 0,
-    "details": "POST /api/holidays"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "holiday",
-    "entity_id": 127,
-    "details": "PUT /api/holidays/127"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "holiday",
-    "entity_id": 127,
-    "details": "DELETE /api/holidays/127"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "workplace",
-    "entity_id": 0,
-    "details": "POST /api/workplaces"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "workplace",
-    "entity_id": 6,
-    "details": "PUT /api/workplaces/6"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "workplace",
-    "entity_id": 6,
-    "details": "DELETE /api/workplaces/6"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "workplace",
-    "entity_id": 1,
-    "details": "POST /api/workplaces/1/employees/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "workplace",
-    "entity_id": 1,
-    "details": "DELETE /api/workplaces/1/employees/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "extracharge",
-    "entity_id": 0,
-    "details": "POST /api/extracharges"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "extracharge",
-    "entity_id": 5,
-    "details": "PUT /api/extracharges/5"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "extracharge",
-    "entity_id": 5,
-    "details": "DELETE /api/extracharges/5"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "leave_entitlements",
-    "entity_id": 0,
-    "details": "POST /api/leave-entitlements"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "holiday_bans",
-    "entity_id": 0,
-    "details": "POST /api/holiday-bans"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "holiday_bans",
-    "entity_id": 1,
-    "details": "DELETE /api/holiday-bans/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "group",
-    "entity_id": 1,
-    "details": "POST /api/groups/1/members"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "group",
-    "entity_id": 1,
-    "details": "DELETE /api/groups/1/members/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "group",
-    "entity_id": 0,
-    "details": "POST /api/groups"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "group",
-    "entity_id": 66,
-    "details": "PUT /api/groups/66"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "group",
-    "entity_id": 66,
-    "details": "DELETE /api/groups/66"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "notes",
-    "entity_id": 0,
-    "details": "POST /api/notes"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "notes",
-    "entity_id": 18,
-    "details": "PUT /api/notes/18"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "notes",
-    "entity_id": 18,
-    "details": "DELETE /api/notes/18"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "periods",
-    "entity_id": 0,
-    "details": "POST /api/periods"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "periods",
-    "entity_id": 1,
-    "details": "DELETE /api/periods/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "staffing_requirements",
-    "entity_id": 0,
-    "details": "POST /api/staffing-requirements"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "shift_cycles",
-    "entity_id": 0,
-    "details": "POST /api/shift-cycles"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "shift_cycles",
-    "entity_id": 0,
-    "details": "POST /api/shift-cycles/assign"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "shift_cycles",
-    "entity_id": 0,
-    "details": "DELETE /api/shift-cycles/assign/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "shift_cycles",
-    "entity_id": 9,
-    "details": "DELETE /api/shift-cycles/9"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "shift_cycles",
-    "entity_id": 0,
-    "details": "POST /api/shift-cycles"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "shift_cycles",
-    "entity_id": 9,
-    "details": "PUT /api/shift-cycles/9"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "shift_cycles",
-    "entity_id": 9,
-    "details": "DELETE /api/shift-cycles/9"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "einsatzplan",
-    "entity_id": 0,
-    "details": "POST /api/einsatzplan"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "einsatzplan",
-    "entity_id": 1,
-    "details": "PUT /api/einsatzplan/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "einsatzplan",
-    "entity_id": 1,
-    "details": "DELETE /api/einsatzplan/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "cycle_exceptions",
-    "entity_id": 0,
-    "details": "POST /api/cycle-exceptions"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "cycle_exceptions",
-    "entity_id": 1,
-    "details": "DELETE /api/cycle-exceptions/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "employee_access",
-    "entity_id": 0,
-    "details": "POST /api/employee-access"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "employee_access",
-    "entity_id": 1,
-    "details": "DELETE /api/employee-access/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "group_access",
-    "entity_id": 0,
-    "details": "POST /api/group-access"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "group_access",
-    "entity_id": 2,
-    "details": "DELETE /api/group-access/2"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "testuser",
-    "action": "CREATE",
-    "entity": "employee",
-    "entity_id": 1,
-    "details": "Test entry"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "annual_close",
-    "entity_id": 0,
-    "details": "POST /api/annual-close"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "absence",
-    "entity_id": 121,
-    "details": "PATCH /api/absences/121/status"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "auth",
-    "entity_id": 0,
-    "details": "POST /api/auth/logout"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule/generate"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/employees"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/shifts"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/holidays"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "employee",
-    "entity_id": 0,
-    "details": "POST /api/employees"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "employee",
-    "entity_id": 41,
-    "details": "PUT /api/employees/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "user",
-    "entity_id": 0,
-    "details": "POST /api/users"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "user",
-    "entity_id": 0,
-    "details": "POST /api/users"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "user",
-    "entity_id": 259,
-    "details": "PUT /api/users/259"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "user",
-    "entity_id": 0,
-    "details": "POST /api/users"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "user",
-    "entity_id": 0,
-    "details": "POST /api/users"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "user",
-    "entity_id": 259,
-    "details": "DELETE /api/users/259"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "user",
-    "entity_id": 0,
-    "details": "POST /api/users"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "user",
-    "entity_id": 259,
-    "details": "POST /api/users/259/change-password"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "employee",
-    "entity_id": 0,
-    "details": "POST /api/employees"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:27",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "notes",
-    "entity_id": 999999,
-    "details": "DELETE /api/notes/999999"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:28",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule/bulk"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:28",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "periods",
-    "entity_id": 999999,
-    "details": "DELETE /api/periods/999999"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:28",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/groups"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:28",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/absences"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:28",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/bookings-actual"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:28",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/bookings-nominal"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:28",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/entitlements"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:28",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "import",
-    "entity_id": 0,
-    "details": "POST /api/import/absences-csv"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule/generate"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "einsatzplan",
-    "entity_id": 0,
-    "details": "POST /api/einsatzplan/deviation"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "notes",
-    "entity_id": 0,
-    "details": "POST /api/notes"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "user",
-    "entity_id": 0,
-    "details": "POST /api/users"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "schedule",
-    "entity_id": 41,
-    "details": "DELETE /api/schedule/41/2026-07-15"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "auth",
-    "entity_id": 0,
-    "details": "POST /api/auth/logout"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "auth",
-    "entity_id": 0,
-    "details": "POST /api/auth/logout"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "auth",
-    "entity_id": 0,
-    "details": "POST /api/auth/logout"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:29",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "schedule",
-    "entity_id": 41,
-    "details": "DELETE /api/schedule/41/2025-10-10"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:30",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "schedule_shift",
-    "entity_id": 41,
-    "details": "DELETE /api/schedule-shift/41/2025-10-15"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:30",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "absence",
-    "entity_id": 41,
-    "details": "DELETE /api/absences/41/2025-10-20"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:30",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule/generate"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:30",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "employee",
-    "entity_id": 0,
-    "details": "POST /api/employees"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:30",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "employee",
-    "entity_id": 72,
-    "details": "PUT /api/employees/72"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:30",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "employee",
-    "entity_id": 72,
-    "details": "DELETE /api/employees/72"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:30",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "absence",
-    "entity_id": 0,
-    "details": "POST /api/absences"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:30",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "absence",
-    "entity_id": 41,
-    "details": "DELETE /api/absences/41/2025-11-01"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "employee",
-    "entity_id": 0,
-    "details": "POST /api/employees"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "employee",
-    "entity_id": 0,
-    "details": "POST /api/employees"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "employee",
-    "entity_id": 41,
-    "details": "PUT /api/employees/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "employee",
-    "entity_id": 0,
-    "details": "POST /api/employees"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "employee",
-    "entity_id": 72,
-    "details": "DELETE /api/employees/72"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "shift",
-    "entity_id": 0,
-    "details": "POST /api/shifts"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "group",
-    "entity_id": 0,
-    "details": "POST /api/groups"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "schedule",
-    "entity_id": 41,
-    "details": "DELETE /api/schedule/41/2025-02-10"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "absence",
-    "entity_id": 0,
-    "details": "POST /api/absences"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "leave_type",
-    "entity_id": 0,
-    "details": "POST /api/leave-types"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "holiday",
-    "entity_id": 0,
-    "details": "POST /api/holidays"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "workplace",
-    "entity_id": 0,
-    "details": "POST /api/workplaces"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "notes",
-    "entity_id": 0,
-    "details": "POST /api/notes"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "bookings",
-    "entity_id": 0,
-    "details": "POST /api/bookings"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:00",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule/bulk"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:01",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "auth",
-    "entity_id": 0,
-    "details": "POST /api/auth/login"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:01",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "auth",
-    "entity_id": 0,
-    "details": "POST /api/auth/logout"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:01",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "auth",
-    "entity_id": 0,
-    "details": "POST /api/auth/logout"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:02",
-    "user": "test_user",
-    "action": "CREATE",
-    "entity": "employee",
-    "entity_id": 1,
-    "details": "Test entry"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:02",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "settings",
-    "entity_id": 0,
-    "details": "PUT /api/settings"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:02",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "restrictions",
-    "entity_id": 0,
-    "details": "POST /api/restrictions"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:02",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "restrictions",
-    "entity_id": 41,
-    "details": "DELETE /api/restrictions/41/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "staffing_requirements",
-    "entity_id": 0,
-    "details": "POST /api/staffing-requirements/special"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "staffing_requirements",
-    "entity_id": 0,
-    "details": "PUT /api/staffing-requirements/special/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "staffing_requirements",
-    "entity_id": 0,
-    "details": "DELETE /api/staffing-requirements/special/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "bookings",
-    "entity_id": 0,
-    "details": "POST /api/bookings"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "bookings",
-    "entity_id": 1,
-    "details": "DELETE /api/bookings/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "bookings",
-    "entity_id": 0,
-    "details": "POST /api/bookings/carry-forward"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "bookings",
-    "entity_id": 0,
-    "details": "POST /api/bookings/annual-statement"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "shift",
-    "entity_id": 0,
-    "details": "POST /api/shifts"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "shift",
-    "entity_id": 37,
-    "details": "PUT /api/shifts/37"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "shift",
-    "entity_id": 37,
-    "details": "DELETE /api/shifts/37"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "leave_type",
-    "entity_id": 0,
-    "details": "POST /api/leave-types"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "leave_type",
-    "entity_id": 19,
-    "details": "PUT /api/leave-types/19"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "leave_type",
-    "entity_id": 19,
-    "details": "DELETE /api/leave-types/19"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "holiday",
-    "entity_id": 0,
-    "details": "POST /api/holidays"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "holiday",
-    "entity_id": 127,
-    "details": "PUT /api/holidays/127"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "holiday",
-    "entity_id": 127,
-    "details": "DELETE /api/holidays/127"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "workplace",
-    "entity_id": 0,
-    "details": "POST /api/workplaces"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "workplace",
-    "entity_id": 6,
-    "details": "PUT /api/workplaces/6"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "workplace",
-    "entity_id": 6,
-    "details": "DELETE /api/workplaces/6"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "workplace",
-    "entity_id": 1,
-    "details": "POST /api/workplaces/1/employees/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "workplace",
-    "entity_id": 1,
-    "details": "DELETE /api/workplaces/1/employees/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "extracharge",
-    "entity_id": 0,
-    "details": "POST /api/extracharges"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "extracharge",
-    "entity_id": 5,
-    "details": "PUT /api/extracharges/5"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "extracharge",
-    "entity_id": 5,
-    "details": "DELETE /api/extracharges/5"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "leave_entitlements",
-    "entity_id": 0,
-    "details": "POST /api/leave-entitlements"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "holiday_bans",
-    "entity_id": 0,
-    "details": "POST /api/holiday-bans"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "holiday_bans",
-    "entity_id": 1,
-    "details": "DELETE /api/holiday-bans/1"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "group",
-    "entity_id": 1,
-    "details": "POST /api/groups/1/members"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "group",
-    "entity_id": 1,
-    "details": "DELETE /api/groups/1/members/41"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "group",
-    "entity_id": 0,
-    "details": "POST /api/groups"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "group",
-    "entity_id": 66,
-    "details": "PUT /api/groups/66"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "group",
-    "entity_id": 66,
-    "details": "DELETE /api/groups/66"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "notes",
-    "entity_id": 0,
-    "details": "POST /api/notes"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "notes",
-    "entity_id": 18,
-    "details": "PUT /api/notes/18"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "notes",
-    "entity_id": 18,
-    "details": "DELETE /api/notes/18"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "periods",
-    "entity_id": 0,
-    "details": "POST /api/periods"
-  },
-  {
-    "timestamp": "2026-02-27T09:30:03",
-    "user": "api",
-    "action": "DELETE",
-    "entity": "periods",
-    "entity_id": 1,
-    "details": "DELETE /api/periods/1"
-  },
-  {
     "timestamp": "2026-02-27T09:30:03",
     "user": "api",
     "action": "CREATE",
@@ -7998,5 +6782,1221 @@
     "entity": "simulation",
     "entity_id": 0,
     "details": "POST /api/simulation"
+  },
+  {
+    "timestamp": "2026-02-27T15:13:50",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:13:59",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:14:04",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:14:41",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:14:42",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "simulation",
+    "entity_id": 0,
+    "details": "POST /api/simulation"
+  },
+  {
+    "timestamp": "2026-02-27T15:14:46",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:14:55",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:15:01",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:15:10",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:15:15",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:16:15",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:16:22",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:16:29",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:16:36",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T15:16:36",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "simulation",
+    "entity_id": 0,
+    "details": "POST /api/simulation"
+  },
+  {
+    "timestamp": "2026-02-27T16:13:53",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "employee",
+    "entity_id": 0,
+    "details": "POST /api/employees"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "employee",
+    "entity_id": 0,
+    "details": "POST /api/employees"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "employee",
+    "entity_id": 41,
+    "details": "PUT /api/employees/41"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "employee",
+    "entity_id": 0,
+    "details": "POST /api/employees"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "employee",
+    "entity_id": 72,
+    "details": "DELETE /api/employees/72"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "shift",
+    "entity_id": 0,
+    "details": "POST /api/shifts"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "group",
+    "entity_id": 0,
+    "details": "POST /api/groups"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "schedule",
+    "entity_id": 41,
+    "details": "DELETE /api/schedule/41/2025-02-10"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "absence",
+    "entity_id": 0,
+    "details": "POST /api/absences"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "leave_type",
+    "entity_id": 0,
+    "details": "POST /api/leave-types"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "holiday",
+    "entity_id": 0,
+    "details": "POST /api/holidays"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "workplace",
+    "entity_id": 0,
+    "details": "POST /api/workplaces"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "notes",
+    "entity_id": 0,
+    "details": "POST /api/notes"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "bookings",
+    "entity_id": 0,
+    "details": "POST /api/bookings"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:11",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule/bulk"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:12",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:12",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/logout"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:12",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/logout"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "test_user",
+    "action": "CREATE",
+    "entity": "employee",
+    "entity_id": 1,
+    "details": "Test entry"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "settings",
+    "entity_id": 0,
+    "details": "PUT /api/settings"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "restrictions",
+    "entity_id": 0,
+    "details": "POST /api/restrictions"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "restrictions",
+    "entity_id": 41,
+    "details": "DELETE /api/restrictions/41/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "staffing_requirements",
+    "entity_id": 0,
+    "details": "POST /api/staffing-requirements/special"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "staffing_requirements",
+    "entity_id": 0,
+    "details": "PUT /api/staffing-requirements/special/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "staffing_requirements",
+    "entity_id": 0,
+    "details": "DELETE /api/staffing-requirements/special/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "bookings",
+    "entity_id": 0,
+    "details": "POST /api/bookings"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "bookings",
+    "entity_id": 1,
+    "details": "DELETE /api/bookings/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "bookings",
+    "entity_id": 0,
+    "details": "POST /api/bookings/carry-forward"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:13",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "bookings",
+    "entity_id": 0,
+    "details": "POST /api/bookings/annual-statement"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "shift",
+    "entity_id": 0,
+    "details": "POST /api/shifts"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "shift",
+    "entity_id": 37,
+    "details": "PUT /api/shifts/37"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "shift",
+    "entity_id": 37,
+    "details": "DELETE /api/shifts/37"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "leave_type",
+    "entity_id": 0,
+    "details": "POST /api/leave-types"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "leave_type",
+    "entity_id": 19,
+    "details": "PUT /api/leave-types/19"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "leave_type",
+    "entity_id": 19,
+    "details": "DELETE /api/leave-types/19"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "holiday",
+    "entity_id": 0,
+    "details": "POST /api/holidays"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "holiday",
+    "entity_id": 127,
+    "details": "PUT /api/holidays/127"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "holiday",
+    "entity_id": 127,
+    "details": "DELETE /api/holidays/127"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "workplace",
+    "entity_id": 0,
+    "details": "POST /api/workplaces"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "workplace",
+    "entity_id": 6,
+    "details": "PUT /api/workplaces/6"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "workplace",
+    "entity_id": 6,
+    "details": "DELETE /api/workplaces/6"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "workplace",
+    "entity_id": 1,
+    "details": "POST /api/workplaces/1/employees/41"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "workplace",
+    "entity_id": 1,
+    "details": "DELETE /api/workplaces/1/employees/41"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "extracharge",
+    "entity_id": 0,
+    "details": "POST /api/extracharges"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "extracharge",
+    "entity_id": 5,
+    "details": "PUT /api/extracharges/5"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "extracharge",
+    "entity_id": 5,
+    "details": "DELETE /api/extracharges/5"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "leave_entitlements",
+    "entity_id": 0,
+    "details": "POST /api/leave-entitlements"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "holiday_bans",
+    "entity_id": 0,
+    "details": "POST /api/holiday-bans"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "holiday_bans",
+    "entity_id": 1,
+    "details": "DELETE /api/holiday-bans/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "group",
+    "entity_id": 1,
+    "details": "POST /api/groups/1/members"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "group",
+    "entity_id": 1,
+    "details": "DELETE /api/groups/1/members/41"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "group",
+    "entity_id": 0,
+    "details": "POST /api/groups"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "group",
+    "entity_id": 66,
+    "details": "PUT /api/groups/66"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "group",
+    "entity_id": 66,
+    "details": "DELETE /api/groups/66"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "notes",
+    "entity_id": 0,
+    "details": "POST /api/notes"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "notes",
+    "entity_id": 18,
+    "details": "PUT /api/notes/18"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "notes",
+    "entity_id": 18,
+    "details": "DELETE /api/notes/18"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "periods",
+    "entity_id": 0,
+    "details": "POST /api/periods"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "periods",
+    "entity_id": 1,
+    "details": "DELETE /api/periods/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "staffing_requirements",
+    "entity_id": 0,
+    "details": "POST /api/staffing-requirements"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "shift_cycles",
+    "entity_id": 0,
+    "details": "POST /api/shift-cycles"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "shift_cycles",
+    "entity_id": 0,
+    "details": "POST /api/shift-cycles/assign"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "shift_cycles",
+    "entity_id": 0,
+    "details": "DELETE /api/shift-cycles/assign/41"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "shift_cycles",
+    "entity_id": 9,
+    "details": "DELETE /api/shift-cycles/9"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "shift_cycles",
+    "entity_id": 0,
+    "details": "POST /api/shift-cycles"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "shift_cycles",
+    "entity_id": 9,
+    "details": "PUT /api/shift-cycles/9"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "shift_cycles",
+    "entity_id": 9,
+    "details": "DELETE /api/shift-cycles/9"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "einsatzplan",
+    "entity_id": 0,
+    "details": "POST /api/einsatzplan"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "einsatzplan",
+    "entity_id": 1,
+    "details": "PUT /api/einsatzplan/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "einsatzplan",
+    "entity_id": 1,
+    "details": "DELETE /api/einsatzplan/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "cycle_exceptions",
+    "entity_id": 0,
+    "details": "POST /api/cycle-exceptions"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "cycle_exceptions",
+    "entity_id": 1,
+    "details": "DELETE /api/cycle-exceptions/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "employee_access",
+    "entity_id": 0,
+    "details": "POST /api/employee-access"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "employee_access",
+    "entity_id": 1,
+    "details": "DELETE /api/employee-access/1"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "group_access",
+    "entity_id": 0,
+    "details": "POST /api/group-access"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "group_access",
+    "entity_id": 2,
+    "details": "DELETE /api/group-access/2"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "testuser",
+    "action": "CREATE",
+    "entity": "employee",
+    "entity_id": 1,
+    "details": "Test entry"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "annual_close",
+    "entity_id": 0,
+    "details": "POST /api/annual-close"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "absence",
+    "entity_id": 121,
+    "details": "PATCH /api/absences/121/status"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/logout"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule/generate"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/employees"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/shifts"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/holidays"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "employee",
+    "entity_id": 0,
+    "details": "POST /api/employees"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "employee",
+    "entity_id": 41,
+    "details": "PUT /api/employees/41"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "user",
+    "entity_id": 0,
+    "details": "POST /api/users"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "user",
+    "entity_id": 0,
+    "details": "POST /api/users"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "user",
+    "entity_id": 259,
+    "details": "PUT /api/users/259"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "user",
+    "entity_id": 0,
+    "details": "POST /api/users"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "user",
+    "entity_id": 0,
+    "details": "POST /api/users"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:14",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "user",
+    "entity_id": 259,
+    "details": "DELETE /api/users/259"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:15",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "user",
+    "entity_id": 0,
+    "details": "POST /api/users"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:15",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "user",
+    "entity_id": 259,
+    "details": "POST /api/users/259/change-password"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:15",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "employee",
+    "entity_id": 0,
+    "details": "POST /api/employees"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:15",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "notes",
+    "entity_id": 999999,
+    "details": "DELETE /api/notes/999999"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:15",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule/bulk"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:15",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "periods",
+    "entity_id": 999999,
+    "details": "DELETE /api/periods/999999"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/groups"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/absences"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/bookings-actual"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/bookings-nominal"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/entitlements"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "import",
+    "entity_id": 0,
+    "details": "POST /api/import/absences-csv"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule/generate"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "einsatzplan",
+    "entity_id": 0,
+    "details": "POST /api/einsatzplan/deviation"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule/bulk"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "absence",
+    "entity_id": 0,
+    "details": "POST /api/absences"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "notes",
+    "entity_id": 0,
+    "details": "POST /api/notes"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:16",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "shift",
+    "entity_id": 0,
+    "details": "POST /api/shifts"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "notes",
+    "entity_id": 0,
+    "details": "POST /api/notes"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "notes",
+    "entity_id": 0,
+    "details": "POST /api/notes"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "notes",
+    "entity_id": 18,
+    "details": "PUT /api/notes/18"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "notes",
+    "entity_id": 0,
+    "details": "POST /api/notes"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "notes",
+    "entity_id": 18,
+    "details": "DELETE /api/notes/18"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "notes",
+    "entity_id": 0,
+    "details": "POST /api/notes"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "notes",
+    "entity_id": 0,
+    "details": "POST /api/notes"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "user",
+    "entity_id": 0,
+    "details": "POST /api/users"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "schedule",
+    "entity_id": 41,
+    "details": "DELETE /api/schedule/41/2026-07-15"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/logout"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/logout"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/logout"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:17",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "schedule",
+    "entity_id": 41,
+    "details": "DELETE /api/schedule/41/2025-10-10"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:18",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "schedule_shift",
+    "entity_id": 41,
+    "details": "DELETE /api/schedule-shift/41/2025-10-15"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:18",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "absence",
+    "entity_id": 41,
+    "details": "DELETE /api/absences/41/2025-10-20"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:18",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "schedule",
+    "entity_id": 0,
+    "details": "POST /api/schedule/generate"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:18",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "employee",
+    "entity_id": 0,
+    "details": "POST /api/employees"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:18",
+    "user": "api",
+    "action": "UPDATE",
+    "entity": "employee",
+    "entity_id": 72,
+    "details": "PUT /api/employees/72"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:18",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "employee",
+    "entity_id": 72,
+    "details": "DELETE /api/employees/72"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:18",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "absence",
+    "entity_id": 0,
+    "details": "POST /api/absences"
+  },
+  {
+    "timestamp": "2026-02-27T16:14:18",
+    "user": "api",
+    "action": "DELETE",
+    "entity": "absence",
+    "entity_id": 41,
+    "details": "DELETE /api/absences/41/2025-11-01"
   }
 ]
