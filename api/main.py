@@ -41,10 +41,17 @@ _logger.addHandler(_stderr_handler)
 # ── Rate Limiter ────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
+# NOTE: _sessions is in-memory only. For multi-worker deployments,
+# use --workers 1 or replace with a Redis-backed session store.
+
 # ── In-memory session store ─────────────────────────────────────
 import time as _time
 
 _sessions: dict[str, dict] = {}
+# ⚠️  PRODUCTION WARNING: _sessions is an in-process dict. With multiple uvicorn workers
+# (--workers N) each worker has its own copy → tokens issued by worker A are unknown to
+# worker B, causing random 401 errors. For production use a shared session store
+# (e.g. Redis via fastapi-sessions or similar). Single-worker deployments are unaffected.
 
 # Token lifetime: default 8h, configurable via TOKEN_EXPIRE_HOURS env
 _TOKEN_EXPIRE_HOURS = float(os.environ.get('TOKEN_EXPIRE_HOURS', '8'))
@@ -597,6 +604,10 @@ def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
     try:
         result = get_db().create_user(body.model_dump())
         return {"ok": True, "record": result}
+    except ValueError as e:
+        if str(e).startswith('DUPLICATE:USERNAME:'):
+            raise HTTPException(status_code=409, detail=f"Benutzername '{body.NAME}' existiert bereits")
+        raise _sanitize_500(e, 'create_user')
     except Exception as e:
         raise _sanitize_500(e, 'create_user')
 
@@ -1150,11 +1161,12 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
     try:
+        import html as _html
         result = get_db().add_note(
             date=body.date,
-            text=body.text,
+            text=_html.escape(body.text),
             employee_id=body.employee_id or 0,
-            text2=body.text2 or '',
+            text2=_html.escape(body.text2 or ''),
         )
         return {"ok": True, "record": result}
     except Exception as e:
@@ -1177,10 +1189,11 @@ def update_note(note_id: int, body: NoteUpdate, _cur_user: dict = Depends(requir
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
     try:
+        import html as _html
         result = get_db().update_note(
             note_id=note_id,
-            text1=body.text,
-            text2=body.text2,
+            text1=_html.escape(body.text) if body.text is not None else None,
+            text2=_html.escape(body.text2) if body.text2 is not None else None,
             employee_id=body.employee_id,
             date=body.date,
         )
@@ -1658,6 +1671,11 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
     try:
         result = get_db().create_employee(body.model_dump())
         return {"ok": True, "record": result}
+    except ValueError as e:
+        if str(e).startswith('DUPLICATE:SHORTNAME:'):
+            sn = (body.SHORTNAME or '').strip()
+            raise HTTPException(status_code=409, detail=f"Kürzel '{sn}' ist bereits vergeben")
+        raise _sanitize_500(e, 'create_employee')
     except Exception as e:
         raise _sanitize_500(e, 'create_employee')
 
@@ -1863,6 +1881,10 @@ def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
     try:
         result = get_db().create_shift(body.model_dump())
         return {"ok": True, "record": result}
+    except ValueError as e:
+        if str(e).startswith('DUPLICATE:SHIFTNAME:'):
+            raise HTTPException(status_code=409, detail=f"Schicht mit dem Namen '{body.NAME}' existiert bereits")
+        raise _sanitize_500(e, 'create_shift')
     except Exception as e:
         raise _sanitize_500(e, 'create_shift')
 
@@ -4036,8 +4058,18 @@ def backup_download(_admin: dict = Depends(require_admin)):
 
 @app.post("/api/backup/restore")
 async def backup_restore(file: UploadFile = File(...)):
-    """Restore .DBF / .FPT / .CDX files from an uploaded ZIP."""
+    """Restore .DBF / .FPT / .CDX files from an uploaded ZIP.
+
+    ⚠️  DESTRUCTIVE OPERATION: This endpoint overwrites existing database files on disk.
+    All current data will be replaced by the contents of the uploaded ZIP.
+    There is no automatic rollback. Make sure you have a backup before restoring.
+    """
     allowed_ext = {'.DBF', '.FPT', '.CDX'}
+
+    _logger.warning(
+        "BACKUP RESTORE initiated: filename=%s size=%s — this will overwrite DB files in %s",
+        file.filename, file.size, DB_PATH
+    )
 
     content = await file.read()
 
@@ -4072,6 +4104,7 @@ async def backup_restore(file: UploadFile = File(...)):
                 fout.write(data)
             restored.append(basename)
 
+    _logger.warning("BACKUP RESTORE completed: %d files restored: %s", len(restored), restored)
     return {"restored": len(restored), "files": restored}
 
 
