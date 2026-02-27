@@ -2,22 +2,6 @@
   {
     "timestamp": "2026-02-27T09:29:26",
     "user": "api",
-    "action": "DELETE",
-    "entity": "shift",
-    "entity_id": 37,
-    "details": "DELETE /api/shifts/37"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "leave_type",
-    "entity_id": 0,
-    "details": "POST /api/leave-types"
-  },
-  {
-    "timestamp": "2026-02-27T09:29:26",
-    "user": "api",
     "action": "UPDATE",
     "entity": "leave_type",
     "entity_id": 19,
@@ -7998,5 +7982,21 @@
     "entity": "auth",
     "entity_id": 0,
     "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T14:39:58",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T14:47:08",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "simulation",
+    "entity_id": 0,
+    "details": "POST /api/simulation"
   }
 ]
