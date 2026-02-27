@@ -3,14 +3,6 @@
     "timestamp": "2026-02-22T22:08:17",
     "user": "api",
     "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule/generate"
-  },
-  {
-    "timestamp": "2026-02-22T22:08:17",
-    "user": "api",
-    "action": "CREATE",
     "entity": "import",
     "entity_id": 0,
     "details": "POST /api/import/employees"
@@ -7993,6 +7985,14 @@
   },
   {
     "timestamp": "2026-02-27T06:20:10",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T06:21:28",
     "user": "api",
     "action": "CREATE",
     "entity": "auth",

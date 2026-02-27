@@ -1,6 +1,8 @@
 """FastAPI application for OpenSchichtplaner5."""
 import os
 import sys
+import logging
+import logging.handlers
 from dotenv import load_dotenv
 
 # Load .env file if present
@@ -12,10 +14,32 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI, HTTPException, Query, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List
 from sp5lib.database import SP5Database
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# ── Logging setup ───────────────────────────────────────────
+_log_file = '/tmp/sp5-api.log'
+_handler = logging.handlers.RotatingFileHandler(
+    _log_file, maxBytes=10 * 1024 * 1024, backupCount=3
+)
+_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s %(name)s %(message)s'
+))
+_logger = logging.getLogger('sp5api')
+_logger.setLevel(logging.INFO)
+_logger.addHandler(_handler)
+# Also output to stderr for container/systemd environments
+_stderr_handler = logging.StreamHandler()
+_stderr_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+_logger.addHandler(_stderr_handler)
+
+# ── Rate Limiter ────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 # ── In-memory session store ─────────────────────────────────────
 _sessions: dict[str, dict] = {}
@@ -89,6 +113,9 @@ app = FastAPI(
     version="0.1.0"
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -97,8 +124,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions, log with details, return sanitized 500."""
+    import traceback
+    _logger.error(
+        "Unhandled exception: %s %s | %s | %s",
+        request.method, request.url.path,
+        type(exc).__name__,
+        traceback.format_exc().splitlines()[-1],
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Interner Serverfehler. Bitte versuche es erneut."},
+    )
+
 def get_db() -> SP5Database:
     return SP5Database(DB_PATH)
+
+
+def _sanitize_500(e: Exception, context: str = '') -> HTTPException:
+    """Log full exception, return sanitized 500 without internal details."""
+    import traceback
+    _logger.error(
+        "500 error context=%s type=%s msg=%s trace=%s",
+        context, type(e).__name__, str(e),
+        traceback.format_exc().splitlines()[-1],
+    )
+    return HTTPException(
+        status_code=500,
+        detail="Interner Serverfehler. Bitte versuche es erneut.",
+    )
 
 
 # ── Auth Middleware ─────────────────────────────────────────────
@@ -114,18 +171,36 @@ _sessions[_DEV_TOKEN] = _DEV_USER
 async def auth_middleware(request: Request, call_next):
     """Require authentication for all /api/* endpoints except public ones."""
     path = request.url.path
+    method = request.method
+    client_ip = request.client.host if request.client else 'unknown'
+
     # Allow public paths and non-API paths (frontend assets)
     if path in _PUBLIC_PATHS or not path.startswith('/api/'):
         return await call_next(request)
     # Check token
     token = request.headers.get('x-auth-token')
     if not token or token not in _sessions:
-        from fastapi.responses import JSONResponse
+        _logger.warning("AUTH 401 | ip=%s method=%s path=%s", client_ip, method, path)
         return JSONResponse(
             status_code=401,
             content={"detail": "Nicht angemeldet"}
         )
-    return await call_next(request)
+    response = await call_next(request)
+    # Log 403 responses
+    if response.status_code == 403:
+        user_info = _sessions.get(token, {})
+        _logger.warning(
+            "AUTH 403 | ip=%s method=%s path=%s user=%s",
+            client_ip, method, path, user_info.get('NAME', '?')
+        )
+    # Log write operations
+    if method in ('POST', 'PUT', 'DELETE') and response.status_code < 400:
+        user_info = _sessions.get(token, {})
+        _logger.info(
+            "WRITE %s | ip=%s path=%s user=%s",
+            method, client_ip, path, user_info.get('NAME', '?')
+        )
+    return response
 
 
 # ── Routes ─────────────────────────────────────────────────────
@@ -365,7 +440,7 @@ def get_employees(include_hidden: bool = False):
 def get_employee(emp_id: int):
     e = get_db().get_employee(emp_id)
     if e is None:
-        raise HTTPException(status_code=404, detail="Employee not found")
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
     return e
 
 
@@ -446,27 +521,31 @@ class LoginBody(BaseModel):
 
 @app.post("/api/users")
 def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
+    if not body.NAME or not body.NAME.strip():
+        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+    if not body.PASSWORD or not body.PASSWORD.strip():
+        raise HTTPException(status_code=422, detail="Feld 'PASSWORD' darf nicht leer sein")
     if body.role not in ('Admin', 'Planer', 'Leser'):
-        raise HTTPException(status_code=400, detail="role must be Admin, Planer, or Leser")
+        raise HTTPException(status_code=400, detail="role muss Admin, Planer oder Leser sein")
     try:
         result = get_db().create_user(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, 'create_user')
 
 
 @app.put("/api/users/{user_id}")
 def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_admin)):
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     if 'role' in data and data['role'] not in ('Admin', 'Planer', 'Leser'):
-        raise HTTPException(status_code=400, detail="role must be Admin, Planer, or Leser")
+        raise HTTPException(status_code=400, detail="role muss Admin, Planer oder Leser sein")
     try:
         result = get_db().update_user(user_id, data)
         return {"ok": True, "record": result}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=f"Benutzer ID {user_id} nicht gefunden")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'update_user/{user_id}')
 
 
 @app.delete("/api/users/{user_id}")
@@ -474,12 +553,12 @@ def delete_user(user_id: int, _admin: dict = Depends(require_admin)):
     try:
         count = get_db().delete_user(user_id)
         if count == 0:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail=f"Benutzer ID {user_id} nicht gefunden")
         return {"ok": True, "hidden": count}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'delete_user/{user_id}')
 
 
 class ChangePasswordBody(BaseModel):
@@ -498,16 +577,22 @@ def change_user_password(user_id: int, body: ChangePasswordBody, _admin: dict = 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.post("/api/auth/login")
-def login(body: LoginBody):
+@limiter.limit("5/minute")
+def login(request: Request, body: LoginBody):
     """Simple login: verify username+password against 5USER.DBF."""
     import secrets
+    client_ip = request.client.host if request.client else 'unknown'
     user = get_db().verify_user_password(body.username, body.password)
     if user is None:
+        _logger.warning(
+            "AUTH LOGIN_FAIL | ip=%s username=%s", client_ip, body.username
+        )
         raise HTTPException(status_code=401, detail="Ungültiger Benutzername oder Passwort")
+    _logger.info("AUTH LOGIN_OK | ip=%s username=%s", client_ip, body.username)
     # Generate a session token and store in memory
     token = secrets.token_hex(32)
     _sessions[token] = user
@@ -665,10 +750,13 @@ def get_year_summary(
         year = _date.today().year
     db = get_db()
 
-    # Collect stats for each month
+    # Collect stats for each month — single pass to avoid duplicate DB calls
     monthly = []
+    emp_totals: dict = {}
+    all_monthly_rows: list = []
     for m in range(1, 13):
         rows = db.get_statistics(year, m, group_id=group_id)
+        all_monthly_rows.append((m, rows))
         total_actual = sum(r.get("actual_hours", 0) or 0 for r in rows)
         total_target = sum(r.get("target_hours", 0) or 0 for r in rows)
         total_absences = sum(r.get("absence_days", 0) or 0 for r in rows)
@@ -688,10 +776,8 @@ def get_year_summary(
             "overtime": round(total_actual - total_target, 1),
         })
 
-    # Per-employee year totals
-    emp_totals: dict = {}
-    for m in range(1, 13):
-        rows = db.get_statistics(year, m, group_id=group_id)
+    # Per-employee year totals (re-use already-fetched rows)
+    for m, rows in all_monthly_rows:
         for r in rows:
             eid = r.get("employee_id")
             if eid not in emp_totals:
@@ -844,7 +930,7 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer
         result = get_db().assign_cycle(body.employee_id, body.cycle_id, body.start_date)
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/shift-cycles/assign/{employee_id}")
@@ -853,7 +939,7 @@ def remove_cycle_assignment(employee_id: int, _cur_user: dict = Depends(require_
         count = get_db().remove_cycle_assignment(employee_id)
         return {"ok": True, "removed": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Shift Cycle CRUD ──────────────────────────────────────────
@@ -884,7 +970,7 @@ def create_shift_cycle(body: ShiftCycleCreateBody, _cur_user: dict = Depends(req
         result = get_db().create_shift_cycle(body.name.strip(), body.size_weeks)
         return {"ok": True, "cycle": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.put("/api/shift-cycles/{cycle_id}")
@@ -906,7 +992,7 @@ def update_shift_cycle(cycle_id: int, body: ShiftCycleUpdateBody, _cur_user: dic
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/shift-cycles/{cycle_id}")
@@ -919,7 +1005,7 @@ def delete_shift_cycle(cycle_id: int, _cur_user: dict = Depends(require_planer))
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Staffing Requirements ─────────────────────────────────────
@@ -981,7 +1067,7 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 class NoteUpdate(BaseModel):
@@ -1013,7 +1099,7 @@ def update_note(note_id: int, body: NoteUpdate, _cur_user: dict = Depends(requir
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/notes/{note_id}")
@@ -1022,7 +1108,7 @@ def delete_note(note_id: int, _cur_user: dict = Depends(require_planer)):
         count = get_db().delete_note(note_id)
         return {"ok": True, "deleted": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Periods ───────────────────────────────────────────────────
@@ -1060,7 +1146,7 @@ def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer))
         })
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/periods/{period_id}")
@@ -1069,7 +1155,7 @@ def delete_period(period_id: int, _cur_user: dict = Depends(require_planer)):
         count = get_db().delete_period(period_id)
         return {"ok": True, "deleted": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Staffing Requirements Write ──────────────────────────────
@@ -1100,7 +1186,7 @@ def set_staffing_requirement(body: StaffingRequirementSet, _cur_user: dict = Dep
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Schedule Templates (Schicht-Vorlagen & Favoriten) ────────
@@ -1236,7 +1322,7 @@ def create_schedule_entry(body: ScheduleEntryCreate, _cur_user: dict = Depends(r
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/schedule/{employee_id}/{date}")
@@ -1250,7 +1336,7 @@ def delete_schedule_entry(employee_id: int, date: str, _cur_user: dict = Depends
         count = get_db().delete_schedule_entry(employee_id, date)
         return {"ok": True, "deleted": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/schedule-shift/{employee_id}/{date}")
@@ -1265,7 +1351,7 @@ def delete_shift_only(employee_id: int, date: str, _cur_user: dict = Depends(req
         count = get_db().delete_shift_only(employee_id, date)
         return {"ok": True, "deleted": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/absences/{employee_id}/{date}")
@@ -1280,7 +1366,7 @@ def delete_absence_only(employee_id: int, date: str, _cur_user: dict = Depends(r
         count = get_db().delete_absence_only(employee_id, date)
         return {"ok": True, "deleted": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Generate schedule from cycle ────────────────────────────
@@ -1324,7 +1410,7 @@ def generate_schedule(body: ScheduleGenerateRequest, _cur_user: dict = Depends(r
             'message': message,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Write: absence ───────────────────────────────────────────
@@ -1368,7 +1454,7 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Write: Employees ─────────────────────────────────────────
@@ -1459,7 +1545,13 @@ class EmployeeUpdate(BaseModel):
 @app.post("/api/employees")
 def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
+        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+    if body.HRSDAY is not None and body.HRSDAY < 0:
+        raise HTTPException(status_code=422, detail="Feld 'HRSDAY' darf nicht negativ sein")
+    if body.HRSWEEK is not None and body.HRSWEEK < 0:
+        raise HTTPException(status_code=422, detail="Feld 'HRSWEEK' darf nicht negativ sein")
+    if body.HRSMONTH is not None and body.HRSMONTH < 0:
+        raise HTTPException(status_code=422, detail="Feld 'HRSMONTH' darf nicht negativ sein")
     # Validate optional date fields
     for field_name, val in [('BIRTHDAY', body.BIRTHDAY), ('EMPSTART', body.EMPSTART), ('EMPEND', body.EMPEND)]:
         if val:
@@ -1467,24 +1559,38 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
                 from datetime import datetime as _dtt
                 _dtt.strptime(val, '%Y-%m-%d')
             except ValueError:
-                raise HTTPException(status_code=400, detail=f"{field_name} muss im Format YYYY-MM-DD sein")
+                raise HTTPException(status_code=422, detail=f"Feld '{field_name}' muss im Format YYYY-MM-DD sein")
     try:
         result = get_db().create_employee(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, 'create_employee')
 
 
 @app.put("/api/employees/{emp_id}")
 def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
+        # Validate negative hours if provided
+        for field in ('HRSDAY', 'HRSWEEK', 'HRSMONTH', 'HRSTOTAL'):
+            if field in data and data[field] < 0:
+                raise HTTPException(status_code=422, detail=f"Feld '{field}' darf nicht negativ sein")
+        # Validate date fields if provided
+        for field in ('BIRTHDAY', 'EMPSTART', 'EMPEND'):
+            if field in data and data[field]:
+                try:
+                    from datetime import datetime as _dtt
+                    _dtt.strptime(data[field], '%Y-%m-%d')
+                except ValueError:
+                    raise HTTPException(status_code=422, detail=f"Feld '{field}' muss im Format YYYY-MM-DD sein")
         result = get_db().update_employee(emp_id, data)
         return {"ok": True, "record": result}
+    except HTTPException:
+        raise
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'update_employee/{emp_id}')
 
 
 @app.delete("/api/employees/{emp_id}")
@@ -1493,7 +1599,7 @@ def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
         count = get_db().delete_employee(emp_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'delete_employee/{emp_id}')
 
 
 # ── Employee Photo Upload ─────────────────────────────────────
@@ -1549,12 +1655,12 @@ class GroupMemberBody(BaseModel):
 @app.post("/api/groups")
 def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
+        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
     try:
         result = get_db().create_group(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, 'create_group')
 
 
 @app.put("/api/groups/{group_id}")
@@ -1564,9 +1670,9 @@ def update_group(group_id: int, body: GroupUpdate, _cur_user: dict = Depends(req
         result = get_db().update_group(group_id, data)
         return {"ok": True, "record": result}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=f"Gruppe ID {group_id} nicht gefunden")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'update_group/{group_id}')
 
 
 @app.delete("/api/groups/{group_id}")
@@ -1575,7 +1681,7 @@ def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
         count = get_db().delete_group(group_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'delete_group/{group_id}')
 
 
 @app.post("/api/groups/{group_id}/members")
@@ -1584,7 +1690,7 @@ def add_group_member(group_id: int, body: GroupMemberBody, _cur_user: dict = Dep
         result = get_db().add_group_member(group_id, body.employee_id)
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'add_group_member/{group_id}')
 
 
 @app.delete("/api/groups/{group_id}/members/{emp_id}")
@@ -1593,7 +1699,7 @@ def remove_group_member(group_id: int, emp_id: int, _cur_user: dict = Depends(re
         count = get_db().remove_group_member(group_id, emp_id)
         return {"ok": True, "removed": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'remove_group_member/{group_id}/{emp_id}')
 
 
 # ── Write: Shifts ─────────────────────────────────────────────
@@ -1652,12 +1758,14 @@ class ShiftUpdate(BaseModel):
 @app.post("/api/shifts")
 def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
+        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+    if body.DURATION0 is not None and body.DURATION0 < 0:
+        raise HTTPException(status_code=422, detail="Feld 'DURATION0' darf nicht negativ sein")
     try:
         result = get_db().create_shift(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, 'create_shift')
 
 
 @app.put("/api/shifts/{shift_id}")
@@ -1667,9 +1775,9 @@ def update_shift(shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(req
         result = get_db().update_shift(shift_id, data)
         return {"ok": True, "record": result}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=f"Schicht ID {shift_id} nicht gefunden")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'update_shift/{shift_id}')
 
 
 @app.delete("/api/shifts/{shift_id}")
@@ -1678,7 +1786,7 @@ def hide_shift(shift_id: int, _cur_user: dict = Depends(require_admin)):
         count = get_db().hide_shift(shift_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'hide_shift/{shift_id}')
 
 
 # ── Write: Leave Types ────────────────────────────────────────
@@ -1709,12 +1817,14 @@ class LeaveTypeUpdate(BaseModel):
 @app.post("/api/leave-types")
 def create_leave_type(body: LeaveTypeCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
+        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+    if body.STDENTIT is not None and body.STDENTIT < 0:
+        raise HTTPException(status_code=422, detail="Feld 'STDENTIT' darf nicht negativ sein")
     try:
         result = get_db().create_leave_type(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, 'create_leave_type')
 
 
 @app.put("/api/leave-types/{lt_id}")
@@ -1724,9 +1834,9 @@ def update_leave_type(lt_id: int, body: LeaveTypeUpdate, _cur_user: dict = Depen
         result = get_db().update_leave_type(lt_id, data)
         return {"ok": True, "record": result}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=f"Abwesenheitstyp ID {lt_id} nicht gefunden")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'update_leave_type/{lt_id}')
 
 
 @app.delete("/api/leave-types/{lt_id}")
@@ -1735,7 +1845,7 @@ def hide_leave_type(lt_id: int, _cur_user: dict = Depends(require_admin)):
         count = get_db().hide_leave_type(lt_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e, f'hide_leave_type/{lt_id}')
 
 
 # ── Write: Holidays ───────────────────────────────────────────
@@ -1765,7 +1875,7 @@ def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)
         result = get_db().create_holiday(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.put("/api/holidays/{holiday_id}")
@@ -1777,7 +1887,7 @@ def update_holiday(holiday_id: int, body: HolidayUpdate, _cur_user: dict = Depen
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/holidays/{holiday_id}")
@@ -1786,7 +1896,7 @@ def delete_holiday(holiday_id: int, _cur_user: dict = Depends(require_admin)):
         count = get_db().delete_holiday(holiday_id)
         return {"ok": True, "deleted": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Write: Workplaces ─────────────────────────────────────────
@@ -1818,7 +1928,7 @@ def create_workplace(body: WorkplaceCreate, _cur_user: dict = Depends(require_ad
         result = get_db().create_workplace(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.put("/api/workplaces/{wp_id}")
@@ -1830,7 +1940,7 @@ def update_workplace(wp_id: int, body: WorkplaceUpdate, _cur_user: dict = Depend
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/workplaces/{wp_id}")
@@ -1839,7 +1949,7 @@ def hide_workplace(wp_id: int, _cur_user: dict = Depends(require_admin)):
         count = get_db().hide_workplace(wp_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Workplace ↔ Employee Assignments ──────────────────────────
@@ -1850,7 +1960,7 @@ def get_workplace_employees(wp_id: int):
     try:
         return get_db().get_workplace_employees(wp_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.post("/api/workplaces/{wp_id}/employees/{employee_id}")
@@ -1860,7 +1970,7 @@ def assign_employee_to_workplace(wp_id: int, employee_id: int, _cur_user: dict =
         added = get_db().assign_employee_to_workplace(employee_id, wp_id)
         return {"ok": True, "added": added}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/workplaces/{wp_id}/employees/{employee_id}")
@@ -1870,7 +1980,7 @@ def remove_employee_from_workplace(wp_id: int, employee_id: int, _cur_user: dict
         removed = get_db().remove_employee_from_workplace(employee_id, wp_id)
         return {"ok": True, "removed": removed}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Extra Charges (Zeitzuschläge) ─────────────────────────────
@@ -1915,7 +2025,7 @@ def create_extracharge(body: ExtraChargeCreate, _cur_user: dict = Depends(requir
         result = get_db().create_extracharge(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.get("/api/extracharges/summary")
@@ -1929,7 +2039,7 @@ def get_extracharges_summary(
         result = get_db().calculate_extracharge_hours(year, month, employee_id)
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.put("/api/extracharges/{xc_id}")
@@ -1941,7 +2051,7 @@ def update_extracharge(xc_id: int, body: ExtraChargeUpdate, _cur_user: dict = De
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/extracharges/{xc_id}")
@@ -1950,7 +2060,7 @@ def delete_extracharge(xc_id: int, _cur_user: dict = Depends(require_admin)):
         count = get_db().delete_extracharge(xc_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Leave Entitlements ────────────────────────────────────────
@@ -1983,7 +2093,7 @@ def set_leave_entitlement(body: LeaveEntitlementCreate, _cur_user: dict = Depend
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.get("/api/leave-balance")
@@ -2037,7 +2147,7 @@ def create_holiday_ban(body: HolidayBanCreate, _cur_user: dict = Depends(require
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/holiday-bans/{ban_id}")
@@ -2046,7 +2156,7 @@ def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
         count = get_db().delete_holiday_ban(ban_id)
         return {"ok": True, "deleted": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Annual Close ──────────────────────────────────────────────
@@ -2080,7 +2190,7 @@ def run_annual_close(body: AnnualCloseBody, _cur_user: dict = Depends(require_ad
         )
         return {"ok": True, **result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Export endpoints ─────────────────────────────────────────
@@ -2921,7 +3031,7 @@ def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/bookings/{booking_id}")
@@ -2934,7 +3044,7 @@ def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Carry Forward (Saldo-Übertrag) ────────────────────────────
@@ -2944,7 +3054,7 @@ def get_carry_forward(employee_id: int = Query(...), year: int = Query(...)):
     try:
         return get_db().get_carry_forward(employee_id=employee_id, year=year)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 class CarryForwardSet(BaseModel):
@@ -2963,7 +3073,7 @@ def set_carry_forward(body: CarryForwardSet, _cur_user: dict = Depends(require_p
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 class AnnualStatementBody(BaseModel):
@@ -2980,7 +3090,7 @@ def annual_statement(body: AnnualStatementBody, _cur_user: dict = Depends(requir
         )
         return {"ok": True, "result": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Restrictions ──────────────────────────────────────────────
@@ -3013,7 +3123,7 @@ def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_a
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/restrictions/{employee_id}/{shift_id}")
@@ -3029,7 +3139,7 @@ def remove_restriction(
         )
         return {"ok": True, "removed": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Settings (USETT) ─────────────────────────────────────────
@@ -3040,7 +3150,7 @@ def get_settings():
     try:
         return get_db().get_usett()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 class SettingsUpdate(BaseModel):
@@ -3061,7 +3171,7 @@ def update_settings(body: SettingsUpdate, _cur_user: dict = Depends(require_admi
         result = get_db().update_usett(data)
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 # ── Special Staffing Requirements (SPDEM) ────────────────────
@@ -3075,7 +3185,7 @@ def get_special_staffing(
     try:
         return get_db().get_special_staffing(date=date, group_id=group_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 class SpecialStaffingCreate(BaseModel):
@@ -3115,7 +3225,7 @@ def create_special_staffing(body: SpecialStaffingCreate, _cur_user: dict = Depen
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.put("/api/staffing-requirements/special/{record_id}")
@@ -3131,7 +3241,7 @@ def update_special_staffing(record_id: int, body: SpecialStaffingUpdate, _cur_us
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/staffing-requirements/special/{record_id}")
@@ -3145,7 +3255,7 @@ def delete_special_staffing(record_id: int, _cur_user: dict = Depends(require_pl
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.get("/api/search")
@@ -3909,7 +4019,7 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_plan
                 else:
                     created += 1
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise _sanitize_500(e)
     return {"created": created, "updated": updated, "deleted": deleted}
 
 
@@ -3983,7 +4093,7 @@ def create_einsatzplan_entry(body: EinsatzplanCreate, _cur_user: dict = Depends(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.put("/api/einsatzplan/{entry_id}")
@@ -4003,7 +4113,7 @@ def update_einsatzplan_entry(entry_id: int, body: EinsatzplanUpdate, _cur_user: 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/einsatzplan/{entry_id}")
@@ -4017,7 +4127,7 @@ def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_pl
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.post("/api/einsatzplan/deviation")
@@ -4050,7 +4160,7 @@ def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_pl
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.get("/api/einsatzplan")
@@ -4098,7 +4208,7 @@ def set_cycle_exception(body: CycleExceptionSet, _cur_user: dict = Depends(requi
         )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/cycle-exceptions/{exception_id}")
@@ -4137,7 +4247,7 @@ def set_employee_access(body: EmployeeAccessSet, _cur_user: dict = Depends(requi
         result = get_db().set_employee_access(body.user_id, body.employee_id, body.rights)
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/employee-access/{access_id}")
@@ -4162,7 +4272,7 @@ def set_group_access(body: GroupAccessSet, _cur_user: dict = Depends(require_adm
         result = get_db().set_group_access(body.user_id, body.group_id, body.rights)
         return {"ok": True, "record": result}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _sanitize_500(e)
 
 
 @app.delete("/api/group-access/{access_id}")
