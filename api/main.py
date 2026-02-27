@@ -1,11 +1,15 @@
 """FastAPI application for OpenSchichtplaner5."""
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load .env file if present
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # Add parent dir to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException, Query, Header, Depends
+from fastapi import FastAPI, HTTPException, Query, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -16,6 +20,9 @@ from sp5lib.database import SP5Database
 # ── In-memory session store ─────────────────────────────────────
 _sessions: dict[str, dict] = {}
 
+# Role hierarchy
+_ROLE_LEVEL = {'Leser': 1, 'Planer': 2, 'Admin': 3}
+
 
 def get_current_user(x_auth_token: Optional[str] = Header(None)) -> Optional[dict]:
     """Return user dict for the given token, or None if not authenticated."""
@@ -24,13 +31,46 @@ def get_current_user(x_auth_token: Optional[str] = Header(None)) -> Optional[dic
     return None
 
 
+def require_auth(user: Optional[dict] = Depends(get_current_user)) -> dict:
+    """Dependency: requires any authenticated user (Leser or higher)."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    return user
+
+
+def require_role(min_role: str):
+    """Factory: returns a FastAPI dependency that requires at least min_role."""
+    def _dep(user: Optional[dict] = Depends(get_current_user)) -> dict:
+        if user is None:
+            raise HTTPException(status_code=401, detail="Nicht angemeldet")
+        user_level = _ROLE_LEVEL.get(user.get('role', 'Leser'), 1)
+        required_level = _ROLE_LEVEL.get(min_role, 3)
+        if user_level < required_level:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Mindestrolle '{min_role}' erforderlich (aktuell: '{user.get('role')}')"
+            )
+        return user
+    return _dep
+
+
 def require_admin(user: Optional[dict] = Depends(get_current_user)) -> dict:
     """Dependency that requires an authenticated Admin user."""
     if user is None:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
-    if not user.get('ADMIN') and user.get('role') != 'Admin':
+    if user.get('role') != 'Admin':
         raise HTTPException(status_code=403, detail="Keine Admin-Berechtigung")
     return user
+
+
+def require_planer(user: Optional[dict] = Depends(get_current_user)) -> dict:
+    """Dependency that requires at least Planer role."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if _ROLE_LEVEL.get(user.get('role', 'Leser'), 1) < 2:
+        raise HTTPException(status_code=403, detail="Mindestrolle 'Planer' erforderlich")
+    return user
+
 
 # ── Config ─────────────────────────────────────────────────────
 DB_PATH = os.environ.get(
@@ -38,6 +78,10 @@ DB_PATH = os.environ.get(
     os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sp5_db', 'Daten')
 )
 DB_PATH = os.path.normpath(DB_PATH)
+
+# CORS origins from env
+_raw_origins = os.environ.get('ALLOWED_ORIGINS', '')
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(',') if o.strip()] or ['*']
 
 app = FastAPI(
     title="OpenSchichtplaner5 API",
@@ -47,7 +91,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,6 +99,28 @@ app.add_middleware(
 
 def get_db() -> SP5Database:
     return SP5Database(DB_PATH)
+
+
+# ── Auth Middleware ─────────────────────────────────────────────
+# Public endpoints that don't require authentication
+_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/'}
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """Require authentication for all /api/* endpoints except public ones."""
+    path = request.url.path
+    # Allow public paths and non-API paths (frontend assets)
+    if path in _PUBLIC_PATHS or not path.startswith('/api/'):
+        return await call_next(request)
+    # Check token
+    token = request.headers.get('x-auth-token')
+    if not token or token not in _sessions:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Nicht angemeldet"}
+        )
+    return await call_next(request)
 
 
 # ── Routes ─────────────────────────────────────────────────────
@@ -763,7 +829,7 @@ class CycleAssignBody(BaseModel):
 
 
 @app.post("/api/shift-cycles/assign")
-def assign_cycle(body: CycleAssignBody):
+def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
         datetime.strptime(body.start_date, '%Y-%m-%d')
@@ -777,7 +843,7 @@ def assign_cycle(body: CycleAssignBody):
 
 
 @app.delete("/api/shift-cycles/assign/{employee_id}")
-def remove_cycle_assignment(employee_id: int):
+def remove_cycle_assignment(employee_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().remove_cycle_assignment(employee_id)
         return {"ok": True, "removed": count}
@@ -804,7 +870,7 @@ class ShiftCycleUpdateBody(BaseModel):
 
 
 @app.post("/api/shift-cycles")
-def create_shift_cycle(body: ShiftCycleCreateBody):
+def create_shift_cycle(body: ShiftCycleCreateBody, _cur_user: dict = Depends(require_planer)):
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
     if body.size_weeks < 1 or body.size_weeks > 52:
@@ -817,7 +883,7 @@ def create_shift_cycle(body: ShiftCycleCreateBody):
 
 
 @app.put("/api/shift-cycles/{cycle_id}")
-def update_shift_cycle(cycle_id: int, body: ShiftCycleUpdateBody):
+def update_shift_cycle(cycle_id: int, body: ShiftCycleUpdateBody, _cur_user: dict = Depends(require_planer)):
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
     if body.size_weeks < 1 or body.size_weeks > 52:
@@ -839,7 +905,7 @@ def update_shift_cycle(cycle_id: int, body: ShiftCycleUpdateBody):
 
 
 @app.delete("/api/shift-cycles/{cycle_id}")
-def delete_shift_cycle(cycle_id: int):
+def delete_shift_cycle(cycle_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_shift_cycle(cycle_id)
         if count == 0:
@@ -895,7 +961,7 @@ class NoteCreate(BaseModel):
 
 
 @app.post("/api/notes")
-def add_note(body: NoteCreate):
+def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
@@ -921,7 +987,7 @@ class NoteUpdate(BaseModel):
 
 
 @app.put("/api/notes/{note_id}")
-def update_note(note_id: int, body: NoteUpdate):
+def update_note(note_id: int, body: NoteUpdate, _cur_user: dict = Depends(require_planer)):
     if body.date is not None:
         try:
             from datetime import datetime as _dt
@@ -946,7 +1012,7 @@ def update_note(note_id: int, body: NoteUpdate):
 
 
 @app.delete("/api/notes/{note_id}")
-def delete_note(note_id: int):
+def delete_note(note_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_note(note_id)
         return {"ok": True, "deleted": count}
@@ -971,7 +1037,7 @@ class PeriodCreate(BaseModel):
 
 
 @app.post("/api/periods")
-def create_period(body: PeriodCreate):
+def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
         datetime.strptime(body.start, '%Y-%m-%d')
@@ -993,7 +1059,7 @@ def create_period(body: PeriodCreate):
 
 
 @app.delete("/api/periods/{period_id}")
-def delete_period(period_id: int):
+def delete_period(period_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_period(period_id)
         return {"ok": True, "deleted": count}
@@ -1012,7 +1078,7 @@ class StaffingRequirementSet(BaseModel):
 
 
 @app.post("/api/staffing-requirements")
-def set_staffing_requirement(body: StaffingRequirementSet):
+def set_staffing_requirement(body: StaffingRequirementSet, _cur_user: dict = Depends(require_planer)):
     if not (0 <= body.weekday <= 6):
         raise HTTPException(status_code=400, detail="weekday muss zwischen 0 (Mo) und 6 (So) liegen")
     if body.min < 0:
@@ -1073,7 +1139,7 @@ def list_templates():
 
 
 @app.post("/api/schedule/templates")
-def create_template(body: TemplateCreate):
+def create_template(body: TemplateCreate, _cur_user: dict = Depends(require_planer)):
     """Create a new schedule template."""
     db = get_db()
     assignments = [a.dict() for a in body.assignments]
@@ -1086,7 +1152,7 @@ def create_template(body: TemplateCreate):
 
 
 @app.post("/api/schedule/templates/capture")
-def capture_template(body: TemplateCaptureRequest):
+def capture_template(body: TemplateCaptureRequest, _cur_user: dict = Depends(require_planer)):
     """Capture the current week's schedule entries as a new template."""
     db = get_db()
     entries = db.get_week_entries_for_template(
@@ -1116,7 +1182,7 @@ def capture_template(body: TemplateCaptureRequest):
 
 
 @app.delete("/api/schedule/templates/{template_id}")
-def delete_template(template_id: int):
+def delete_template(template_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a schedule template by ID."""
     db = get_db()
     ok = db.delete_schedule_template(template_id)
@@ -1126,7 +1192,7 @@ def delete_template(template_id: int):
 
 
 @app.post("/api/schedule/templates/{template_id}/apply")
-def apply_template(template_id: int, body: TemplateApplyRequest):
+def apply_template(template_id: int, body: TemplateApplyRequest, _cur_user: dict = Depends(require_planer)):
     """Apply a schedule template to a target week."""
     db = get_db()
     try:
@@ -1148,7 +1214,7 @@ class ScheduleEntryCreate(BaseModel):
 
 
 @app.post("/api/schedule")
-def create_schedule_entry(body: ScheduleEntryCreate):
+def create_schedule_entry(body: ScheduleEntryCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
@@ -1169,7 +1235,7 @@ def create_schedule_entry(body: ScheduleEntryCreate):
 
 
 @app.delete("/api/schedule/{employee_id}/{date}")
-def delete_schedule_entry(employee_id: int, date: str):
+def delete_schedule_entry(employee_id: int, date: str, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
         datetime.strptime(date, '%Y-%m-%d')
@@ -1183,7 +1249,7 @@ def delete_schedule_entry(employee_id: int, date: str):
 
 
 @app.delete("/api/schedule-shift/{employee_id}/{date}")
-def delete_shift_only(employee_id: int, date: str):
+def delete_shift_only(employee_id: int, date: str, _cur_user: dict = Depends(require_planer)):
     """Delete only shift entries (MASHI/SPSHI) for an employee on a date, leaving absences intact."""
     try:
         from datetime import datetime
@@ -1198,7 +1264,7 @@ def delete_shift_only(employee_id: int, date: str):
 
 
 @app.delete("/api/absences/{employee_id}/{date}")
-def delete_absence_only(employee_id: int, date: str):
+def delete_absence_only(employee_id: int, date: str, _cur_user: dict = Depends(require_planer)):
     """Delete only absence entries (ABSEN) for an employee on a date, leaving shifts intact."""
     try:
         from datetime import datetime
@@ -1222,7 +1288,7 @@ class ScheduleGenerateRequest(BaseModel):
 
 
 @app.post("/api/schedule/generate")
-def generate_schedule(body: ScheduleGenerateRequest):
+def generate_schedule(body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_planer)):
     """Generate (or preview) schedule entries for a month based on cycle assignments.
     dry_run=True: returns preview without writing."""
     if not (1 <= body.month <= 12):
@@ -1280,7 +1346,7 @@ def get_all_group_assignments():
 
 
 @app.post("/api/absences")
-def create_absence(body: AbsenceCreate):
+def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
@@ -1386,7 +1452,7 @@ class EmployeeUpdate(BaseModel):
 
 
 @app.post("/api/employees")
-def create_employee(body: EmployeeCreate):
+def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     # Validate optional date fields
@@ -1405,7 +1471,7 @@ def create_employee(body: EmployeeCreate):
 
 
 @app.put("/api/employees/{emp_id}")
-def update_employee(emp_id: int, body: EmployeeUpdate):
+def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_employee(emp_id, data)
@@ -1417,7 +1483,7 @@ def update_employee(emp_id: int, body: EmployeeUpdate):
 
 
 @app.delete("/api/employees/{emp_id}")
-def delete_employee(emp_id: int):
+def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_employee(emp_id)
         return {"ok": True, "hidden": count}
@@ -1476,7 +1542,7 @@ class GroupMemberBody(BaseModel):
 
 
 @app.post("/api/groups")
-def create_group(body: GroupCreate):
+def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     try:
@@ -1487,7 +1553,7 @@ def create_group(body: GroupCreate):
 
 
 @app.put("/api/groups/{group_id}")
-def update_group(group_id: int, body: GroupUpdate):
+def update_group(group_id: int, body: GroupUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_group(group_id, data)
@@ -1499,7 +1565,7 @@ def update_group(group_id: int, body: GroupUpdate):
 
 
 @app.delete("/api/groups/{group_id}")
-def delete_group(group_id: int):
+def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_group(group_id)
         return {"ok": True, "hidden": count}
@@ -1508,7 +1574,7 @@ def delete_group(group_id: int):
 
 
 @app.post("/api/groups/{group_id}/members")
-def add_group_member(group_id: int, body: GroupMemberBody):
+def add_group_member(group_id: int, body: GroupMemberBody, _cur_user: dict = Depends(require_admin)):
     try:
         result = get_db().add_group_member(group_id, body.employee_id)
         return {"ok": True, "record": result}
@@ -1517,7 +1583,7 @@ def add_group_member(group_id: int, body: GroupMemberBody):
 
 
 @app.delete("/api/groups/{group_id}/members/{emp_id}")
-def remove_group_member(group_id: int, emp_id: int):
+def remove_group_member(group_id: int, emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().remove_group_member(group_id, emp_id)
         return {"ok": True, "removed": count}
@@ -1579,7 +1645,7 @@ class ShiftUpdate(BaseModel):
 
 
 @app.post("/api/shifts")
-def create_shift(body: ShiftCreate):
+def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     try:
@@ -1590,7 +1656,7 @@ def create_shift(body: ShiftCreate):
 
 
 @app.put("/api/shifts/{shift_id}")
-def update_shift(shift_id: int, body: ShiftUpdate):
+def update_shift(shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_shift(shift_id, data)
@@ -1602,7 +1668,7 @@ def update_shift(shift_id: int, body: ShiftUpdate):
 
 
 @app.delete("/api/shifts/{shift_id}")
-def hide_shift(shift_id: int):
+def hide_shift(shift_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().hide_shift(shift_id)
         return {"ok": True, "hidden": count}
@@ -1636,7 +1702,7 @@ class LeaveTypeUpdate(BaseModel):
 
 
 @app.post("/api/leave-types")
-def create_leave_type(body: LeaveTypeCreate):
+def create_leave_type(body: LeaveTypeCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     try:
@@ -1647,7 +1713,7 @@ def create_leave_type(body: LeaveTypeCreate):
 
 
 @app.put("/api/leave-types/{lt_id}")
-def update_leave_type(lt_id: int, body: LeaveTypeUpdate):
+def update_leave_type(lt_id: int, body: LeaveTypeUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_leave_type(lt_id, data)
@@ -1659,7 +1725,7 @@ def update_leave_type(lt_id: int, body: LeaveTypeUpdate):
 
 
 @app.delete("/api/leave-types/{lt_id}")
-def hide_leave_type(lt_id: int):
+def hide_leave_type(lt_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().hide_leave_type(lt_id)
         return {"ok": True, "hidden": count}
@@ -1682,7 +1748,7 @@ class HolidayUpdate(BaseModel):
 
 
 @app.post("/api/holidays")
-def create_holiday(body: HolidayCreate):
+def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     try:
@@ -1698,7 +1764,7 @@ def create_holiday(body: HolidayCreate):
 
 
 @app.put("/api/holidays/{holiday_id}")
-def update_holiday(holiday_id: int, body: HolidayUpdate):
+def update_holiday(holiday_id: int, body: HolidayUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_holiday(holiday_id, data)
@@ -1710,7 +1776,7 @@ def update_holiday(holiday_id: int, body: HolidayUpdate):
 
 
 @app.delete("/api/holidays/{holiday_id}")
-def delete_holiday(holiday_id: int):
+def delete_holiday(holiday_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_holiday(holiday_id)
         return {"ok": True, "deleted": count}
@@ -1740,7 +1806,7 @@ class WorkplaceUpdate(BaseModel):
 
 
 @app.post("/api/workplaces")
-def create_workplace(body: WorkplaceCreate):
+def create_workplace(body: WorkplaceCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     try:
@@ -1751,7 +1817,7 @@ def create_workplace(body: WorkplaceCreate):
 
 
 @app.put("/api/workplaces/{wp_id}")
-def update_workplace(wp_id: int, body: WorkplaceUpdate):
+def update_workplace(wp_id: int, body: WorkplaceUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_workplace(wp_id, data)
@@ -1763,7 +1829,7 @@ def update_workplace(wp_id: int, body: WorkplaceUpdate):
 
 
 @app.delete("/api/workplaces/{wp_id}")
-def hide_workplace(wp_id: int):
+def hide_workplace(wp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().hide_workplace(wp_id)
         return {"ok": True, "hidden": count}
@@ -1783,7 +1849,7 @@ def get_workplace_employees(wp_id: int):
 
 
 @app.post("/api/workplaces/{wp_id}/employees/{employee_id}")
-def assign_employee_to_workplace(wp_id: int, employee_id: int):
+def assign_employee_to_workplace(wp_id: int, employee_id: int, _cur_user: dict = Depends(require_admin)):
     """Assign an employee to a workplace."""
     try:
         added = get_db().assign_employee_to_workplace(employee_id, wp_id)
@@ -1793,7 +1859,7 @@ def assign_employee_to_workplace(wp_id: int, employee_id: int):
 
 
 @app.delete("/api/workplaces/{wp_id}/employees/{employee_id}")
-def remove_employee_from_workplace(wp_id: int, employee_id: int):
+def remove_employee_from_workplace(wp_id: int, employee_id: int, _cur_user: dict = Depends(require_admin)):
     """Remove an employee from a workplace."""
     try:
         removed = get_db().remove_employee_from_workplace(employee_id, wp_id)
@@ -1831,7 +1897,7 @@ def get_extracharges(include_hidden: bool = False):
 
 
 @app.post("/api/extracharges")
-def create_extracharge(body: ExtraChargeCreate):
+def create_extracharge(body: ExtraChargeCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     if len(body.VALIDDAYS) != 7 or not all(c in '01' for c in body.VALIDDAYS):
@@ -1862,7 +1928,7 @@ def get_extracharges_summary(
 
 
 @app.put("/api/extracharges/{xc_id}")
-def update_extracharge(xc_id: int, body: ExtraChargeUpdate):
+def update_extracharge(xc_id: int, body: ExtraChargeUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_extracharge(xc_id, data)
@@ -1874,7 +1940,7 @@ def update_extracharge(xc_id: int, body: ExtraChargeUpdate):
 
 
 @app.delete("/api/extracharges/{xc_id}")
-def delete_extracharge(xc_id: int):
+def delete_extracharge(xc_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_extracharge(xc_id)
         return {"ok": True, "hidden": count}
@@ -1901,7 +1967,7 @@ class LeaveEntitlementCreate(BaseModel):
 
 
 @app.post("/api/leave-entitlements")
-def set_leave_entitlement(body: LeaveEntitlementCreate):
+def set_leave_entitlement(body: LeaveEntitlementCreate, _cur_user: dict = Depends(require_planer)):
     try:
         result = get_db().set_leave_entitlement(
             employee_id=body.employee_id,
@@ -1948,7 +2014,7 @@ class HolidayBanCreate(BaseModel):
 
 
 @app.post("/api/holiday-bans")
-def create_holiday_ban(body: HolidayBanCreate):
+def create_holiday_ban(body: HolidayBanCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
         datetime.strptime(body.start_date, '%Y-%m-%d')
@@ -1970,7 +2036,7 @@ def create_holiday_ban(body: HolidayBanCreate):
 
 
 @app.delete("/api/holiday-bans/{ban_id}")
-def delete_holiday_ban(ban_id: int):
+def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_holiday_ban(ban_id)
         return {"ok": True, "deleted": count}
@@ -2000,7 +2066,7 @@ class AnnualCloseBody(BaseModel):
 
 
 @app.post("/api/annual-close")
-def run_annual_close(body: AnnualCloseBody):
+def run_annual_close(body: AnnualCloseBody, _cur_user: dict = Depends(require_admin)):
     try:
         result = get_db().run_annual_close(
             year=body.year,
@@ -2832,7 +2898,7 @@ class BookingCreate(BaseModel):
 
 
 @app.post("/api/bookings")
-def create_booking(body: BookingCreate):
+def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
@@ -2854,7 +2920,7 @@ def create_booking(body: BookingCreate):
 
 
 @app.delete("/api/bookings/{booking_id}")
-def delete_booking(booking_id: int):
+def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_booking(booking_id)
         if count == 0:
@@ -2883,7 +2949,7 @@ class CarryForwardSet(BaseModel):
 
 
 @app.post("/api/bookings/carry-forward")
-def set_carry_forward(body: CarryForwardSet):
+def set_carry_forward(body: CarryForwardSet, _cur_user: dict = Depends(require_planer)):
     try:
         result = get_db().set_carry_forward(
             employee_id=body.employee_id,
@@ -2901,7 +2967,7 @@ class AnnualStatementBody(BaseModel):
 
 
 @app.post("/api/bookings/annual-statement")
-def annual_statement(body: AnnualStatementBody):
+def annual_statement(body: AnnualStatementBody, _cur_user: dict = Depends(require_planer)):
     try:
         result = get_db().calculate_annual_statement(
             employee_id=body.employee_id,
@@ -2928,7 +2994,7 @@ class RestrictionCreate(BaseModel):
 
 
 @app.post("/api/restrictions")
-def set_restriction(body: RestrictionCreate):
+def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_admin)):
     """Add a shift restriction for an employee."""
     weekday = body.weekday or 0
     if not (0 <= weekday <= 6):
@@ -2983,7 +3049,7 @@ class SettingsUpdate(BaseModel):
 
 
 @app.put("/api/settings")
-def update_settings(body: SettingsUpdate):
+def update_settings(body: SettingsUpdate, _cur_user: dict = Depends(require_admin)):
     """Update global settings in 5USETT.DBF."""
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     try:
@@ -3026,7 +3092,7 @@ class SpecialStaffingUpdate(BaseModel):
 
 
 @app.post("/api/staffing-requirements/special")
-def create_special_staffing(body: SpecialStaffingCreate):
+def create_special_staffing(body: SpecialStaffingCreate, _cur_user: dict = Depends(require_planer)):
     """Create a date-specific staffing requirement."""
     try:
         from datetime import datetime
@@ -3048,7 +3114,7 @@ def create_special_staffing(body: SpecialStaffingCreate):
 
 
 @app.put("/api/staffing-requirements/special/{record_id}")
-def update_special_staffing(record_id: int, body: SpecialStaffingUpdate):
+def update_special_staffing(record_id: int, body: SpecialStaffingUpdate, _cur_user: dict = Depends(require_planer)):
     """Update a date-specific staffing requirement."""
     data = {k.upper(): v for k, v in body.model_dump().items() if v is not None}
     # Rename keys to match DBF field names
@@ -3064,7 +3130,7 @@ def update_special_staffing(record_id: int, body: SpecialStaffingUpdate):
 
 
 @app.delete("/api/staffing-requirements/special/{record_id}")
-def delete_special_staffing(record_id: int):
+def delete_special_staffing(record_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a date-specific staffing requirement."""
     try:
         count = get_db().delete_special_staffing(record_id)
@@ -3809,7 +3875,7 @@ class BulkScheduleBody(BaseModel):
 
 
 @app.post("/api/schedule/bulk")
-def bulk_schedule(body: BulkScheduleBody):
+def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_planer)):
     """Bulk create/update/delete schedule entries in a single request.
     If shift_id is null the entry is deleted; otherwise created or overwritten."""
     from datetime import datetime as _dt2
@@ -3883,7 +3949,7 @@ class DeviationCreate(BaseModel):
 
 
 @app.post("/api/einsatzplan")
-def create_einsatzplan_entry(body: EinsatzplanCreate):
+def create_einsatzplan_entry(body: EinsatzplanCreate, _cur_user: dict = Depends(require_planer)):
     """Create a Sonderdienst entry in SPSHI (TYPE=0)."""
     try:
         from datetime import datetime
@@ -3916,7 +3982,7 @@ def create_einsatzplan_entry(body: EinsatzplanCreate):
 
 
 @app.put("/api/einsatzplan/{entry_id}")
-def update_einsatzplan_entry(entry_id: int, body: EinsatzplanUpdate):
+def update_einsatzplan_entry(entry_id: int, body: EinsatzplanUpdate, _cur_user: dict = Depends(require_planer)):
     """Update an existing SPSHI entry."""
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     # Map frontend keys to DBF field names
@@ -3936,7 +4002,7 @@ def update_einsatzplan_entry(entry_id: int, body: EinsatzplanUpdate):
 
 
 @app.delete("/api/einsatzplan/{entry_id}")
-def delete_einsatzplan_entry(entry_id: int):
+def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a SPSHI entry by ID."""
     try:
         count = get_db().delete_spshi_entry_by_id(entry_id)
@@ -3950,7 +4016,7 @@ def delete_einsatzplan_entry(entry_id: int):
 
 
 @app.post("/api/einsatzplan/deviation")
-def create_deviation(body: DeviationCreate):
+def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_planer)):
     """Create an Arbeitszeitabweichung entry in SPSHI (TYPE=1)."""
     try:
         from datetime import datetime
@@ -4016,7 +4082,7 @@ def get_cycle_exceptions(
 
 
 @app.post("/api/cycle-exceptions")
-def set_cycle_exception(body: CycleExceptionSet):
+def set_cycle_exception(body: CycleExceptionSet, _cur_user: dict = Depends(require_planer)):
     """Set a cycle exception for a specific date."""
     try:
         result = get_db().set_cycle_exception(
@@ -4031,7 +4097,7 @@ def set_cycle_exception(body: CycleExceptionSet):
 
 
 @app.delete("/api/cycle-exceptions/{exception_id}")
-def delete_cycle_exception(exception_id: int):
+def delete_cycle_exception(exception_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a cycle exception by ID."""
     count = get_db().delete_cycle_exception(exception_id)
     if count == 0:
@@ -4060,7 +4126,7 @@ def get_employee_access(user_id: Optional[int] = Query(None)):
 
 
 @app.post("/api/employee-access")
-def set_employee_access(body: EmployeeAccessSet):
+def set_employee_access(body: EmployeeAccessSet, _cur_user: dict = Depends(require_admin)):
     """Set employee-level access for a user."""
     try:
         result = get_db().set_employee_access(body.user_id, body.employee_id, body.rights)
@@ -4070,7 +4136,7 @@ def set_employee_access(body: EmployeeAccessSet):
 
 
 @app.delete("/api/employee-access/{access_id}")
-def delete_employee_access(access_id: int):
+def delete_employee_access(access_id: int, _cur_user: dict = Depends(require_admin)):
     """Remove an employee access entry."""
     count = get_db().delete_employee_access(access_id)
     if count == 0:
@@ -4085,7 +4151,7 @@ def get_group_access(user_id: Optional[int] = Query(None)):
 
 
 @app.post("/api/group-access")
-def set_group_access(body: GroupAccessSet):
+def set_group_access(body: GroupAccessSet, _cur_user: dict = Depends(require_admin)):
     """Set group-level access for a user."""
     try:
         result = get_db().set_group_access(body.user_id, body.group_id, body.rights)
@@ -4095,7 +4161,7 @@ def set_group_access(body: GroupAccessSet):
 
 
 @app.delete("/api/group-access/{access_id}")
-def delete_group_access(access_id: int):
+def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)):
     """Remove a group access entry."""
     count = get_db().delete_group_access(access_id)
     if count == 0:
@@ -4137,7 +4203,7 @@ class AbsenceStatusPatch(BaseModel):
 
 
 @app.patch("/api/absences/{absence_id}/status")
-def patch_absence_status(absence_id: int, body: AbsenceStatusPatch):
+def patch_absence_status(absence_id: int, body: AbsenceStatusPatch, _cur_user: dict = Depends(require_planer)):
     """Update approval status for an absence record."""
     allowed = {'pending', 'approved', 'rejected'}
     if body.status not in allowed:
@@ -4151,7 +4217,7 @@ def patch_absence_status(absence_id: int, body: AbsenceStatusPatch):
 # ── Admin: Compact database ───────────────────────────────────────────────────
 
 @app.post("/api/admin/compact")
-def compact_database():
+def compact_database(_cur_user: dict = Depends(require_admin)):
     """
     Compact all .DBF files in SP5_DB_PATH by rewriting them without deleted records.
     Deleted records have 0x2A ('*') as the first byte of their data row.
@@ -4293,7 +4359,7 @@ class ChangelogEntry(BaseModel):
 
 
 @app.post("/api/changelog")
-def log_action(body: ChangelogEntry):
+def log_action(body: ChangelogEntry, _cur_user: dict = Depends(require_planer)):
     """Manually write an entry to the changelog."""
     entry = get_db().log_action(
         user=body.user,
@@ -4846,7 +4912,7 @@ class SwapShiftsRequest(BaseModel):
 
 
 @app.post("/api/schedule/swap")
-def swap_shifts(body: SwapShiftsRequest):
+def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_planer)):
     """Swap schedule entries (shifts + absences) between two employees for the given dates."""
     from sp5lib.dbf_reader import read_dbf, get_table_fields
     from sp5lib.dbf_writer import find_all_records
@@ -4925,7 +4991,7 @@ class CopyWeekRequest(BaseModel):
 
 
 @app.post("/api/schedule/copy-week")
-def copy_week(body: CopyWeekRequest):
+def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
     """Copy one employee's schedule entries (shifts + absences) for given dates to one or more target employees."""
     db = get_db()
     if not body.dates or not body.target_employee_ids:
@@ -5144,7 +5210,7 @@ class WishCreate(BaseModel):
 
 
 @app.post("/api/wishes")
-def create_wish(body: WishCreate):
+def create_wish(body: WishCreate, _cur_user: dict = Depends(require_planer)):
     wish_type = body.wish_type.upper()
     if wish_type not in ('WUNSCH', 'SPERRUNG'):
         raise HTTPException(status_code=400, detail="wish_type must be WUNSCH or SPERRUNG")
@@ -5158,7 +5224,7 @@ def create_wish(body: WishCreate):
 
 
 @app.delete("/api/wishes/{wish_id}")
-def delete_wish(wish_id: int):
+def delete_wish(wish_id: int, _cur_user: dict = Depends(require_planer)):
     deleted = get_db().delete_wish(wish_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Wish not found")
@@ -5861,7 +5927,7 @@ def get_skills():
     return data["skills"]
 
 @app.post("/api/skills")
-def create_skill(body: SkillCreate):
+def create_skill(body: SkillCreate, _cur_user: dict = Depends(require_admin)):
     data = _load_skills()
     skill = {
         "id": str(_uuid.uuid4())[:8],
@@ -5877,7 +5943,7 @@ def create_skill(body: SkillCreate):
     return skill
 
 @app.put("/api/skills/{skill_id}")
-def update_skill(skill_id: str, body: SkillUpdate):
+def update_skill(skill_id: str, body: SkillUpdate, _cur_user: dict = Depends(require_admin)):
     data = _load_skills()
     for s in data["skills"]:
         if s["id"] == skill_id:
@@ -5891,7 +5957,7 @@ def update_skill(skill_id: str, body: SkillUpdate):
     raise HTTPException(status_code=404, detail="Skill not found")
 
 @app.delete("/api/skills/{skill_id}")
-def delete_skill(skill_id: str):
+def delete_skill(skill_id: str, _cur_user: dict = Depends(require_admin)):
     data = _load_skills()
     data["skills"] = [s for s in data["skills"] if s["id"] != skill_id]
     data["assignments"] = [a for a in data["assignments"] if a["skill_id"] != skill_id]
@@ -5907,7 +5973,7 @@ def get_assignments(employee_id: Optional[int] = Query(None)):
     return assignments
 
 @app.post("/api/skills/assignments")
-def add_assignment(body: SkillAssignment):
+def add_assignment(body: SkillAssignment, _cur_user: dict = Depends(require_admin)):
     data = _load_skills()
     # Remove existing assignment for same employee+skill
     data["assignments"] = [
@@ -5928,7 +5994,7 @@ def add_assignment(body: SkillAssignment):
     return assignment
 
 @app.delete("/api/skills/assignments/{assignment_id}")
-def delete_assignment(assignment_id: str):
+def delete_assignment(assignment_id: str, _cur_user: dict = Depends(require_admin)):
     data = _load_skills()
     before = len(data.get("assignments", []))
     data["assignments"] = [a for a in data.get("assignments", []) if a.get("id") != assignment_id]
@@ -6010,7 +6076,7 @@ class SimulationRequest(BaseModel):
     scenario_name: Optional[str] = "Simulation"
 
 @app.post("/api/simulation")
-def run_simulation(body: SimulationRequest):
+def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_planer)):
     """
     Schichtplan-Simulation: Was passiert wenn Mitarbeiter ausfallen?
     Vergleicht Ist-Besetzung mit simulierter Besetzung nach Ausfall.
@@ -6154,7 +6220,7 @@ def get_handover(date: str | None = None, shift_id: int | None = None, limit: in
     return notes[:limit]
 
 @app.post("/api/handover")
-def create_handover(body: dict):
+def create_handover(body: dict, _cur_user: dict = Depends(require_planer)):
     """Neue Übergabe-Notiz anlegen."""
     note = {
         "id": str(_uuid.uuid4())[:8],
@@ -6172,7 +6238,7 @@ def create_handover(body: dict):
     return note
 
 @app.patch("/api/handover/{note_id}")
-def update_handover(note_id: str, body: dict):
+def update_handover(note_id: str, body: dict, _cur_user: dict = Depends(require_planer)):
     """Notiz aktualisieren (z.B. als erledigt markieren)."""
     for note in _handover_notes:
         if note["id"] == note_id:
@@ -6187,7 +6253,7 @@ def update_handover(note_id: str, body: dict):
     raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
 
 @app.delete("/api/handover/{note_id}")
-def delete_handover(note_id: str):
+def delete_handover(note_id: str, _cur_user: dict = Depends(require_planer)):
     """Übergabe-Notiz löschen."""
     global _handover_notes
     before = len(_handover_notes)
@@ -6251,7 +6317,7 @@ def list_swap_requests(
 
 
 @app.post("/api/swap-requests")
-def create_swap_request(body: SwapRequestCreate):
+def create_swap_request(body: SwapRequestCreate, _cur_user: dict = Depends(require_planer)):
     """Create a new shift swap request."""
     from datetime import datetime as _dt4
     # Validate dates
@@ -6275,7 +6341,7 @@ def create_swap_request(body: SwapRequestCreate):
 
 
 @app.patch("/api/swap-requests/{swap_id}/resolve")
-def resolve_swap_request(swap_id: int, body: SwapRequestResolve):
+def resolve_swap_request(swap_id: int, body: SwapRequestResolve, _cur_user: dict = Depends(require_planer)):
     """Approve or reject a swap request. If approved, executes the actual shift swap."""
     if body.action not in ('approve', 'reject'):
         raise HTTPException(status_code=400, detail="action muss 'approve' oder 'reject' sein")
@@ -6307,7 +6373,7 @@ def resolve_swap_request(swap_id: int, body: SwapRequestResolve):
 
 
 @app.delete("/api/swap-requests/{swap_id}")
-def delete_swap_request(swap_id: int):
+def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a swap request (cancel)."""
     deleted = get_db().delete_swap_request(swap_id)
     if not deleted:
