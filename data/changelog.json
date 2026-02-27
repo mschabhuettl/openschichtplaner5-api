@@ -19,230 +19,6 @@
     "timestamp": "2026-02-22T04:49:06",
     "user": "api",
     "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "absence",
-    "entity_id": 0,
-    "details": "POST /api/absences"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "absence",
-    "entity_id": 0,
-    "details": "POST /api/absences"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "absence",
-    "entity_id": 0,
-    "details": "POST /api/absences"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "schedule",
-    "entity_id": 0,
-    "details": "POST /api/schedule"
-  },
-  {
-    "timestamp": "2026-02-22T04:49:06",
-    "user": "api",
-    "action": "CREATE",
     "entity": "absence",
     "entity_id": 0,
     "details": "POST /api/absences"
@@ -7998,5 +7774,229 @@
     "entity": "wishes",
     "entity_id": 0,
     "details": "POST /api/wishes"
+  },
+  {
+    "timestamp": "2026-02-27T03:07:29",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills"
+  },
+  {
+    "timestamp": "2026-02-27T03:07:35",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills"
+  },
+  {
+    "timestamp": "2026-02-27T03:07:35",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills"
+  },
+  {
+    "timestamp": "2026-02-27T03:07:35",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills"
+  },
+  {
+    "timestamp": "2026-02-27T03:07:35",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills"
+  },
+  {
+    "timestamp": "2026-02-27T03:07:35",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
+  },
+  {
+    "timestamp": "2026-02-27T03:11:06",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "skills",
+    "entity_id": 0,
+    "details": "POST /api/skills/assignments"
   }
 ]

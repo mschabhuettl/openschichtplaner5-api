@@ -5610,6 +5610,393 @@ def get_quality_report(
     }
 
 
+# ── Verfügbarkeits-Matrix ────────────────────────────────────────────────────
+
+@app.get("/api/availability-matrix")
+def get_availability_matrix(
+    group_id: Optional[int] = Query(None),
+    year: int = Query(None),
+    months: int = Query(12, ge=1, le=24),
+):
+    """
+    Analysiert Schicht-Muster aus dem Dienstplan (MASHI + SPSHI + ABSEN).
+    Gibt pro Mitarbeiter zurück:
+      - Schicht-Häufigkeit pro Wochentag (7 Tage × n Schichtarten)
+      - Schicht-Mix (wie oft welche Schicht)
+      - Muster-Label (z.B. "3-Schicht-Rotation", "Tagschicht Mo-Fr", "Frei")
+    """
+    import datetime, math
+    from collections import defaultdict
+
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    shifts_map = {s['ID']: s for s in db.get_shifts(include_hidden=True)}
+    groups_map = {g['ID']: g['NAME'] for g in db.get_groups()}
+
+    if group_id:
+        members = set(db.get_group_members(group_id))
+        employees = [e for e in employees if e['ID'] in members]
+
+    if year is None:
+        year = datetime.date.today().year
+
+    # Collect all schedule entries for the requested range
+    # month range: last `months` months up to end of `year`
+    today = datetime.date.today()
+    end_date = datetime.date(year, 12, 31)
+    start_date = (end_date - datetime.timedelta(days=months * 30)).replace(day=1)
+
+    # Build per-employee, per-weekday, per-shift counts
+    # weekday: 0=Mo .. 6=So
+    emp_wd_shift: dict[int, dict[int, dict]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    emp_shift_total: dict[int, dict] = defaultdict(lambda: defaultdict(int))
+    emp_day_total: dict[int, dict] = defaultdict(lambda: defaultdict(int))
+
+    # Scan months
+    cur = start_date.replace(day=1)
+    while cur <= end_date:
+        entries = db.get_schedule(cur.year, cur.month)
+        for e in entries:
+            d = datetime.date.fromisoformat(e['date'])
+            if d < start_date or d > end_date:
+                continue
+            eid = e['employee_id']
+            wd = d.weekday()  # 0=Mo
+            sid = e.get('shift_id')
+            if e.get('kind') in ('shift', 'special_shift') and sid:
+                shift = shifts_map.get(sid)
+                short = shift.get('SHORTNAME', '?') if shift else '?'
+                name = shift.get('NAME', '?') if shift else '?'
+                color = shift.get('COLORBK_HEX', '#888') if shift else '#888'
+                emp_wd_shift[eid][wd][sid] += 1
+                emp_shift_total[eid][sid] += 1
+                emp_day_total[eid][wd] += 1
+            elif e.get('kind') == 'absence':
+                emp_wd_shift[eid][wd]['absence'] += 1
+                emp_shift_total[eid]['absence'] += 1
+                emp_day_total[eid][wd] += 1
+
+        # advance month
+        if cur.month == 12:
+            cur = cur.replace(year=cur.year + 1, month=1)
+        else:
+            cur = cur.replace(month=cur.month + 1)
+
+    # Build result per employee
+    result_employees = []
+    for emp in employees:
+        eid = emp['ID']
+        name = f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip()
+        short = emp.get('SHORTNAME', '')
+        workdays = emp.get('WORKDAYS_LIST', [True] * 5 + [False, False])
+
+        # Per-weekday breakdown
+        weekday_data = []
+        for wd in range(7):
+            shift_counts = dict(emp_wd_shift[eid].get(wd, {}))
+            total_for_day = emp_day_total[eid].get(wd, 0)
+            # Build list of shifts sorted by count desc
+            shifts_list = []
+            for sid, cnt in sorted(shift_counts.items(), key=lambda x: -x[1]):
+                if sid == 'absence':
+                    shifts_list.append({
+                        'shift_id': None,
+                        'short': 'Ab',
+                        'name': 'Abwesenheit',
+                        'color': '#94a3b8',
+                        'count': cnt,
+                        'pct': round(cnt / total_for_day * 100) if total_for_day else 0,
+                    })
+                else:
+                    shift = shifts_map.get(sid)
+                    if shift:
+                        shifts_list.append({
+                            'shift_id': sid,
+                            'short': shift.get('SHORTNAME', '?'),
+                            'name': shift.get('NAME', '?'),
+                            'color': shift.get('COLORBK_HEX', '#888'),
+                            'count': cnt,
+                            'pct': round(cnt / total_for_day * 100) if total_for_day else 0,
+                        })
+            weekday_data.append({
+                'weekday': wd,
+                'total': total_for_day,
+                'configured': workdays[wd] if wd < len(workdays) else False,
+                'shifts': shifts_list,
+                # dominant shift
+                'dominant_shift': shifts_list[0] if shifts_list else None,
+            })
+
+        # Overall shift mix
+        total_shifts = sum(v for k, v in emp_shift_total[eid].items() if k != 'absence')
+        shift_mix = []
+        for sid, cnt in sorted(emp_shift_total[eid].items(), key=lambda x: -x[1]):
+            if sid == 'absence':
+                continue
+            shift = shifts_map.get(sid)
+            if shift:
+                shift_mix.append({
+                    'shift_id': sid,
+                    'short': shift.get('SHORTNAME', '?'),
+                    'name': shift.get('NAME', '?'),
+                    'color': shift.get('COLORBK_HEX', '#888'),
+                    'count': cnt,
+                    'pct': round(cnt / total_shifts * 100) if total_shifts else 0,
+                })
+
+        # Pattern label
+        active_wd = sum(1 for w in weekday_data if w['total'] > 0)
+        if total_shifts == 0:
+            pattern = 'Keine Daten'
+            pattern_icon = '⬜'
+        elif len(set(s['shift_id'] for s in shift_mix)) >= 3:
+            pattern = '3-Schicht-Rotation'
+            pattern_icon = '🔄'
+        elif len(set(s['shift_id'] for s in shift_mix)) == 2:
+            pattern = '2-Schicht-Wechsel'
+            pattern_icon = '↔️'
+        elif active_wd >= 5:
+            pattern = 'Tagschicht Mo–Fr'
+            pattern_icon = '☀️'
+        elif active_wd >= 3:
+            pattern = 'Teilzeit'
+            pattern_icon = '📅'
+        else:
+            pattern = 'Wenige Einsätze'
+            pattern_icon = '📉'
+
+        # Group
+        emp_groups = []
+        for gid, gname in groups_map.items():
+            members = set(db.get_group_members(gid))
+            if eid in members:
+                emp_groups.append(gname)
+
+        result_employees.append({
+            'id': eid,
+            'name': name,
+            'short': short,
+            'groups': emp_groups,
+            'pattern': pattern,
+            'pattern_icon': pattern_icon,
+            'total_shifts': total_shifts,
+            'shift_mix': shift_mix,
+            'weekdays': weekday_data,
+            # configured workdays from employee record
+            'workdays_config': workdays,
+        })
+
+    # Coverage per weekday (how many employees available)
+    weekday_coverage = []
+    for wd in range(7):
+        configured = sum(1 for emp in employees
+                         if wd < len(emp.get('WORKDAYS_LIST', [])) and emp['WORKDAYS_LIST'][wd])
+        actual = sum(1 for e in result_employees if e['weekdays'][wd]['total'] > 0)
+        weekday_coverage.append({
+            'weekday': wd,
+            'configured': configured,
+            'actual_data': actual,
+        })
+
+    return {
+        'year': year,
+        'months': months,
+        'start_date': start_date.isoformat(),
+        'end_date': end_date.isoformat(),
+        'employees': result_employees,
+        'weekday_coverage': weekday_coverage,
+        'shifts': [
+            {'id': s['ID'], 'name': s['NAME'], 'short': s['SHORTNAME'], 'color': s.get('COLORBK_HEX', '#888')}
+            for s in db.get_shifts(include_hidden=False)
+        ],
+    }
+
+
+# ── Kompetenz-Matrix / Skills ────────────────────────────────────
+import uuid as _uuid
+
+def _skills_path() -> str:
+    data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, 'skills.json')
+
+def _load_skills() -> dict:
+    path = _skills_path()
+    if not os.path.exists(path):
+        return {"skills": [], "assignments": []}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return _json.load(f)
+    except Exception:
+        return {"skills": [], "assignments": []}
+
+def _save_skills(data: dict):
+    with open(_skills_path(), 'w', encoding='utf-8') as f:
+        _json.dump(data, f, ensure_ascii=False, indent=2)
+
+class SkillCreate(BaseModel):
+    name: str
+    description: Optional[str] = ""
+    color: Optional[str] = "#3b82f6"
+    icon: Optional[str] = "🎯"
+    category: Optional[str] = ""
+
+class SkillUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+    icon: Optional[str] = None
+    category: Optional[str] = None
+
+class SkillAssignment(BaseModel):
+    employee_id: int
+    skill_id: str
+    level: Optional[int] = 1  # 1=basic, 2=advanced, 3=expert
+    certified_until: Optional[str] = None  # ISO date
+    notes: Optional[str] = ""
+
+@app.get("/api/skills")
+def get_skills():
+    data = _load_skills()
+    return data["skills"]
+
+@app.post("/api/skills")
+def create_skill(body: SkillCreate):
+    data = _load_skills()
+    skill = {
+        "id": str(_uuid.uuid4())[:8],
+        "name": body.name,
+        "description": body.description or "",
+        "color": body.color or "#3b82f6",
+        "icon": body.icon or "🎯",
+        "category": body.category or "",
+        "created_at": _dt.now().isoformat(timespec='seconds'),
+    }
+    data["skills"].append(skill)
+    _save_skills(data)
+    return skill
+
+@app.put("/api/skills/{skill_id}")
+def update_skill(skill_id: str, body: SkillUpdate):
+    data = _load_skills()
+    for s in data["skills"]:
+        if s["id"] == skill_id:
+            if body.name is not None: s["name"] = body.name
+            if body.description is not None: s["description"] = body.description
+            if body.color is not None: s["color"] = body.color
+            if body.icon is not None: s["icon"] = body.icon
+            if body.category is not None: s["category"] = body.category
+            _save_skills(data)
+            return s
+    raise HTTPException(status_code=404, detail="Skill not found")
+
+@app.delete("/api/skills/{skill_id}")
+def delete_skill(skill_id: str):
+    data = _load_skills()
+    data["skills"] = [s for s in data["skills"] if s["id"] != skill_id]
+    data["assignments"] = [a for a in data["assignments"] if a["skill_id"] != skill_id]
+    _save_skills(data)
+    return {"ok": True}
+
+@app.get("/api/skills/assignments")
+def get_assignments(employee_id: Optional[int] = Query(None)):
+    data = _load_skills()
+    assignments = data.get("assignments", [])
+    if employee_id is not None:
+        assignments = [a for a in assignments if a.get("employee_id") == employee_id]
+    return assignments
+
+@app.post("/api/skills/assignments")
+def add_assignment(body: SkillAssignment):
+    data = _load_skills()
+    # Remove existing assignment for same employee+skill
+    data["assignments"] = [
+        a for a in data.get("assignments", [])
+        if not (a["employee_id"] == body.employee_id and a["skill_id"] == body.skill_id)
+    ]
+    assignment = {
+        "id": str(_uuid.uuid4())[:8],
+        "employee_id": body.employee_id,
+        "skill_id": body.skill_id,
+        "level": body.level or 1,
+        "certified_until": body.certified_until or None,
+        "notes": body.notes or "",
+        "assigned_at": _dt.now().isoformat(timespec='seconds'),
+    }
+    data["assignments"].append(assignment)
+    _save_skills(data)
+    return assignment
+
+@app.delete("/api/skills/assignments/{assignment_id}")
+def delete_assignment(assignment_id: str):
+    data = _load_skills()
+    before = len(data.get("assignments", []))
+    data["assignments"] = [a for a in data.get("assignments", []) if a.get("id") != assignment_id]
+    if len(data["assignments"]) == before:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    _save_skills(data)
+    return {"ok": True}
+
+@app.get("/api/skills/matrix")
+def get_skills_matrix():
+    """Full matrix: all employees × all skills with assignment details."""
+    data = _load_skills()
+    skills = data.get("skills", [])
+    assignments = data.get("assignments", [])
+    employees = get_db().get_employees()
+
+    # Build lookup: employee_id -> {skill_id -> assignment}
+    emp_skills: dict = {}
+    for a in assignments:
+        eid = a["employee_id"]
+        if eid not in emp_skills:
+            emp_skills[eid] = {}
+        emp_skills[eid][a["skill_id"]] = a
+
+    result_employees = []
+    for emp in employees:
+        eid = emp["ID"]
+        result_employees.append({
+            "id": eid,
+            "name": f"{emp.get('NAME', '')} {emp.get('FIRSTNAME', '')}".strip(),
+            "short": emp.get("SHORTNAME", ""),
+            "group": emp.get("GROUP_NAME", ""),
+            "skills": emp_skills.get(eid, {}),
+            "skill_count": len(emp_skills.get(eid, {})),
+        })
+
+    # Skill coverage stats
+    skill_stats = []
+    for skill in skills:
+        sid = skill["id"]
+        holders = [a for a in assignments if a["skill_id"] == sid]
+        experts = [a for a in holders if a.get("level", 1) >= 3]
+        expiring = []
+        today = _dt.today().date().isoformat()
+        soon = _dt.today().date().replace(
+            year=_dt.today().date().year,
+            month=min(_dt.today().date().month + 3, 12)
+        ).isoformat()
+        for a in holders:
+            cu = a.get("certified_until")
+            if cu and cu <= soon:
+                expiring.append(a)
+        skill_stats.append({
+            **skill,
+            "holder_count": len(holders),
+            "expert_count": len(experts),
+            "expiring_count": len(expiring),
+            "coverage_pct": round(len(holders) / len(employees) * 100) if employees else 0,
+        })
+
+    return {
+        "skills": skill_stats,
+        "employees": result_employees,
+        "assignments": assignments,
+        "total_employees": len(employees),
+    }
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
