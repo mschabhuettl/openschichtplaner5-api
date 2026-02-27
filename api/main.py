@@ -6137,6 +6137,67 @@ def run_simulation(body: SimulationRequest):
     }
 
 
+# ── Übergabe-Protokoll ────────────────────────────────────────────────────────
+# In-memory store (reset on restart – kann später auf DB umgestellt werden)
+import uuid as _uuid
+
+_handover_notes: list[dict] = []
+
+@app.get("/api/handover")
+def get_handover(date: str | None = None, shift_id: int | None = None, limit: int = 50):
+    """Übergabe-Notizen abrufen, optional gefiltert nach Datum/Schicht."""
+    notes = list(reversed(_handover_notes))  # neueste zuerst
+    if date:
+        notes = [n for n in notes if n["date"] == date]
+    if shift_id is not None:
+        notes = [n for n in notes if n.get("shift_id") == shift_id]
+    return notes[:limit]
+
+@app.post("/api/handover")
+def create_handover(body: dict):
+    """Neue Übergabe-Notiz anlegen."""
+    note = {
+        "id": str(_uuid.uuid4())[:8],
+        "date": body.get("date", ""),
+        "shift_id": body.get("shift_id"),
+        "shift_name": body.get("shift_name", ""),
+        "author": body.get("author", "Unbekannt"),
+        "text": body.get("text", ""),
+        "priority": body.get("priority", "normal"),  # normal | wichtig | kritisch
+        "tags": body.get("tags", []),
+        "created_at": body.get("created_at", ""),
+        "resolved": False,
+    }
+    _handover_notes.append(note)
+    return note
+
+@app.patch("/api/handover/{note_id}")
+def update_handover(note_id: str, body: dict):
+    """Notiz aktualisieren (z.B. als erledigt markieren)."""
+    for note in _handover_notes:
+        if note["id"] == note_id:
+            if "resolved" in body:
+                note["resolved"] = body["resolved"]
+            if "text" in body:
+                note["text"] = body["text"]
+            if "priority" in body:
+                note["priority"] = body["priority"]
+            return note
+    from fastapi import HTTPException
+    raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+
+@app.delete("/api/handover/{note_id}")
+def delete_handover(note_id: str):
+    """Übergabe-Notiz löschen."""
+    global _handover_notes
+    before = len(_handover_notes)
+    _handover_notes = [n for n in _handover_notes if n["id"] != note_id]
+    if len(_handover_notes) == before:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+    return {"ok": True}
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
