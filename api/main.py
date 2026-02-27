@@ -42,15 +42,37 @@ _logger.addHandler(_stderr_handler)
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 # ── In-memory session store ─────────────────────────────────────
+import time as _time
+
 _sessions: dict[str, dict] = {}
+
+# Token lifetime: default 8h, configurable via TOKEN_EXPIRE_HOURS env
+_TOKEN_EXPIRE_HOURS = float(os.environ.get('TOKEN_EXPIRE_HOURS', '8'))
+
+# Brute-force tracking: username → list of failed attempt timestamps
+_failed_logins: dict[str, list] = {}
+_LOCKOUT_WINDOW = 15 * 60   # 15 minutes
+_LOCKOUT_MAX = 5             # max failures before lockout
 
 # Role hierarchy
 _ROLE_LEVEL = {'Leser': 1, 'Planer': 2, 'Admin': 3}
 
 
+def _is_token_valid(token: str) -> bool:
+    """Return True if the token exists and has not expired."""
+    session = _sessions.get(token)
+    if not session:
+        return False
+    expires_at = session.get('expires_at')
+    if expires_at is not None and _time.time() > expires_at:
+        del _sessions[token]
+        return False
+    return True
+
+
 def get_current_user(x_auth_token: Optional[str] = Header(None)) -> Optional[dict]:
-    """Return user dict for the given token, or None if not authenticated."""
-    if x_auth_token and x_auth_token in _sessions:
+    """Return user dict for the given token, or None if not authenticated/expired."""
+    if x_auth_token and _is_token_valid(x_auth_token):
         return _sessions[x_auth_token]
     return None
 
@@ -103,9 +125,12 @@ DB_PATH = os.environ.get(
 )
 DB_PATH = os.path.normpath(DB_PATH)
 
-# CORS origins from env
+# CORS origins from env — default to localhost only (never wildcard in production)
 _raw_origins = os.environ.get('ALLOWED_ORIGINS', '')
-ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(',') if o.strip()] or ['*']
+ALLOWED_ORIGINS = (
+    [o.strip() for o in _raw_origins.split(',') if o.strip()]
+    or ['http://localhost:5173', 'http://localhost:8000']
+)
 
 app = FastAPI(
     title="OpenSchichtplaner5 API",
@@ -165,7 +190,7 @@ _PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/'}
 # Dev-mode bypass: inject a virtual admin session for dev requests
 _DEV_TOKEN = "__dev_mode__"
 _DEV_USER = {"ID": 0, "NAME": "Developer", "role": "Admin", "ADMIN": True, "RIGHTS": 255}
-_sessions[_DEV_TOKEN] = _DEV_USER
+_sessions[_DEV_TOKEN] = {**_DEV_USER, 'expires_at': None}  # no expiry for dev token
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
@@ -177,9 +202,9 @@ async def auth_middleware(request: Request, call_next):
     # Allow public paths and non-API paths (frontend assets)
     if path in _PUBLIC_PATHS or not path.startswith('/api/'):
         return await call_next(request)
-    # Check token
+    # Check token (also evicts expired tokens)
     token = request.headers.get('x-auth-token')
-    if not token or token not in _sessions:
+    if not token or not _is_token_valid(token):
         _logger.warning("AUTH 401 | ip=%s method=%s path=%s", client_ip, method, path)
         return JSONResponse(
             status_code=401,
@@ -586,20 +611,44 @@ def login(request: Request, body: LoginBody):
     """Simple login: verify username+password against 5USER.DBF."""
     import secrets
     client_ip = request.client.host if request.client else 'unknown'
-    user = get_db().verify_user_password(body.username, body.password)
-    if user is None:
+    now = _time.time()
+    username = body.username
+
+    # ── Brute-force check ──────────────────────────────────────
+    # Purge old entries (>15min) then check lockout
+    timestamps = _failed_logins.get(username, [])
+    timestamps = [t for t in timestamps if now - t < _LOCKOUT_WINDOW]
+    _failed_logins[username] = timestamps
+    if len(timestamps) >= _LOCKOUT_MAX:
         _logger.warning(
-            "AUTH LOGIN_FAIL | ip=%s username=%s", client_ip, body.username
+            "AUTH LOCKOUT | ip=%s username=%s attempts=%d", client_ip, username, len(timestamps)
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Zu viele Fehlversuche. Bitte 15 Minuten warten."
+        )
+
+    user = get_db().verify_user_password(username, body.password)
+    if user is None:
+        _failed_logins[username] = timestamps + [now]
+        _logger.warning(
+            "AUTH LOGIN_FAIL | ip=%s username=%s", client_ip, username
         )
         raise HTTPException(status_code=401, detail="Ungültiger Benutzername oder Passwort")
-    _logger.info("AUTH LOGIN_OK | ip=%s username=%s", client_ip, body.username)
-    # Generate a session token and store in memory
+
+    # Successful login: clear failed attempts
+    _failed_logins.pop(username, None)
+    _logger.info("AUTH LOGIN_OK | ip=%s username=%s", client_ip, username)
+
+    # Generate a session token with expiry
     token = secrets.token_hex(32)
-    _sessions[token] = user
+    expires_at = now + _TOKEN_EXPIRE_HOURS * 3600
+    _sessions[token] = {**user, 'expires_at': expires_at}
     return {
         "ok": True,
         "token": token,
         "user": user,
+        "expires_at": expires_at,
     }
 
 
@@ -3908,8 +3957,8 @@ from fastapi.responses import StreamingResponse
 
 
 @app.get("/api/backup/download")
-def backup_download():
-    """Create a ZIP of all .DBF / .FPT / .CDX files and return as download."""
+def backup_download(_admin: dict = Depends(require_admin)):
+    """Create a ZIP of all .DBF / .FPT / .CDX files and return as download. Admin only."""
     allowed_ext = {'.DBF', '.FPT', '.CDX'}
 
     buf = io.BytesIO()
