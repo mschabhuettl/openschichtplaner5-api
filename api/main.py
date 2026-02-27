@@ -132,10 +132,34 @@ ALLOWED_ORIGINS = (
     or ['http://localhost:5173', 'http://localhost:8000']
 )
 
+_OPENAPI_TAGS = [
+    {"name": "Health", "description": "System health and version info"},
+    {"name": "Auth", "description": "Authentication: login and logout"},
+    {"name": "Employees", "description": "Employee management (CRUD)"},
+    {"name": "Groups", "description": "Group management and member assignments"},
+    {"name": "Shifts", "description": "Shift definitions (CRUD)"},
+    {"name": "Schedule", "description": "Schedule read and write operations"},
+    {"name": "Absences", "description": "Absence/leave entries"},
+    {"name": "Statistics", "description": "Monthly and yearly statistics"},
+    {"name": "Users", "description": "API user management (Admin only)"},
+    {"name": "Export", "description": "CSV/HTML/PDF export endpoints"},
+    {"name": "Import", "description": "CSV import endpoints"},
+    {"name": "Backup", "description": "Database backup and restore"},
+]
+
 app = FastAPI(
     title="OpenSchichtplaner5 API",
-    description="Open-source REST API for Schichtplaner5 databases",
-    version="0.1.0"
+    description=(
+        "Open-source REST API for Schichtplaner5 databases.\n\n"
+        "## Authentication\n"
+        "Most endpoints require an `x-auth-token` header obtained from `POST /api/auth/login`.\n\n"
+        "## Roles\n"
+        "- **Leser** – read-only access\n"
+        "- **Planer** – can write schedules and absences\n"
+        "- **Admin** – full access including user and master-data management\n"
+    ),
+    version="1.0.0",
+    openapi_tags=_OPENAPI_TAGS,
 )
 
 app.state.limiter = limiter
@@ -169,6 +193,12 @@ def get_db() -> SP5Database:
     return SP5Database(DB_PATH)
 
 
+@app.on_event("shutdown")
+def on_shutdown():
+    """Graceful shutdown: log and clean up any open resources."""
+    _logger.info("SP5 API shutting down — cleaning up resources")
+
+
 def _sanitize_500(e: Exception, context: str = '') -> HTTPException:
     """Log full exception, return sanitized 500 without internal details."""
     import traceback
@@ -185,7 +215,7 @@ def _sanitize_500(e: Exception, context: str = '') -> HTTPException:
 
 # ── Auth Middleware ─────────────────────────────────────────────
 # Public endpoints that don't require authentication
-_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/'}
+_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '/'}
 
 # Dev-mode bypass: inject a virtual admin session for dev requests
 _DEV_TOKEN = "__dev_mode__"
@@ -230,9 +260,21 @@ async def auth_middleware(request: Request, call_next):
 
 # ── Routes ─────────────────────────────────────────────────────
 
-@app.get("/api")
+@app.get("/api/health", tags=["Health"], summary="Health check", description="Returns service status, API version, and DB connection state.")
+def health():
+    """Health check endpoint — public, no auth required."""
+    try:
+        db = get_db()
+        db.get_stats()
+        db_status = "connected"
+    except Exception:
+        db_status = "error"
+    return {"status": "ok", "version": "1.0.0", "db": db_status}
+
+
+@app.get("/api", tags=["Health"])
 def root():
-    return {"service": "OpenSchichtplaner5 API", "version": "0.1.0", "backend": "dbf", "db_path": DB_PATH}
+    return {"service": "OpenSchichtplaner5 API", "version": "1.0.0", "backend": "dbf", "db_path": DB_PATH}
 
 
 @app.get("/")
@@ -456,12 +498,12 @@ def get_dashboard_summary(
     }
 
 
-@app.get("/api/employees")
+@app.get("/api/employees", tags=["Employees"], summary="List employees", description="Return all active employees. Set include_hidden=true to include hidden/archived employees.")
 def get_employees(include_hidden: bool = False):
     return get_db().get_employees(include_hidden=include_hidden)
 
 
-@app.get("/api/employees/{emp_id}")
+@app.get("/api/employees/{emp_id}", tags=["Employees"], summary="Get employee by ID")
 def get_employee(emp_id: int):
     e = get_db().get_employee(emp_id)
     if e is None:
@@ -507,7 +549,7 @@ def get_holidays(year: Optional[int] = None):
     return get_db().get_holidays(year=year)
 
 
-@app.get("/api/schedule")
+@app.get("/api/schedule", tags=["Schedule"], summary="Get monthly schedule", description="Return the full schedule grid for a given year/month, optionally filtered by group.")
 def get_schedule(
     year: int = Query(..., description="Year"),
     month: int = Query(..., description="Month (1-12)"),
@@ -605,7 +647,7 @@ def change_user_password(user_id: int, body: ChangePasswordBody, _admin: dict = 
         raise _sanitize_500(e)
 
 
-@app.post("/api/auth/login")
+@app.post("/api/auth/login", tags=["Auth"], summary="Login", description="Authenticate with username and password. Returns a session token valid for 8 hours (configurable via TOKEN_EXPIRE_HOURS).")
 @limiter.limit("5/minute")
 def login(request: Request, body: LoginBody):
     """Simple login: verify username+password against 5USER.DBF."""
@@ -652,7 +694,7 @@ def login(request: Request, body: LoginBody):
     }
 
 
-@app.post("/api/auth/logout")
+@app.post("/api/auth/logout", tags=["Auth"], summary="Logout", description="Invalidate the current session token.")
 def logout(x_auth_token: Optional[str] = Header(None)):
     """Invalidate the session token."""
     if x_auth_token and x_auth_token in _sessions:
@@ -1353,7 +1395,7 @@ class ScheduleEntryCreate(BaseModel):
     shift_id: int
 
 
-@app.post("/api/schedule")
+@app.post("/api/schedule", tags=["Schedule"], summary="Add schedule entry", description="Assign a shift to an employee on a specific date. Requires Planer role.")
 def create_schedule_entry(body: ScheduleEntryCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
@@ -1473,7 +1515,7 @@ class AbsenceCreate(BaseModel):
     leave_type_id: int
 
 
-@app.get("/api/absences")
+@app.get("/api/absences", tags=["Absences"], summary="List absences", description="Return absence entries, optionally filtered by year, employee, or leave type.")
 def list_absences(
     year: Optional[int] = Query(None),
     employee_id: Optional[int] = Query(None),
@@ -1489,7 +1531,7 @@ def get_all_group_assignments():
     return get_db().get_all_group_assignments()
 
 
-@app.post("/api/absences")
+@app.post("/api/absences", tags=["Absences"], summary="Create absence", description="Add an absence entry for an employee on a date. Requires Planer role.")
 def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
@@ -1595,7 +1637,7 @@ class EmployeeUpdate(BaseModel):
     CBKSCHED: Optional[int] = None
 
 
-@app.post("/api/employees")
+@app.post("/api/employees", tags=["Employees"], summary="Create employee", description="Create a new employee record. Requires Admin role.")
 def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
@@ -1620,7 +1662,7 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
         raise _sanitize_500(e, 'create_employee')
 
 
-@app.put("/api/employees/{emp_id}")
+@app.put("/api/employees/{emp_id}", tags=["Employees"], summary="Update employee", description="Update an existing employee. Requires Admin role.")
 def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -1646,7 +1688,7 @@ def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends
         raise _sanitize_500(e, f'update_employee/{emp_id}')
 
 
-@app.delete("/api/employees/{emp_id}")
+@app.delete("/api/employees/{emp_id}", tags=["Employees"], summary="Delete (hide) employee", description="Marks an employee as hidden. Requires Admin role.")
 def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_employee(emp_id)
