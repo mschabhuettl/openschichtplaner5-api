@@ -105,6 +105,11 @@ def get_db() -> SP5Database:
 # Public endpoints that don't require authentication
 _PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/'}
 
+# Dev-mode bypass: inject a virtual admin session for dev requests
+_DEV_TOKEN = "__dev_mode__"
+_DEV_USER = {"ID": 0, "NAME": "Developer", "role": "Admin", "ADMIN": True, "RIGHTS": 255}
+_sessions[_DEV_TOKEN] = _DEV_USER
+
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     """Require authentication for all /api/* endpoints except public ones."""

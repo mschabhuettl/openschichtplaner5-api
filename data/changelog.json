@@ -3,30 +3,6 @@
     "timestamp": "2026-02-22T22:08:17",
     "user": "api",
     "action": "CREATE",
-    "entity": "annual_close",
-    "entity_id": 0,
-    "details": "POST /api/annual-close"
-  },
-  {
-    "timestamp": "2026-02-22T22:08:17",
-    "user": "api",
-    "action": "UPDATE",
-    "entity": "absence",
-    "entity_id": 1,
-    "details": "PATCH /api/absences/1/status"
-  },
-  {
-    "timestamp": "2026-02-22T22:08:17",
-    "user": "api",
-    "action": "CREATE",
-    "entity": "auth",
-    "entity_id": 0,
-    "details": "POST /api/auth/logout"
-  },
-  {
-    "timestamp": "2026-02-22T22:08:17",
-    "user": "api",
-    "action": "CREATE",
     "entity": "schedule",
     "entity_id": 0,
     "details": "POST /api/schedule/generate"
@@ -7993,6 +7969,30 @@
   },
   {
     "timestamp": "2026-02-27T05:16:58",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T05:17:22",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T05:17:25",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T06:20:10",
     "user": "api",
     "action": "CREATE",
     "entity": "auth",
