@@ -547,9 +547,9 @@ class LoginBody(BaseModel):
 @app.post("/api/users")
 def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+        raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     if not body.PASSWORD or not body.PASSWORD.strip():
-        raise HTTPException(status_code=422, detail="Feld 'PASSWORD' darf nicht leer sein")
+        raise HTTPException(status_code=400, detail="Feld 'PASSWORD' darf nicht leer sein")
     if body.role not in ('Admin', 'Planer', 'Leser'):
         raise HTTPException(status_code=400, detail="role muss Admin, Planer oder Leser sein")
     try:
@@ -1594,13 +1594,13 @@ class EmployeeUpdate(BaseModel):
 @app.post("/api/employees")
 def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+        raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     if body.HRSDAY is not None and body.HRSDAY < 0:
-        raise HTTPException(status_code=422, detail="Feld 'HRSDAY' darf nicht negativ sein")
+        raise HTTPException(status_code=400, detail="Feld 'HRSDAY' darf nicht negativ sein")
     if body.HRSWEEK is not None and body.HRSWEEK < 0:
-        raise HTTPException(status_code=422, detail="Feld 'HRSWEEK' darf nicht negativ sein")
+        raise HTTPException(status_code=400, detail="Feld 'HRSWEEK' darf nicht negativ sein")
     if body.HRSMONTH is not None and body.HRSMONTH < 0:
-        raise HTTPException(status_code=422, detail="Feld 'HRSMONTH' darf nicht negativ sein")
+        raise HTTPException(status_code=400, detail="Feld 'HRSMONTH' darf nicht negativ sein")
     # Validate optional date fields
     for field_name, val in [('BIRTHDAY', body.BIRTHDAY), ('EMPSTART', body.EMPSTART), ('EMPEND', body.EMPEND)]:
         if val:
@@ -1608,7 +1608,7 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
                 from datetime import datetime as _dtt
                 _dtt.strptime(val, '%Y-%m-%d')
             except ValueError:
-                raise HTTPException(status_code=422, detail=f"Feld '{field_name}' muss im Format YYYY-MM-DD sein")
+                raise HTTPException(status_code=400, detail=f"Feld '{field_name}' muss im Format YYYY-MM-DD sein")
     try:
         result = get_db().create_employee(body.model_dump())
         return {"ok": True, "record": result}
@@ -1623,7 +1623,7 @@ def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends
         # Validate negative hours if provided
         for field in ('HRSDAY', 'HRSWEEK', 'HRSMONTH', 'HRSTOTAL'):
             if field in data and data[field] < 0:
-                raise HTTPException(status_code=422, detail=f"Feld '{field}' darf nicht negativ sein")
+                raise HTTPException(status_code=400, detail=f"Feld '{field}' darf nicht negativ sein")
         # Validate date fields if provided
         for field in ('BIRTHDAY', 'EMPSTART', 'EMPEND'):
             if field in data and data[field]:
@@ -1631,7 +1631,7 @@ def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends
                     from datetime import datetime as _dtt
                     _dtt.strptime(data[field], '%Y-%m-%d')
                 except ValueError:
-                    raise HTTPException(status_code=422, detail=f"Feld '{field}' muss im Format YYYY-MM-DD sein")
+                    raise HTTPException(status_code=400, detail=f"Feld '{field}' muss im Format YYYY-MM-DD sein")
         result = get_db().update_employee(emp_id, data)
         return {"ok": True, "record": result}
     except HTTPException:
@@ -1704,7 +1704,7 @@ class GroupMemberBody(BaseModel):
 @app.post("/api/groups")
 def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+        raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     try:
         result = get_db().create_group(body.model_dump())
         return {"ok": True, "record": result}
@@ -1807,9 +1807,9 @@ class ShiftUpdate(BaseModel):
 @app.post("/api/shifts")
 def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+        raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     if body.DURATION0 is not None and body.DURATION0 < 0:
-        raise HTTPException(status_code=422, detail="Feld 'DURATION0' darf nicht negativ sein")
+        raise HTTPException(status_code=400, detail="Feld 'DURATION0' darf nicht negativ sein")
     try:
         result = get_db().create_shift(body.model_dump())
         return {"ok": True, "record": result}
@@ -1866,9 +1866,9 @@ class LeaveTypeUpdate(BaseModel):
 @app.post("/api/leave-types")
 def create_leave_type(body: LeaveTypeCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=422, detail="Feld 'NAME' darf nicht leer sein")
+        raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     if body.STDENTIT is not None and body.STDENTIT < 0:
-        raise HTTPException(status_code=422, detail="Feld 'STDENTIT' darf nicht negativ sein")
+        raise HTTPException(status_code=400, detail="Feld 'STDENTIT' darf nicht negativ sein")
     try:
         result = get_db().create_leave_type(body.model_dump())
         return {"ok": True, "record": result}

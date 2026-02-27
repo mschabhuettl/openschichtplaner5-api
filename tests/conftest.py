@@ -78,6 +78,17 @@ def app(patched_db):
     return _app
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset slowapi rate limiter storage before each test to avoid cross-test pollution."""
+    try:
+        from api.main import limiter
+        limiter.reset()
+    except Exception:
+        pass
+    yield
+
+
 # ── Client fixtures ────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope="session")
