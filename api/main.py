@@ -3,6 +3,7 @@ import os
 import sys
 import logging
 import logging.handlers
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
 # Load .env file if present
@@ -154,7 +155,14 @@ _OPENAPI_TAGS = [
     {"name": "Backup", "description": "Database backup and restore"},
 ]
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    _logger.info("SP5 API shutting down — cleaning up resources")
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="OpenSchichtplaner5 API",
     description=(
         "Open-source REST API for Schichtplaner5 databases.\n\n"
@@ -199,11 +207,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 def get_db() -> SP5Database:
     return SP5Database(DB_PATH)
 
-
-@app.on_event("shutdown")
-def on_shutdown():
-    """Graceful shutdown: log and clean up any open resources."""
-    _logger.info("SP5 API shutting down — cleaning up resources")
 
 
 def _sanitize_500(e: Exception, context: str = '') -> HTTPException:
