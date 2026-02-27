@@ -5997,6 +5997,146 @@ def get_skills_matrix():
     }
 
 
+# ── Schichtplan-Simulation ────────────────────────────────────────────────────
+
+class SimulationAbsence(BaseModel):
+    emp_id: int
+    dates: list  # list of 'YYYY-MM-DD' strings, or ['all'] for whole month
+
+class SimulationRequest(BaseModel):
+    year: int
+    month: int
+    absences: list  # list of SimulationAbsence dicts
+    scenario_name: Optional[str] = "Simulation"
+
+@app.post("/api/simulation")
+def run_simulation(body: SimulationRequest):
+    """
+    Schichtplan-Simulation: Was passiert wenn Mitarbeiter ausfallen?
+    Vergleicht Ist-Besetzung mit simulierter Besetzung nach Ausfall.
+    """
+    import calendar as _cal
+    db = get_db()
+    year, month = body.year, body.month
+    entries = db.get_schedule(year=year, month=month)
+    employees = db.get_employees(include_hidden=False)
+    shifts = db.get_shifts(include_hidden=True)
+    emp_map = {e['ID']: e for e in employees}
+    shift_map = {s['ID']: s for s in shifts}
+
+    # Days in month
+    days_in_month = _cal.monthrange(year, month)[1]
+    date_strs = [f"{year}-{month:02d}-{d:02d}" for d in range(1, days_in_month + 1)]
+
+    # Build absent set: {emp_id: set(dates)}
+    absent_map: dict = {}
+    for ab in body.absences:
+        emp_id = ab['emp_id'] if isinstance(ab, dict) else ab.emp_id
+        dates_raw = ab['dates'] if isinstance(ab, dict) else ab.dates
+        if dates_raw == ['all'] or dates_raw == 'all':
+            dates_set = set(date_strs)
+        else:
+            dates_set = set(dates_raw)
+        absent_map[emp_id] = dates_set
+
+    # Per-day analysis
+    day_stats = []
+    total_lost_shifts = 0
+    critical_days = 0
+    affected_employees = set(absent_map.keys())
+
+    for date_str in date_strs:
+        day_entries = [e for e in entries if e['date'] == date_str and e['kind'] == 'shift']
+        baseline_count = len(day_entries)
+
+        # Remove entries for absent employees on this date
+        simulated = [
+            e for e in day_entries
+            if not (e['employee_id'] in absent_map and date_str in absent_map[e['employee_id']])
+        ]
+        sim_count = len(simulated)
+        lost = baseline_count - sim_count
+        total_lost_shifts += lost
+
+        # Who is missing on this day
+        missing_emps = []
+        for e in day_entries:
+            eid = e['employee_id']
+            if eid in absent_map and date_str in absent_map[eid]:
+                emp = emp_map.get(eid, {})
+                missing_emps.append({
+                    'emp_id': eid,
+                    'name': f"{emp.get('FIRSTNAME','')} {emp.get('NAME','')}".strip(),
+                    'shortname': emp.get('SHORTNAME', str(eid)),
+                    'shift_id': e.get('shift_id'),
+                    'shift_name': e.get('display_name', ''),
+                })
+
+        # Potential cover candidates: employees with shifts that day NOT absent
+        cover_candidates = []
+        for e in day_entries:
+            eid = e['employee_id']
+            if eid not in absent_map or date_str not in absent_map.get(eid, set()):
+                emp = emp_map.get(eid, {})
+                cover_candidates.append({
+                    'emp_id': eid,
+                    'name': f"{emp.get('FIRSTNAME','')} {emp.get('NAME','')}".strip(),
+                    'shortname': emp.get('SHORTNAME', str(eid)),
+                })
+
+        # Status
+        if sim_count == 0 and baseline_count > 0:
+            status = 'critical'
+            critical_days += 1
+        elif lost > 0:
+            status = 'degraded'
+        else:
+            status = 'ok'
+
+        day_stats.append({
+            'date': date_str,
+            'day': int(date_str.split('-')[2]),
+            'weekday': _cal.weekday(year, month, int(date_str.split('-')[2])),
+            'baseline_count': baseline_count,
+            'simulated_count': sim_count,
+            'lost_shifts': lost,
+            'status': status,
+            'missing': missing_emps,
+            'cover_candidates': cover_candidates[:5],  # top 5
+        })
+
+    # Per-employee impact summary
+    employee_impacts = []
+    for emp_id in absent_map:
+        emp = emp_map.get(emp_id, {})
+        emp_entries = [e for e in entries if e['employee_id'] == emp_id and e['kind'] == 'shift']
+        absent_dates = absent_map[emp_id]
+        affected = [e for e in emp_entries if e['date'] in absent_dates]
+        employee_impacts.append({
+            'emp_id': emp_id,
+            'name': f"{emp.get('FIRSTNAME','')} {emp.get('NAME','')}".strip(),
+            'shortname': emp.get('SHORTNAME', str(emp_id)),
+            'total_shifts_in_month': len(emp_entries),
+            'absent_shifts': len(affected),
+            'absent_days': sorted(list(absent_dates & {e['date'] for e in emp_entries})),
+        })
+
+    return {
+        'scenario_name': body.scenario_name,
+        'year': year,
+        'month': month,
+        'days': day_stats,
+        'summary': {
+            'total_lost_shifts': total_lost_shifts,
+            'critical_days': critical_days,
+            'degraded_days': sum(1 for d in day_stats if d['status'] == 'degraded'),
+            'ok_days': sum(1 for d in day_stats if d['status'] == 'ok'),
+            'affected_employees': len(affected_employees),
+        },
+        'employee_impacts': employee_impacts,
+    }
+
+
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
     os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
