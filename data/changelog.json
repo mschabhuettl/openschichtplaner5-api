@@ -1022,5 +1022,29 @@
     "entity": "absence",
     "entity_id": 40,
     "details": "DELETE /api/absences/40/2025-11-01"
+  },
+  {
+    "timestamp": "2026-02-27T08:00:19",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T08:00:19",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
+  },
+  {
+    "timestamp": "2026-02-27T08:00:19",
+    "user": "api",
+    "action": "CREATE",
+    "entity": "auth",
+    "entity_id": 0,
+    "details": "POST /api/auth/login"
   }
 ]
