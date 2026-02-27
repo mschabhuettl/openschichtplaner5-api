@@ -33,8 +33,10 @@ class TestAuthLogin:
     def test_login_success_mocked(self, write_client):
         """Test successful login path by mocking verify_user_password."""
         import api.main as main_module
+        import api.routers.auth as auth_module
         fake_user = {'ID': 1, 'NAME': 'Admin', 'role': 'Admin', 'ADMIN': True}
-        with patch.object(main_module, 'get_db') as mock_get_db:
+        with patch.object(main_module, 'get_db') as mock_get_db, \
+             patch.object(auth_module, 'get_db', mock_get_db):
             mock_db = mock_get_db.return_value
             mock_db.verify_user_password.return_value = fake_user
             resp = write_client.post("/api/auth/login", json={

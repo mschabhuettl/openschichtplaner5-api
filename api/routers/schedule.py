@@ -1,0 +1,945 @@
+"""Schedule, shift-cycles, staffing, einsatzplan, restrictions router."""
+import re
+import json
+from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request, Body
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import Optional, List, Dict, Any
+from ..dependencies import (
+    get_db, require_admin, require_planer, require_auth, require_role,
+    _sanitize_500, _logger, get_current_user,
+)
+
+router = APIRouter()
+
+
+
+@router.get("/api/schedule", tags=["Schedule"], summary="Get monthly schedule", description="Return the full schedule grid for a given year/month, optionally filtered by group.")
+def get_schedule(
+    year: int = Query(..., description="Year"),
+    month: int = Query(..., description="Month (1-12)"),
+    group_id: Optional[int] = Query(None, description="Filter by group ID")
+):
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+    return get_db().get_schedule(year=year, month=month, group_id=group_id)
+
+
+@router.get("/api/cycles")
+def get_cycles():
+    return get_db().get_cycles()
+
+
+# ── Staffing requirements ────────────────────────────────────
+@router.get("/api/staffing")
+def get_staffing(
+    year: int = Query(...),
+    month: int = Query(...),
+):
+    return get_db().get_staffing(year, month)
+
+
+# ── Schedule Coverage (Personalbedarf-Ampel) ─────────────────
+@router.get("/api/schedule/coverage")
+def get_schedule_coverage(
+    year: int = Query(..., description="Year (YYYY)"),
+    month: int = Query(..., description="Month (1-12)"),
+):
+    """Return daily coverage status for the given month.
+    Each day: { day, scheduled_count, required_count, status: ok|low|critical }
+    """
+    import calendar as _cal
+    from collections import defaultdict
+
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+
+    db = get_db()
+    num_days = _cal.monthrange(year, month)[1]
+    prefix = f"{year:04d}-{month:02d}"
+
+    # Try DADEM / SHDEM for required staff — both empty in most DBs
+    # Use per-day required count (default: 3 = "ok" threshold, 2 = "low")
+    required_count = 3  # "ok" if scheduled >= 3, "low" if == 2, "critical" if < 2
+
+    # Count distinct employees scheduled per day (MASHI = regular shifts)
+    day_emp_sets: dict = defaultdict(set)
+    for r in db._read('MASHI'):
+        d = r.get('DATE', '')
+        if d.startswith(prefix):
+            try:
+                day_num = int(d[8:10])
+                emp_id = r.get('EMPLOYEEID')
+                if emp_id:
+                    day_emp_sets[day_num].add(emp_id)
+            except (ValueError, IndexError):
+                pass
+
+    # Also count SPSHI type=0 (Sonderdienste, not deviations)
+    for r in db._read('SPSHI'):
+        d = r.get('DATE', '')
+        if d.startswith(prefix) and r.get('TYPE', 0) == 0:
+            try:
+                day_num = int(d[8:10])
+                emp_id = r.get('EMPLOYEEID')
+                if emp_id:
+                    day_emp_sets[day_num].add(emp_id)
+            except (ValueError, IndexError):
+                pass
+
+    result = []
+    for day in range(1, num_days + 1):
+        scheduled = len(day_emp_sets.get(day, set()))
+        diff = scheduled - required_count
+        if diff >= 0:
+            status = "ok"
+        elif diff == -1:
+            status = "low"
+        else:
+            status = "critical"
+        result.append({
+            "day": day,
+            "scheduled_count": scheduled,
+            "required_count": required_count,
+            "status": status,
+        })
+
+    return result
+
+
+# ── Day schedule ─────────────────────────────────────────────
+@router.get("/api/schedule/day")
+def get_schedule_day(
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
+    group_id: Optional[int] = Query(None),
+):
+    try:
+        from datetime import datetime
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    return get_db().get_schedule_day(date, group_id=group_id)
+
+
+# ── Week schedule ────────────────────────────────────────────
+@router.get("/api/schedule/week")
+def get_schedule_week(
+    date: str = Query(..., description="Any date within the target week (YYYY-MM-DD)"),
+    group_id: Optional[int] = Query(None),
+):
+    try:
+        from datetime import datetime
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    return get_db().get_schedule_week(date, group_id=group_id)
+
+
+# ── Year overview ────────────────────────────────────────────
+@router.get("/api/schedule/year")
+def get_schedule_year(
+    year: int = Query(...),
+    employee_id: int = Query(...),
+):
+    return get_db().get_schedule_year(year, employee_id)
+
+
+@router.get("/api/schedule/conflicts")
+def get_schedule_conflicts(
+    year: int = Query(..., description="Year (YYYY)"),
+    month: int = Query(..., description="Month (1-12)"),
+    group_id: Optional[int] = Query(None, description="Group ID filter"),
+):
+    """Return all scheduling conflicts for a given month."""
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+    conflicts = get_db().get_schedule_conflicts(year, month, group_id)
+    return {"conflicts": conflicts}
+
+
+# ── Shift Cycles ─────────────────────────────────────────────
+
+@router.get("/api/shift-cycles")
+def get_shift_cycles():
+    return get_db().get_shift_cycles()
+
+
+@router.get("/api/shift-cycles/assign")
+def get_cycle_assignments():
+    return get_db().get_cycle_assignments()
+
+
+@router.get("/api/shift-cycles/{cycle_id}")
+def get_shift_cycle(cycle_id: int):
+    c = get_db().get_shift_cycle(cycle_id)
+    if c is None:
+        raise HTTPException(status_code=404, detail="Cycle not found")
+    return c
+
+
+class CycleAssignBody(BaseModel):
+    employee_id: int
+    cycle_id: int
+    start_date: str
+
+
+@router.post("/api/shift-cycles/assign")
+def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer)):
+    try:
+        from datetime import datetime
+        datetime.strptime(body.start_date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    try:
+        result = get_db().assign_cycle(body.employee_id, body.cycle_id, body.start_date)
+        return {"ok": True, "record": result}
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.delete("/api/shift-cycles/assign/{employee_id}")
+def remove_cycle_assignment(employee_id: int, _cur_user: dict = Depends(require_planer)):
+    try:
+        count = get_db().remove_cycle_assignment(employee_id)
+        return {"ok": True, "removed": count}
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+# ── Shift Cycle CRUD ──────────────────────────────────────────
+
+class ShiftCycleCreateBody(BaseModel):
+    name: str
+    size_weeks: int
+
+
+class CycleEntryItem(BaseModel):
+    index: int
+    shift_id: Optional[int] = None
+
+
+class ShiftCycleUpdateBody(BaseModel):
+    name: str
+    size_weeks: int
+    entries: List[CycleEntryItem] = []
+
+
+@router.post("/api/shift-cycles")
+def create_shift_cycle(body: ShiftCycleCreateBody, _cur_user: dict = Depends(require_planer)):
+    if not body.name.strip():
+        raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
+    if body.size_weeks < 1 or body.size_weeks > 52:
+        raise HTTPException(status_code=400, detail="Anzahl Wochen muss zwischen 1 und 52 liegen")
+    try:
+        result = get_db().create_shift_cycle(body.name.strip(), body.size_weeks)
+        return {"ok": True, "cycle": result}
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.put("/api/shift-cycles/{cycle_id}")
+def update_shift_cycle(cycle_id: int, body: ShiftCycleUpdateBody, _cur_user: dict = Depends(require_planer)):
+    if not body.name.strip():
+        raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
+    if body.size_weeks < 1 or body.size_weeks > 52:
+        raise HTTPException(status_code=400, detail="Anzahl Wochen muss zwischen 1 und 52 liegen")
+    db = get_db()
+    try:
+        db.update_shift_cycle(cycle_id, body.name.strip(), body.size_weeks)
+        # Replace all entries: clear old ones, write new ones
+        db.clear_cycle_entries(cycle_id)
+        for entry in body.entries:
+            if entry.shift_id:
+                db.set_cycle_entry(cycle_id, entry.index, entry.shift_id)
+        cycle = db.get_shift_cycle(cycle_id)
+        return {"ok": True, "cycle": cycle}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.delete("/api/shift-cycles/{cycle_id}")
+def delete_shift_cycle(cycle_id: int, _cur_user: dict = Depends(require_planer)):
+    try:
+        count = get_db().delete_shift_cycle(cycle_id)
+        if count == 0:
+            raise HTTPException(status_code=404, detail="Zyklus nicht gefunden")
+        return {"ok": True, "deleted": cycle_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+# ── Schedule Templates (Schicht-Vorlagen & Favoriten) ────────
+# NOTE: these routes must be registered BEFORE the generic
+#       DELETE /api/schedule/{employee_id}/{date} route to avoid
+#       "templates" being parsed as an employee_id integer.
+
+class TemplateAssignment(BaseModel):
+    employee_id: int
+    weekday_offset: int   # 0=Mon … 6=Sun
+    shift_id: int
+    employee_name: Optional[str] = None
+    shift_name: Optional[str] = None
+
+
+class TemplateCreate(BaseModel):
+    name: str
+    description: str = ''
+    assignments: List[TemplateAssignment]
+
+
+class TemplateApplyRequest(BaseModel):
+    target_date: str    # ISO date string — the Monday (or any anchor) of the target week
+    force: bool = False  # overwrite existing entries?
+
+
+class TemplateCaptureRequest(BaseModel):
+    name: str
+    description: str = ''
+    year: int
+    month: int
+    week_start_day: int  # day-of-month (1-based) of the Monday to capture
+    group_id: Optional[int] = None
+
+
+@router.get("/api/schedule/templates")
+def list_templates():
+    """List all saved schedule templates."""
+    db = get_db()
+    return db.get_schedule_templates()
+
+
+@router.post("/api/schedule/templates")
+def create_template(body: TemplateCreate, _cur_user: dict = Depends(require_planer)):
+    """Create a new schedule template."""
+    db = get_db()
+    assignments = [a.dict() for a in body.assignments]
+    template = db.create_schedule_template(
+        name=body.name,
+        description=body.description,
+        assignments=assignments,
+    )
+    return template
+
+
+@router.post("/api/schedule/templates/capture")
+def capture_template(body: TemplateCaptureRequest, _cur_user: dict = Depends(require_planer)):
+    """Capture the current week's schedule entries as a new template."""
+    db = get_db()
+    entries = db.get_week_entries_for_template(
+        year=body.year,
+        month=body.month,
+        week_start_day=body.week_start_day,
+        group_id=body.group_id,
+    )
+    if not entries:
+        raise HTTPException(status_code=400, detail="Keine Schicht-Einträge in dieser Woche gefunden")
+    assignments = [
+        {
+            'employee_id': e.get('employee_id'),
+            'weekday_offset': e.get('weekday_offset', 0),
+            'shift_id': e.get('shift_id'),
+            'employee_name': e.get('employee_name', ''),
+            'shift_name': e.get('display_name', '') or e.get('shift_name', ''),
+        }
+        for e in entries
+    ]
+    template = db.create_schedule_template(
+        name=body.name,
+        description=body.description,
+        assignments=assignments,
+    )
+    return template
+
+
+@router.delete("/api/schedule/templates/{template_id}")
+def delete_template(template_id: int, _cur_user: dict = Depends(require_planer)):
+    """Delete a schedule template by ID."""
+    db = get_db()
+    ok = db.delete_schedule_template(template_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Vorlage nicht gefunden")
+    return {"deleted": True, "id": template_id}
+
+
+@router.post("/api/schedule/templates/{template_id}/apply")
+def apply_template(template_id: int, body: TemplateApplyRequest, _cur_user: dict = Depends(require_planer)):
+    """Apply a schedule template to a target week."""
+    db = get_db()
+    try:
+        result = db.apply_schedule_template(
+            template_id=template_id,
+            target_date=body.target_date,
+            force=body.force,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return result
+
+
+# ── Write: schedule entry ────────────────────────────────────
+class ScheduleEntryCreate(BaseModel):
+    employee_id: int
+    date: str
+    shift_id: int
+
+
+@router.post("/api/schedule", tags=["Schedule"], summary="Add schedule entry", description="Assign a shift to an employee on a specific date. Requires Planer role.")
+def create_schedule_entry(body: ScheduleEntryCreate, _cur_user: dict = Depends(require_planer)):
+    try:
+        from datetime import datetime
+        datetime.strptime(body.date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    db = get_db()
+    if db.get_employee(body.employee_id) is None:
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden")
+    if db.get_shift(body.shift_id) is None:
+        raise HTTPException(status_code=404, detail=f"Schicht {body.shift_id} nicht gefunden")
+    try:
+        result = db.add_schedule_entry(body.employee_id, body.date, body.shift_id)
+        return {"ok": True, "record": result}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.delete("/api/schedule/{employee_id}/{date}")
+def delete_schedule_entry(employee_id: int, date: str, _cur_user: dict = Depends(require_planer)):
+    try:
+        from datetime import datetime
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    try:
+        count = get_db().delete_schedule_entry(employee_id, date)
+        if count == 0:
+            raise HTTPException(status_code=404, detail="Schedule entry not found")
+        return {"ok": True, "deleted": count}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.delete("/api/schedule-shift/{employee_id}/{date}")
+def delete_shift_only(employee_id: int, date: str, _cur_user: dict = Depends(require_planer)):
+    """Delete only shift entries (MASHI/SPSHI) for an employee on a date, leaving absences intact."""
+    try:
+        from datetime import datetime
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    try:
+        count = get_db().delete_shift_only(employee_id, date)
+        return {"ok": True, "deleted": count}
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+# ── Generate schedule from cycle ────────────────────────────
+class ScheduleGenerateRequest(BaseModel):
+    year: int
+    month: int
+    employee_ids: Optional[List[int]] = None
+    force: bool = False
+    dry_run: bool = False
+
+
+@router.post("/api/schedule/generate")
+def generate_schedule(body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_planer)):
+    """Generate (or preview) schedule entries for a month based on cycle assignments.
+    dry_run=True: returns preview without writing."""
+    if not (1 <= body.month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+    try:
+        result = get_db().generate_schedule_from_cycle(
+            year=body.year,
+            month=body.month,
+            employee_ids=body.employee_ids,
+            force=body.force,
+            dry_run=body.dry_run,
+        )
+        created = result['created']
+        skipped = result['skipped']
+        errors = result.get('errors', [])
+        preview = result.get('preview', [])
+        if body.dry_run:
+            message = f"Vorschau: {created} Einträge würden erstellt, {skipped} übersprungen"
+        else:
+            message = f"{created} Einträge erstellt, {skipped} übersprungen"
+        if errors:
+            message += f", {len(errors)} Fehler"
+        return {
+            'created': created,
+            'skipped': skipped,
+            'errors': errors,
+            'preview': preview,
+            'message': message,
+        }
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+# ── Restrictions ──────────────────────────────────────────────
+
+@router.get("/api/restrictions")
+def get_restrictions(employee_id: Optional[int] = Query(None)):
+    """Return all shift restrictions, optionally filtered by employee_id."""
+    return get_db().get_restrictions(employee_id=employee_id)
+
+
+class RestrictionCreate(BaseModel):
+    employee_id: int
+    shift_id: int
+    reason: Optional[str] = ''
+    weekday: Optional[int] = 0
+
+
+@router.post("/api/restrictions")
+def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_admin)):
+    """Add a shift restriction for an employee."""
+    weekday = body.weekday or 0
+    if not (0 <= weekday <= 6):
+        raise HTTPException(status_code=400, detail="weekday muss zwischen 0 (Mo) und 6 (So) liegen (0 = alle Wochentage)")
+    try:
+        result = get_db().set_restriction(
+            employee_id=body.employee_id,
+            shift_id=body.shift_id,
+            reason=body.reason or '',
+            weekday=weekday,
+        )
+        return {"ok": True, "record": result}
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.delete("/api/restrictions/{employee_id}/{shift_id}")
+def remove_restriction(
+    employee_id: int,
+    shift_id: int,
+    weekday: int = Query(0),
+):
+    """Remove a shift restriction for an employee."""
+    try:
+        count = get_db().remove_restriction(
+            employee_id=employee_id, shift_id=shift_id, weekday=weekday
+        )
+        return {"ok": True, "removed": count}
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+# ── Bulk Schedule Operations ─────────────────────────────────
+
+class BulkEntry(BaseModel):
+    employee_id: int
+    date: str
+    shift_id: Optional[int] = None
+
+
+class BulkScheduleBody(BaseModel):
+    entries: List[BulkEntry]
+    overwrite: bool = True
+
+
+@router.post("/api/schedule/bulk")
+def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_planer)):
+    """Bulk create/update/delete schedule entries in a single request.
+    If shift_id is null the entry is deleted; otherwise created or overwritten."""
+    from datetime import datetime as _dt2
+    created = 0
+    updated = 0
+    deleted = 0
+    db = get_db()
+    for entry in body.entries:
+        try:
+            _dt2.strptime(entry.date, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid date format: {entry.date}")
+        try:
+            if entry.shift_id is None:
+                count = db.delete_schedule_entry(entry.employee_id, entry.date)
+                if count > 0:
+                    deleted += 1
+            else:
+                if body.overwrite:
+                    old_count = db.delete_schedule_entry(entry.employee_id, entry.date)
+                else:
+                    old_count = 0
+                db.add_schedule_entry(entry.employee_id, entry.date, entry.shift_id)
+                if old_count > 0:
+                    updated += 1
+                else:
+                    created += 1
+        except Exception as e:
+            raise _sanitize_500(e)
+    return {"created": created, "updated": updated, "deleted": deleted}
+
+
+# ── Einsatzplan Write (SPSHI) ────────────────────────────────
+
+class EinsatzplanCreate(BaseModel):
+    employee_id: int
+    date: str
+    name: Optional[str] = ''
+    shortname: Optional[str] = ''
+    shift_id: Optional[int] = 0
+    workplace_id: Optional[int] = 0
+    startend: Optional[str] = ''
+    duration: Optional[float] = 0.0
+    colortext: Optional[int] = 0
+    colorbar: Optional[int] = 0
+    colorbk: Optional[int] = 16777215
+
+
+class EinsatzplanUpdate(BaseModel):
+    name: Optional[str] = None
+    shortname: Optional[str] = None
+    shift_id: Optional[int] = None
+    workplace_id: Optional[int] = None
+    startend: Optional[str] = None
+    duration: Optional[float] = None
+    colortext: Optional[int] = None
+    colorbar: Optional[int] = None
+    colorbk: Optional[int] = None
+
+
+class DeviationCreate(BaseModel):
+    employee_id: int
+    date: str
+    name: Optional[str] = 'Arbeitszeitabweichung'
+    shortname: Optional[str] = 'AZA'
+    startend: Optional[str] = ''   # e.g. "07:00-15:30"
+    duration: Optional[float] = 0.0  # minutes or hours (stores raw)
+    colortext: Optional[int] = 0
+    colorbar: Optional[int] = 0
+    colorbk: Optional[int] = 16744448  # orange-ish default
+
+
+@router.post("/api/einsatzplan")
+def create_einsatzplan_entry(body: EinsatzplanCreate, _cur_user: dict = Depends(require_planer)):
+    """Create a Sonderdienst entry in SPSHI (TYPE=0)."""
+    try:
+        from datetime import datetime
+        datetime.strptime(body.date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    db = get_db()
+    if db.get_employee(body.employee_id) is None:
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden")
+    try:
+        result = db.add_spshi_entry(
+            employee_id=body.employee_id,
+            date_str=body.date,
+            name=body.name or '',
+            shortname=body.shortname or '',
+            shift_id=body.shift_id or 0,
+            workplace_id=body.workplace_id or 0,
+            entry_type=0,
+            startend=body.startend or '',
+            duration=body.duration or 0.0,
+            colortext=body.colortext or 0,
+            colorbar=body.colorbar or 0,
+            colorbk=body.colorbk if body.colorbk is not None else 16777215,
+        )
+        return {"ok": True, "record": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.put("/api/einsatzplan/{entry_id}")
+def update_einsatzplan_entry(entry_id: int, body: EinsatzplanUpdate, _cur_user: dict = Depends(require_planer)):
+    """Update an existing SPSHI entry."""
+    data = {k: v for k, v in body.model_dump().items() if v is not None}
+    # Map frontend keys to DBF field names
+    key_map = {
+        'name': 'NAME', 'shortname': 'SHORTNAME', 'shift_id': 'SHIFTID',
+        'workplace_id': 'WORKPLACID', 'startend': 'STARTEND', 'duration': 'DURATION',
+        'colortext': 'COLORTEXT', 'colorbar': 'COLORBAR', 'colorbk': 'COLORBK',
+    }
+    mapped = {key_map.get(k, k.upper()): v for k, v in data.items()}
+    try:
+        result = get_db().update_spshi_entry(entry_id, mapped)
+        return {"ok": True, "record": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.delete("/api/einsatzplan/{entry_id}")
+def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_planer)):
+    """Delete a SPSHI entry by ID."""
+    try:
+        count = get_db().delete_spshi_entry_by_id(entry_id)
+        if count == 0:
+            raise HTTPException(status_code=404, detail="SPSHI entry not found")
+        return {"ok": True, "deleted": entry_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.post("/api/einsatzplan/deviation")
+def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_planer)):
+    """Create an Arbeitszeitabweichung entry in SPSHI (TYPE=1)."""
+    try:
+        from datetime import datetime
+        datetime.strptime(body.date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    db = get_db()
+    if db.get_employee(body.employee_id) is None:
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden")
+    try:
+        result = db.add_spshi_entry(
+            employee_id=body.employee_id,
+            date_str=body.date,
+            name=body.name or 'Arbeitszeitabweichung',
+            shortname=body.shortname or 'AZA',
+            shift_id=0,
+            workplace_id=0,
+            entry_type=1,
+            startend=body.startend or '',
+            duration=body.duration or 0.0,
+            colortext=body.colortext or 0,
+            colorbar=body.colorbar or 0,
+            colorbk=body.colorbk if body.colorbk is not None else 16744448,
+        )
+        return {"ok": True, "record": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.get("/api/einsatzplan")
+def get_einsatzplan(
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
+    group_id: Optional[int] = Query(None),
+):
+    """Return SPSHI entries for a specific date (Sonderdienste + Abweichungen)."""
+    try:
+        from datetime import datetime
+        datetime.strptime(date, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    return get_db().get_spshi_entries_for_day(date, group_id=group_id)
+
+
+# ── Cycle Exceptions ─────────────────────────────────────────
+
+class CycleExceptionSet(BaseModel):
+    employee_id: int
+    cycle_assignment_id: int
+    date: str
+    type: int = 1  # 1=skip, 0=normal
+
+
+@router.get("/api/cycle-exceptions")
+def get_cycle_exceptions(
+    employee_id: Optional[int] = Query(None),
+    cycle_assignment_id: Optional[int] = Query(None),
+):
+    """Get cycle exceptions (date overrides in assigned cycles)."""
+    return get_db().get_cycle_exceptions(employee_id=employee_id,
+                                          cycle_assignment_id=cycle_assignment_id)
+
+
+@router.post("/api/cycle-exceptions")
+def set_cycle_exception(body: CycleExceptionSet, _cur_user: dict = Depends(require_planer)):
+    """Set a cycle exception for a specific date."""
+    try:
+        result = get_db().set_cycle_exception(
+            employee_id=body.employee_id,
+            cycle_assignment_id=body.cycle_assignment_id,
+            date_str=body.date,
+            exc_type=body.type,
+        )
+        return {"ok": True, "record": result}
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.delete("/api/cycle-exceptions/{exception_id}")
+def delete_cycle_exception(exception_id: int, _cur_user: dict = Depends(require_planer)):
+    """Delete a cycle exception by ID."""
+    count = get_db().delete_cycle_exception(exception_id)
+    if count == 0:
+        raise HTTPException(status_code=404, detail="Cycle exception not found")
+    return {"ok": True, "deleted": exception_id}
+
+
+# ── Woche kopieren ─────────────────────────────────────────────
+class SwapShiftsRequest(BaseModel):
+    employee_id_1: int
+    employee_id_2: int
+    dates: List[str]  # YYYY-MM-DD strings
+
+
+@router.post("/api/schedule/swap")
+def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_planer)):
+    """Swap schedule entries (shifts + absences) between two employees for the given dates."""
+    from sp5lib.dbf_reader import read_dbf, get_table_fields
+    from sp5lib.dbf_writer import find_all_records
+    from datetime import datetime as _dt3
+
+    if body.employee_id_1 == body.employee_id_2:
+        raise HTTPException(status_code=400, detail="Beide Mitarbeiter müssen verschieden sein")
+    if not body.dates:
+        raise HTTPException(status_code=400, detail="Mindestens ein Datum erforderlich")
+    for d in body.dates:
+        try:
+            _dt3.strptime(d, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
+
+    db = get_db()
+    swapped = 0
+    errors = []
+
+    def collect_entries(emp_id: int, date_str: str):
+        result = []
+        for table, kind in [('MASHI', 'shift'), ('SPSHI', 'special_shift'), ('ABSEN', 'absence')]:
+            filepath = db._table(table)
+            fields = get_table_fields(filepath)
+            matches = find_all_records(filepath, fields, EMPLOYEEID=emp_id, DATE=date_str)
+            for _, rec in matches:
+                if kind == 'shift':
+                    result.append({'kind': 'shift', 'shift_id': rec.get('SHIFTID'), 'workplace_id': rec.get('WORKPLACID', 0)})
+                elif kind == 'special_shift':
+                    result.append({'kind': 'special_shift', 'shift_id': rec.get('SHIFTID'), 'workplace_id': rec.get('WORKPLACID', 0)})
+                elif kind == 'absence':
+                    result.append({'kind': 'absence', 'leave_type_id': rec.get('LEAVETYPID')})
+        return result
+
+    def write_entries(emp_id: int, date_str: str, entries):
+        for entry in entries:
+            try:
+                if entry['kind'] == 'shift':
+                    db.add_schedule_entry(emp_id, date_str, entry['shift_id'])
+                elif entry['kind'] == 'absence' and entry.get('leave_type_id'):
+                    db.add_absence(emp_id, date_str, entry['leave_type_id'])
+                # special_shift: skip for now (complex custom fields)
+            except Exception as exc:
+                errors.append(f"MA {emp_id} / {date_str}: {exc}")
+
+    for date_str in body.dates:
+        try:
+            entries1 = collect_entries(body.employee_id_1, date_str)
+            entries2 = collect_entries(body.employee_id_2, date_str)
+            # Both empty → skip
+            if not entries1 and not entries2:
+                continue
+            # Delete both
+            db.delete_schedule_entry(body.employee_id_1, date_str)
+            db.delete_schedule_entry(body.employee_id_2, date_str)
+            # Write crossed
+            write_entries(body.employee_id_1, date_str, entries2)
+            write_entries(body.employee_id_2, date_str, entries1)
+            swapped += 1
+        except Exception as exc:
+            errors.append(f"{date_str}: {exc}")
+
+    return {
+        "ok": True,
+        "swapped_days": swapped,
+        "errors": errors,
+        "message": f"{swapped} Tag(e) getauscht" + (f", {len(errors)} Fehler" if errors else ""),
+    }
+
+
+class CopyWeekRequest(BaseModel):
+    source_employee_id: int
+    dates: List[str]               # YYYY-MM-DD strings (up to 7)
+    target_employee_ids: List[int]
+    skip_existing: bool = True     # True = don't overwrite existing entries
+
+
+@router.post("/api/schedule/copy-week")
+def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
+    """Copy one employee's schedule entries (shifts + absences) for given dates to one or more target employees."""
+    db = get_db()
+    if not body.dates or not body.target_employee_ids:
+        raise HTTPException(status_code=400, detail="dates and target_employee_ids must not be empty")
+
+    # Validate dates
+    from datetime import datetime as _dt2
+    for d in body.dates:
+        try:
+            _dt2.strptime(d, '%Y-%m-%d')
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid date: {d}")
+
+    # Collect source entries grouped by date
+    # We query each date individually via the schedule tables
+    from sp5lib.dbf_reader import read_dbf, get_table_fields
+    from sp5lib.dbf_writer import find_all_records
+    source_entries: dict[str, list[dict]] = {}  # date → list of entry dicts
+    for date_str in body.dates:
+        entries_for_date = []
+        for table, kind in [('MASHI', 'shift'), ('SPSHI', 'special_shift'), ('ABSEN', 'absence')]:
+            filepath = db._table(table)
+            fields = get_table_fields(filepath)
+            matches = find_all_records(filepath, fields, EMPLOYEEID=body.source_employee_id, DATE=date_str)
+            for _, rec in matches:
+                if kind == 'shift':
+                    entries_for_date.append({'kind': 'shift', 'shift_id': rec.get('SHIFTID'), 'workplace_id': rec.get('WORKPLACID', 0)})
+                elif kind == 'special_shift':
+                    entries_for_date.append({'kind': 'special_shift', 'shift_id': rec.get('SHIFTID'), 'workplace_id': rec.get('WORKPLACID', 0)})
+                elif kind == 'absence':
+                    entries_for_date.append({'kind': 'absence', 'leave_type_id': rec.get('LEAVETYPID')})
+        source_entries[date_str] = entries_for_date
+
+    # Apply to targets
+    created = 0
+    skipped = 0
+    errors = []
+    for target_id in body.target_employee_ids:
+        if target_id == body.source_employee_id:
+            continue
+        for date_str, entries in source_entries.items():
+            if not entries:
+                continue
+            # Check existing
+            existing_any = False
+            if body.skip_existing:
+                for table in ['MASHI', 'SPSHI', 'ABSEN']:
+                    filepath = db._table(table)
+                    fields = get_table_fields(filepath)
+                    if find_all_records(filepath, fields, EMPLOYEEID=target_id, DATE=date_str):
+                        existing_any = True
+                        break
+            if existing_any:
+                skipped += len(entries)
+                continue
+            # Delete existing first (if not skip_existing)
+            if not body.skip_existing:
+                db.delete_schedule_entry(target_id, date_str)
+            for entry in entries:
+                try:
+                    if entry['kind'] == 'shift':
+                        db.add_schedule_entry(target_id, date_str, entry['shift_id'])
+                        created += 1
+                    elif entry['kind'] == 'absence' and entry.get('leave_type_id'):
+                        db.add_absence(target_id, date_str, entry['leave_type_id'])
+                        created += 1
+                    # special_shift: skip for now (complex custom fields)
+                except Exception as exc:
+                    errors.append(f"MA {target_id} / {date_str}: {exc}")
+
+    return {
+        "ok": True,
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+        "message": f"{created} Einträge kopiert, {skipped} übersprungen" + (f", {len(errors)} Fehler" if errors else ""),
+    }
