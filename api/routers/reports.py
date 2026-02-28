@@ -35,7 +35,7 @@ def get_statistics(
     if month is None:
         month = _date.today().month
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
     return get_db().get_statistics(year, month, group_id=group_id)
 
 
@@ -148,7 +148,7 @@ def get_employee_statistics(
         raise HTTPException(status_code=404, detail=f"Employee {emp_id} not found")
     if month is not None:
         if not (1 <= month <= 12):
-            raise HTTPException(status_code=400, detail="Month must be 1-12")
+            raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
         return db.get_employee_stats_month(emp_id, year, month)
     return db.get_employee_stats_year(emp_id, year)
 
@@ -1253,7 +1253,7 @@ def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     if body.type not in (0, 1):
         raise HTTPException(status_code=400, detail="type must be 0 (Ist) or 1 (Soll)")
     try:
@@ -1808,9 +1808,9 @@ def get_burnout_radar(
 ):
     """Return list of at-risk employees (long streaks or significant overtime)."""
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
     if not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
+        raise HTTPException(status_code=400, detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen")
     return get_db().get_burnout_radar(
         year=year,
         month=month,
@@ -1881,7 +1881,7 @@ def get_warnings(
         month = today.month
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
 
     db = get_db()
     warnings = []
@@ -2167,7 +2167,7 @@ def get_capacity_forecast(
     from collections import defaultdict
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
 
     db = get_db()
     num_days = _cal.monthrange(year, month)[1]
@@ -2487,7 +2487,7 @@ def get_quality_report(
     from collections import defaultdict
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
 
     db = get_db()
     num_days = _cal.monthrange(year, month)[1]

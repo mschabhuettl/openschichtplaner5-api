@@ -19,7 +19,7 @@ def delete_absence_only(employee_id: int, date: str, _cur_user: dict = Depends(r
         from datetime import datetime
         datetime.strptime(date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     try:
         count = get_db().delete_absence_only(employee_id, date)
         broadcast("absence_changed", {"employee_id": employee_id, "date": date})

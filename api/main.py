@@ -17,6 +17,7 @@ from fastapi import FastAPI, HTTPException, Query, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
 from typing import Optional  # noqa: E402
 from slowapi import _rate_limit_exceeded_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
@@ -161,6 +162,32 @@ async def security_headers_middleware(request: Request, call_next):
     if os.environ.get('SP5_HSTS', '').lower() in ('1', 'true', 'yes'):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Translate Pydantic validation errors into German user-friendly messages."""
+    _TYPE_MSGS = {
+        "missing": "Pflichtfeld fehlt",
+        "int_parsing": "Muss eine ganze Zahl sein",
+        "float_parsing": "Muss eine Zahl sein",
+        "bool_parsing": "Muss true oder false sein",
+        "string_too_short": "Eingabe zu kurz",
+        "string_too_long": "Eingabe zu lang",
+        "value_error": "Ungültiger Wert",
+        "type_error": "Falscher Datentyp",
+    }
+    errors = []
+    for e in exc.errors():
+        field = ".".join(str(l) for l in e.get("loc", []) if l not in ("body", "query", "path"))
+        etype = e.get("type", "")
+        msg = _TYPE_MSGS.get(etype, e.get("msg", "Ungültiger Wert"))
+        if field:
+            errors.append(f"{field}: {msg}")
+        else:
+            errors.append(msg)
+    detail = "; ".join(errors) if errors else "Ungültige Eingabe"
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 
 @app.exception_handler(Exception)
@@ -421,7 +448,7 @@ def get_dashboard_summary(
         month = _today.month
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
 
     db = get_db()
     today = date.today()
@@ -803,7 +830,7 @@ def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None)
 
     if not (1 <= req_month <= 12):
         from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
 
     # Total employees
     employees = db.get_employees(include_hidden=False)

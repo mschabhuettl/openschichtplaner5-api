@@ -18,9 +18,9 @@ def get_schedule(
     group_id: Optional[int] = Query(None, description="Filter by group ID")
 ):
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
     if not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
+        raise HTTPException(status_code=400, detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen")
     return get_db().get_schedule(year=year, month=month, group_id=group_id)
 
 
@@ -36,9 +36,9 @@ def get_staffing(
     month: int = Query(...),
 ):
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
     if not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
+        raise HTTPException(status_code=400, detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen")
     return get_db().get_staffing(year, month)
 
 
@@ -55,9 +55,9 @@ def get_schedule_coverage(
     from collections import defaultdict
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
     if not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
+        raise HTTPException(status_code=400, detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen")
 
     db = get_db()
     num_days = _cal.monthrange(year, month)[1]
@@ -122,7 +122,7 @@ def get_schedule_day(
         from datetime import datetime
         datetime.strptime(date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     return get_db().get_schedule_day(date, group_id=group_id)
 
 
@@ -136,7 +136,7 @@ def get_schedule_week(
         from datetime import datetime
         datetime.strptime(date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     return get_db().get_schedule_week(date, group_id=group_id)
 
 
@@ -147,7 +147,7 @@ def get_schedule_year(
     employee_id: int = Query(...),
 ):
     if not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
+        raise HTTPException(status_code=400, detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen")
     return get_db().get_schedule_year(year, employee_id)
 
 
@@ -159,9 +159,9 @@ def get_schedule_conflicts(
 ):
     """Return all scheduling conflicts for a given month."""
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
     if not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
+        raise HTTPException(status_code=400, detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen")
     conflicts = get_db().get_schedule_conflicts(year, month, group_id)
     return {"conflicts": conflicts}
 
@@ -182,7 +182,7 @@ def get_cycle_assignments():
 def get_shift_cycle(cycle_id: int):
     c = get_db().get_shift_cycle(cycle_id)
     if c is None:
-        raise HTTPException(status_code=404, detail="Cycle not found")
+        raise HTTPException(status_code=404, detail="Zyklus nicht gefunden")
     return c
 
 
@@ -198,7 +198,7 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer
         from datetime import datetime
         datetime.strptime(body.start_date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     try:
         result = get_db().assign_cycle(body.employee_id, body.cycle_id, body.start_date)
         return {"ok": True, "record": result}
@@ -430,11 +430,11 @@ def delete_schedule_entry(employee_id: int, date: str, _cur_user: dict = Depends
         from datetime import datetime
         datetime.strptime(date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     try:
         count = get_db().delete_schedule_entry(employee_id, date)
         if count == 0:
-            raise HTTPException(status_code=404, detail="Schedule entry not found")
+            raise HTTPException(status_code=404, detail="Plantafel-Eintrag nicht gefunden")
         broadcast("schedule_changed", {"employee_id": employee_id, "date": date})
         return {"ok": True, "deleted": count}
     except HTTPException:
@@ -450,7 +450,7 @@ def delete_shift_only(employee_id: int, date: str, _cur_user: dict = Depends(req
         from datetime import datetime
         datetime.strptime(date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     try:
         count = get_db().delete_shift_only(employee_id, date)
         return {"ok": True, "deleted": count}
@@ -474,7 +474,7 @@ def generate_schedule(body: ScheduleGenerateRequest, _cur_user: dict = Depends(r
     dry_run=True: returns preview without writing.
     respect_restrictions=True: skips shifts that employee has a restriction for."""
     if not (1 <= body.month <= 12):
-        raise HTTPException(status_code=400, detail="Month must be 1-12")
+        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
     try:
         result = get_db().generate_schedule_from_cycle(
             year=body.year,
@@ -586,7 +586,7 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_plan
         try:
             _dt2.strptime(entry.date, '%Y-%m-%d')
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid date format: {entry.date}")
+            raise HTTPException(status_code=400, detail=f"Ungültiges Datumsformat: {entry.date}")
         try:
             if entry.shift_id is None:
                 count = db.delete_schedule_entry(entry.employee_id, entry.date)
@@ -654,7 +654,7 @@ def create_einsatzplan_entry(body: EinsatzplanCreate, _cur_user: dict = Depends(
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     db = get_db()
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden")
@@ -721,7 +721,7 @@ def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_pl
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     db = get_db()
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden")
@@ -757,7 +757,7 @@ def get_einsatzplan(
         from datetime import datetime
         datetime.strptime(date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     return get_db().get_spshi_entries_for_day(date, group_id=group_id)
 
 
@@ -903,7 +903,7 @@ def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
         try:
             _dt2.strptime(d, '%Y-%m-%d')
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid date: {d}")
+            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
 
     # Collect source entries grouped by date
     # We query each date individually via the schedule tables

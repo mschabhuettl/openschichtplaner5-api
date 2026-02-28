@@ -485,7 +485,7 @@ def create_special_staffing(body: SpecialStaffingCreate, _cur_user: dict = Depen
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     try:
         result = get_db().create_special_staffing(
             groupid=body.group_id,

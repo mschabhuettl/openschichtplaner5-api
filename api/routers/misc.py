@@ -45,7 +45,7 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
         from datetime import datetime
         datetime.strptime(body.date, '%Y-%m-%d')
     except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     try:
         import html as _html
         result = get_db().add_note(
@@ -76,7 +76,7 @@ def update_note(note_id: int, body: NoteUpdate, _cur_user: dict = Depends(requir
             from datetime import datetime as _dt
             _dt.strptime(body.date, '%Y-%m-%d')
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+            raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
     try:
         import html as _html
         result = get_db().update_note(
