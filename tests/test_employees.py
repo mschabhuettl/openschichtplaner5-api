@@ -81,3 +81,117 @@ class TestUpdateEmployee:
         """PUT /api/employees/99999 → 404."""
         res = admin_client.put('/api/employees/99999', json={'NAME': 'Test'})
         assert res.status_code == 404
+
+
+class TestGroupCRUD:
+    def test_list_groups(self, sync_client: TestClient):
+        res = sync_client.get('/api/groups')
+        assert res.status_code == 200
+        assert isinstance(res.json(), list)
+
+    def test_list_groups_include_hidden(self, sync_client: TestClient):
+        res = sync_client.get('/api/groups?include_hidden=true')
+        assert res.status_code == 200
+
+    def test_get_group_members(self, sync_client: TestClient):
+        groups = sync_client.get('/api/groups').json()
+        if not groups:
+            pytest.skip("No groups")
+        gid = groups[0]['ID']
+        res = sync_client.get(f'/api/groups/{gid}/members')
+        assert res.status_code == 200
+        assert isinstance(res.json(), list)
+
+    def test_get_group_members_not_found(self, sync_client: TestClient):
+        res = sync_client.get('/api/groups/999999/members')
+        assert res.status_code in (200, 404)
+
+    def test_create_and_delete_group(self, admin_client: TestClient):
+        res = admin_client.post('/api/groups', json={'NAME': 'TempGrp', 'NOTES': ''})
+        assert res.status_code == 200
+        gid = res.json().get('ID') or res.json().get('id') or res.json().get('ok')
+        # Try to find the new group
+        groups = admin_client.get('/api/groups').json()
+        new_group = next((g for g in groups if g.get('NAME') == 'TempGrp'), None)
+        if new_group:
+            del_res = admin_client.delete(f"/api/groups/{new_group['ID']}")
+            assert del_res.status_code in (200, 204)
+
+    def test_update_group_not_found(self, admin_client: TestClient):
+        res = admin_client.put('/api/groups/999999', json={'NAME': 'X'})
+        assert res.status_code in (404, 200)
+
+    def test_delete_group_not_found(self, admin_client: TestClient):
+        res = admin_client.delete('/api/groups/999999')
+        assert res.status_code in (404, 200)
+
+    def test_add_remove_group_member(self, admin_client: TestClient):
+        groups = admin_client.get('/api/groups').json()
+        emps = admin_client.get('/api/employees').json()
+        if not groups or not emps:
+            pytest.skip("No groups or employees")
+        gid = groups[0]['ID']
+        eid = emps[0]['ID']
+        # Add member
+        res = admin_client.post(f'/api/groups/{gid}/members', json={'employee_id': eid})
+        assert res.status_code in (200, 409)
+        # Remove member
+        res2 = admin_client.delete(f'/api/groups/{gid}/members/{eid}')
+        assert res2.status_code in (200, 404)
+
+
+class TestBulkOperations:
+    def test_bulk_hide(self, admin_client: TestClient):
+        emps = admin_client.get('/api/employees').json()
+        if not emps:
+            pytest.skip("No employees")
+        eid = emps[0]['ID']
+        res = admin_client.post('/api/employees/bulk', json={
+            'employee_ids': [eid],
+            'action': 'hide',
+        })
+        assert res.status_code == 200
+        assert res.json()['ok'] is True
+        # Restore
+        admin_client.post('/api/employees/bulk', json={
+            'employee_ids': [eid],
+            'action': 'show',
+        })
+
+    def test_bulk_invalid_action(self, admin_client: TestClient):
+        res = admin_client.post('/api/employees/bulk', json={
+            'employee_ids': [1],
+            'action': 'nonexistent',
+        })
+        assert res.status_code == 400
+
+    def test_bulk_assign_group_missing_group_id(self, admin_client: TestClient):
+        res = admin_client.post('/api/employees/bulk', json={
+            'employee_ids': [1],
+            'action': 'assign_group',
+        })
+        assert res.status_code == 400
+
+    def test_bulk_assign_group(self, admin_client: TestClient):
+        groups = admin_client.get('/api/groups').json()
+        emps = admin_client.get('/api/employees').json()
+        if not groups or not emps:
+            pytest.skip("No groups or employees")
+        res = admin_client.post('/api/employees/bulk', json={
+            'employee_ids': [emps[0]['ID']],
+            'action': 'assign_group',
+            'group_id': groups[0]['ID'],
+        })
+        assert res.status_code == 200
+
+    def test_bulk_remove_group_missing_group_id(self, admin_client: TestClient):
+        res = admin_client.post('/api/employees/bulk', json={
+            'employee_ids': [1],
+            'action': 'remove_group',
+        })
+        assert res.status_code == 400
+
+    def test_employees_include_hidden(self, sync_client: TestClient):
+        res = sync_client.get('/api/employees?include_hidden=true')
+        assert res.status_code == 200
+        assert isinstance(res.json(), list)

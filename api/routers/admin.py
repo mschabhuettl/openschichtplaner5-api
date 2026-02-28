@@ -495,7 +495,7 @@ def report_frontend_error(request: Request, body: FrontendErrorReport):
     """Receive a frontend error report and store it."""
     errors = _load_frontend_errors()
     entry = {
-        "timestamp": body.timestamp or __import__('datetime').datetime.utcnow().isoformat() + 'Z',
+        "timestamp": body.timestamp or __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00', 'Z'),
         "error": body.error,
         "component_stack": body.component_stack,
         "url": body.url,

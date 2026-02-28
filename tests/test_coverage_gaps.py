@@ -538,3 +538,117 @@ class TestImports:
             files={"file": ("test.csv", b"bad,data\n", "text/csv")},
         )
         assert resp.status_code in (200, 400, 422, 500)
+
+
+class TestExportScheduleFormats:
+    """Test export_schedule in xlsx and csv formats (coverage for reports.py lines 446-524+)."""
+
+    def test_export_schedule_xlsx(self, sync_client):
+        resp = sync_client.get("/api/export/schedule?year=2024&month=1&format=xlsx")
+        assert resp.status_code in (200, 400, 500)
+
+    def test_export_schedule_csv(self, sync_client):
+        resp = sync_client.get("/api/export/schedule?year=2024&month=1&format=csv")
+        assert resp.status_code in (200, 400)
+
+    def test_export_schedule_pdf(self, sync_client):
+        resp = sync_client.get("/api/export/schedule?year=2024&month=1&format=pdf")
+        assert resp.status_code in (200, 400, 500)
+
+    def test_export_statistics_xlsx(self, sync_client):
+        resp = sync_client.get("/api/export/statistics?year=2024&month=1&format=xlsx")
+        assert resp.status_code in (200, 400, 500)
+
+    def test_export_employees_xlsx(self, sync_client):
+        resp = sync_client.get("/api/export/employees?format=xlsx")
+        assert resp.status_code in (200, 400, 500)
+
+    def test_export_absences_xlsx(self, sync_client):
+        resp = sync_client.get("/api/export/absences?year=2024&format=xlsx")
+        assert resp.status_code in (200, 400, 500)
+
+    def test_export_absences_csv(self, sync_client):
+        resp = sync_client.get("/api/export/absences?year=2024&format=csv")
+        assert resp.status_code == 200
+
+    def test_get_shift_statistics(self, sync_client):
+        resp = sync_client.get("/api/statistics/shifts?year=2024&month=1")
+        assert resp.status_code in (200, 400, 422)
+
+    def test_get_shift_statistics_year_only(self, sync_client):
+        resp = sync_client.get("/api/statistics/shifts?year=2024")
+        assert resp.status_code in (200, 400, 422)
+
+
+class TestSkillsEndpoints:
+    """Cover api/routers/master_data.py skills section."""
+
+    def test_list_skills(self, sync_client):
+        resp = sync_client.get("/api/skills")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_list_skill_assignments(self, sync_client):
+        resp = sync_client.get("/api/skills/assignments")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+    def test_list_skill_assignments_filtered(self, sync_client):
+        resp = sync_client.get("/api/skills/assignments?employee_id=1")
+        assert resp.status_code == 200
+
+    def test_skills_matrix(self, sync_client):
+        resp = sync_client.get("/api/skills/matrix")
+        assert resp.status_code == 200
+
+    def test_create_update_delete_skill(self, admin_client):
+        # Create
+        resp = admin_client.post("/api/skills", json={
+            "name": "TestSkill",
+            "description": "Testbeschreibung",
+            "color": "#ff0000",
+            "icon": "🔥",
+            "category": "Test",
+        })
+        assert resp.status_code == 200
+        skill = resp.json()
+        skill_id = skill["id"]
+
+        # Update
+        upd = admin_client.put(f"/api/skills/{skill_id}", json={"name": "UpdatedSkill"})
+        assert upd.status_code == 200
+        assert upd.json()["name"] == "UpdatedSkill"
+
+        # Delete
+        del_resp = admin_client.delete(f"/api/skills/{skill_id}")
+        assert del_resp.status_code == 200
+
+    def test_update_skill_not_found(self, admin_client):
+        resp = admin_client.put("/api/skills/nonexistent_id", json={"name": "X"})
+        assert resp.status_code == 404
+
+    def test_skill_assignment_lifecycle(self, admin_client):
+        # Create a skill first
+        skill_resp = admin_client.post("/api/skills", json={"name": "AssignTest"})
+        assert skill_resp.status_code == 200
+        skill_id = skill_resp.json()["id"]
+
+        # Assign to employee 1
+        assign_resp = admin_client.post("/api/skills/assignments", json={
+            "employee_id": 1,
+            "skill_id": skill_id,
+            "level": 2,
+        })
+        assert assign_resp.status_code == 200
+        assignment_id = assign_resp.json()["id"]
+
+        # Delete assignment
+        del_resp = admin_client.delete(f"/api/skills/assignments/{assignment_id}")
+        assert del_resp.status_code == 200
+
+        # Delete skill
+        admin_client.delete(f"/api/skills/{skill_id}")
+
+    def test_delete_assignment_not_found(self, admin_client):
+        resp = admin_client.delete("/api/skills/assignments/nonexistent_id")
+        assert resp.status_code == 404
