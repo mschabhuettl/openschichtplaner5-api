@@ -91,6 +91,10 @@ def update_settings(body: SettingsUpdate, _cur_user: dict = Depends(require_admi
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     try:
         result = get_db().update_usett(data)
+        _logger.warning(
+            "AUDIT SETTINGS_UPDATE | user=%s fields=%s",
+            _cur_user.get('NAME'), list(data.keys())
+        )
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e)

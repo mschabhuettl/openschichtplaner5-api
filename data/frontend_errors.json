@@ -102,5 +102,21 @@
     "url": "http://localhost/",
     "user_agent": null,
     "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-02-28T15:41:10.455963Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-02-28T15:42:20.774384Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
   }
 ]

@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, _sanitize_500,
+    get_db, require_admin, require_planer, require_auth, _sanitize_500, _logger,
 )
 
 router = APIRouter()
@@ -139,6 +139,7 @@ def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
         raise HTTPException(status_code=400, detail="Feld 'DURATION0' darf nicht negativ sein")
     try:
         result = get_db().create_shift(body.model_dump())
+        _logger.warning("AUDIT SHIFT_CREATE | user=%s name=%s id=%s", _cur_user.get('NAME'), body.NAME, result.get('ID'))
         return {"ok": True, "record": result}
     except ValueError as e:
         if str(e).startswith('DUPLICATE:SHIFTNAME:'):
@@ -153,6 +154,7 @@ def update_shift(shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(req
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_shift(shift_id, data)
+        _logger.warning("AUDIT SHIFT_UPDATE | user=%s shift_id=%d fields=%s", _cur_user.get('NAME'), shift_id, list(data.keys()))
         return {"ok": True, "record": result}
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Schicht ID {shift_id} nicht gefunden")
@@ -164,6 +166,7 @@ def update_shift(shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(req
 def hide_shift(shift_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().hide_shift(shift_id)
+        _logger.warning("AUDIT SHIFT_DELETE | user=%s shift_id=%d", _cur_user.get('NAME'), shift_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
         raise _sanitize_500(e, f'hide_shift/{shift_id}')

@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from ..dependencies import (
-    get_db, require_admin, _sanitize_500,
+    get_db, require_admin, _sanitize_500, _logger,
 )
 
 router = APIRouter()
@@ -185,6 +185,10 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
     # Validation handled by Pydantic Field constraints and validators
     try:
         result = get_db().create_employee(body.model_dump())
+        _logger.warning(
+            "AUDIT EMPLOYEE_CREATE | user=%s name=%s shortname=%s id=%s",
+            _cur_user.get('NAME'), body.NAME, body.SHORTNAME, result.get('ID')
+        )
         return {"ok": True, "record": result}
     except ValueError as e:
         if str(e).startswith('DUPLICATE:SHORTNAME:'):
@@ -201,6 +205,10 @@ def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends
         # Validation handled by Pydantic Field constraints and validators
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_employee(emp_id, data)
+        _logger.warning(
+            "AUDIT EMPLOYEE_UPDATE | user=%s emp_id=%d fields=%s",
+            _cur_user.get('NAME'), emp_id, list(data.keys())
+        )
         return {"ok": True, "record": result}
     except HTTPException:
         raise
@@ -216,6 +224,10 @@ def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
         count = get_db().delete_employee(emp_id)
         if count == 0:
             raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
+        _logger.warning(
+            "AUDIT EMPLOYEE_DELETE | user=%s emp_id=%d",
+            _cur_user.get('NAME'), emp_id
+        )
         return {"ok": True, "hidden": count}
     except HTTPException:
         raise
@@ -279,6 +291,7 @@ def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     try:
         result = get_db().create_group(body.model_dump())
+        _logger.warning("AUDIT GROUP_CREATE | user=%s name=%s id=%s", _cur_user.get('NAME'), body.NAME, result.get('ID'))
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e, 'create_group')
@@ -289,6 +302,7 @@ def update_group(group_id: int, body: GroupUpdate, _cur_user: dict = Depends(req
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_group(group_id, data)
+        _logger.warning("AUDIT GROUP_UPDATE | user=%s group_id=%d fields=%s", _cur_user.get('NAME'), group_id, list(data.keys()))
         return {"ok": True, "record": result}
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Gruppe ID {group_id} nicht gefunden")
@@ -300,6 +314,7 @@ def update_group(group_id: int, body: GroupUpdate, _cur_user: dict = Depends(req
 def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_group(group_id)
+        _logger.warning("AUDIT GROUP_DELETE | user=%s group_id=%d", _cur_user.get('NAME'), group_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
         raise _sanitize_500(e, f'delete_group/{group_id}')
