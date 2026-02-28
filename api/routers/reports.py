@@ -19,6 +19,13 @@ from ..dependencies import (
 router = APIRouter()
 
 
+def _xlsx_response(content: bytes, filename: str) -> _Response:
+    return _Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 # ── Monthly statistics ───────────────────────────────────────
 @router.get("/api/statistics")
@@ -205,7 +212,7 @@ def _csv_response(rows: list, filename: str) -> _Response:
 def export_schedule(
     month: str = Query(..., description="Month in YYYY-MM format"),
     group_id: Optional[int] = Query(None),
-    format: str = Query("csv", description="csv or html"),
+    format: str = Query("csv", description="csv, html, or xlsx"),
 ):
     try:
         dt = _dt.strptime(month, "%Y-%m")
@@ -229,6 +236,87 @@ def export_schedule(
 
     num_days = _calendar.monthrange(year, mon)[1]
     days = [f"{year:04d}-{mon:02d}-{d:02d}" for d in range(1, num_days + 1)]
+
+    if format == "xlsx":
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+            from openpyxl.utils import get_column_letter
+        except ImportError:
+            raise HTTPException(status_code=500, detail="openpyxl nicht installiert.")
+        _month_names_de = ["Januar", "Februar", "März", "April", "Mai", "Juni",
+                           "Juli", "August", "September", "Oktober", "November", "Dezember"]
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"{_month_names_de[mon-1]} {year}"
+        # Header row
+        thin = Side(border_style="thin", color="CBD5E1")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        header_font = Font(bold=True, color="FFFFFF", size=9)
+        header_fill = PatternFill(fill_type="solid", fgColor="1E293B")
+        # Column 1: Name, col 2: Kürzel, then days
+        ws.cell(1, 1, "Mitarbeiter").font = header_font
+        ws.cell(1, 1).fill = header_fill
+        ws.cell(1, 1).alignment = Alignment(horizontal="left")
+        ws.cell(1, 1).border = border
+        ws.column_dimensions['A'].width = 22
+        ws.cell(1, 2, "Kürzel").font = header_font
+        ws.cell(1, 2).fill = header_fill
+        ws.cell(1, 2).alignment = Alignment(horizontal="center")
+        ws.cell(1, 2).border = border
+        ws.column_dimensions['B'].width = 6
+        for d in range(1, num_days + 1):
+            col = d + 2
+            wd = _dt(year, mon, d).weekday()
+            wd_abbr = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][wd]
+            cell = ws.cell(1, col, f"{d}\n{wd_abbr}")
+            cell.font = header_font
+            is_weekend = wd >= 5
+            cell.fill = PatternFill(fill_type="solid", fgColor="475569" if is_weekend else "1E293B")
+            cell.alignment = Alignment(horizontal="center", wrap_text=True)
+            cell.border = border
+            ws.column_dimensions[get_column_letter(col)].width = 4.5
+        ws.row_dimensions[1].height = 28
+        # Data rows
+        for r_idx, emp in enumerate(employees, start=2):
+            emp_name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(', ')
+            short = emp.get('SHORTNAME', '')
+            # Employee name cell
+            cbklabel = emp.get('CBKLABEL', 16777215)
+            cbklabel_hex = emp.get('CBKLABEL_HEX', '#f8fafc')
+            cfglabel_hex = emp.get('CFGLABEL_HEX', '#000000')
+            emp_bg = cbklabel_hex.lstrip('#') if (cbklabel and cbklabel != 16777215 and cbklabel != 0) else "F8FAFC"
+            emp_fg = cfglabel_hex.lstrip('#') if (cbklabel and cbklabel != 16777215 and cbklabel != 0) else "1E293B"
+            name_cell = ws.cell(r_idx, 1, emp_name)
+            name_cell.font = Font(bold=bool(emp.get('BOLD')), color=emp_fg, size=9)
+            name_cell.fill = PatternFill(fill_type="solid", fgColor=emp_bg)
+            name_cell.border = border
+            short_cell = ws.cell(r_idx, 2, short)
+            short_cell.font = Font(color="64748B", size=9)
+            short_cell.fill = PatternFill(fill_type="solid", fgColor="F8FAFC")
+            short_cell.alignment = Alignment(horizontal="center")
+            short_cell.border = border
+            for d in range(1, num_days + 1):
+                col = d + 2
+                date_str = f"{year:04d}-{mon:02d}-{d:02d}"
+                wd = _dt(year, mon, d).weekday()
+                is_weekend = wd >= 5
+                e = entry_map.get((emp['ID'], date_str))
+                cell = ws.cell(r_idx, col)
+                if e:
+                    bg = e.get('color_bk', '#4A90D9').lstrip('#')
+                    fg = e.get('color_text', '#FFFFFF').lstrip('#')
+                    cell.value = e.get('display_name', '')
+                    cell.font = Font(bold=True, color=fg, size=8)
+                    cell.fill = PatternFill(fill_type="solid", fgColor=bg)
+                else:
+                    cell.fill = PatternFill(fill_type="solid", fgColor="EBEBEB" if is_weekend else "FFFFFF")
+                cell.alignment = Alignment(horizontal="center")
+                cell.border = border
+            ws.row_dimensions[r_idx].height = 14
+        buf = io.BytesIO()
+        wb.save(buf)
+        return _xlsx_response(buf.getvalue(), f"dienstplan_{month}.xlsx")
 
     if format == "csv":
         rows = []
@@ -541,6 +629,38 @@ def export_employees(
             media_type="text/html; charset=utf-8",
             headers={"Content-Disposition": 'attachment; filename="mitarbeiter.html"'},
         )
+    if format == "xlsx":
+        try:
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        except ImportError:
+            raise HTTPException(status_code=500, detail="openpyxl nicht installiert.")
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Mitarbeiterliste"
+        thin = Side(border_style="thin", color="CBD5E1")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        if rows:
+            headers = list(rows[0].keys())
+            col_widths = [20, 20, 20, 10, 18, 10, 12, 12, 14]
+            for c, (h, w) in enumerate(zip(headers, col_widths), start=1):
+                cell = ws.cell(1, c, h)
+                cell.font = Font(bold=True, color="FFFFFF", size=9)
+                cell.fill = PatternFill(fill_type="solid", fgColor="1E293B")
+                cell.alignment = Alignment(horizontal="left")
+                cell.border = border
+                from openpyxl.utils import get_column_letter
+                ws.column_dimensions[get_column_letter(c)].width = w
+            for r_idx, row in enumerate(rows, start=2):
+                fill_color = "F8FAFC" if r_idx % 2 == 0 else "FFFFFF"
+                for c, val in enumerate(row.values(), start=1):
+                    cell = ws.cell(r_idx, c, val)
+                    cell.font = Font(size=9)
+                    cell.fill = PatternFill(fill_type="solid", fgColor=fill_color)
+                    cell.border = border
+        buf = io.BytesIO()
+        wb.save(buf)
+        return _xlsx_response(buf.getvalue(), "mitarbeiter.xlsx")
     return _csv_response(rows, "mitarbeiter.csv")
 
 
