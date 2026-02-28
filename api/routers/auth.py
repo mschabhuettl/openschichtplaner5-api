@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 
-@router.get("/api/users")
+@router.get("/api/users", tags=["Users"], summary="List users", description="Return all API users. Requires Admin role.")
 def get_users(_admin: dict = Depends(require_admin)):
     return get_db().get_users()
 
@@ -43,7 +43,7 @@ class LoginBody(BaseModel):
     password: str
 
 
-@router.post("/api/users")
+@router.post("/api/users", tags=["Users"], summary="Create user", description="Create a new API user. Requires Admin role.")
 def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
@@ -62,7 +62,7 @@ def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
         raise _sanitize_500(e, 'create_user')
 
 
-@router.put("/api/users/{user_id}")
+@router.put("/api/users/{user_id}", tags=["Users"], summary="Update user", description="Update an existing API user. Requires Admin role.")
 def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_admin)):
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     if 'role' in data and data['role'] not in ('Admin', 'Planer', 'Leser'):
@@ -76,7 +76,7 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
         raise _sanitize_500(e, f'update_user/{user_id}')
 
 
-@router.delete("/api/users/{user_id}")
+@router.delete("/api/users/{user_id}", tags=["Users"], summary="Delete user", description="Soft-delete (hide) an API user. Requires Admin role.")
 def delete_user(user_id: int, _admin: dict = Depends(require_admin)):
     try:
         count = get_db().delete_user(user_id)
@@ -93,7 +93,7 @@ class ChangePasswordBody(BaseModel):
     new_password: str
 
 
-@router.post("/api/users/{user_id}/change-password")
+@router.post("/api/users/{user_id}/change-password", tags=["Users"], summary="Change user password", description="Set a new password for an API user. Requires Admin role.")
 def change_user_password(user_id: int, body: ChangePasswordBody, _admin: dict = Depends(require_admin)):
     if not body.new_password or len(body.new_password.strip()) < 1:
         raise HTTPException(status_code=400, detail="Passwort darf nicht leer sein")

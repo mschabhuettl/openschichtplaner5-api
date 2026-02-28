@@ -27,7 +27,7 @@ def get_employee(emp_id: int):
     return e
 
 
-@router.get("/api/groups")
+@router.get("/api/groups", tags=["Groups"], summary="List groups", description="Return all groups. Set include_hidden=true to include hidden/archived groups.")
 def get_groups(include_hidden: bool = False):
     db = get_db()
     groups = db.get_groups(include_hidden=include_hidden)
@@ -36,7 +36,7 @@ def get_groups(include_hidden: bool = False):
     return groups
 
 
-@router.get("/api/groups/{group_id}/members")
+@router.get("/api/groups/{group_id}/members", tags=["Groups"], summary="List group members", description="Return all employees assigned to the given group.")
 def get_group_members(group_id: int):
     db = get_db()
     member_ids = db.get_group_members(group_id)

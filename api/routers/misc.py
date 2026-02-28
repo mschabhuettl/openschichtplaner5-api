@@ -19,7 +19,7 @@ router = APIRouter()
 
 # ── Notes ─────────────────────────────────────────────────────
 
-@router.get("/api/notes")
+@router.get("/api/notes", tags=["Notes"], summary="List notes", description="Return shift notes, optionally filtered by date or employee.")
 def get_notes(
     date: Optional[str] = Query(None, description="Filter by date YYYY-MM-DD"),
     employee_id: Optional[int] = Query(None),
@@ -43,7 +43,7 @@ class NoteCreate(BaseModel):
     text2: Optional[str] = ''
 
 
-@router.post("/api/notes")
+@router.post("/api/notes", tags=["Notes"], summary="Add note", description="Create a new shift note. Requires Planer role.")
 def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime

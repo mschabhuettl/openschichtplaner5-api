@@ -1,8 +1,11 @@
 """FastAPI application for OpenSchichtplaner5."""
 import os
 import sys
+import time as _startup_time_module
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+
+_APP_START_TIME = _startup_time_module.time()
 
 # Load .env file if present
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
@@ -76,6 +79,7 @@ _OPENAPI_TAGS = [
     {"name": "Export", "description": "CSV/HTML/PDF export endpoints"},
     {"name": "Import", "description": "CSV import endpoints"},
     {"name": "Backup", "description": "Database backup and restore"},
+    {"name": "Notes", "description": "Shift notes and handover entries"},
 ]
 
 @asynccontextmanager
@@ -143,7 +147,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ── Public paths (no auth required) ────────────────────────────
-_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '/'}
+_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '/api/version', '/'}
 
 
 @app.middleware("http")
@@ -239,6 +243,24 @@ class ChangelogMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(ChangelogMiddleware)
 
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log every HTTP request with method, path, status code, and duration."""
+
+    async def dispatch(self, request: StarletteRequest, call_next):
+        import time as _t
+        start = _t.time()
+        response = await call_next(request)
+        duration_ms = (_t.time() - start) * 1000
+        _logger.info(
+            "HTTP %s %s → %d (%.1f ms)",
+            request.method, request.url.path, response.status_code, duration_ms,
+        )
+        return response
+
+
+app.add_middleware(RequestLoggingMiddleware)
+
 # ── Include routers ─────────────────────────────────────────────
 from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc
 
@@ -254,20 +276,58 @@ app.include_router(misc.router)
 
 # ── Routes ──────────────────────────────────────────────────────
 
-@app.get("/api/health", tags=["Health"], summary="Health check", description="Returns service status, API version, and DB connection state.")
+_API_VERSION = "1.0.0"
+
+
+@app.get(
+    "/api/health",
+    tags=["Health"],
+    summary="Health check",
+    description=(
+        "Returns service status, API version, uptime in seconds, and DB connection state. "
+        "This endpoint is public (no authentication required)."
+    ),
+)
 def health():
     """Health check endpoint — public, no auth required."""
+    import time as _t
+    db_status = "connected"
+    db_details: dict = {}
     try:
         db = get_db()
-        db.get_stats()
-        db_status = "connected"
-    except Exception:
+        stats = db.get_stats()
+        db_details = {
+            "path": DB_PATH,
+            "employees": stats.get("employees", 0) if isinstance(stats, dict) else 0,
+        }
+    except Exception as exc:
         db_status = "error"
-    return {"status": "ok", "version": "1.0.0", "db": db_status}
+        db_details = {"error": str(exc)[:120]}
+    return {
+        "status": "ok",
+        "version": _API_VERSION,
+        "uptime_seconds": round(_t.time() - _APP_START_TIME, 1),
+        "db": {
+            "status": db_status,
+            **db_details,
+        },
+    }
 
-@app.get("/api", tags=["Health"])
+
+@app.get(
+    "/api/version",
+    tags=["Health"],
+    summary="API version",
+    description="Returns the current API version string.",
+)
+def version():
+    """Return current API version — public, no auth required."""
+    return {"version": _API_VERSION, "service": "OpenSchichtplaner5 API"}
+
+
+@app.get("/api", tags=["Health"], summary="API root", description="Returns basic service info.")
 def root():
-    return {"service": "OpenSchichtplaner5 API", "version": "1.0.0", "backend": "dbf", "db_path": DB_PATH}
+    return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION, "backend": "dbf", "db_path": DB_PATH}
 
 @app.get("/")
 async def frontend_root():
