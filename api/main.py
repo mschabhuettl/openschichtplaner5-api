@@ -215,23 +215,31 @@ _PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
-    """Log every request as structured JSON with timing info."""
+    """Log every request as structured JSON with timing info and request-ID."""
     import time as _t
+    import uuid as _uuid
+    import json as _json_mod
+    from datetime import datetime as _dt2, timezone as _tz2
+    # Generate a short unique request ID for correlating log entries
+    req_id = _uuid.uuid4().hex[:8]
     start = _t.time()
     response = await call_next(request)
     duration_ms = round((_t.time() - start) * 1000)
     token = request.headers.get('x-auth-token') or request.query_params.get('token')
     user = _sessions.get(token, {}).get('NAME', '-') if token else '-'
+    now = _dt2.now(_tz2.utc)
+    ts = now.strftime('%Y-%m-%dT%H:%M:%S.') + f"{now.microsecond // 1000:03d}Z"
     entry = {
-        "timestamp": __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+        "timestamp": ts,
+        "req_id": req_id,
         "method": request.method,
         "path": request.url.path,
         "status": response.status_code,
         "duration_ms": duration_ms,
         "user": user,
     }
-    import json as _json_mod
     _logger.info(_json_mod.dumps(entry, ensure_ascii=False))
+    response.headers["X-Request-ID"] = req_id
     return response
 
 
@@ -329,28 +337,7 @@ class ChangelogMiddleware(BaseHTTPMiddleware):
 app.add_middleware(ChangelogMiddleware)
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Log every HTTP request with method, path, status code, and duration."""
-
-    async def dispatch(self, request: StarletteRequest, call_next):
-        import time as _t
-        start = _t.time()
-        response = await call_next(request)
-        duration_ms = (_t.time() - start) * 1000
-        if duration_ms > 1000:
-            _logger.warning(
-                "SLOW_REQUEST %s %s → %d (%.0f ms)",
-                request.method, request.url.path, response.status_code, duration_ms,
-            )
-        else:
-            _logger.info(
-                "HTTP %s %s → %d (%.1f ms)",
-                request.method, request.url.path, response.status_code, duration_ms,
-            )
-        return response
-
-
-app.add_middleware(RequestLoggingMiddleware)
+# RequestLoggingMiddleware removed — duplicate of request_logging_middleware above
 
 # ── Include routers ─────────────────────────────────────────────
 from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc, events  # noqa: E402
