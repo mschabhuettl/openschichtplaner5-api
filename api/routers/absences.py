@@ -245,12 +245,22 @@ def _save_absence_status(data: dict) -> None:
 
 @router.get("/api/absences/status")
 def get_all_absence_statuses():
-    """Return the status dict for all absences (id → status)."""
-    return _load_absence_status()
+    """Return the status dict for all absences (id → {status, reject_reason}).
+    Also supports legacy format (id → status string) and normalizes on read."""
+    raw = _load_absence_status()
+    # Normalize: legacy entries may be plain strings
+    normalized: dict = {}
+    for k, v in raw.items():
+        if isinstance(v, str):
+            normalized[k] = {"status": v, "reject_reason": ""}
+        else:
+            normalized[k] = v
+    return normalized
 
 
 class AbsenceStatusPatch(BaseModel):
     status: str  # 'pending' | 'approved' | 'rejected'
+    reject_reason: Optional[str] = Field(None, max_length=500)
 
 
 @router.patch("/api/absences/{absence_id}/status")
@@ -260,6 +270,13 @@ def patch_absence_status(absence_id: int, body: AbsenceStatusPatch, _cur_user: d
     if body.status not in allowed:
         raise HTTPException(status_code=400, detail=f"status must be one of {allowed}")
     data = _load_absence_status()
-    data[str(absence_id)] = body.status
+    entry: dict = {"status": body.status, "reject_reason": ""}
+    if body.status == 'rejected' and body.reject_reason:
+        entry["reject_reason"] = body.reject_reason.strip()
+    # Preserve existing reject_reason when approving/resetting (optional)
+    old = data.get(str(absence_id))
+    if isinstance(old, dict) and body.status != 'rejected':
+        entry["reject_reason"] = ""  # clear reason when not rejected
+    data[str(absence_id)] = entry
     _save_absence_status(data)
-    return {"ok": True, "id": absence_id, "status": body.status}
+    return {"ok": True, "id": absence_id, **entry}
