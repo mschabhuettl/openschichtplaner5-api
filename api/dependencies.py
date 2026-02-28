@@ -16,13 +16,13 @@ from slowapi.util import get_remote_address
 
 # ── Structured JSON Logging setup ───────────────────────────────
 import json as _json
-from datetime import datetime as _dt
+from datetime import datetime as _dt, timezone as _tz
 
 class _JsonFormatter(logging.Formatter):
     """Emit log records as single-line JSON objects."""
     def format(self, record: logging.LogRecord) -> str:
         entry = {
-            "timestamp": _dt.utcfromtimestamp(record.created).strftime('%Y-%m-%dT%H:%M:%S.') + f"{int(record.msecs):03d}Z",
+            "timestamp": _dt.fromtimestamp(record.created, tz=_tz.utc).strftime('%Y-%m-%dT%H:%M:%S.') + f"{int(record.msecs):03d}Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),

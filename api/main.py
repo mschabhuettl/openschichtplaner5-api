@@ -173,7 +173,7 @@ async def request_logging_middleware(request: Request, call_next):
     token = request.headers.get('x-auth-token') or request.query_params.get('token')
     user = _sessions.get(token, {}).get('NAME', '-') if token else '-'
     entry = {
-        "timestamp": __import__('datetime').datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+        "timestamp": __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.000Z'),
         "method": request.method,
         "path": request.url.path,
         "status": response.status_code,

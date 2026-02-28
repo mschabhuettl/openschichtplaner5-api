@@ -3,7 +3,6 @@ Edge case tests for OpenSchichtplaner5 backend.
 Covers: invalid month/year bounds, missing DB files, empty results, long strings.
 """
 import os
-import shutil
 import pytest
 
 
@@ -169,8 +168,6 @@ class TestEmptyResults:
     def test_employees_empty_db_returns_list(self, tmp_path):
         """Database with 0 employees returns empty list, not None."""
         import shutil
-        from starlette.testclient import TestClient
-        from api.main import _sessions
 
         fixtures_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
         dst = tmp_path / "Daten"
