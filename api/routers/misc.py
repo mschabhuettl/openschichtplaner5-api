@@ -12,6 +12,7 @@ from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, require_role,
     _sanitize_500, _logger, _sessions, get_current_user, limiter,
 )
+from .events import broadcast
 
 router = APIRouter()
 
@@ -60,6 +61,7 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
             text2=_html.escape(body.text2 or ''),
             category=body.category or '',
         )
+        broadcast("note_added", {"date": body.date})
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e)

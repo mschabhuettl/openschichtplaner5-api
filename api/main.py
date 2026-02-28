@@ -170,7 +170,8 @@ async def auth_middleware(request: Request, call_next):
 
     if path in _PUBLIC_PATHS or not path.startswith('/api/'):
         return await call_next(request)
-    token = request.headers.get('x-auth-token')
+    # SSE endpoint also accepts token as query param (EventSource doesn't support headers)
+    token = request.headers.get('x-auth-token') or request.query_params.get('token')
     if not token or not _is_token_valid(token):
         _logger.warning("AUTH 401 | ip=%s method=%s path=%s", client_ip, method, path)
         return JSONResponse(
@@ -273,7 +274,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestLoggingMiddleware)
 
 # ── Include routers ─────────────────────────────────────────────
-from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc
+from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc, events
 
 app.include_router(auth.router)
 app.include_router(employees.router)
@@ -283,6 +284,7 @@ app.include_router(master_data.router)
 app.include_router(reports.router)
 app.include_router(admin.router)
 app.include_router(misc.router)
+app.include_router(events.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────

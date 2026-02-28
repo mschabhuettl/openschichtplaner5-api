@@ -11,6 +11,7 @@ from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, require_role,
     _sanitize_500, _logger, get_current_user,
 )
+from .events import broadcast
 
 router = APIRouter()
 
@@ -26,6 +27,7 @@ def delete_absence_only(employee_id: int, date: str, _cur_user: dict = Depends(r
         raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
     try:
         count = get_db().delete_absence_only(employee_id, date)
+        broadcast("absence_changed", {"employee_id": employee_id, "date": date})
         return {"ok": True, "deleted": count}
     except Exception as e:
         raise _sanitize_500(e)
@@ -74,6 +76,7 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
         raise HTTPException(status_code=404, detail=f"Abwesenheitstyp {body.leave_type_id} nicht gefunden")
     try:
         result = db.add_absence(body.employee_id, body.date, body.leave_type_id)
+        broadcast("absence_changed", {"employee_id": body.employee_id, "date": body.date})
         return {"ok": True, "record": result}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))

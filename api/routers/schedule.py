@@ -9,6 +9,7 @@ from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, require_role,
     _sanitize_500, _logger, get_current_user,
 )
+from .events import broadcast
 
 router = APIRouter()
 
@@ -407,6 +408,7 @@ def create_schedule_entry(body: ScheduleEntryCreate, _cur_user: dict = Depends(r
         raise HTTPException(status_code=404, detail=f"Schicht {body.shift_id} nicht gefunden")
     try:
         result = db.add_schedule_entry(body.employee_id, body.date, body.shift_id)
+        broadcast("schedule_changed", {"employee_id": body.employee_id, "date": body.date})
         return {"ok": True, "record": result}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -425,6 +427,7 @@ def delete_schedule_entry(employee_id: int, date: str, _cur_user: dict = Depends
         count = get_db().delete_schedule_entry(employee_id, date)
         if count == 0:
             raise HTTPException(status_code=404, detail="Schedule entry not found")
+        broadcast("schedule_changed", {"employee_id": employee_id, "date": date})
         return {"ok": True, "deleted": count}
     except HTTPException:
         raise
