@@ -1,6 +1,7 @@
 """Reports, statistics, zeitkonto, export, import, analysis router."""
 import io
 import csv
+import html as _html
 import calendar as _calendar
 from datetime import datetime as _dt, date
 from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFile, File
@@ -557,7 +558,7 @@ def export_schedule(
             fg = s.get('COLORTEXT_HEX', '#000')
             name = s.get('NAME', '')
             short = s.get('SHORTNAME', '')
-            legend_html += f'<span style="background:{bg};color:{fg};padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-size:10px;font-weight:bold" title="{name}">{short}</span>'
+            legend_html += f'<span style="background:{bg};color:{fg};padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-size:10px;font-weight:bold" title="{_html.escape(name)}">{_html.escape(short)}</span>'
         legend_html += '</div>'
 
         rows_html = ""
@@ -573,7 +574,7 @@ def export_schedule(
                 emp_style = f'background:{cbklabel_hex};color:{cfglabel_hex};{bold_style}'
             else:
                 emp_style = f'background:#f8fafc;{bold_style}'
-            rows_html += f'<tr><td class="emp-name" style="{emp_style}">{emp_name}</td><td class="emp-short">{short}</td>'
+            rows_html += f'<tr><td class="emp-name" style="{emp_style}">{_html.escape(emp_name)}</td><td class="emp-short">{_html.escape(short)}</td>'
             for date in days:
                 wd = _dt(year, mon, int(date.split('-')[2])).weekday()
                 is_weekend = wd >= 5
@@ -582,7 +583,7 @@ def export_schedule(
                     bg = e.get('color_bk', '#4A90D9')
                     fg = e.get('color_text', '#FFFFFF')
                     display = e.get('display_name', '')
-                    rows_html += f'<td class="day-cell" style="background:{bg};color:{fg}"><span title="{e.get("shift_name", e.get("leave_name", display))}">{display}</span></td>'
+                    rows_html += f'<td class="day-cell" style="background:{bg};color:{fg}"><span title="{_html.escape(str(e.get("shift_name", e.get("leave_name", display))))}">{_html.escape(str(display))}</span></td>'
                 else:
                     weekend_style = 'background:#f0f0f0;' if is_weekend else ''
                     rows_html += f'<td class="day-cell" style="{weekend_style}"></td>'
@@ -705,8 +706,8 @@ def export_statistics(
             ot_color = "#16a34a" if ot >= 0 else "#dc2626"
             summary_rows += (
                 f'<tr>'
-                f'<td class="name">{s["Mitarbeiter"]}</td>'
-                f'<td class="center">{s["Kürzel"]}</td>'
+                f'<td class="name">{_html.escape(str(s["Mitarbeiter"]))}</td>'
+                f'<td class="center">{_html.escape(str(s["Kürzel"]))}</td>'
                 f'<td class="num">{s["Soll (h)"]:.1f}</td>'
                 f'<td class="num">{s["Ist (h)"]:.1f}</td>'
                 f'<td class="num" style="color:{ot_color};font-weight:bold">{"+" if ot>=0 else ""}{ot:.1f}</td>'
@@ -838,11 +839,11 @@ def export_employees(
             "Arbeitstage": emp.get('WORKDAYS', ''),
         })
     if format == "html":
-        headers_html = "".join(f"<th>{h}</th>" for h in rows[0].keys()) if rows else ""
+        headers_html = "".join(f"<th>{_html.escape(str(h))}</th>" for h in rows[0].keys()) if rows else ""
         rows_html = ""
         for i, row in enumerate(rows):
             bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
-            rows_html += f'<tr style="background:{bg}">' + "".join(f"<td>{v}</td>" for v in row.values()) + "</tr>\n"
+            rows_html += f'<tr style="background:{bg}">' + "".join(f"<td>{_html.escape(str(v))}</td>" for v in row.values()) + "</tr>\n"
         html = f"""<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -959,11 +960,11 @@ def export_absences(
 
     rows.sort(key=lambda x: (x['Datum'], x['Mitarbeiter']))
     if format == "html":
-        headers_html = "".join(f"<th>{h}</th>" for h in rows[0].keys()) if rows else ""
+        headers_html = "".join(f"<th>{_html.escape(str(h))}</th>" for h in rows[0].keys()) if rows else ""
         rows_html = ""
         for i, row in enumerate(rows):
             bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
-            rows_html += f'<tr style="background:{bg}">' + "".join(f"<td>{v}</td>" for v in row.values()) + "</tr>\n"
+            rows_html += f'<tr style="background:{bg}">' + "".join(f"<td>{_html.escape(str(v))}</td>" for v in row.values()) + "</tr>\n"
         html = f"""<!DOCTYPE html>
 <html lang="de">
 <head>
