@@ -658,7 +658,7 @@ def delete_assignment(assignment_id: str, _cur_user: dict = Depends(require_admi
     return {"ok": True}
 
 @router.get("/api/skills/matrix")
-def get_skills_matrix():
+def get_skills_matrix(_cur_user: dict = Depends(require_auth)):
     """Full matrix: all employees × all skills with assignment details."""
     data = _load_skills()
     skills = data.get("skills", [])

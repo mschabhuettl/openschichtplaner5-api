@@ -209,10 +209,13 @@ def _csv_response(rows: list, filename: str) -> _Response:
 
 
 @router.get("/api/export/schedule")
+@limiter.limit("10/minute")
 def export_schedule(
+    request: Request,
     month: str = Query(..., description="Month in YYYY-MM format"),
     group_id: Optional[int] = Query(None),
     format: str = Query("csv", description="csv, html, or xlsx"),
+    _cur_user: dict = Depends(require_planer),
 ):
     try:
         dt = _dt.strptime(month, "%Y-%m")
@@ -432,10 +435,13 @@ def export_schedule(
 
 
 @router.get("/api/export/statistics")
+@limiter.limit("10/minute")
 def export_statistics(
+    request: Request,
     year: int = Query(...),
     group_id: Optional[int] = Query(None),
     format: str = Query("csv", description="csv or html"),
+    _cur_user: dict = Depends(require_planer),
 ):
     db = get_db()
     rows_data = []
@@ -580,8 +586,11 @@ def export_statistics(
 
 
 @router.get("/api/export/employees")
+@limiter.limit("10/minute")
 def export_employees(
+    request: Request,
     format: str = Query("csv"),
+    _cur_user: dict = Depends(require_planer),
 ):
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -665,10 +674,13 @@ def export_employees(
 
 
 @router.get("/api/export/absences")
+@limiter.limit("10/minute")
 def export_absences(
+    request: Request,
     year: int = Query(...),
     group_id: Optional[int] = Query(None),
     format: str = Query("csv"),
+    _cur_user: dict = Depends(require_planer),
 ):
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -1718,6 +1730,7 @@ def get_overtime_summary(
 def get_warnings(
     year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
     month: Optional[int] = Query(None, description="Month (1-12), defaults to current month"),
+    _cur_user: dict = Depends(require_auth),
 ):
     """Return a list of active warnings for the Warnings Center.
 
@@ -2190,6 +2203,7 @@ def get_capacity_forecast(
 def get_capacity_year(
     year: int = Query(..., description="Year (YYYY)"),
     group_id: Optional[int] = Query(None, description="Filter by group"),
+    _cur_user: dict = Depends(require_auth),
 ):
     """Return per-month capacity summary for a full year (for heatmap).
 

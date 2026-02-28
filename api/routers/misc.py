@@ -10,7 +10,7 @@ from starlette.requests import Request as StarletteRequest
 import re as _re
 from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, _sessions, get_current_user,
+    _sanitize_500, _logger, _sessions, get_current_user, limiter,
 )
 
 router = APIRouter()
@@ -454,6 +454,7 @@ class SwapRequestResolve(BaseModel):
 def list_swap_requests(
     status: Optional[str] = None,
     employee_id: Optional[int] = None,
+    _cur_user: dict = Depends(require_auth),
 ):
     """List shift swap requests, optionally filtered by status or employee."""
     requests = get_db().get_swap_requests(status=status, employee_id=employee_id)
@@ -487,7 +488,8 @@ def list_swap_requests(
 
 
 @router.post("/api/swap-requests")
-def create_swap_request(body: SwapRequestCreate, _cur_user: dict = Depends(require_planer)):
+@limiter.limit("5/minute")
+def create_swap_request(request: Request, body: SwapRequestCreate, _cur_user: dict = Depends(require_planer)):
     """Create a new shift swap request."""
     from datetime import datetime as _dt4
     # Validate dates
