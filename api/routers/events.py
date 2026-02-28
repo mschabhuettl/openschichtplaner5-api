@@ -4,8 +4,9 @@ import json
 import logging
 import threading
 from typing import AsyncGenerator
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+from .auth import require_auth
 
 _logger = logging.getLogger(__name__)
 
@@ -69,8 +70,8 @@ async def _event_generator(request: Request, queue: asyncio.Queue) -> AsyncGener
     "Connect to receive real-time events.\n\n"
     "Events: `connected`, `schedule_changed`, `conflict_updated`, `note_added`, `absence_changed`"
 ))
-async def sse_stream(request: Request):
-    """SSE endpoint — stream real-time events to connected clients."""
+async def sse_stream(request: Request, _cur_user: dict = Depends(require_auth)):
+    """SSE endpoint — stream real-time events to connected clients (auth required)."""
     loop = asyncio.get_event_loop()
     queue: asyncio.Queue = asyncio.Queue(maxsize=50)
     with _lock:
