@@ -179,7 +179,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     }
     errors = []
     for e in exc.errors():
-        field = ".".join(str(l) for l in e.get("loc", []) if l not in ("body", "query", "path"))
+        field = ".".join(str(loc) for loc in e.get("loc", []) if loc not in ("body", "query", "path"))
         etype = e.get("type", "")
         msg = _TYPE_MSGS.get(etype, e.get("msg", "Ungültiger Wert"))
         if field:

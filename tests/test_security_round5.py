@@ -1,5 +1,4 @@
 """Security audit round 5: token/session hardening tests."""
-import pytest
 import time as _time
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
