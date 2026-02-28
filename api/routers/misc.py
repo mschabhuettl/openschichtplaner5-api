@@ -41,6 +41,7 @@ class NoteCreate(BaseModel):
     text: str
     employee_id: Optional[int] = 0
     text2: Optional[str] = ''
+    category: Optional[str] = ''
 
 
 @router.post("/api/notes", tags=["Notes"], summary="Add note", description="Create a new shift note. Requires Planer role.")
@@ -57,6 +58,7 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
             text=_html.escape(body.text),
             employee_id=body.employee_id or 0,
             text2=_html.escape(body.text2 or ''),
+            category=body.category or '',
         )
         return {"ok": True, "record": result}
     except Exception as e:
@@ -68,6 +70,7 @@ class NoteUpdate(BaseModel):
     text2: Optional[str] = None
     employee_id: Optional[int] = None
     date: Optional[str] = None
+    category: Optional[str] = None
 
 
 @router.put("/api/notes/{note_id}")
@@ -86,6 +89,7 @@ def update_note(note_id: int, body: NoteUpdate, _cur_user: dict = Depends(requir
             text2=_html.escape(body.text2) if body.text2 is not None else None,
             employee_id=body.employee_id,
             date=body.date,
+            category=body.category,
         )
         if result is None:
             raise HTTPException(status_code=404, detail="Note not found")

@@ -477,7 +477,7 @@ def get_dashboard_summary(
     except Exception:
         zeitkonto_alerts = []
 
-    # ── Upcoming birthdays (next 14 days) ─────────────────────
+    # ── Upcoming birthdays (next 30 days) ─────────────────────
     upcoming_birthdays = []
     for emp in employees:
         bday_raw = emp.get("BIRTHDAY")
@@ -490,7 +490,7 @@ def get_dashboard_summary(
             if bday_this_year < today:
                 bday_this_year = date(today.year + 1, bday_month, bday_day)
             days_until = (bday_this_year - today).days
-            if 0 <= days_until <= 14:
+            if 0 <= days_until <= 30:
                 name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", ")
                 upcoming_birthdays.append({
                     "name": name,
