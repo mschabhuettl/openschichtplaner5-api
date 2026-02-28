@@ -193,6 +193,7 @@ class TestExportWith2026Data:
     """Tests that use actual DB data (2026 data)."""
 
     def test_export_absences_html_2026(self, sync_client):
+        """Verify export absences html 2026."""
         resp = sync_client.get("/api/export/absences?year=2026&format=html")
         assert resp.status_code == 200
         # Should have actual data rows
@@ -200,11 +201,13 @@ class TestExportWith2026Data:
         assert len(content) > 100  # Not empty
 
     def test_export_absences_csv_2026(self, sync_client):
+        """Verify export absences csv 2026."""
         resp = sync_client.get("/api/export/absences?year=2026&format=csv")
         assert resp.status_code == 200
         assert len(resp.text) > 10
 
     def test_export_absences_with_group_2026(self, sync_client):
+        """Verify export absences with group 2026."""
         groups = sync_client.get("/api/groups").json()
         if not groups:
             pytest.skip("No groups")
@@ -213,20 +216,24 @@ class TestExportWith2026Data:
         assert resp.status_code == 200
 
     def test_export_schedule_2026(self, sync_client):
+        """Verify export schedule 2026."""
         resp = sync_client.get("/api/export/schedule?month=2026-01&format=html")
         assert resp.status_code == 200
         content = resp.text
         assert len(content) > 100
 
     def test_export_schedule_csv_2026(self, sync_client):
+        """Verify export schedule csv 2026."""
         resp = sync_client.get("/api/export/schedule?month=2026-02&format=csv")
         assert resp.status_code == 200
 
     def test_export_statistics_2026(self, sync_client):
+        """Verify export statistics 2026."""
         resp = sync_client.get("/api/export/statistics?year=2026&format=html")
         assert resp.status_code == 200
 
     def test_export_statistics_csv_2026(self, sync_client):
+        """Verify export statistics csv 2026."""
         resp = sync_client.get("/api/export/statistics?year=2026&format=csv")
         assert resp.status_code == 200
 
@@ -235,10 +242,12 @@ class TestExportWith2026Data:
 
 class TestStatisticsWith2026Data:
     def test_statistics_2026(self, sync_client):
+        """Verify statistics 2026."""
         resp = sync_client.get("/api/statistics?year=2026&month=1")
         assert resp.status_code == 200
 
     def test_statistics_employee_2026(self, sync_client):
+        """Verify statistics employee 2026."""
         emps = sync_client.get("/api/employees").json()
         if not emps:
             pytest.skip("No employees")
@@ -247,10 +256,12 @@ class TestStatisticsWith2026Data:
         assert resp.status_code == 200
 
     def test_statistics_invalid_month(self, sync_client):
+        """Verify statistics invalid month."""
         resp = sync_client.get("/api/statistics?year=2026&month=13")
         assert resp.status_code == 400
 
     def test_zeitkonto_detail_2026(self, sync_client):
+        """Verify zeitkonto detail 2026."""
         emps = sync_client.get("/api/employees").json()
         if not emps:
             pytest.skip("No employees")
@@ -259,10 +270,12 @@ class TestStatisticsWith2026Data:
         assert resp.status_code in (200, 404)
 
     def test_overtime_summary_2026(self, sync_client):
+        """Verify overtime summary 2026."""
         resp = sync_client.get("/api/overtime-summary?year=2026")
         assert resp.status_code == 200
 
     def test_schedule_year_2026(self, sync_client):
+        """Verify schedule year 2026."""
         emps = sync_client.get("/api/employees").json()
         if not emps:
             pytest.skip("No employees")
@@ -275,6 +288,7 @@ class TestStatisticsWith2026Data:
 
 class TestEmployeeCRUDFull:
     def test_create_employee_full(self, write_client):
+        """Verify create employee full."""
         resp = write_client.post("/api/employees", json={
             "NAME": "Testmann",
             "FIRSTNAME": "Hans",
@@ -292,10 +306,12 @@ class TestEmployeeCRUDFull:
         assert del_resp.status_code == 200
 
     def test_employee_not_found_update(self, write_client):
+        """Verify employee not found update."""
         resp = write_client.put("/api/employees/999999", json={"NAME": "X"})
         assert resp.status_code == 404
 
     def test_get_employee_by_id(self, sync_client):
+        """Verify get employee by id."""
         emps = sync_client.get("/api/employees").json()
         if not emps:
             pytest.skip("No employees")
@@ -304,6 +320,7 @@ class TestEmployeeCRUDFull:
         assert resp.status_code == 200
 
     def test_get_employee_not_found(self, sync_client):
+        """Verify get employee not found."""
         resp = sync_client.get("/api/employees/999999")
         assert resp.status_code == 404
 
@@ -312,6 +329,7 @@ class TestEmployeeCRUDFull:
 
 class TestLeaveBalanceWith2026:
     def test_leave_balance_2026(self, sync_client):
+        """Verify leave balance 2026."""
         emps = sync_client.get("/api/employees").json()
         if not emps:
             pytest.skip("No employees")
@@ -320,6 +338,7 @@ class TestLeaveBalanceWith2026:
         assert resp.status_code == 200
 
     def test_leave_balance_group_2026(self, sync_client):
+        """Verify leave balance group 2026."""
         groups = sync_client.get("/api/groups").json()
         if not groups:
             pytest.skip("No groups")
@@ -328,6 +347,7 @@ class TestLeaveBalanceWith2026:
         assert resp.status_code == 200
 
     def test_annual_close_preview_2026(self, sync_client):
+        """Verify annual close preview 2026."""
         resp = sync_client.get("/api/annual-close/preview?year=2026")
         assert resp.status_code == 200
 
@@ -336,10 +356,12 @@ class TestLeaveBalanceWith2026:
 
 class TestDatabaseDirectMethods:
     def test_get_statistics_with_data(self, real_db):
+        """Verify get statistics with data."""
         result = real_db.get_statistics(2026, 1)
         assert isinstance(result, (dict, list))
 
     def test_get_schedule_year_with_data(self, real_db):
+        """Verify get schedule year with data."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -347,10 +369,12 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_get_schedule_week_with_data(self, real_db):
+        """Verify get schedule week with data."""
         result = real_db.get_schedule_week('2026-01-05')
         assert isinstance(result, dict)
 
     def test_get_employee_stats_year_with_data(self, real_db):
+        """Verify get employee stats year with data."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -358,6 +382,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, dict)
 
     def test_get_employee_stats_month_with_data(self, real_db):
+        """Verify get employee stats month with data."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -365,10 +390,12 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, dict)
 
     def test_calculate_extracharge_hours_with_data(self, real_db):
+        """Verify calculate extracharge hours with data."""
         result = real_db.calculate_extracharge_hours(2026, 1)
         assert isinstance(result, list)
 
     def test_get_leave_balance_with_data(self, real_db):
+        """Verify get leave balance with data."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -376,6 +403,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, dict)
 
     def test_get_leave_balance_group_with_data(self, real_db):
+        """Verify get leave balance group with data."""
         groups = real_db.get_groups()
         if not groups:
             pytest.skip("No groups")
@@ -383,6 +411,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_calculate_annual_statement_with_data(self, real_db):
+        """Verify calculate annual statement with data."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -390,6 +419,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, dict)
 
     def test_calculate_time_balance_with_data(self, real_db):
+        """Verify calculate time balance with data."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -397,30 +427,37 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, dict)
 
     def test_get_zeitkonto_with_data(self, real_db):
+        """Verify get zeitkonto with data."""
         result = real_db.get_zeitkonto(year=2026)
         assert isinstance(result, list)
 
     def test_get_schedule_conflicts_with_data(self, real_db):
+        """Verify get schedule conflicts with data."""
         result = real_db.get_schedule_conflicts(2026, 1)
         assert isinstance(result, list)
 
     def test_get_overtime_summary_with_data(self, real_db):
+        """Verify get overtime summary with data."""
         result = real_db.get_overtime_summary(2026)
         assert isinstance(result, (dict, list))
 
     def test_get_staffing_with_data(self, real_db):
+        """Verify get staffing with data."""
         result = real_db.get_staffing(2026, 1)
         assert isinstance(result, list)
 
     def test_get_annual_close_preview_2026(self, real_db):
+        """Verify get annual close preview 2026."""
         result = real_db.get_annual_close_preview(2026)
         assert isinstance(result, dict)
 
     def test_get_bookings_with_data(self, real_db):
+        """Verify get bookings with data."""
         result = real_db.get_bookings(year=2026)
         assert isinstance(result, list)
 
     def test_get_restrictions_filtered(self, real_db):
+        """Verify get restrictions filtered."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -429,14 +466,17 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_get_staffing_requirements_filtered(self, real_db):
+        """Verify get staffing requirements filtered."""
         result = real_db.get_staffing_requirements(year=2026, month=1)
         assert isinstance(result, dict)
 
     def test_get_special_staffing_filtered(self, real_db):
+        """Verify get special staffing filtered."""
         result = real_db.get_special_staffing(date='2026-01-01')
         assert isinstance(result, list)
 
     def test_get_cycle_exceptions_filtered(self, real_db):
+        """Verify get cycle exceptions filtered."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -445,6 +485,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_get_holiday_bans_by_group(self, real_db):
+        """Verify get holiday bans by group."""
         groups = real_db.get_groups()
         if not groups:
             pytest.skip("No groups")
@@ -453,6 +494,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_get_leave_entitlements_filtered(self, real_db):
+        """Verify get leave entitlements filtered."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -461,6 +503,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_get_notes_by_employee(self, real_db):
+        """Verify get notes by employee."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -469,6 +512,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_get_periods_by_group(self, real_db):
+        """Verify get periods by group."""
         groups = real_db.get_groups()
         if not groups:
             pytest.skip("No groups")
@@ -477,22 +521,27 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_get_changelog_filtered(self, real_db):
+        """Verify get changelog filtered."""
         result = real_db.get_changelog(limit=5)
         assert isinstance(result, list)
 
     def test_get_all_group_assignments(self, real_db):
+        """Verify get all group assignments."""
         result = real_db.get_all_group_assignments()
         assert isinstance(result, list)
 
     def test_get_employee_access_filtered(self, real_db):
+        """Verify get employee access filtered."""
         result = real_db.get_employee_access(user_id=1)
         assert isinstance(result, list)
 
     def test_get_group_access_filtered(self, real_db):
+        """Verify get group access filtered."""
         result = real_db.get_group_access(user_id=1)
         assert isinstance(result, list)
 
     def test_get_overtime_records_filtered(self, real_db):
+        """Verify get overtime records filtered."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -501,6 +550,7 @@ class TestDatabaseDirectMethods:
         assert isinstance(result, list)
 
     def test_get_bookings_carry_forward(self, real_db):
+        """Verify get bookings carry forward."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -517,6 +567,7 @@ class TestDatabaseDirectMethods:
         # Shortname should be auto-generated or at least not crash
 
     def test_get_employee_shortname_filter(self, real_db):
+        """Verify get employee shortname filter."""
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
@@ -529,6 +580,7 @@ class TestDatabaseDirectMethods:
 
 class TestAbsencesAPI:
     def test_absences_2026(self, sync_client):
+        """Verify absences 2026."""
         resp = sync_client.get("/api/absences?year=2026")
         assert resp.status_code == 200
         data = resp.json()
@@ -536,6 +588,7 @@ class TestAbsencesAPI:
         assert len(data) > 0  # Real data in 2026
 
     def test_absences_delete_by_emp_date(self, write_client):
+        """Verify absences delete by emp date."""
         emps = write_client.get("/api/employees").json()
         lt_list = write_client.get("/api/leave-types").json()
         if not emps or not lt_list:

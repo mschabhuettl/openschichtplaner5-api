@@ -85,15 +85,18 @@ class TestUpdateEmployee:
 
 class TestGroupCRUD:
     def test_list_groups(self, sync_client: TestClient):
+        """Verify list groups."""
         res = sync_client.get('/api/groups')
         assert res.status_code == 200
         assert isinstance(res.json(), list)
 
     def test_list_groups_include_hidden(self, sync_client: TestClient):
+        """Verify list groups include hidden."""
         res = sync_client.get('/api/groups?include_hidden=true')
         assert res.status_code == 200
 
     def test_get_group_members(self, sync_client: TestClient):
+        """Verify get group members."""
         groups = sync_client.get('/api/groups').json()
         if not groups:
             pytest.skip("No groups")
@@ -103,10 +106,12 @@ class TestGroupCRUD:
         assert isinstance(res.json(), list)
 
     def test_get_group_members_not_found(self, sync_client: TestClient):
+        """Verify get group members not found."""
         res = sync_client.get('/api/groups/999999/members')
         assert res.status_code in (200, 404)
 
     def test_create_and_delete_group(self, admin_client: TestClient):
+        """Verify create and delete group."""
         res = admin_client.post('/api/groups', json={'NAME': 'TempGrp', 'NOTES': ''})
         assert res.status_code == 200
         # Try to find the new group
@@ -117,14 +122,17 @@ class TestGroupCRUD:
             assert del_res.status_code in (200, 204)
 
     def test_update_group_not_found(self, admin_client: TestClient):
+        """Verify update group not found."""
         res = admin_client.put('/api/groups/999999', json={'NAME': 'X'})
         assert res.status_code in (404, 200)
 
     def test_delete_group_not_found(self, admin_client: TestClient):
+        """Verify delete group not found."""
         res = admin_client.delete('/api/groups/999999')
         assert res.status_code in (404, 200)
 
     def test_add_remove_group_member(self, admin_client: TestClient):
+        """Verify add remove group member."""
         groups = admin_client.get('/api/groups').json()
         emps = admin_client.get('/api/employees').json()
         if not groups or not emps:
@@ -141,6 +149,7 @@ class TestGroupCRUD:
 
 class TestBulkOperations:
     def test_bulk_hide(self, admin_client: TestClient):
+        """Verify bulk hide."""
         emps = admin_client.get('/api/employees').json()
         if not emps:
             pytest.skip("No employees")
@@ -158,6 +167,7 @@ class TestBulkOperations:
         })
 
     def test_bulk_invalid_action(self, admin_client: TestClient):
+        """Verify bulk invalid action."""
         res = admin_client.post('/api/employees/bulk', json={
             'employee_ids': [1],
             'action': 'nonexistent',
@@ -165,6 +175,7 @@ class TestBulkOperations:
         assert res.status_code == 400
 
     def test_bulk_assign_group_missing_group_id(self, admin_client: TestClient):
+        """Verify bulk assign group missing group id."""
         res = admin_client.post('/api/employees/bulk', json={
             'employee_ids': [1],
             'action': 'assign_group',
@@ -172,6 +183,7 @@ class TestBulkOperations:
         assert res.status_code == 400
 
     def test_bulk_assign_group(self, admin_client: TestClient):
+        """Verify bulk assign group."""
         groups = admin_client.get('/api/groups').json()
         emps = admin_client.get('/api/employees').json()
         if not groups or not emps:
@@ -184,6 +196,7 @@ class TestBulkOperations:
         assert res.status_code == 200
 
     def test_bulk_remove_group_missing_group_id(self, admin_client: TestClient):
+        """Verify bulk remove group missing group id."""
         res = admin_client.post('/api/employees/bulk', json={
             'employee_ids': [1],
             'action': 'remove_group',
@@ -191,6 +204,7 @@ class TestBulkOperations:
         assert res.status_code == 400
 
     def test_employees_include_hidden(self, sync_client: TestClient):
+        """Verify employees include hidden."""
         res = sync_client.get('/api/employees?include_hidden=true')
         assert res.status_code == 200
         assert isinstance(res.json(), list)

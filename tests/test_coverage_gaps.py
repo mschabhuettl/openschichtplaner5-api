@@ -79,44 +79,53 @@ class TestEventsBroadcast:
 
 class TestNotesEndpoints:
     def test_get_notes(self, sync_client):
+        """Verify get notes."""
         resp = sync_client.get("/api/notes")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_get_notes_with_date(self, sync_client):
+        """Verify get notes with date."""
         resp = sync_client.get("/api/notes?date=2024-01-15")
         assert resp.status_code == 200
 
     def test_get_notes_with_year_month(self, sync_client):
+        """Verify get notes with year month."""
         resp = sync_client.get("/api/notes?year=2024&month=1")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_add_note_invalid_date(self, sync_client):
+        """Verify add note invalid date."""
         resp = sync_client.post("/api/notes", json={"date": "not-a-date", "text": "hi"})
         assert resp.status_code in (400, 422)
 
     def test_add_note_valid(self, write_client):
+        """Verify add note valid."""
         resp = write_client.post("/api/notes", json={"date": "2024-03-15", "text": "Test note"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
 
     def test_add_note_requires_auth(self, app):
+        """Verify add note requires auth."""
         with TestClient(app, raise_server_exceptions=False) as c:
             resp = c.post("/api/notes", json={"date": "2024-03-15", "text": "hi"})
         assert resp.status_code == 401
 
     def test_update_note_not_found(self, write_client):
+        """Verify update note not found."""
         resp = write_client.put("/api/notes/999999", json={"text": "updated"})
         assert resp.status_code == 404
 
     def test_update_note_invalid_date(self, write_client):
+        """Verify update note invalid date."""
         resp = write_client.put("/api/notes/1", json={"date": "bad-date"})
         assert resp.status_code in (400, 422)
 
     def test_delete_note(self, write_client):
         # Create a note first
+        """Verify delete note."""
         cr = write_client.post("/api/notes", json={"date": "2024-04-01", "text": "to delete"})
         assert cr.status_code == 200
         record = cr.json()["record"]
@@ -128,62 +137,75 @@ class TestNotesEndpoints:
 
 class TestGlobalSearch:
     def test_search_empty_query(self, sync_client):
+        """Verify search empty query."""
         resp = sync_client.get("/api/search?q=")
         assert resp.status_code == 200
         data = resp.json()
         assert data["results"] == []
 
     def test_search_with_query(self, sync_client):
+        """Verify search with query."""
         resp = sync_client.get("/api/search?q=test")
         assert resp.status_code == 200
         assert "results" in resp.json()
 
     def test_search_no_query_param(self, sync_client):
+        """Verify search no query param."""
         resp = sync_client.get("/api/search")
         assert resp.status_code == 200
 
 
 class TestAccessEndpoints:
     def test_get_employee_access(self, sync_client):
+        """Verify get employee access."""
         resp = sync_client.get("/api/employee-access")
         assert resp.status_code == 200
 
     def test_get_employee_access_with_user_id(self, sync_client):
+        """Verify get employee access with user id."""
         resp = sync_client.get("/api/employee-access?user_id=1")
         assert resp.status_code == 200
 
     def test_delete_employee_access_not_found(self, write_client):
+        """Verify delete employee access not found."""
         resp = write_client.delete("/api/employee-access/999999")
         assert resp.status_code == 404
 
     def test_get_group_access(self, sync_client):
+        """Verify get group access."""
         resp = sync_client.get("/api/group-access")
         assert resp.status_code == 200
 
     def test_delete_group_access_not_found(self, write_client):
+        """Verify delete group access not found."""
         resp = write_client.delete("/api/group-access/999999")
         assert resp.status_code == 404
 
     def test_set_employee_access(self, write_client):
+        """Verify set employee access."""
         resp = write_client.post("/api/employee-access", json={"user_id": 1, "employee_id": 1, "rights": 1})
         assert resp.status_code in (200, 400, 500)
 
     def test_set_group_access(self, write_client):
+        """Verify set group access."""
         resp = write_client.post("/api/group-access", json={"user_id": 1, "group_id": 1, "rights": 1})
         assert resp.status_code in (200, 400, 500)
 
 
 class TestChangelog:
     def test_get_changelog(self, sync_client):
+        """Verify get changelog."""
         resp = sync_client.get("/api/changelog")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_get_changelog_with_filters(self, sync_client):
+        """Verify get changelog with filters."""
         resp = sync_client.get("/api/changelog?limit=5&date_from=2024-01-01&date_to=2024-12-31")
         assert resp.status_code == 200
 
     def test_post_changelog(self, write_client):
+        """Verify post changelog."""
         resp = write_client.post("/api/changelog", json={
             "user": "tester",
             "action": "CREATE",
@@ -196,38 +218,45 @@ class TestChangelog:
 
 class TestWishes:
     def test_get_wishes(self, sync_client):
+        """Verify get wishes."""
         resp = sync_client.get("/api/wishes")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_get_wishes_filtered(self, sync_client):
+        """Verify get wishes filtered."""
         resp = sync_client.get("/api/wishes?year=2024&month=1")
         assert resp.status_code == 200
 
     def test_create_wish_invalid_type(self, write_client):
+        """Verify create wish invalid type."""
         resp = write_client.post("/api/wishes", json={
             "employee_id": 1, "date": "2024-03-15", "wish_type": "INVALID"
         })
         assert resp.status_code in (400, 422)
 
     def test_create_wish_valid(self, write_client):
+        """Verify create wish valid."""
         resp = write_client.post("/api/wishes", json={
             "employee_id": 1, "date": "2024-03-15", "wish_type": "WUNSCH"
         })
         assert resp.status_code in (200, 400, 500)
 
     def test_delete_wish(self, write_client):
+        """Verify delete wish."""
         resp = write_client.delete("/api/wishes/999999")
         assert resp.status_code in (200, 404)
 
 
 class TestHandover:
     def test_get_handover_empty(self, sync_client):
+        """Verify get handover empty."""
         resp = sync_client.get("/api/handover")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_create_handover(self, write_client):
+        """Verify create handover."""
         resp = write_client.post("/api/handover", json={
             "date": "2024-03-15",
             "author": "Tester",
@@ -240,6 +269,7 @@ class TestHandover:
 
     def test_update_handover(self, write_client):
         # Create one first
+        """Verify update handover."""
         cr = write_client.post("/api/handover", json={
             "date": "2024-03-16", "author": "Tester", "text": "note"
         })
@@ -249,10 +279,12 @@ class TestHandover:
         assert resp.json()["resolved"] is True
 
     def test_update_handover_not_found(self, write_client):
+        """Verify update handover not found."""
         resp = write_client.patch("/api/handover/nonexistent", json={"resolved": True})
         assert resp.status_code == 404
 
     def test_delete_handover(self, write_client):
+        """Verify delete handover."""
         cr = write_client.post("/api/handover", json={
             "date": "2024-03-17", "author": "Tester", "text": "to delete"
         })
@@ -261,10 +293,12 @@ class TestHandover:
         assert resp.status_code == 200
 
     def test_delete_handover_not_found(self, write_client):
+        """Verify delete handover not found."""
         resp = write_client.delete("/api/handover/nonexistent")
         assert resp.status_code == 404
 
     def test_get_handover_filtered(self, write_client):
+        """Verify get handover filtered."""
         write_client.post("/api/handover", json={"date": "2024-05-01", "author": "A", "text": "x"})
         resp = write_client.get("/api/handover?date=2024-05-01")
         assert resp.status_code == 200
@@ -272,15 +306,18 @@ class TestHandover:
 
 class TestSwapRequests:
     def test_list_swap_requests(self, sync_client):
+        """Verify list swap requests."""
         resp = sync_client.get("/api/swap-requests")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_list_swap_requests_filtered(self, sync_client):
+        """Verify list swap requests filtered."""
         resp = sync_client.get("/api/swap-requests?status=pending")
         assert resp.status_code == 200
 
     def test_create_swap_request_same_employee(self, write_client):
+        """Verify create swap request same employee."""
         resp = write_client.post("/api/swap-requests", json={
             "requester_id": 1, "requester_date": "2024-03-15",
             "partner_id": 1, "partner_date": "2024-03-16",
@@ -288,6 +325,7 @@ class TestSwapRequests:
         assert resp.status_code == 400
 
     def test_create_swap_request_invalid_date(self, write_client):
+        """Verify create swap request invalid date."""
         resp = write_client.post("/api/swap-requests", json={
             "requester_id": 1, "requester_date": "bad-date",
             "partner_id": 2, "partner_date": "2024-03-16",
@@ -295,29 +333,35 @@ class TestSwapRequests:
         assert resp.status_code in (400, 422)
 
     def test_resolve_swap_request_invalid_action(self, write_client):
+        """Verify resolve swap request invalid action."""
         resp = write_client.patch("/api/swap-requests/1/resolve", json={"action": "invalid"})
         assert resp.status_code in (400, 422)
 
     def test_resolve_swap_request_not_found(self, write_client):
+        """Verify resolve swap request not found."""
         resp = write_client.patch("/api/swap-requests/999999/resolve", json={"action": "reject"})
         assert resp.status_code == 404
 
     def test_delete_swap_request_not_found(self, write_client):
+        """Verify delete swap request not found."""
         resp = write_client.delete("/api/swap-requests/999999")
         assert resp.status_code == 404
 
 
 class TestSelfService:
     def test_get_my_employee(self, sync_client):
+        """Verify get my employee."""
         resp = sync_client.get("/api/me/employee")
         assert resp.status_code == 200
 
     def test_get_my_employee_no_auth(self, app):
+        """Verify get my employee no auth."""
         with TestClient(app, raise_server_exceptions=False) as c:
             resp = c.get("/api/me/employee")
         assert resp.status_code == 401
 
     def test_create_self_wish(self, write_client):
+        """Verify create self wish."""
         resp = write_client.post("/api/self/wishes", json={
             "date": "2024-06-01",
             "wish_type": "WUNSCH",
@@ -325,10 +369,12 @@ class TestSelfService:
         assert resp.status_code in (200, 400, 404, 500)
 
     def test_delete_self_wish(self, write_client):
+        """Verify delete self wish."""
         resp = write_client.delete("/api/self/wishes/999999")
         assert resp.status_code in (200, 403, 404)
 
     def test_create_self_absence(self, write_client):
+        """Verify create self absence."""
         resp = write_client.post("/api/self/absences", json={
             "date": "2024-06-01",
             "leave_type_id": 1,
@@ -342,68 +388,83 @@ class TestSelfService:
 
 class TestStatistics:
     def test_get_statistics(self, sync_client):
+        """Verify get statistics."""
         resp = sync_client.get("/api/statistics")
         assert resp.status_code == 200
 
     def test_get_statistics_with_params(self, sync_client):
+        """Verify get statistics with params."""
         resp = sync_client.get("/api/statistics?year=2024&month=3")
         assert resp.status_code == 200
 
     def test_get_statistics_invalid_month(self, sync_client):
+        """Verify get statistics invalid month."""
         resp = sync_client.get("/api/statistics?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_get_statistics_invalid_month_zero(self, sync_client):
+        """Verify get statistics invalid month zero."""
         resp = sync_client.get("/api/statistics?year=2024&month=0")
         assert resp.status_code == 400
 
     def test_get_year_summary(self, sync_client):
+        """Verify get year summary."""
         resp = sync_client.get("/api/statistics/year-summary")
         assert resp.status_code == 200
         data = resp.json()
         assert "monthly" in data or isinstance(data, dict)
 
     def test_get_year_summary_with_year(self, sync_client):
+        """Verify get year summary with year."""
         resp = sync_client.get("/api/statistics/year-summary?year=2024")
         assert resp.status_code == 200
 
     def test_get_employee_statistics(self, sync_client):
+        """Verify get employee statistics."""
         resp = sync_client.get("/api/statistics/employee/1")
         assert resp.status_code in (200, 404)
 
     def test_get_sickness_statistics(self, sync_client):
+        """Verify get sickness statistics."""
         resp = sync_client.get("/api/statistics/sickness")
         assert resp.status_code == 200
 
     def test_get_shifts_statistics(self, sync_client):
+        """Verify get shifts statistics."""
         resp = sync_client.get("/api/statistics/shifts?year=2024")
         assert resp.status_code == 200
 
 
 class TestZeitkonto:
     def test_get_zeitkonto(self, sync_client):
+        """Verify get zeitkonto."""
         resp = sync_client.get("/api/zeitkonto?year=2024")
         assert resp.status_code == 200
 
     def test_get_zeitkonto_detail(self, sync_client):
+        """Verify get zeitkonto detail."""
         resp = sync_client.get("/api/zeitkonto/detail?year=2024&employee_id=1")
         assert resp.status_code in (200, 404)
 
     def test_get_zeitkonto_summary(self, sync_client):
+        """Verify get zeitkonto summary."""
         resp = sync_client.get("/api/zeitkonto/summary?year=2024")
         assert resp.status_code == 200
 
     def test_get_bookings(self, sync_client):
+        """Verify get bookings."""
         resp = sync_client.get("/api/bookings")
         assert resp.status_code == 200
 
     def test_get_overtime_records(self, sync_client):
+        """Verify get overtime records."""
         resp = sync_client.get("/api/overtime-records")
         assert resp.status_code == 200
 
 
 class TestBookings:
     def test_post_booking(self, write_client):
+        """Verify post booking."""
         resp = write_client.post("/api/bookings", json={
             "employee_id": 1,
             "date": "2024-03-15",
@@ -413,98 +474,120 @@ class TestBookings:
         assert resp.status_code in (200, 400, 422, 500)
 
     def test_delete_booking(self, write_client):
+        """Verify delete booking."""
         resp = write_client.delete("/api/bookings/999999")
         assert resp.status_code in (200, 404)
 
     def test_get_carry_forward(self, sync_client):
+        """Verify get carry forward."""
         resp = sync_client.get("/api/bookings/carry-forward?employee_id=1&year=2024")
         assert resp.status_code in (200, 404)
 
     def test_post_carry_forward(self, write_client):
+        """Verify post carry forward."""
         resp = write_client.post("/api/bookings/carry-forward", json={"year": 2024})
         assert resp.status_code in (200, 400, 422, 500)
 
     def test_post_annual_statement(self, write_client):
+        """Verify post annual statement."""
         resp = write_client.post("/api/bookings/annual-statement", json={"year": 2024})
         assert resp.status_code in (200, 400, 422, 500)
 
 
 class TestAnalysisEndpoints:
     def test_get_burnout_radar(self, sync_client):
+        """Verify get burnout radar."""
         resp = sync_client.get("/api/burnout-radar?year=2024&month=1")
         assert resp.status_code == 200
 
     def test_get_overtime_summary(self, sync_client):
+        """Verify get overtime summary."""
         resp = sync_client.get("/api/overtime-summary")
         assert resp.status_code == 200
 
     def test_get_warnings(self, sync_client):
+        """Verify get warnings."""
         resp = sync_client.get("/api/warnings")
         assert resp.status_code == 200
 
     def test_get_fairness(self, sync_client):
+        """Verify get fairness."""
         resp = sync_client.get("/api/fairness?year=2024")
         assert resp.status_code == 200
 
     def test_get_capacity_forecast(self, sync_client):
+        """Verify get capacity forecast."""
         resp = sync_client.get("/api/capacity-forecast?year=2024&month=1")
         assert resp.status_code == 200
 
     def test_get_capacity_year(self, sync_client):
+        """Verify get capacity year."""
         resp = sync_client.get("/api/capacity-year?year=2024")
         assert resp.status_code == 200
 
     def test_get_quality_report(self, sync_client):
+        """Verify get quality report."""
         resp = sync_client.get("/api/quality-report?year=2024&month=1")
         assert resp.status_code == 200
 
     def test_get_availability_matrix(self, sync_client):
+        """Verify get availability matrix."""
         resp = sync_client.get("/api/availability-matrix")
         assert resp.status_code == 200
 
     def test_post_simulation(self, sync_client):
+        """Verify post simulation."""
         resp = sync_client.post("/api/simulation", json={})
         assert resp.status_code in (200, 400, 422, 500)
 
 
 class TestMonthlyReport:
     def test_get_monthly_report(self, sync_client):
+        """Verify get monthly report."""
         resp = sync_client.get("/api/reports/monthly?year=2024&month=1")
         assert resp.status_code == 200
 
     def test_get_monthly_report_pdf(self, sync_client):
+        """Verify get monthly report pdf."""
         resp = sync_client.get("/api/reports/monthly?year=2024&month=1&format=pdf")
         assert resp.status_code in (200, 400, 500)
 
     def test_get_monthly_report_invalid_month(self, sync_client):
+        """Verify get monthly report invalid month."""
         resp = sync_client.get("/api/reports/monthly?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_get_monthly_report_invalid_format(self, sync_client):
+        """Verify get monthly report invalid format."""
         resp = sync_client.get("/api/reports/monthly?year=2024&month=1&format=xml")
         assert resp.status_code == 400
 
 
 class TestExports:
     def test_export_statistics_csv(self, sync_client):
+        """Verify export statistics csv."""
         resp = sync_client.get("/api/export/statistics?year=2024&month=1&format=csv")
         assert resp.status_code in (200, 400)
 
     def test_export_employees(self, sync_client):
+        """Verify export employees."""
         resp = sync_client.get("/api/export/employees")
         assert resp.status_code in (200, 400)
 
     def test_export_absences(self, sync_client):
+        """Verify export absences."""
         resp = sync_client.get("/api/export/absences?year=2024")
         assert resp.status_code in (200, 400)
 
     def test_export_schedule(self, sync_client):
+        """Verify export schedule."""
         resp = sync_client.get("/api/export/schedule?year=2024&month=1")
         assert resp.status_code in (200, 400)
 
 
 class TestImports:
     def test_import_employees_invalid_csv(self, write_client):
+        """Verify import employees invalid csv."""
         resp = write_client.post(
             "/api/import/employees",
             files={"file": ("test.csv", b"bad,data\n", "text/csv")},
@@ -512,6 +595,7 @@ class TestImports:
         assert resp.status_code in (200, 400, 422, 500)
 
     def test_import_shifts_invalid(self, write_client):
+        """Verify import shifts invalid."""
         resp = write_client.post(
             "/api/import/shifts",
             files={"file": ("test.csv", b"bad,data\n", "text/csv")},
@@ -519,6 +603,7 @@ class TestImports:
         assert resp.status_code in (200, 400, 422, 500)
 
     def test_import_holidays_invalid(self, write_client):
+        """Verify import holidays invalid."""
         resp = write_client.post(
             "/api/import/holidays",
             files={"file": ("test.csv", b"bad,data\n", "text/csv")},
@@ -526,6 +611,7 @@ class TestImports:
         assert resp.status_code in (200, 400, 422, 500)
 
     def test_import_absences_csv(self, write_client):
+        """Verify import absences csv."""
         resp = write_client.post(
             "/api/import/absences-csv",
             files={"file": ("test.csv", b"bad,data\n", "text/csv")},
@@ -533,6 +619,7 @@ class TestImports:
         assert resp.status_code in (200, 400, 422, 500)
 
     def test_import_groups_invalid(self, write_client):
+        """Verify import groups invalid."""
         resp = write_client.post(
             "/api/import/groups",
             files={"file": ("test.csv", b"bad,data\n", "text/csv")},
@@ -544,38 +631,47 @@ class TestExportScheduleFormats:
     """Test export_schedule in xlsx and csv formats (coverage for reports.py lines 446-524+)."""
 
     def test_export_schedule_xlsx(self, sync_client):
+        """Verify export schedule xlsx."""
         resp = sync_client.get("/api/export/schedule?year=2024&month=1&format=xlsx")
         assert resp.status_code in (200, 400, 500)
 
     def test_export_schedule_csv(self, sync_client):
+        """Verify export schedule csv."""
         resp = sync_client.get("/api/export/schedule?year=2024&month=1&format=csv")
         assert resp.status_code in (200, 400)
 
     def test_export_schedule_pdf(self, sync_client):
+        """Verify export schedule pdf."""
         resp = sync_client.get("/api/export/schedule?year=2024&month=1&format=pdf")
         assert resp.status_code in (200, 400, 500)
 
     def test_export_statistics_xlsx(self, sync_client):
+        """Verify export statistics xlsx."""
         resp = sync_client.get("/api/export/statistics?year=2024&month=1&format=xlsx")
         assert resp.status_code in (200, 400, 500)
 
     def test_export_employees_xlsx(self, sync_client):
+        """Verify export employees xlsx."""
         resp = sync_client.get("/api/export/employees?format=xlsx")
         assert resp.status_code in (200, 400, 500)
 
     def test_export_absences_xlsx(self, sync_client):
+        """Verify export absences xlsx."""
         resp = sync_client.get("/api/export/absences?year=2024&format=xlsx")
         assert resp.status_code in (200, 400, 500)
 
     def test_export_absences_csv(self, sync_client):
+        """Verify export absences csv."""
         resp = sync_client.get("/api/export/absences?year=2024&format=csv")
         assert resp.status_code == 200
 
     def test_get_shift_statistics(self, sync_client):
+        """Verify get shift statistics."""
         resp = sync_client.get("/api/statistics/shifts?year=2024&month=1")
         assert resp.status_code in (200, 400, 422)
 
     def test_get_shift_statistics_year_only(self, sync_client):
+        """Verify get shift statistics year only."""
         resp = sync_client.get("/api/statistics/shifts?year=2024")
         assert resp.status_code in (200, 400, 422)
 
@@ -584,25 +680,30 @@ class TestSkillsEndpoints:
     """Cover api/routers/master_data.py skills section."""
 
     def test_list_skills(self, sync_client):
+        """Verify list skills."""
         resp = sync_client.get("/api/skills")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_list_skill_assignments(self, sync_client):
+        """Verify list skill assignments."""
         resp = sync_client.get("/api/skills/assignments")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_list_skill_assignments_filtered(self, sync_client):
+        """Verify list skill assignments filtered."""
         resp = sync_client.get("/api/skills/assignments?employee_id=1")
         assert resp.status_code == 200
 
     def test_skills_matrix(self, sync_client):
+        """Verify skills matrix."""
         resp = sync_client.get("/api/skills/matrix")
         assert resp.status_code == 200
 
     def test_create_update_delete_skill(self, admin_client):
         # Create
+        """Verify create update delete skill."""
         resp = admin_client.post("/api/skills", json={
             "name": "TestSkill",
             "description": "Testbeschreibung",
@@ -624,11 +725,13 @@ class TestSkillsEndpoints:
         assert del_resp.status_code == 200
 
     def test_update_skill_not_found(self, admin_client):
+        """Verify update skill not found."""
         resp = admin_client.put("/api/skills/nonexistent_id", json={"name": "X"})
         assert resp.status_code == 404
 
     def test_skill_assignment_lifecycle(self, admin_client):
         # Create a skill first
+        """Verify skill assignment lifecycle."""
         skill_resp = admin_client.post("/api/skills", json={"name": "AssignTest"})
         assert skill_resp.status_code == 200
         skill_id = skill_resp.json()["id"]
@@ -650,5 +753,6 @@ class TestSkillsEndpoints:
         admin_client.delete(f"/api/skills/{skill_id}")
 
     def test_delete_assignment_not_found(self, admin_client):
+        """Verify delete assignment not found."""
         resp = admin_client.delete("/api/skills/assignments/nonexistent_id")
         assert resp.status_code == 404

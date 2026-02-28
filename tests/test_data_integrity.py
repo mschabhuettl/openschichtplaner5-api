@@ -16,10 +16,12 @@ from sp5lib.dbf_writer import find_all_records
 class TestReadDbfRobustness:
 
     def test_missing_file_returns_empty_list(self):
+        """Verify missing file returns empty list."""
         result = read_dbf("/tmp/nonexistent_sp5_test_12345.DBF")
         assert result == []
 
     def test_empty_file_returns_empty_list(self):
+        """Verify empty file returns empty list."""
         with tempfile.NamedTemporaryFile(suffix=".DBF", delete=False) as f:
             path = f.name
         try:
@@ -29,6 +31,7 @@ class TestReadDbfRobustness:
             os.unlink(path)
 
     def test_truncated_header_returns_empty_list(self):
+        """Verify truncated header returns empty list."""
         with tempfile.NamedTemporaryFile(suffix=".DBF", delete=False) as f:
             f.write(b'\x03\x00\x00\x00')  # Only 4 bytes — incomplete header
             path = f.name
@@ -77,10 +80,12 @@ class TestReadDbfRobustness:
 class TestGetTableFieldsRobustness:
 
     def test_missing_file_returns_empty_list(self):
+        """Verify missing file returns empty list."""
         result = get_table_fields("/tmp/nonexistent_sp5_fields_12345.DBF")
         assert result == []
 
     def test_permission_error_returns_empty_list(self, tmp_path):
+        """Verify permission error returns empty list."""
         dbf = tmp_path / "locked_fields.DBF"
         dbf.write_bytes(b'\x00' * 64)
         dbf.chmod(0o000)
@@ -96,6 +101,7 @@ class TestGetTableFieldsRobustness:
 class TestFindAllRecordsRobustness:
 
     def test_missing_file_returns_empty_list(self):
+        """Verify missing file returns empty list."""
         result = find_all_records("/tmp/nonexistent_sp5_far_12345.DBF", [])
         assert result == []
 
@@ -106,12 +112,14 @@ class TestDatabaseReadRobustness:
     """Verify that SP5Database._read returns [] for missing tables without raising."""
 
     def test_read_missing_table_returns_empty_list(self, tmp_path):
+        """Verify read missing table returns empty list."""
         from sp5lib.database import SP5Database
         db = SP5Database(str(tmp_path))  # empty dir — no DBF files
         result = db._read('GROUP')
         assert result == []
 
     def test_read_missing_employee_table_returns_empty_list(self, tmp_path):
+        """Verify read missing employee table returns empty list."""
         from sp5lib.database import SP5Database
         db = SP5Database(str(tmp_path))
         result = db._read('EMPL')
@@ -125,18 +133,21 @@ class TestDatabaseReadRobustness:
         assert result == []
 
     def test_get_groups_empty_db_returns_empty_list(self, tmp_path):
+        """Verify get groups empty db returns empty list."""
         from sp5lib.database import SP5Database
         db = SP5Database(str(tmp_path))
         groups = db.get_groups()
         assert groups == []
 
     def test_get_employees_empty_db_returns_empty_list(self, tmp_path):
+        """Verify get employees empty db returns empty list."""
         from sp5lib.database import SP5Database
         db = SP5Database(str(tmp_path))
         emps = db.get_employees()
         assert emps == []
 
     def test_get_shifts_empty_db_returns_empty_list(self, tmp_path):
+        """Verify get shifts empty db returns empty list."""
         from sp5lib.database import SP5Database
         db = SP5Database(str(tmp_path))
         shifts = db.get_shifts()

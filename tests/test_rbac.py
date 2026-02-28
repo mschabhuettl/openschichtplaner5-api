@@ -50,18 +50,22 @@ def leser_token():
 
 class TestUnauthenticated:
     def test_employees_requires_auth(self, app):
+        """Verify employees requires auth."""
         with TestClient(app, raise_server_exceptions=False) as raw:
             assert raw.get('/api/employees').status_code == 401
 
     def test_schedule_requires_auth(self, app):
+        """Verify schedule requires auth."""
         with TestClient(app, raise_server_exceptions=False) as raw:
             assert raw.get('/api/schedule?year=2024&month=1').status_code == 401
 
     def test_users_requires_auth(self, app):
+        """Verify users requires auth."""
         with TestClient(app, raise_server_exceptions=False) as raw:
             assert raw.get('/api/users').status_code == 401
 
     def test_401_error_has_detail(self, app):
+        """Verify 401 error has detail."""
         with TestClient(app, raise_server_exceptions=False) as raw:
             res = raw.get('/api/employees')
         assert 'detail' in res.json()
@@ -71,14 +75,17 @@ class TestUnauthenticated:
 
 class TestLeserPermissions:
     def test_can_read_employees(self, sync_client, leser_token):
+        """Verify can read employees."""
         res = sync_client.get('/api/employees', headers=_h(leser_token))
         assert res.status_code == 200
         assert isinstance(res.json(), list)
 
     def test_can_read_shifts(self, sync_client, leser_token):
+        """Verify can read shifts."""
         assert sync_client.get('/api/shifts', headers=_h(leser_token)).status_code == 200
 
     def test_can_read_schedule(self, sync_client, leser_token):
+        """Verify can read schedule."""
         res = sync_client.get('/api/schedule?year=2024&month=1', headers=_h(leser_token))
         assert res.status_code == 200
 
@@ -115,6 +122,7 @@ class TestLeserPermissions:
 
 class TestPlanerPermissions:
     def test_can_read_employees(self, sync_client, planer_token):
+        """Verify can read employees."""
         assert sync_client.get('/api/employees', headers=_h(planer_token)).status_code == 200
 
     def test_cannot_create_employee(self, sync_client, planer_token):
@@ -145,10 +153,12 @@ class TestPlanerPermissions:
 
 class TestAdminPermissions:
     def test_can_access_users(self, sync_client, admin_token):
+        """Verify can access users."""
         res = sync_client.get('/api/users', headers=_h(admin_token))
         assert res.status_code == 200
 
     def test_can_read_employees(self, sync_client, admin_token):
+        """Verify can read employees."""
         assert sync_client.get('/api/employees', headers=_h(admin_token)).status_code == 200
 
     def test_can_create_user(self, write_client, write_db_path):

@@ -12,70 +12,87 @@ class TestMonthYearBounds:
     """Verify all endpoints reject out-of-range month/year values."""
 
     def test_schedule_month_too_high(self, sync_client):
+        """Verify schedule month too high."""
         resp = sync_client.get("/api/schedule?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_schedule_month_zero(self, sync_client):
+        """Verify schedule month zero."""
         resp = sync_client.get("/api/schedule?year=2024&month=0")
         assert resp.status_code == 400
 
     def test_schedule_month_negative(self, sync_client):
+        """Verify schedule month negative."""
         resp = sync_client.get("/api/schedule?year=2024&month=-1")
         assert resp.status_code == 400
 
     def test_schedule_year_too_low(self, sync_client):
+        """Verify schedule year too low."""
         resp = sync_client.get("/api/schedule?year=1999&month=6")
         assert resp.status_code == 400
 
     def test_schedule_year_too_high(self, sync_client):
+        """Verify schedule year too high."""
         resp = sync_client.get("/api/schedule?year=2101&month=6")
         assert resp.status_code == 400
 
     def test_staffing_month_invalid(self, sync_client):
+        """Verify staffing month invalid."""
         resp = sync_client.get("/api/staffing?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_staffing_month_zero(self, sync_client):
+        """Verify staffing month zero."""
         resp = sync_client.get("/api/staffing?year=2024&month=0")
         assert resp.status_code == 400
 
     def test_staffing_year_too_low(self, sync_client):
+        """Verify staffing year too low."""
         resp = sync_client.get("/api/staffing?year=1800&month=6")
         assert resp.status_code == 400
 
     def test_staffing_year_too_high(self, sync_client):
+        """Verify staffing year too high."""
         resp = sync_client.get("/api/staffing?year=9999&month=6")
         assert resp.status_code == 400
 
     def test_schedule_coverage_month_invalid(self, sync_client):
+        """Verify schedule coverage month invalid."""
         resp = sync_client.get("/api/schedule/coverage?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_schedule_coverage_year_invalid(self, sync_client):
+        """Verify schedule coverage year invalid."""
         resp = sync_client.get("/api/schedule/coverage?year=1999&month=6")
         assert resp.status_code == 400
 
     def test_schedule_conflicts_month_invalid(self, sync_client):
+        """Verify schedule conflicts month invalid."""
         resp = sync_client.get("/api/schedule/conflicts?year=2024&month=0")
         assert resp.status_code == 400
 
     def test_schedule_conflicts_year_invalid(self, sync_client):
+        """Verify schedule conflicts year invalid."""
         resp = sync_client.get("/api/schedule/conflicts?year=2200&month=6")
         assert resp.status_code == 400
 
     def test_schedule_year_year_invalid(self, sync_client):
+        """Verify schedule year year invalid."""
         resp = sync_client.get("/api/schedule/year?year=1990&employee_id=1")
         assert resp.status_code == 400
 
     def test_burnout_radar_month_invalid(self, sync_client):
+        """Verify burnout radar month invalid."""
         resp = sync_client.get("/api/burnout-radar?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_burnout_radar_month_zero(self, sync_client):
+        """Verify burnout radar month zero."""
         resp = sync_client.get("/api/burnout-radar?year=2024&month=0")
         assert resp.status_code == 400
 
     def test_burnout_radar_year_invalid(self, sync_client):
+        """Verify burnout radar year invalid."""
         resp = sync_client.get("/api/burnout-radar?year=1900&month=6")
         assert resp.status_code == 400
 
@@ -106,21 +123,25 @@ class TestDbfReaderEdgeCases:
     """Verify DBF reader handles missing/corrupt files gracefully."""
 
     def test_read_dbf_missing_file_returns_empty(self):
+        """Verify read dbf missing file returns empty."""
         from sp5lib.dbf_reader import read_dbf
         result = read_dbf("/nonexistent/path/MISSING.DBF")
         assert result == []
 
     def test_get_table_fields_missing_file_returns_empty(self):
+        """Verify get table fields missing file returns empty."""
         from sp5lib.dbf_reader import get_table_fields
         result = get_table_fields("/nonexistent/path/MISSING.DBF")
         assert result == []
 
     def test_read_dbf_empty_path_returns_empty(self):
+        """Verify read dbf empty path returns empty."""
         from sp5lib.dbf_reader import read_dbf
         result = read_dbf("")
         assert result == []
 
     def test_read_dbf_truncated_file_returns_empty(self, tmp_path):
+        """Verify read dbf truncated file returns empty."""
         from sp5lib.dbf_reader import read_dbf
         f = tmp_path / "truncated.dbf"
         f.write_bytes(b'\x03\x00')  # too short (< 32 bytes)
@@ -128,11 +149,13 @@ class TestDbfReaderEdgeCases:
         assert result == []
 
     def test_find_all_records_missing_file_returns_empty(self):
+        """Verify find all records missing file returns empty."""
         from sp5lib.dbf_writer import find_all_records
         result = find_all_records("/nonexistent/path/MISSING.DBF", fields=[])
         assert result == []
 
     def test_read_header_info_missing_file_raises(self):
+        """Verify read header info missing file raises."""
         from sp5lib.dbf_writer import _read_header_info
         with pytest.raises(FileNotFoundError) as exc_info:
             _read_header_info("/nonexistent/MISSING.DBF")
@@ -154,11 +177,13 @@ class TestEmptyResults:
         assert data is not None
 
     def test_staffing_empty_returns_not_none(self, sync_client):
+        """Verify staffing empty returns not none."""
         resp = sync_client.get("/api/staffing?year=2099&month=6")
         assert resp.status_code == 200
         assert resp.json() is not None
 
     def test_schedule_conflicts_empty_returns_dict(self, sync_client):
+        """Verify schedule conflicts empty returns dict."""
         resp = sync_client.get("/api/schedule/conflicts?year=2099&month=6")
         assert resp.status_code == 200
         data = resp.json()
@@ -221,18 +246,22 @@ class TestHttpMethodEnforcement:
     """GET-only endpoints must reject DELETE/PUT/PATCH."""
 
     def test_schedule_rejects_delete(self, sync_client):
+        """Verify schedule rejects delete."""
         resp = sync_client.delete("/api/schedule?year=2024&month=6")
         assert resp.status_code in (405, 422)
 
     def test_employees_list_rejects_put(self, sync_client):
+        """Verify employees list rejects put."""
         resp = sync_client.put("/api/employees")
         assert resp.status_code in (405, 422)
 
     def test_staffing_rejects_delete(self, sync_client):
+        """Verify staffing rejects delete."""
         resp = sync_client.delete("/api/staffing?year=2024&month=6")
         assert resp.status_code in (405, 422)
 
     def test_schedule_conflicts_rejects_delete(self, sync_client):
+        """Verify schedule conflicts rejects delete."""
         resp = sync_client.delete("/api/schedule/conflicts?year=2024&month=6")
         assert resp.status_code in (405, 422)
 
@@ -243,21 +272,26 @@ class TestMissingParameters:
     """Endpoints with required params should return 422 if missing."""
 
     def test_schedule_missing_year(self, sync_client):
+        """Verify schedule missing year."""
         resp = sync_client.get("/api/schedule?month=6")
         assert resp.status_code == 422
 
     def test_schedule_missing_month(self, sync_client):
+        """Verify schedule missing month."""
         resp = sync_client.get("/api/schedule?year=2024")
         assert resp.status_code == 422
 
     def test_staffing_missing_year(self, sync_client):
+        """Verify staffing missing year."""
         resp = sync_client.get("/api/staffing?month=6")
         assert resp.status_code == 422
 
     def test_staffing_missing_month(self, sync_client):
+        """Verify staffing missing month."""
         resp = sync_client.get("/api/staffing?year=2024")
         assert resp.status_code == 422
 
     def test_schedule_year_missing_employee_id(self, sync_client):
+        """Verify schedule year missing employee id."""
         resp = sync_client.get("/api/schedule/year?year=2024")
         assert resp.status_code == 422

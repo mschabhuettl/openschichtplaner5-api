@@ -1100,7 +1100,7 @@ def get_monthly_report(
 
     # ── PDF output ────────────────────────────────────────────
     try:
-        from fpdf import FPDF
+        from fpdf import FPDF, XPos, YPos
     except ImportError:
         raise HTTPException(status_code=500, detail="fpdf2 nicht installiert. Bitte 'pip install fpdf2' ausführen.")
 
@@ -1120,10 +1120,10 @@ def get_monthly_report(
             self.set_text_color(30, 41, 59)
             self.set_font("Helvetica", "B", 13)
             self.set_xy(44, 9)
-            self.cell(0, 7, "Monatsabschluss-Report", ln=0)
+            self.cell(0, 7, "Monatsabschluss-Report", new_x=XPos.RIGHT, new_y=YPos.TOP)
             self.set_font("Helvetica", "", 9)
             self.set_xy(44, 16)
-            self.cell(0, 5, f"Zeitraum: {month_label}  |  Erstellt: {_dt.now().strftime('%d.%m.%Y %H:%M')}", ln=0)
+            self.cell(0, 5, f"Zeitraum: {month_label}  |  Erstellt: {_dt.now().strftime('%d.%m.%Y %H:%M')}", new_x=XPos.RIGHT, new_y=YPos.TOP)
             self.set_draw_color(30, 41, 59)
             self.set_line_width(0.5)
             self.line(10, 26, self.w - 10, 26)

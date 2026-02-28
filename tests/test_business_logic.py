@@ -50,36 +50,44 @@ def tmp_db(tmp_path):
 
 class TestColorUtils:
     def test_bgr_to_hex_white(self):
+        """Verify bgr to hex white."""
         from sp5lib.color_utils import bgr_to_hex
         assert bgr_to_hex(16777215) == "#FFFFFF"
 
     def test_bgr_to_hex_black(self):
+        """Verify bgr to hex black."""
         from sp5lib.color_utils import bgr_to_hex
         assert bgr_to_hex(0) == "#000000"
 
     def test_bgr_to_hex_red(self):
+        """Verify bgr to hex red."""
         from sp5lib.color_utils import bgr_to_hex
         # Red in BGR: R=255, G=0, B=0 → int = 0x0000FF = 255
         assert bgr_to_hex(255) == "#FF0000"
 
     def test_bgr_to_hex_blue(self):
+        """Verify bgr to hex blue."""
         from sp5lib.color_utils import bgr_to_hex
         # Blue in BGR: R=0, G=0, B=255 → int = 0xFF0000 = 16711680
         assert bgr_to_hex(16711680) == "#0000FF"
 
     def test_bgr_to_hex_invalid(self):
+        """Verify bgr to hex invalid."""
         from sp5lib.color_utils import bgr_to_hex
         assert bgr_to_hex(-1) == "#FFFFFF"
 
     def test_is_light_color_white(self):
+        """Verify is light color white."""
         from sp5lib.color_utils import is_light_color
         assert is_light_color(16777215) is True
 
     def test_is_light_color_black(self):
+        """Verify is light color black."""
         from sp5lib.color_utils import is_light_color
         assert is_light_color(0) is False
 
     def test_bgr_to_rgb(self):
+        """Verify bgr to rgb."""
         from sp5lib.color_utils import bgr_to_rgb
         # BGR int where R=100, G=150, B=200 → (100 + 150*256 + 200*65536)
         bgr_int = 100 + (150 << 8) + (200 << 16)
@@ -95,6 +103,7 @@ class TestColorUtils:
 
 class TestDBFReader:
     def test_read_employees_table(self):
+        """Verify read employees table."""
         from sp5lib.dbf_reader import read_dbf
         path = os.path.join(_REAL_DB_PATH, "5EMPL.DBF")
         rows = read_dbf(path)
@@ -102,6 +111,7 @@ class TestDBFReader:
         assert len(rows) > 0
 
     def test_employee_record_has_id(self):
+        """Verify employee record has id."""
         from sp5lib.dbf_reader import read_dbf
         path = os.path.join(_REAL_DB_PATH, "5EMPL.DBF")
         rows = read_dbf(path)
@@ -109,6 +119,7 @@ class TestDBFReader:
             assert "ID" in row or "EMPLOYEEID" in row or True  # ID field may vary
 
     def test_read_shifts_table(self):
+        """Verify read shifts table."""
         from sp5lib.dbf_reader import read_dbf
         path = os.path.join(_REAL_DB_PATH, "5SHIFT.DBF")
         rows = read_dbf(path)
@@ -116,6 +127,7 @@ class TestDBFReader:
         assert len(rows) > 0
 
     def test_read_nonexistent_table(self):
+        """Verify read nonexistent table."""
         from sp5lib.dbf_reader import read_dbf
         # Should return empty list or raise, not crash badly
         try:
@@ -125,6 +137,7 @@ class TestDBFReader:
             pass  # Acceptable
 
     def test_decode_string_utf16(self):
+        """Verify decode string utf16."""
         from sp5lib.dbf_reader import _decode_string, _is_utf16_le
         # "Test" in UTF-16 LE
         raw = "Test".encode("utf-16-le") + b"\x00\x00"
@@ -133,6 +146,7 @@ class TestDBFReader:
         assert result == "Test"
 
     def test_decode_string_ascii(self):
+        """Verify decode string ascii."""
         from sp5lib.dbf_reader import _decode_string, _is_utf16_le
         raw = b"WORKDAYS   "
         assert _is_utf16_le(raw) is False
@@ -140,6 +154,7 @@ class TestDBFReader:
         assert "WORKDAYS" in result
 
     def test_parse_date(self):
+        """Verify parse date."""
         from sp5lib.dbf_reader import _parse_date
         assert _parse_date("20240615") == "2024-06-15"
         assert _parse_date("19991231") == "1999-12-31"
@@ -174,16 +189,19 @@ class TestShortNameGeneration:
         assert generated == "HMU"
 
     def test_shortname_only_surname(self):
+        """Verify shortname only surname."""
         surname = "Meier"
         generated = surname[:3].upper()
         assert generated == "MEI"
 
     def test_shortname_only_firstname(self):
+        """Verify shortname only firstname."""
         firstname = "Anna"
         generated = firstname[:3].upper()
         assert generated == "ANN"
 
     def test_all_employees_have_shortname(self, real_db):
+        """Verify all employees have shortname."""
         emps = real_db.get_employees()
         for emp in emps:
             sn = emp.get("SHORTNAME", "")
@@ -196,16 +214,19 @@ class TestShortNameGeneration:
 
 class TestDatabaseEmployees:
     def test_get_employees_returns_list(self, real_db):
+        """Verify get employees returns list."""
         emps = real_db.get_employees()
         assert isinstance(emps, list)
         assert len(emps) > 0
 
     def test_hidden_employees_excluded_by_default(self, real_db):
+        """Verify hidden employees excluded by default."""
         visible = real_db.get_employees(include_hidden=False)
         all_emps = real_db.get_employees(include_hidden=True)
         assert len(visible) <= len(all_emps)
 
     def test_get_employee_by_id(self, real_db):
+        """Verify get employee by id."""
         emps = real_db.get_employees()
         first_id = emps[0]["ID"]
         emp = real_db.get_employee(first_id)
@@ -213,10 +234,12 @@ class TestDatabaseEmployees:
         assert emp["ID"] == first_id
 
     def test_get_employee_nonexistent(self, real_db):
+        """Verify get employee nonexistent."""
         result = real_db.get_employee(999999)
         assert result is None
 
     def test_create_employee(self, tmp_db):
+        """Verify create employee."""
         data = {
             "NAME": "Neumann",
             "FIRSTNAME": "Peter",
@@ -229,12 +252,14 @@ class TestDatabaseEmployees:
         assert record["ID"] > 0
 
     def test_update_employee(self, tmp_db):
+        """Verify update employee."""
         emps = tmp_db.get_employees()
         emp_id = emps[0]["ID"]
         updated = tmp_db.update_employee(emp_id, {"NOTE1": "Updated by test"})
         assert updated["NOTE1"] == "Updated by test"
 
     def test_workdays_list_parsed(self, real_db):
+        """Verify workdays list parsed."""
         emps = real_db.get_employees()
         for emp in emps:
             if emp.get("WORKDAYS"):
@@ -249,16 +274,19 @@ class TestDatabaseEmployees:
 
 class TestDatabaseShifts:
     def test_get_shifts(self, real_db):
+        """Verify get shifts."""
         shifts = real_db.get_shifts()
         assert isinstance(shifts, list)
         assert len(shifts) > 0
 
     def test_shift_has_name(self, real_db):
+        """Verify shift has name."""
         shift = real_db.get_shifts()[0]
         assert "NAME" in shift
         assert shift["NAME"]
 
     def test_shift_has_color(self, real_db):
+        """Verify shift has color."""
         shift = real_db.get_shifts()[0]
         # Should have at least one color field
         has_color = any(k in shift for k in ("COLORBK", "COLORTEXT", "COLORBK_HEX"))
@@ -276,10 +304,12 @@ class TestScheduleConflicts:
     """
 
     def test_get_schedule_returns_dict_or_list(self, real_db):
+        """Verify get schedule returns dict or list."""
         result = real_db.get_schedule(year=2024, month=6)
         assert result is not None
 
     def test_get_schedule_conflicts(self, real_db):
+        """Verify get schedule conflicts."""
         conflicts = real_db.get_schedule_conflicts(2024, 6)
         assert isinstance(conflicts, list)
 
@@ -321,10 +351,12 @@ class TestScheduleConflicts:
 
 class TestStatistics:
     def test_get_statistics_returns_list(self, real_db):
+        """Verify get statistics returns list."""
         stats = real_db.get_statistics(2024, 6)
         assert isinstance(stats, list)
 
     def test_statistics_has_hours_fields(self, real_db):
+        """Verify statistics has hours fields."""
         stats = real_db.get_statistics(2024, 6)
         if stats:
             s = stats[0]
@@ -333,6 +365,7 @@ class TestStatistics:
             assert "overtime_hours" in s
 
     def test_overtime_hours_computed(self, real_db):
+        """Verify overtime hours computed."""
         stats = real_db.get_statistics(2024, 6)
         if stats:
             s = stats[0]
@@ -345,6 +378,7 @@ class TestStatistics:
             )
 
     def test_target_hours_positive(self, real_db):
+        """Verify target hours positive."""
         stats = real_db.get_statistics(2024, 6)
         for s in stats:
             assert s["target_hours"] >= 0, f"Negative target_hours for {s.get('employee_name')}"
@@ -356,10 +390,12 @@ class TestStatistics:
 
 class TestDatabaseGroups:
     def test_get_groups(self, real_db):
+        """Verify get groups."""
         groups = real_db.get_groups()
         assert isinstance(groups, list)
 
     def test_get_group_members(self, real_db):
+        """Verify get group members."""
         groups = real_db.get_groups()
         if not groups:
             pytest.skip("No groups")
@@ -368,6 +404,7 @@ class TestDatabaseGroups:
         assert isinstance(members, list)
 
     def test_create_group(self, tmp_db):
+        """Verify create group."""
         record = tmp_db.create_group({"NAME": "Neue Gruppe", "SHORTNAME": "NG"})
         assert record["NAME"] == "Neue Gruppe"
         assert record["ID"] > 0
@@ -379,10 +416,12 @@ class TestDatabaseGroups:
 
 class TestLeaveTypes:
     def test_get_leave_types(self, real_db):
+        """Verify get leave types."""
         lt_list = real_db.get_leave_types()
         assert isinstance(lt_list, list)
 
     def test_leave_type_entitled_is_bool(self, real_db):
+        """Verify leave type entitled is bool."""
         lt_list = real_db.get_leave_types(include_hidden=True)
         for lt in lt_list:
             entitled = lt.get("ENTITLED")
@@ -396,10 +435,12 @@ class TestLeaveTypes:
 
 class TestHolidays:
     def test_get_holidays(self, real_db):
+        """Verify get holidays."""
         holidays = real_db.get_holidays()
         assert isinstance(holidays, list)
 
     def test_holiday_date_format(self, real_db):
+        """Verify holiday date format."""
         holidays = real_db.get_holidays()
         for h in holidays:
             date_str = h.get("DATE", "")
@@ -410,6 +451,7 @@ class TestHolidays:
                 assert date_str[7] == "-"
 
     def test_get_holidays_filter_by_year(self, real_db):
+        """Verify get holidays filter by year."""
         holidays = real_db.get_holidays(year=2024)
         assert isinstance(holidays, list)
         for h in holidays:
@@ -423,10 +465,12 @@ class TestHolidays:
 
 class TestZeitkonto:
     def test_get_zeitkonto(self, real_db):
+        """Verify get zeitkonto."""
         result = real_db.get_zeitkonto(year=2024)
         assert isinstance(result, list)
 
     def test_zeitkonto_has_balance_fields(self, real_db):
+        """Verify zeitkonto has balance fields."""
         result = real_db.get_zeitkonto(year=2024)
         if result:
             row = result[0]
@@ -435,6 +479,7 @@ class TestZeitkonto:
             assert "total_saldo" in row
 
     def test_zeitkonto_saldo_computed(self, real_db):
+        """Verify zeitkonto saldo computed."""
         result = real_db.get_zeitkonto(year=2024)
         for row in result:
             expected = round(row["total_actual_hours"] - row["total_target_hours"], 2)

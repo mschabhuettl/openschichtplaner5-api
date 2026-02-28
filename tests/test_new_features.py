@@ -13,10 +13,12 @@ class TestWarningsAPI:
     """Tests for /api/warnings endpoint (Warnings Center)."""
 
     def test_warnings_returns_200(self, sync_client):
+        """Verify warnings returns 200."""
         resp = sync_client.get("/api/warnings")
         assert resp.status_code == 200
 
     def test_warnings_response_shape(self, sync_client):
+        """Verify warnings response shape."""
         resp = sync_client.get("/api/warnings")
         data = resp.json()
         assert "warnings" in data
@@ -26,16 +28,19 @@ class TestWarningsAPI:
         assert data["count"] == len(data["warnings"])
 
     def test_warnings_with_explicit_year_month(self, sync_client):
+        """Verify warnings with explicit year month."""
         resp = sync_client.get("/api/warnings?year=2024&month=6")
         assert resp.status_code == 200
         data = resp.json()
         assert "warnings" in data
 
     def test_warnings_invalid_month(self, sync_client):
+        """Verify warnings invalid month."""
         resp = sync_client.get("/api/warnings?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_warnings_invalid_month_zero(self, sync_client):
+        """Verify warnings invalid month zero."""
         resp = sync_client.get("/api/warnings?year=2024&month=0")
         assert resp.status_code == 400
 
@@ -63,23 +68,28 @@ class TestDashboardStatsParams:
     """Dashboard stats with explicit year/month parameters."""
 
     def test_stats_with_year_and_month(self, sync_client):
+        """Verify stats with year and month."""
         resp = sync_client.get("/api/dashboard/stats?year=2024&month=6")
         assert resp.status_code == 200
 
     def test_stats_with_year_only(self, sync_client):
+        """Verify stats with year only."""
         resp = sync_client.get("/api/dashboard/stats?year=2024")
         assert resp.status_code == 200
 
     def test_stats_invalid_month(self, sync_client):
+        """Verify stats invalid month."""
         resp = sync_client.get("/api/dashboard/stats?year=2024&month=0")
         # API should reject invalid months
         assert resp.status_code in (400, 422)
 
     def test_stats_invalid_month_high(self, sync_client):
+        """Verify stats invalid month high."""
         resp = sync_client.get("/api/dashboard/stats?year=2024&month=13")
         assert resp.status_code in (400, 422)
 
     def test_dashboard_summary_with_month_params(self, sync_client):
+        """Verify dashboard summary with month params."""
         resp = sync_client.get("/api/dashboard/summary?year=2024&month=3")
         assert resp.status_code == 200
 
@@ -92,21 +102,25 @@ class TestScheduleConflictsAPI:
     """Tests for /api/schedule/conflicts endpoint."""
 
     def test_conflicts_returns_200(self, sync_client):
+        """Verify conflicts returns 200."""
         resp = sync_client.get("/api/schedule/conflicts?year=2024&month=6")
         assert resp.status_code == 200
 
     def test_conflicts_response_shape(self, sync_client):
+        """Verify conflicts response shape."""
         resp = sync_client.get("/api/schedule/conflicts?year=2024&month=6")
         data = resp.json()
         assert "conflicts" in data
         assert isinstance(data["conflicts"], list)
 
     def test_conflicts_requires_auth(self, app):
+        """Verify conflicts requires auth."""
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.get("/api/schedule/conflicts?year=2024&month=6")
         assert resp.status_code == 401
 
     def test_conflicts_invalid_month(self, sync_client):
+        """Verify conflicts invalid month."""
         resp = sync_client.get("/api/schedule/conflicts?year=2024&month=0")
         assert resp.status_code in (400, 422)
 
@@ -136,10 +150,12 @@ class TestAdminOnlyEndpoints:
         _sessions.pop(tok, None)
 
     def test_employee_access_admin_only(self, planer_client):
+        """Verify employee access admin only."""
         resp = planer_client.get("/api/employee-access")
         assert resp.status_code == 403
 
     def test_group_access_admin_only(self, planer_client):
+        """Verify group access admin only."""
         resp = planer_client.get("/api/group-access")
         assert resp.status_code == 403
 
@@ -175,6 +191,7 @@ class TestUnauthenticatedAccess:
 
     @pytest.mark.parametrize("path", PROTECTED_ENDPOINTS)
     def test_endpoint_requires_auth(self, anon_client, path):
+        """Verify endpoint requires auth."""
         resp = anon_client.get(path)
         assert resp.status_code == 401, f"Expected 401 for {path}, got {resp.status_code}"
 
@@ -187,23 +204,28 @@ class TestInputValidation:
     """Ensure the API returns 422 (or 400) for malformed payloads."""
 
     def test_create_employee_empty_name(self, sync_client):
+        """Verify create employee empty name."""
         resp = sync_client.post("/api/employees", json={"NAME": "", "KUERZEL": "XX"})
         assert resp.status_code in (400, 422)
 
     def test_create_shift_empty_name(self, sync_client):
+        """Verify create shift empty name."""
         resp = sync_client.post("/api/shifts", json={"NAME": ""})
         assert resp.status_code in (400, 422)
 
     def test_create_group_empty_name(self, sync_client):
+        """Verify create group empty name."""
         resp = sync_client.post("/api/groups", json={"NAME": ""})
         assert resp.status_code in (400, 422)
 
     def test_login_missing_username(self, app):
+        """Verify login missing username."""
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post("/api/auth/login", json={"password": "x"})
         assert resp.status_code in (400, 422)
 
     def test_login_missing_password(self, app):
+        """Verify login missing password."""
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post("/api/auth/login", json={"username": "admin"})
         assert resp.status_code in (400, 422)

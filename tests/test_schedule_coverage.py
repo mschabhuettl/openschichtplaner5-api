@@ -10,6 +10,7 @@ from starlette.testclient import TestClient
 # ── /api/schedule/coverage ───────────────────────────────────
 class TestScheduleCoverage:
     def test_coverage_valid(self, sync_client: TestClient):
+        """Verify coverage valid."""
         res = sync_client.get('/api/schedule/coverage?year=2026&month=1')
         assert res.status_code == 200
         data = res.json()
@@ -19,14 +20,17 @@ class TestScheduleCoverage:
             assert 'status' in data[0]
 
     def test_coverage_invalid_month(self, sync_client: TestClient):
+        """Verify coverage invalid month."""
         res = sync_client.get('/api/schedule/coverage?year=2026&month=0')
         assert res.status_code == 400
 
     def test_coverage_invalid_year(self, sync_client: TestClient):
+        """Verify coverage invalid year."""
         res = sync_client.get('/api/schedule/coverage?year=1800&month=1')
         assert res.status_code == 400
 
     def test_coverage_missing_params(self, sync_client: TestClient):
+        """Verify coverage missing params."""
         res = sync_client.get('/api/schedule/coverage')
         assert res.status_code == 422
 
@@ -34,20 +38,24 @@ class TestScheduleCoverage:
 # ── /api/staffing ─────────────────────────────────────────────
 class TestStaffing:
     def test_staffing_valid(self, sync_client: TestClient):
+        """Verify staffing valid."""
         res = sync_client.get('/api/staffing?year=2026&month=1')
         assert res.status_code == 200
         data = res.json()
         assert isinstance(data, list)
 
     def test_staffing_invalid_month(self, sync_client: TestClient):
+        """Verify staffing invalid month."""
         res = sync_client.get('/api/staffing?year=2026&month=0')
         assert res.status_code in (400, 422)
 
     def test_staffing_invalid_year(self, sync_client: TestClient):
+        """Verify staffing invalid year."""
         res = sync_client.get('/api/staffing?year=1900&month=1')
         assert res.status_code in (400, 422)
 
     def test_staffing_missing_params(self, sync_client: TestClient):
+        """Verify staffing missing params."""
         res = sync_client.get('/api/staffing')
         assert res.status_code == 422
 
@@ -55,18 +63,22 @@ class TestStaffing:
 # ── /api/schedule/day ─────────────────────────────────────────
 class TestScheduleDay:
     def test_day_valid(self, sync_client: TestClient):
+        """Verify day valid."""
         res = sync_client.get('/api/schedule/day?date=2026-01-15')
         assert res.status_code == 200
 
     def test_day_invalid_date(self, sync_client: TestClient):
+        """Verify day invalid date."""
         res = sync_client.get('/api/schedule/day?date=not-a-date')
         assert res.status_code == 400
 
     def test_day_with_group(self, sync_client: TestClient):
+        """Verify day with group."""
         res = sync_client.get('/api/schedule/day?date=2026-01-15&group_id=1')
         assert res.status_code in (200, 404)
 
     def test_day_missing_date(self, sync_client: TestClient):
+        """Verify day missing date."""
         res = sync_client.get('/api/schedule/day')
         assert res.status_code == 422
 
@@ -74,14 +86,17 @@ class TestScheduleDay:
 # ── /api/schedule/week ────────────────────────────────────────
 class TestScheduleWeek:
     def test_week_valid(self, sync_client: TestClient):
+        """Verify week valid."""
         res = sync_client.get('/api/schedule/week?date=2026-01-12')
         assert res.status_code == 200
 
     def test_week_invalid_date(self, sync_client: TestClient):
+        """Verify week invalid date."""
         res = sync_client.get('/api/schedule/week?date=invalid')
         assert res.status_code == 400
 
     def test_week_with_group(self, sync_client: TestClient):
+        """Verify week with group."""
         res = sync_client.get('/api/schedule/week?date=2026-01-12&group_id=1')
         assert res.status_code in (200, 404)
 
@@ -89,6 +104,7 @@ class TestScheduleWeek:
 # ── /api/schedule/year ────────────────────────────────────────
 class TestScheduleYear:
     def test_year_valid(self, sync_client: TestClient):
+        """Verify year valid."""
         emps = sync_client.get('/api/employees').json()
         if not emps:
             pytest.skip("No employees")
@@ -97,10 +113,12 @@ class TestScheduleYear:
         assert res.status_code == 200
 
     def test_year_invalid_year(self, sync_client: TestClient):
+        """Verify year invalid year."""
         res = sync_client.get('/api/schedule/year?year=1800&employee_id=1')
         assert res.status_code in (400, 422)
 
     def test_year_missing_params(self, sync_client: TestClient):
+        """Verify year missing params."""
         res = sync_client.get('/api/schedule/year')
         assert res.status_code == 422
 
@@ -108,15 +126,18 @@ class TestScheduleYear:
 # ── /api/schedule/conflicts ───────────────────────────────────
 class TestScheduleConflicts:
     def test_conflicts_valid(self, sync_client: TestClient):
+        """Verify conflicts valid."""
         res = sync_client.get('/api/schedule/conflicts?year=2026&month=1')
         assert res.status_code == 200
         assert 'conflicts' in res.json()
 
     def test_conflicts_invalid_month(self, sync_client: TestClient):
+        """Verify conflicts invalid month."""
         res = sync_client.get('/api/schedule/conflicts?year=2026&month=13')
         assert res.status_code == 400
 
     def test_conflicts_invalid_year(self, sync_client: TestClient):
+        """Verify conflicts invalid year."""
         res = sync_client.get('/api/schedule/conflicts?year=1999&month=1')
         assert res.status_code == 400
 
@@ -124,20 +145,24 @@ class TestScheduleConflicts:
 # ── /api/shift-cycles ─────────────────────────────────────────
 class TestShiftCycles:
     def test_list_cycles(self, sync_client: TestClient):
+        """Verify list cycles."""
         res = sync_client.get('/api/shift-cycles')
         assert res.status_code == 200
         assert isinstance(res.json(), list)
 
     def test_list_assignments(self, sync_client: TestClient):
+        """Verify list assignments."""
         res = sync_client.get('/api/shift-cycles/assign')
         assert res.status_code == 200
         assert isinstance(res.json(), list)
 
     def test_get_nonexistent_cycle(self, sync_client: TestClient):
+        """Verify get nonexistent cycle."""
         res = sync_client.get('/api/shift-cycles/999999')
         assert res.status_code == 404
 
     def test_create_cycle(self, write_client: TestClient):
+        """Verify create cycle."""
         res = write_client.post('/api/shift-cycles', json={'name': 'TestZyklus', 'size_weeks': 2})
         assert res.status_code == 200
         data = res.json()
@@ -148,24 +173,29 @@ class TestShiftCycles:
         write_client.delete(f'/api/shift-cycles/{cycle_id}')
 
     def test_create_cycle_invalid_name(self, write_client: TestClient):
+        """Verify create cycle invalid name."""
         res = write_client.post('/api/shift-cycles', json={'name': '', 'size_weeks': 2})
         assert res.status_code in (400, 422)
 
     def test_create_cycle_invalid_weeks(self, write_client: TestClient):
+        """Verify create cycle invalid weeks."""
         res = write_client.post('/api/shift-cycles', json={'name': 'Test', 'size_weeks': 100})
         assert res.status_code in (400, 422)
 
     def test_update_cycle_not_found(self, write_client: TestClient):
+        """Verify update cycle not found."""
         res = write_client.put('/api/shift-cycles/999999', json={
             'name': 'X', 'size_weeks': 1, 'entries': []
         })
         assert res.status_code == 404
 
     def test_delete_cycle_not_found(self, write_client: TestClient):
+        """Verify delete cycle not found."""
         res = write_client.delete('/api/shift-cycles/999999')
         assert res.status_code == 404
 
     def test_assign_cycle_invalid_date(self, write_client: TestClient):
+        """Verify assign cycle invalid date."""
         res = write_client.post('/api/shift-cycles/assign', json={
             'employee_id': 1, 'cycle_id': 1, 'start_date': 'not-a-date'
         })
@@ -181,11 +211,13 @@ class TestShiftCycles:
 # ── /api/schedule/templates ───────────────────────────────────
 class TestScheduleTemplates:
     def test_list_templates(self, sync_client: TestClient):
+        """Verify list templates."""
         res = sync_client.get('/api/schedule/templates')
         assert res.status_code == 200
         assert isinstance(res.json(), list)
 
     def test_create_and_delete_template(self, write_client: TestClient):
+        """Verify create and delete template."""
         res = write_client.post('/api/schedule/templates', json={
             'name': 'TestVorlage',
             'description': 'Testbeschreibung',
@@ -201,6 +233,7 @@ class TestScheduleTemplates:
             assert del_res.status_code == 200
 
     def test_delete_template_not_found(self, write_client: TestClient):
+        """Verify delete template not found."""
         res = write_client.delete('/api/schedule/templates/999999')
         assert res.status_code == 404
 
@@ -216,6 +249,7 @@ class TestScheduleTemplates:
         assert res.status_code in (400, 200)
 
     def test_apply_template_not_found(self, write_client: TestClient):
+        """Verify apply template not found."""
         res = write_client.post('/api/schedule/templates/999999/apply', json={
             'target_date': '2026-01-05',
             'force': False,
@@ -226,21 +260,25 @@ class TestScheduleTemplates:
 # ── /api/restrictions ─────────────────────────────────────────
 class TestRestrictions:
     def test_list_restrictions(self, sync_client: TestClient):
+        """Verify list restrictions."""
         res = sync_client.get('/api/restrictions')
         assert res.status_code == 200
         assert isinstance(res.json(), list)
 
     def test_list_restrictions_by_employee(self, sync_client: TestClient):
+        """Verify list restrictions by employee."""
         res = sync_client.get('/api/restrictions?employee_id=1')
         assert res.status_code == 200
 
     def test_create_restriction_invalid_weekday(self, write_client: TestClient):
+        """Verify create restriction invalid weekday."""
         res = write_client.post('/api/restrictions', json={
             'employee_id': 1, 'shift_id': 1, 'reason': 'test', 'weekday': 9
         })
         assert res.status_code in (400, 422)
 
     def test_delete_restriction_not_found(self, write_client: TestClient):
+        """Verify delete restriction not found."""
         res = write_client.delete('/api/restrictions/999999')
         assert res.status_code in (404, 200, 405)
 
@@ -248,6 +286,7 @@ class TestRestrictions:
 # ── /api/schedule/generate ────────────────────────────────────
 class TestScheduleGenerate:
     def test_generate_dry_run(self, write_client: TestClient):
+        """Verify generate dry run."""
         res = write_client.post('/api/schedule/generate', json={
             'year': 2026,
             'month': 3,
@@ -259,6 +298,7 @@ class TestScheduleGenerate:
         assert 'message' in data
 
     def test_generate_invalid_month(self, write_client: TestClient):
+        """Verify generate invalid month."""
         res = write_client.post('/api/schedule/generate', json={
             'year': 2026,
             'month': 0,
@@ -275,6 +315,7 @@ class TestDeleteShiftOnly:
         assert res.json()['ok'] is True
 
     def test_delete_shift_only_invalid_date(self, write_client: TestClient):
+        """Verify delete shift only invalid date."""
         res = write_client.delete('/api/schedule-shift/1/bad-date')
         assert res.status_code == 400
 
@@ -332,6 +373,7 @@ class TestEventsBroadcastWithSubscriber:
 # ── /api/schedule/swap ────────────────────────────────────────
 class TestScheduleSwap:
     def test_swap_same_employee_error(self, write_client: TestClient):
+        """Verify swap same employee error."""
         res = write_client.post('/api/schedule/swap', json={
             'employee_id_1': 1,
             'employee_id_2': 1,
@@ -340,6 +382,7 @@ class TestScheduleSwap:
         assert res.status_code == 400
 
     def test_swap_invalid_date(self, write_client: TestClient):
+        """Verify swap invalid date."""
         res = write_client.post('/api/schedule/swap', json={
             'employee_id_1': 1,
             'employee_id_2': 2,
@@ -348,6 +391,7 @@ class TestScheduleSwap:
         assert res.status_code == 400
 
     def test_swap_empty_dates(self, write_client: TestClient):
+        """Verify swap empty dates."""
         res = write_client.post('/api/schedule/swap', json={
             'employee_id_1': 1,
             'employee_id_2': 2,
@@ -374,6 +418,7 @@ class TestScheduleSwap:
 # ── /api/schedule/copy-week ───────────────────────────────────
 class TestScheduleCopyWeek:
     def test_copy_week_invalid_date(self, write_client: TestClient):
+        """Verify copy week invalid date."""
         res = write_client.post('/api/schedule/copy-week', json={
             'source_employee_id': 1,
             'dates': ['bad-date'],

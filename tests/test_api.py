@@ -13,6 +13,7 @@ import pytest
 
 class TestRoot:
     def test_api_root(self, sync_client):
+        """Verify api root."""
         resp = sync_client.get("/api")
         assert resp.status_code == 200
         data = resp.json()
@@ -23,6 +24,7 @@ class TestRoot:
 
 class TestEmployees:
     def test_list_employees(self, sync_client):
+        """Verify list employees."""
         resp = sync_client.get("/api/employees")
         assert resp.status_code == 200
         data = resp.json()
@@ -30,6 +32,7 @@ class TestEmployees:
         assert len(data) > 0
 
     def test_employee_has_required_fields(self, sync_client):
+        """Verify employee has required fields."""
         resp = sync_client.get("/api/employees")
         emp = resp.json()[0]
         for field in ("ID", "NAME", "SHORTNAME"):
@@ -37,6 +40,7 @@ class TestEmployees:
 
     def test_get_employee_by_id(self, sync_client):
         # Get first employee's ID
+        """Verify get employee by id."""
         emps = sync_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
         resp = sync_client.get(f"/api/employees/{emp_id}")
@@ -45,10 +49,12 @@ class TestEmployees:
         assert data["ID"] == emp_id
 
     def test_get_employee_not_found(self, sync_client):
+        """Verify get employee not found."""
         resp = sync_client.get("/api/employees/999999")
         assert resp.status_code == 404
 
     def test_list_employees_include_hidden(self, sync_client):
+        """Verify list employees include hidden."""
         resp = sync_client.get("/api/employees?include_hidden=true")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -56,6 +62,7 @@ class TestEmployees:
 
 class TestShifts:
     def test_list_shifts(self, sync_client):
+        """Verify list shifts."""
         resp = sync_client.get("/api/shifts")
         assert resp.status_code == 200
         data = resp.json()
@@ -63,6 +70,7 @@ class TestShifts:
         assert len(data) > 0
 
     def test_shift_has_required_fields(self, sync_client):
+        """Verify shift has required fields."""
         shift = sync_client.get("/api/shifts").json()[0]
         for field in ("ID", "NAME"):
             assert field in shift, f"Missing field: {field}"
@@ -70,6 +78,7 @@ class TestShifts:
 
 class TestGroups:
     def test_list_groups(self, sync_client):
+        """Verify list groups."""
         resp = sync_client.get("/api/groups")
         assert resp.status_code == 200
         data = resp.json()
@@ -77,15 +86,18 @@ class TestGroups:
         assert len(data) > 0
 
     def test_group_has_required_fields(self, sync_client):
+        """Verify group has required fields."""
         group = sync_client.get("/api/groups").json()[0]
         for field in ("ID", "NAME"):
             assert field in group, f"Missing field: {field}"
 
     def test_group_member_count_field(self, sync_client):
+        """Verify group member count field."""
         group = sync_client.get("/api/groups").json()[0]
         assert "member_count" in group
 
     def test_get_group_members(self, sync_client):
+        """Verify get group members."""
         groups = sync_client.get("/api/groups").json()
         group_id = groups[0]["ID"]
         resp = sync_client.get(f"/api/groups/{group_id}/members")
@@ -95,6 +107,7 @@ class TestGroups:
 
 class TestSchedule:
     def test_get_schedule(self, sync_client):
+        """Verify get schedule."""
         resp = sync_client.get("/api/schedule?year=2024&month=6")
         assert resp.status_code == 200
         data = resp.json()
@@ -102,19 +115,23 @@ class TestSchedule:
         assert data is not None
 
     def test_get_schedule_invalid_month(self, sync_client):
+        """Verify get schedule invalid month."""
         resp = sync_client.get("/api/schedule?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_get_schedule_day(self, sync_client):
+        """Verify get schedule day."""
         resp = sync_client.get("/api/schedule/day?date=2024-06-01")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_get_schedule_week(self, sync_client):
+        """Verify get schedule week."""
         resp = sync_client.get("/api/schedule/week?date=2024-06-03")
         assert resp.status_code == 200
 
     def test_get_schedule_conflicts(self, sync_client):
+        """Verify get schedule conflicts."""
         resp = sync_client.get("/api/schedule/conflicts?year=2024&month=6")
         assert resp.status_code == 200
         data = resp.json()
@@ -122,6 +139,7 @@ class TestSchedule:
         assert isinstance(data["conflicts"], list)
 
     def test_get_schedule_year(self, sync_client):
+        """Verify get schedule year."""
         emps = sync_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
         resp = sync_client.get(f"/api/schedule/year?year=2024&employee_id={emp_id}")
@@ -130,12 +148,14 @@ class TestSchedule:
 
 class TestHolidays:
     def test_list_holidays(self, sync_client):
+        """Verify list holidays."""
         resp = sync_client.get("/api/holidays")
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
 
     def test_holidays_with_year(self, sync_client):
+        """Verify holidays with year."""
         resp = sync_client.get("/api/holidays?year=2024")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -143,12 +163,14 @@ class TestHolidays:
 
 class TestLeaveTypes:
     def test_list_leave_types(self, sync_client):
+        """Verify list leave types."""
         resp = sync_client.get("/api/leave-types")
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
 
     def test_leave_type_has_fields(self, sync_client):
+        """Verify leave type has fields."""
         lt_list = sync_client.get("/api/leave-types").json()
         if lt_list:
             lt = lt_list[0]
@@ -158,6 +180,7 @@ class TestLeaveTypes:
 
 class TestWorkplaces:
     def test_list_workplaces(self, sync_client):
+        """Verify list workplaces."""
         resp = sync_client.get("/api/workplaces")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -165,16 +188,19 @@ class TestWorkplaces:
 
 class TestStatistics:
     def test_get_statistics(self, sync_client):
+        """Verify get statistics."""
         resp = sync_client.get("/api/statistics?year=2024&month=6")
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
 
     def test_statistics_invalid_month(self, sync_client):
+        """Verify statistics invalid month."""
         resp = sync_client.get("/api/statistics?year=2024&month=0")
         assert resp.status_code == 400
 
     def test_statistics_has_fields(self, sync_client):
+        """Verify statistics has fields."""
         data = sync_client.get("/api/statistics?year=2024&month=6").json()
         if data:
             stat = data[0]
@@ -184,6 +210,7 @@ class TestStatistics:
 
 class TestDashboard:
     def test_dashboard_summary(self, sync_client):
+        """Verify dashboard summary."""
         resp = sync_client.get("/api/dashboard/summary?year=2024&month=6")
         assert resp.status_code == 200
         data = resp.json()
@@ -192,6 +219,7 @@ class TestDashboard:
         assert "month_label" in data
 
     def test_dashboard_today(self, sync_client):
+        """Verify dashboard today."""
         resp = sync_client.get("/api/dashboard/today")
         assert resp.status_code == 200
         data = resp.json()
@@ -200,6 +228,7 @@ class TestDashboard:
         assert "absences" in data
 
     def test_dashboard_upcoming(self, sync_client):
+        """Verify dashboard upcoming."""
         resp = sync_client.get("/api/dashboard/upcoming")
         assert resp.status_code == 200
         data = resp.json()
@@ -207,6 +236,7 @@ class TestDashboard:
         assert "birthdays_this_week" in data
 
     def test_dashboard_stats(self, sync_client):
+        """Verify dashboard stats."""
         resp = sync_client.get("/api/dashboard/stats")
         assert resp.status_code == 200
         data = resp.json()
@@ -216,11 +246,13 @@ class TestDashboard:
 
 class TestAbsences:
     def test_list_absences(self, sync_client):
+        """Verify list absences."""
         resp = sync_client.get("/api/absences")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_absences_filter_by_year(self, sync_client):
+        """Verify absences filter by year."""
         resp = sync_client.get("/api/absences?year=2024")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -228,12 +260,14 @@ class TestAbsences:
 
 class TestZeitkonto:
     def test_zeitkonto(self, sync_client):
+        """Verify zeitkonto."""
         resp = sync_client.get("/api/zeitkonto?year=2024")
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
 
     def test_zeitkonto_summary(self, sync_client):
+        """Verify zeitkonto summary."""
         resp = sync_client.get("/api/zeitkonto/summary?year=2024")
         assert resp.status_code == 200
         data = resp.json()
@@ -241,6 +275,7 @@ class TestZeitkonto:
         assert "employee_count" in data
 
     def test_zeitkonto_detail(self, sync_client):
+        """Verify zeitkonto detail."""
         emps = sync_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
         resp = sync_client.get(f"/api/zeitkonto/detail?year=2024&employee_id={emp_id}")
@@ -249,11 +284,13 @@ class TestZeitkonto:
 
 class TestShiftCycles:
     def test_list_cycles(self, sync_client):
+        """Verify list cycles."""
         resp = sync_client.get("/api/shift-cycles")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_cycle_assignments(self, sync_client):
+        """Verify cycle assignments."""
         resp = sync_client.get("/api/shift-cycles/assign")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -261,16 +298,19 @@ class TestShiftCycles:
 
 class TestStaffing:
     def test_staffing_requirements(self, sync_client):
+        """Verify staffing requirements."""
         resp = sync_client.get("/api/staffing-requirements")
         assert resp.status_code == 200
 
     def test_staffing_with_month(self, sync_client):
+        """Verify staffing with month."""
         resp = sync_client.get("/api/staffing?year=2024&month=6")
         assert resp.status_code == 200
 
 
 class TestNotes:
     def test_list_notes(self, sync_client):
+        """Verify list notes."""
         resp = sync_client.get("/api/notes")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -278,6 +318,7 @@ class TestNotes:
 
 class TestBookings:
     def test_list_bookings(self, sync_client):
+        """Verify list bookings."""
         resp = sync_client.get("/api/bookings")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -285,12 +326,14 @@ class TestBookings:
 
 class TestSettings:
     def test_get_settings(self, sync_client):
+        """Verify get settings."""
         resp = sync_client.get("/api/settings")
         assert resp.status_code == 200
 
 
 class TestExtraCharges:
     def test_list_extracharges(self, sync_client):
+        """Verify list extracharges."""
         resp = sync_client.get("/api/extracharges")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -298,6 +341,7 @@ class TestExtraCharges:
 
 class TestUsers:
     def test_list_users(self, sync_client):
+        """Verify list users."""
         resp = sync_client.get("/api/users")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -305,6 +349,7 @@ class TestUsers:
 
 class TestRestrictions:
     def test_list_restrictions(self, sync_client):
+        """Verify list restrictions."""
         resp = sync_client.get("/api/restrictions")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
@@ -312,6 +357,7 @@ class TestRestrictions:
 
 class TestOvertimeSummary:
     def test_overtime_summary(self, sync_client):
+        """Verify overtime summary."""
         resp = sync_client.get("/api/overtime-summary?year=2024")
         assert resp.status_code == 200
         data = resp.json()
@@ -322,6 +368,7 @@ class TestOvertimeSummary:
 
 class TestLeaveBalance:
     def test_leave_balance(self, sync_client):
+        """Verify leave balance."""
         emps = sync_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
         resp = sync_client.get(f"/api/leave-balance?year=2024&employee_id={emp_id}")
@@ -330,6 +377,7 @@ class TestLeaveBalance:
 
 class TestChangelog:
     def test_get_changelog(self, sync_client):
+        """Verify get changelog."""
         resp = sync_client.get("/api/changelog")
         assert resp.status_code == 200
         data = resp.json()
@@ -342,6 +390,7 @@ class TestChangelog:
 
 class TestEmployeeCreate:
     def test_create_employee(self, write_client):
+        """Verify create employee."""
         payload = {
             "NAME": "Testmann",
             "FIRSTNAME": "Hans",
@@ -357,6 +406,7 @@ class TestEmployeeCreate:
         assert emp["FIRSTNAME"] == "Hans"
 
     def test_create_employee_missing_name(self, write_client):
+        """Verify create employee missing name."""
         resp = write_client.post("/api/employees", json={"FIRSTNAME": "John"})
         assert resp.status_code in (400, 422)
 
@@ -371,6 +421,7 @@ class TestEmployeeCreate:
         assert get_resp.json()["ID"] == emp_id
 
     def test_update_employee(self, write_client):
+        """Verify update employee."""
         emps = write_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
         resp = write_client.put(f"/api/employees/{emp_id}", json={"NOTE1": "Testnotiz"})
@@ -379,6 +430,7 @@ class TestEmployeeCreate:
 
     def test_delete_employee(self, write_client):
         # Create then hide
+        """Verify delete employee."""
         create = write_client.post("/api/employees", json={"NAME": "ToDelete"})
         emp_id = create.json()["record"]["ID"]
         del_resp = write_client.delete(f"/api/employees/{emp_id}")
@@ -388,6 +440,7 @@ class TestEmployeeCreate:
 
 class TestShiftCreate:
     def test_create_shift(self, write_client):
+        """Verify create shift."""
         payload = {"NAME": "Testschicht", "SHORTNAME": "TS", "DURATION0": 8.0}
         resp = write_client.post("/api/shifts", json=payload)
         assert resp.status_code == 200
@@ -396,12 +449,14 @@ class TestShiftCreate:
         assert data["record"]["NAME"] == "Testschicht"
 
     def test_create_shift_missing_name(self, write_client):
+        """Verify create shift missing name."""
         resp = write_client.post("/api/shifts", json={"SHORTNAME": "X"})
         assert resp.status_code in (400, 422)
 
 
 class TestGroupCreate:
     def test_create_group(self, write_client):
+        """Verify create group."""
         resp = write_client.post("/api/groups", json={"NAME": "Testgruppe"})
         assert resp.status_code == 200
         data = resp.json()
@@ -409,12 +464,14 @@ class TestGroupCreate:
         assert data["record"]["NAME"] == "Testgruppe"
 
     def test_create_group_missing_name(self, write_client):
+        """Verify create group missing name."""
         resp = write_client.post("/api/groups", json={})
         assert resp.status_code in (400, 422)
 
 
 class TestScheduleWrite:
     def test_create_schedule_entry(self, write_client):
+        """Verify create schedule entry."""
         emps = write_client.get("/api/employees").json()
         shifts = write_client.get("/api/shifts").json()
         emp_id = emps[0]["ID"]
@@ -428,6 +485,7 @@ class TestScheduleWrite:
         assert resp.status_code in (200, 409)
 
     def test_create_schedule_entry_invalid_date(self, write_client):
+        """Verify create schedule entry invalid date."""
         resp = write_client.post("/api/schedule", json={
             "employee_id": 1,
             "date": "not-a-date",
@@ -436,6 +494,7 @@ class TestScheduleWrite:
         assert resp.status_code in (400, 422)
 
     def test_delete_schedule_entry(self, write_client):
+        """Verify delete schedule entry."""
         emps = write_client.get("/api/employees").json()
         shifts = write_client.get("/api/shifts").json()
         emp_id = emps[0]["ID"]
@@ -453,6 +512,7 @@ class TestScheduleWrite:
 
 class TestAbsenceWrite:
     def test_create_absence(self, write_client):
+        """Verify create absence."""
         emps = write_client.get("/api/employees").json()
         lt_list = write_client.get("/api/leave-types").json()
         if not lt_list:
@@ -467,6 +527,7 @@ class TestAbsenceWrite:
         assert resp.status_code in (200, 409)
 
     def test_create_absence_invalid_date(self, write_client):
+        """Verify create absence invalid date."""
         resp = write_client.post("/api/absences", json={
             "employee_id": 1,
             "date": "2025-99-01",
@@ -477,6 +538,7 @@ class TestAbsenceWrite:
 
 class TestLeaveTypeWrite:
     def test_create_leave_type(self, write_client):
+        """Verify create leave type."""
         resp = write_client.post("/api/leave-types", json={"NAME": "Test-Urlaub", "SHORTNAME": "TU"})
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
@@ -484,6 +546,7 @@ class TestLeaveTypeWrite:
 
 class TestHolidayWrite:
     def test_create_holiday(self, write_client):
+        """Verify create holiday."""
         resp = write_client.post("/api/holidays", json={
             "DATE": "2025-12-26",
             "NAME": "Zweiter Weihnachtstag",
@@ -493,6 +556,7 @@ class TestHolidayWrite:
         assert resp.json()["ok"] is True
 
     def test_create_holiday_invalid_date(self, write_client):
+        """Verify create holiday invalid date."""
         resp = write_client.post("/api/holidays", json={
             "DATE": "not-a-date",
             "NAME": "Test"
@@ -502,6 +566,7 @@ class TestHolidayWrite:
 
 class TestWorkplaceWrite:
     def test_create_workplace(self, write_client):
+        """Verify create workplace."""
         resp = write_client.post("/api/workplaces", json={"NAME": "Testort", "SHORTNAME": "TO"})
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
@@ -509,6 +574,7 @@ class TestWorkplaceWrite:
 
 class TestNoteWrite:
     def test_create_note(self, write_client):
+        """Verify create note."""
         resp = write_client.post("/api/notes", json={
             "date": "2025-06-01",
             "text": "Test-Notiz"
@@ -519,6 +585,7 @@ class TestNoteWrite:
 
 class TestBookingWrite:
     def test_create_booking(self, write_client):
+        """Verify create booking."""
         emps = write_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
         resp = write_client.post("/api/bookings", json={
@@ -534,6 +601,7 @@ class TestBookingWrite:
 
 class TestBulkSchedule:
     def test_bulk_schedule_create(self, write_client):
+        """Verify bulk schedule create."""
         emps = write_client.get("/api/employees").json()
         shifts = write_client.get("/api/shifts").json()
         emp_id = emps[0]["ID"]
@@ -552,20 +620,24 @@ class TestBulkSchedule:
 
 class TestExportEndpoints:
     def test_export_schedule_csv(self, sync_client):
+        """Verify export schedule csv."""
         resp = sync_client.get("/api/export/schedule?month=2024-06&format=csv")
         assert resp.status_code == 200
         assert "text/csv" in resp.headers.get("content-type", "")
 
     def test_export_employees_csv(self, sync_client):
+        """Verify export employees csv."""
         resp = sync_client.get("/api/export/employees?format=csv")
         assert resp.status_code == 200
         assert "text/csv" in resp.headers.get("content-type", "")
 
     def test_export_statistics_csv(self, sync_client):
+        """Verify export statistics csv."""
         resp = sync_client.get("/api/export/statistics?year=2024&format=csv")
         assert resp.status_code == 200
 
     def test_export_absences_csv(self, sync_client):
+        """Verify export absences csv."""
         resp = sync_client.get("/api/export/absences?year=2024&format=csv")
         assert resp.status_code == 200
 
@@ -574,13 +646,16 @@ class TestValidationErrors:
     """Test that validation / edge cases return proper error codes."""
 
     def test_schedule_conflicts_invalid_month(self, sync_client):
+        """Verify schedule conflicts invalid month."""
         resp = sync_client.get("/api/schedule/conflicts?year=2024&month=0")
         assert resp.status_code == 400
 
     def test_dashboard_summary_invalid_month(self, sync_client):
+        """Verify dashboard summary invalid month."""
         resp = sync_client.get("/api/dashboard/summary?year=2024&month=13")
         assert resp.status_code == 400
 
     def test_schedule_day_invalid_format(self, sync_client):
+        """Verify schedule day invalid format."""
         resp = sync_client.get("/api/schedule/day?date=not-a-date")
         assert resp.status_code == 400

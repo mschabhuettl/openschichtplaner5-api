@@ -8,7 +8,7 @@ import logging.handlers
 import time as _time
 import traceback
 
-from fastapi import HTTPException, Header, Depends
+from fastapi import HTTPException, Header, Depends, Request
 from typing import Optional
 from sp5lib.database import SP5Database
 from slowapi import Limiter
@@ -88,10 +88,18 @@ def _is_token_valid(token: str) -> bool:
     return True
 
 
-def get_current_user(x_auth_token: Optional[str] = Header(None)) -> Optional[dict]:
-    """Return user dict for the given token, or None."""
-    if x_auth_token and _is_token_valid(x_auth_token):
-        return _sessions[x_auth_token]
+def get_current_user(
+    request: Request,
+    x_auth_token: Optional[str] = Header(None),
+) -> Optional[dict]:
+    """Return user dict for the given token, or None.
+
+    Reads from X-Auth-Token header first; falls back to ?token= query param
+    for SSE connections where EventSource cannot set custom headers.
+    """
+    token = x_auth_token or request.query_params.get('token')
+    if token and _is_token_valid(token):
+        return _sessions[token]
     return None
 
 

@@ -5,6 +5,7 @@ class TestHealthEndpoint:
     """Public /api/health must not leak sensitive info."""
 
     def test_health_ok(self, sync_client):
+        """Verify health ok."""
         resp = sync_client.get("/api/health")
         assert resp.status_code == 200
         data = resp.json()
@@ -41,6 +42,7 @@ class TestFrontendErrorEndpoint:
     """POST /api/errors — public but rate-limited and validated."""
 
     def test_report_error_ok(self, sync_client):
+        """Verify report error ok."""
         resp = sync_client.post("/api/errors", json={
             "error": "Test error",
             "url": "http://localhost/",
@@ -56,6 +58,7 @@ class TestFrontendErrorEndpoint:
         assert resp.status_code == 422
 
     def test_report_error_component_stack_too_long(self, sync_client):
+        """Verify report error component stack too long."""
         resp = sync_client.post("/api/errors", json={
             "error": "err",
             "component_stack": "x" * 5001,
@@ -75,6 +78,7 @@ class TestAdminCacheStats:
     """GET /api/admin/cache-stats — admin only."""
 
     def test_accessible_as_admin(self, sync_client):
+        """Verify accessible as admin."""
         resp = sync_client.get("/api/admin/cache-stats")
         assert resp.status_code == 200
         data = resp.json()

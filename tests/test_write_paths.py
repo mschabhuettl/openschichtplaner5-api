@@ -91,12 +91,14 @@ def _write_temp_dbf(fields_spec) -> str:
 # ─── _encode_string ───────────────────────────────────────────────────────────
 
 def test_encode_string_empty():
+    """Verify encode string empty."""
     result = _encode_string('', 10)
     assert len(result) == 10
     assert result[:2] == b'\x00\x00'           # null terminator for empty string
     assert result[2:] == b'\x20' * 8           # space padding
 
 def test_encode_string_simple():
+    """Verify encode string simple."""
     result = _encode_string('A', 10)
     assert len(result) == 10
     # 'A' in UTF-16-LE is b'\x41\x00'
@@ -106,22 +108,26 @@ def test_encode_string_simple():
 
 def test_encode_string_too_long_truncates():
     # 6-byte string field can only hold 2 UTF-16 chars (4 bytes) + null terminator
+    """Verify encode string too long truncates."""
     result = _encode_string('ABCDEF', 6)
     assert len(result) == 6
     # Should have truncated to 2 chars = 4 bytes + 2 null bytes
     assert result[4:6] == b'\x00\x00'
 
 def test_encode_string_zero_length():
+    """Verify encode string zero length."""
     assert _encode_string('hello', 0) == b''
 
 def test_encode_string_tiny_field():
     # field_len=1: can't fit null terminator, gets a space
+    """Verify encode string tiny field."""
     result = _encode_string('X', 1)
     assert len(result) == 1
     assert result == b'\x20'
 
 def test_encode_string_field_len_2():
     # field_len=2: exactly a null terminator
+    """Verify encode string field len 2."""
     result = _encode_string('', 2)
     assert result == b'\x00\x00'
 
@@ -129,46 +135,55 @@ def test_encode_string_field_len_2():
 # ─── _encode_field ────────────────────────────────────────────────────────────
 
 def test_encode_field_none_returns_spaces():
+    """Verify encode field none returns spaces."""
     f = {'type': 'C', 'len': 8, 'dec': 0}
     result = _encode_field(None, f)
     assert result == b' ' * 8
 
 def test_encode_field_numeric_int():
+    """Verify encode field numeric int."""
     f = {'type': 'N', 'len': 5, 'dec': 0}
     result = _encode_field(42, f)
     assert result == b'   42'
 
 def test_encode_field_numeric_float():
+    """Verify encode field numeric float."""
     f = {'type': 'N', 'len': 8, 'dec': 2}
     result = _encode_field(3.14, f)
     assert result == b'    3.14'
 
 def test_encode_field_numeric_invalid_becomes_spaces():
+    """Verify encode field numeric invalid becomes spaces."""
     f = {'type': 'N', 'len': 5, 'dec': 0}
     result = _encode_field('not_a_number', f)
     assert result == b' ' * 5
 
 def test_encode_field_logical_true():
+    """Verify encode field logical true."""
     f = {'type': 'L', 'len': 1, 'dec': 0}
     assert _encode_field(True, f) == b'T'
     assert _encode_field(1, f) == b'T'
 
 def test_encode_field_logical_false():
+    """Verify encode field logical false."""
     f = {'type': 'L', 'len': 1, 'dec': 0}
     assert _encode_field(False, f) == b'F'
     assert _encode_field(0, f) == b'F'
 
 def test_encode_field_date_iso():
+    """Verify encode field date iso."""
     f = {'type': 'D', 'len': 8, 'dec': 0}
     result = _encode_field('2024-03-15', f)
     assert result == b'20240315'
 
 def test_encode_field_date_compact():
+    """Verify encode field date compact."""
     f = {'type': 'D', 'len': 8, 'dec': 0}
     result = _encode_field('20240315', f)
     assert result == b'20240315'
 
 def test_encode_field_date_invalid_becomes_spaces():
+    """Verify encode field date invalid becomes spaces."""
     f = {'type': 'D', 'len': 8, 'dec': 0}
     result = _encode_field('not-a-date', f)
     assert result == b' ' * 8
@@ -182,6 +197,7 @@ SIMPLE_FIELDS_SPEC = [
 ]
 
 def test_append_record_basic():
+    """Verify append record basic."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -198,6 +214,7 @@ def test_append_record_basic():
         os.unlink(path)
 
 def test_append_record_multiple():
+    """Verify append record multiple."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -216,6 +233,7 @@ def test_append_record_multiple():
         os.unlink(path)
 
 def test_append_record_missing_fields_default_to_none():
+    """Verify append record missing fields default to none."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -234,6 +252,7 @@ def test_append_record_missing_fields_default_to_none():
 # ─── delete_record ────────────────────────────────────────────────────────────
 
 def test_delete_record_marks_deleted():
+    """Verify delete record marks deleted."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -260,6 +279,7 @@ def test_delete_record_marks_deleted():
         os.unlink(path)
 
 def test_delete_record_out_of_range_raises():
+    """Verify delete record out of range raises."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -287,6 +307,7 @@ def test_delete_already_deleted_is_idempotent():
 # ─── update_record ────────────────────────────────────────────────────────────
 
 def test_update_record_changes_field():
+    """Verify update record changes field."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -302,6 +323,7 @@ def test_update_record_changes_field():
         os.unlink(path)
 
 def test_update_record_does_not_touch_other_records():
+    """Verify update record does not touch other records."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -318,6 +340,7 @@ def test_update_record_does_not_touch_other_records():
         os.unlink(path)
 
 def test_update_deleted_record_raises():
+    """Verify update deleted record raises."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -332,6 +355,7 @@ def test_update_deleted_record_raises():
         os.unlink(path)
 
 def test_update_record_out_of_range_raises():
+    """Verify update record out of range raises."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -348,6 +372,7 @@ def test_update_record_out_of_range_raises():
 # ─── find_all_records ─────────────────────────────────────────────────────────
 
 def test_find_all_records_filter():
+    """Verify find all records filter."""
     path = _write_temp_dbf(SIMPLE_FIELDS_SPEC)
     fields = _make_fields_list(SIMPLE_FIELDS_SPEC)
     try:
@@ -364,6 +389,7 @@ def test_find_all_records_filter():
         os.unlink(path)
 
 def test_find_all_records_nonexistent_file():
+    """Verify find all records nonexistent file."""
     result = find_all_records('/tmp/nonexistent_12345.DBF', [])
     assert result == []
 

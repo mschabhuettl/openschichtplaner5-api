@@ -128,15 +128,18 @@ class TestMasterDataCRUD:
     """CRUD-Tests für Master-Daten (Schichten, Gruppen)."""
 
     def test_get_shifts(self, planer_client):
+        """Verify get shifts."""
         resp = planer_client.get("/api/shifts")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_get_shifts_include_hidden(self, planer_client):
+        """Verify get shifts include hidden."""
         resp = planer_client.get("/api/shifts?include_hidden=true")
         assert resp.status_code == 200
 
     def test_create_shift(self, write_client):
+        """Verify create shift."""
         resp = write_client.post("/api/shifts", json={
             "SHORTNAME": "IT",
             "NAME": "Integration Test Shift",
@@ -147,24 +150,29 @@ class TestMasterDataCRUD:
         assert "record" in data
 
     def test_create_shift_missing_name(self, write_client):
+        """Verify create shift missing name."""
         resp = write_client.post("/api/shifts", json={"SHORTNAME": "X"})
         assert resp.status_code == 422
 
     def test_get_groups(self, planer_client):
+        """Verify get groups."""
         resp = planer_client.get("/api/groups")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_get_leave_types(self, planer_client):
+        """Verify get leave types."""
         resp = planer_client.get("/api/leave-types")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
     def test_get_workplaces(self, planer_client):
+        """Verify get workplaces."""
         resp = planer_client.get("/api/workplaces")
         assert resp.status_code == 200
 
     def test_get_holidays(self, planer_client):
+        """Verify get holidays."""
         resp = planer_client.get("/api/holidays")
         assert resp.status_code == 200
 
@@ -174,6 +182,7 @@ class TestNotesCRUD:
 
     def test_create_and_read_note(self, write_client):
         # Create
+        """Verify create and read note."""
         resp = write_client.post("/api/notes", json={
             "date": "2025-08-01",
             "text": "Notiz für CRUD-Test",
@@ -189,6 +198,7 @@ class TestNotesCRUD:
 
     def test_update_note(self, write_client):
         # Create
+        """Verify update note."""
         resp = write_client.post("/api/notes", json={
             "date": "2025-08-02",
             "text": "Original",
@@ -203,6 +213,7 @@ class TestNotesCRUD:
 
     def test_delete_note(self, write_client):
         # Create
+        """Verify delete note."""
         resp = write_client.post("/api/notes", json={
             "date": "2025-08-03",
             "text": "Zu löschen",
@@ -217,6 +228,7 @@ class TestNotesCRUD:
 
     def test_update_note_invalid_date(self, write_client):
         # Create
+        """Verify update note invalid date."""
         resp = write_client.post("/api/notes", json={
             "date": "2025-08-04",
             "text": "Datum-Test",

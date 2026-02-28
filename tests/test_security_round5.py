@@ -19,6 +19,7 @@ client = TestClient(app, raise_server_exceptions=False)
 # ── purge_expired_sessions ─────────────────────────────────────
 
 def test_purge_expired_sessions_removes_expired():
+    """Verify purge expired sessions removes expired."""
     _sessions.clear()
     _sessions["expired_tok"] = {"ID": 99, "expires_at": _time.time() - 1}
     _sessions["valid_tok"] = {"ID": 99, "expires_at": _time.time() + 3600}
@@ -40,6 +41,7 @@ def test_purge_expired_sessions_skips_no_expiry():
 
 
 def test_purge_expired_sessions_empty():
+    """Verify purge expired sessions empty."""
     _sessions.clear()
     assert purge_expired_sessions() == 0
 
@@ -47,6 +49,7 @@ def test_purge_expired_sessions_empty():
 # ── purge_stale_failed_logins ──────────────────────────────────
 
 def test_purge_stale_failed_logins_removes_old():
+    """Verify purge stale failed logins removes old."""
     _failed_logins.clear()
     old_time = _time.time() - _LOCKOUT_WINDOW - 10
     _failed_logins["ghost_user"] = [old_time, old_time]
@@ -59,6 +62,7 @@ def test_purge_stale_failed_logins_removes_old():
 
 
 def test_purge_stale_failed_logins_empty():
+    """Verify purge stale failed logins empty."""
     _failed_logins.clear()
     assert purge_stale_failed_logins() == 0
 
@@ -93,6 +97,7 @@ def test_max_sessions_per_user_evicts_oldest():
 
 
 def test_max_sessions_constant_is_positive():
+    """Verify max sessions constant is positive."""
     assert _MAX_SESSIONS_PER_USER > 0
     assert _MAX_SESSIONS_PER_USER <= 100  # sanity bound
 
@@ -100,6 +105,7 @@ def test_max_sessions_constant_is_positive():
 # ── Token validation ───────────────────────────────────────────
 
 def test_expired_token_is_rejected():
+    """Verify expired token is rejected."""
     _sessions.clear()
     _sessions["old_tok"] = {"ID": 1, "role": "Admin", "expires_at": _time.time() - 1}
     resp = client.get("/api/users", headers={"x-auth-token": "old_tok"})
@@ -108,6 +114,7 @@ def test_expired_token_is_rejected():
 
 
 def test_valid_token_is_accepted():
+    """Verify valid token is accepted."""
     _sessions.clear()
     _sessions["good_tok"] = {
         "ID": 1, "NAME": "admin", "role": "Admin", "ADMIN": True, "RIGHTS": 255,
@@ -122,6 +129,7 @@ def test_valid_token_is_accepted():
 # ── Lockout still works ─────────────────────────────────────────
 
 def test_lockout_triggers_after_5_failures():
+    """Verify lockout triggers after 5 failures."""
     _failed_logins.clear()
     responses = []
     for i in range(6):
