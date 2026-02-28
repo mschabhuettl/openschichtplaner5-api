@@ -6,11 +6,11 @@ import json
 from datetime import datetime as _backup_dt
 from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, get_current_user,
+    _sanitize_500, _logger, get_current_user, limiter,
 )
 
 router = APIRouter()
@@ -482,15 +482,16 @@ def _save_frontend_errors(errors: list):
 
 
 class FrontendErrorReport(BaseModel):
-    error: str
-    component_stack: Optional[str] = None
-    url: Optional[str] = None
-    user_agent: Optional[str] = None
-    timestamp: Optional[str] = None
+    error: str = Field(..., max_length=2000)
+    component_stack: Optional[str] = Field(None, max_length=5000)
+    url: Optional[str] = Field(None, max_length=500)
+    user_agent: Optional[str] = Field(None, max_length=300)
+    timestamp: Optional[str] = Field(None, max_length=50)
 
 
 @router.post("/api/errors", tags=["Health"], summary="Report frontend error")
-def report_frontend_error(body: FrontendErrorReport, request: Request):
+@limiter.limit("10/minute")
+def report_frontend_error(request: Request, body: FrontendErrorReport):
     """Receive a frontend error report and store it."""
     errors = _load_frontend_errors()
     entry = {
@@ -515,3 +516,19 @@ def get_frontend_errors(_cur_user: dict = Depends(require_admin)):
     """Return all stored frontend errors."""
     errors = _load_frontend_errors()
     return {"count": len(errors), "errors": errors[-100:]}  # last 100
+
+
+@router.get("/api/admin/cache-stats", tags=["Admin"], summary="Cache statistics (Admin)")
+def get_cache_stats(_cur_user: dict = Depends(require_admin)):
+    """Return internal cache statistics. Admin only."""
+    stats: dict = {}
+    try:
+        from sp5lib.cache import get_cache_stats as _get_cache_stats
+        stats = _get_cache_stats()
+    except Exception:
+        try:
+            from sp5lib.database import _cache as _dbf_cache
+            stats = {"entries": len(_dbf_cache) if hasattr(_dbf_cache, '__len__') else -1}
+        except Exception:
+            stats = {"entries": -1, "error": "Cache not accessible"}
+    return {"ok": True, "cache": stats}

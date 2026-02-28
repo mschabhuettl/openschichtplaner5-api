@@ -331,7 +331,7 @@ from fastapi import UploadFile, File
 
 
 @router.post("/api/employees/{emp_id}/photo")
-async def upload_employee_photo(emp_id: int, file: UploadFile = File(...)):
+async def upload_employee_photo(emp_id: int, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Upload a photo for an employee (JPG/PNG/GIF)."""
     import pathlib
     photos_dir = pathlib.Path(_PHOTOS_DIR)
@@ -362,6 +362,9 @@ async def upload_employee_photo(emp_id: int, file: UploadFile = File(...)):
 
     dest = photos_dir / f"{emp_id}{ext}"
     content = await file.read()
+    _MAX_PHOTO_SIZE = 5 * 1024 * 1024  # 5 MB
+    if len(content) > _MAX_PHOTO_SIZE:
+        raise HTTPException(status_code=413, detail="Datei zu groß (max. 5 MB)")
     dest.write_bytes(content)
 
     rel_path = f"uploads/photos/{emp_id}{ext}"

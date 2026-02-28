@@ -332,75 +332,22 @@ _API_VERSION = "1.0.0"
     ),
 )
 def health():
-    """Health check endpoint — public, no auth required."""
+    """Health check endpoint — public, no auth required.
+    Returns minimal info only. Sensitive details (DB path, logs, cache) are admin-only.
+    """
     import time as _t
     db_status = "connected"
-    db_details: dict = {}
     try:
         db = get_db()
-        stats = db.get_stats()
-        db_details = {
-            "path": DB_PATH,
-            "employees": stats.get("employees", 0) if isinstance(stats, dict) else 0,
-        }
-    except Exception as exc:
+        db.get_stats()
+    except Exception:
         db_status = "error"
-        db_details = {"error": str(exc)[:120]}
-
-    # Cache status
-    cache_info: dict = {}
-    try:
-        from sp5lib.cache import get_cache_stats
-        cache_info = get_cache_stats()
-    except Exception:
-        try:
-            from sp5lib.database import _cache as _dbf_cache
-            cache_info = {"entries": len(_dbf_cache) if hasattr(_dbf_cache, '__len__') else -1}
-        except Exception:
-            cache_info = {}
-
-    # Last 10 errors from log file
-    recent_errors: list = []
-    try:
-        import json as _j
-        from .dependencies import SP5_LOG_FILE
-        with open(SP5_LOG_FILE, 'r', encoding='utf-8', errors='replace') as _lf:
-            lines = _lf.readlines()
-        for line in reversed(lines):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = _j.loads(line)
-            except Exception:
-                continue
-            if entry.get('level') in ('ERROR', 'WARNING'):
-                recent_errors.append(entry)
-            if len(recent_errors) >= 10:
-                break
-        recent_errors = list(reversed(recent_errors))
-    except Exception:
-        pass
-
-    # Frontend error count
-    fe_count = 0
-    try:
-        from .routers.admin import _load_frontend_errors
-        fe_count = len(_load_frontend_errors())
-    except Exception:
-        pass
 
     return {
         "status": "ok",
         "version": _API_VERSION,
         "uptime_seconds": round(_t.time() - _APP_START_TIME, 1),
-        "db": {
-            "status": db_status,
-            **db_details,
-        },
-        "cache": cache_info,
-        "frontend_errors_count": fe_count,
-        "recent_errors": recent_errors,
+        "db": {"status": db_status},
     }
 
 
@@ -417,7 +364,7 @@ def version():
 
 @app.get("/api", tags=["Health"], summary="API root", description="Returns basic service info.")
 def root():
-    return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION, "backend": "dbf", "db_path": DB_PATH}
+    return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION, "backend": "dbf"}
 
 @app.get("/")
 async def frontend_root():
