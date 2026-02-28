@@ -109,7 +109,6 @@ class TestGroupCRUD:
     def test_create_and_delete_group(self, admin_client: TestClient):
         res = admin_client.post('/api/groups', json={'NAME': 'TempGrp', 'NOTES': ''})
         assert res.status_code == 200
-        gid = res.json().get('ID') or res.json().get('id') or res.json().get('ok')
         # Try to find the new group
         groups = admin_client.get('/api/groups').json()
         new_group = next((g for g in groups if g.get('NAME') == 'TempGrp'), None)
