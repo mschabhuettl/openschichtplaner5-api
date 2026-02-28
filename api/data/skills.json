@@ -1,0 +1,33 @@
+{
+  "skills": [
+    {"id": "sk1", "name": "Ersthelfer", "description": "Erste-Hilfe-Zertifikat", "color": "#e53e3e", "icon": "🚑", "category": "Sicherheit"},
+    {"id": "sk2", "name": "Brandschutz", "description": "Brandschutzwart-Ausbildung", "color": "#dd6b20", "icon": "🔥", "category": "Sicherheit"},
+    {"id": "sk3", "name": "Schichtleitung", "description": "Berechtigung zur Schichtleitung", "color": "#805ad5", "icon": "👑", "category": "Führung"},
+    {"id": "sk4", "name": "Gabelstapler", "description": "Staplerschein", "color": "#2b6cb0", "icon": "🏗️", "category": "Technik"},
+    {"id": "sk5", "name": "Kranführer", "description": "Kranführerschein", "color": "#2c7a7b", "icon": "🏗️", "category": "Technik"},
+    {"id": "sk6", "name": "Qualitätsprüfung", "description": "Ausbildung zur Qualitätsprüfung", "color": "#276749", "icon": "🔍", "category": "Qualität"},
+    {"id": "sk7", "name": "EDV / ERP", "description": "ERP-Systemkenntnisse", "color": "#744210", "icon": "💻", "category": "IT"},
+    {"id": "sk8", "name": "Fremdsprache EN", "description": "Englischkenntnisse B2+", "color": "#1a365d", "icon": "🇬🇧", "category": "Sprache"}
+  ],
+  "assignments": [
+    {"id": "a1", "employee_id": 41, "skill_id": "sk1", "level": 2, "certified_until": "2026-12-31", "notes": "", "assigned_at": "2024-01-15"},
+    {"id": "a2", "employee_id": 41, "skill_id": "sk3", "level": 3, "certified_until": null, "notes": "", "assigned_at": "2023-06-01"},
+    {"id": "a3", "employee_id": 41, "skill_id": "sk7", "level": 2, "certified_until": null, "notes": "", "assigned_at": "2024-03-01"},
+    {"id": "a4", "employee_id": 42, "skill_id": "sk1", "level": 1, "certified_until": "2025-06-30", "notes": "Auffrischung nötig", "assigned_at": "2022-06-30"},
+    {"id": "a5", "employee_id": 42, "skill_id": "sk4", "level": 2, "certified_until": "2027-03-15", "notes": "", "assigned_at": "2024-03-15"},
+    {"id": "a6", "employee_id": 42, "skill_id": "sk6", "level": 3, "certified_until": null, "notes": "", "assigned_at": "2023-09-01"},
+    {"id": "a7", "employee_id": 43, "skill_id": "sk2", "level": 2, "certified_until": "2026-08-01", "notes": "", "assigned_at": "2024-08-01"},
+    {"id": "a8", "employee_id": 43, "skill_id": "sk5", "level": 1, "certified_until": null, "notes": "Nur Kran Typ A", "assigned_at": "2023-04-10"},
+    {"id": "a9", "employee_id": 43, "skill_id": "sk8", "level": 2, "certified_until": null, "notes": "", "assigned_at": "2024-01-01"},
+    {"id": "a10", "employee_id": 44, "skill_id": "sk1", "level": 3, "certified_until": "2027-01-01", "notes": "", "assigned_at": "2024-01-01"},
+    {"id": "a11", "employee_id": 44, "skill_id": "sk3", "level": 2, "certified_until": null, "notes": "", "assigned_at": "2023-11-01"},
+    {"id": "a12", "employee_id": 44, "skill_id": "sk6", "level": 2, "certified_until": null, "notes": "", "assigned_at": "2024-05-01"},
+    {"id": "a13", "employee_id": 44, "skill_id": "sk7", "level": 1, "certified_until": null, "notes": "", "assigned_at": "2024-02-01"},
+    {"id": "a14", "employee_id": 45, "skill_id": "sk4", "level": 3, "certified_until": "2028-06-01", "notes": "", "assigned_at": "2023-06-01"},
+    {"id": "a15", "employee_id": 45, "skill_id": "sk2", "level": 1, "certified_until": "2026-05-01", "notes": "", "assigned_at": "2024-05-01"},
+    {"id": "a16", "employee_id": 46, "skill_id": "sk8", "level": 3, "certified_until": null, "notes": "Muttersprachler", "assigned_at": "2022-01-01"},
+    {"id": "a17", "employee_id": 46, "skill_id": "sk7", "level": 3, "certified_until": null, "notes": "", "assigned_at": "2023-03-01"},
+    {"id": "a18", "employee_id": 47, "skill_id": "sk1", "level": 2, "certified_until": "2026-11-30", "notes": "", "assigned_at": "2024-11-30"},
+    {"id": "a19", "employee_id": 47, "skill_id": "sk6", "level": 1, "certified_until": null, "notes": "", "assigned_at": "2024-07-01"}
+  ]
+}
