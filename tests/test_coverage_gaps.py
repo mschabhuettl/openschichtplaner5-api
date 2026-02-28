@@ -1,5 +1,4 @@
 """Tests targeting coverage gaps in events, misc, and reports routers."""
-import pytest
 import secrets
 from starlette.testclient import TestClient
 
@@ -65,7 +64,7 @@ class TestEventsBroadcast:
         # and that the endpoint is registered (accessible with auth)
         tok = _inject_token('Leser', 'sse_user')
         try:
-            from api.routers.events import broadcast, _subscribers
+            from api.routers.events import broadcast
             # Just verify broadcast works with no subs
             broadcast("test", {"key": "value"})
             # Verify auth check works (no token → 401 already tested)

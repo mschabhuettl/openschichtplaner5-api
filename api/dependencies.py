@@ -60,6 +60,9 @@ _sessions: dict[str, dict] = {}
 # Token lifetime
 _TOKEN_EXPIRE_HOURS = float(os.environ.get('TOKEN_EXPIRE_HOURS', '8'))
 
+# Max concurrent sessions per user (prevents session flooding)
+_MAX_SESSIONS_PER_USER = int(os.environ.get('MAX_SESSIONS_PER_USER', '10'))
+
 # Brute-force tracking
 _failed_logins: dict[str, list] = {}
 _LOCKOUT_WINDOW = 15 * 60
@@ -145,6 +148,30 @@ def invalidate_sessions_for_user(user_id: int) -> int:
     for tok in to_remove:
         del _sessions[tok]
     return len(to_remove)
+
+
+def purge_expired_sessions() -> int:
+    """Remove all expired sessions from the in-memory store. Returns count removed."""
+    now = _time.time()
+    to_remove = [
+        tok for tok, s in list(_sessions.items())
+        if s.get('expires_at') is not None and now > s['expires_at']
+    ]
+    for tok in to_remove:
+        _sessions.pop(tok, None)
+    return len(to_remove)
+
+
+def purge_stale_failed_logins() -> int:
+    """Remove username entries whose timestamps have all expired. Returns count removed."""
+    now = _time.time()
+    stale = [
+        uname for uname, timestamps in list(_failed_logins.items())
+        if not any(now - t < _LOCKOUT_WINDOW for t in timestamps)
+    ]
+    for uname in stale:
+        _failed_logins.pop(uname, None)
+    return len(stale)
 
 
 def _sanitize_500(e: Exception, context: str = '') -> HTTPException:

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional
 from ..dependencies import (
     get_db, require_admin, _sanitize_500, _logger, _sessions, _failed_logins, _LOCKOUT_WINDOW,
-    _LOCKOUT_MAX, _TOKEN_EXPIRE_HOURS, limiter, invalidate_sessions_for_user,
+    _LOCKOUT_MAX, _TOKEN_EXPIRE_HOURS, _MAX_SESSIONS_PER_USER, limiter, invalidate_sessions_for_user,
 )
 
 router = APIRouter()
@@ -156,6 +156,19 @@ def login(request: Request, body: LoginBody):
     # Successful login: clear failed attempts
     _failed_logins.pop(username, None)
     _logger.info("AUTH LOGIN_OK | ip=%s username=%s", client_ip, username)
+
+    # Enforce max concurrent sessions per user (evict oldest if over limit)
+    user_id = user.get('ID')
+    user_sessions = [(tok, s) for tok, s in _sessions.items() if s.get('ID') == user_id]
+    if len(user_sessions) >= _MAX_SESSIONS_PER_USER:
+        # Sort by expires_at ascending, remove oldest
+        user_sessions.sort(key=lambda x: x[1].get('expires_at') or 0)
+        for tok, _ in user_sessions[:len(user_sessions) - _MAX_SESSIONS_PER_USER + 1]:
+            _sessions.pop(tok, None)
+        _logger.warning(
+            "AUTH SESSION_LIMIT | username=%s evicted=%d", username,
+            len(user_sessions) - _MAX_SESSIONS_PER_USER + 1
+        )
 
     # Generate a session token with expiry
     token = secrets.token_hex(32)

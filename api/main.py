@@ -31,6 +31,8 @@ from .dependencies import (  # noqa: E402
     get_db,
     _logger,
     limiter,
+    purge_expired_sessions,
+    purge_stale_failed_logins,
 )
 
 # ── Dev-mode session ────────────────────────────────────────────
@@ -69,8 +71,23 @@ _OPENAPI_TAGS = [
     {"name": "Notes", "description": "Shift notes and handover entries"},
 ]
 
+async def _periodic_cleanup():
+    """Background task: purge expired sessions and stale failed-login entries every 5 minutes."""
+    import asyncio
+    while True:
+        await asyncio.sleep(300)
+        try:
+            sess = purge_expired_sessions()
+            logins = purge_stale_failed_logins()
+            if sess or logins:
+                _logger.debug("Periodic cleanup: removed %d expired sessions, %d stale lockout entries", sess, logins)
+        except Exception as _exc:  # pragma: no cover
+            _logger.warning("Periodic cleanup error: %s", _exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
     # Auto-backup on startup (only if last backup > 24h old)
     try:
         from .routers.admin import create_auto_backup
@@ -79,7 +96,10 @@ async def lifespan(app: FastAPI):
             _logger.info("Startup auto-backup: %s", created)
     except Exception as _exc:
         _logger.warning("Startup auto-backup failed: %s", _exc)
+    # Start background cleanup task
+    cleanup_task = asyncio.create_task(_periodic_cleanup())
     yield
+    cleanup_task.cancel()
     _logger.info("SP5 API shutting down — cleaning up resources")
 
 
