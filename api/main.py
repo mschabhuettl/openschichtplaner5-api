@@ -166,7 +166,29 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ── Public paths (no auth required) ────────────────────────────
-_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '/api/version', '/'}
+_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '/api/version', '/', '/api/errors'}
+
+
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next):
+    """Log every request as structured JSON with timing info."""
+    import time as _t
+    start = _t.time()
+    response = await call_next(request)
+    duration_ms = round((_t.time() - start) * 1000)
+    token = request.headers.get('x-auth-token') or request.query_params.get('token')
+    user = _sessions.get(token, {}).get('NAME', '-') if token else '-'
+    entry = {
+        "timestamp": __import__('datetime').datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+        "method": request.method,
+        "path": request.url.path,
+        "status": response.status_code,
+        "duration_ms": duration_ms,
+        "user": user,
+    }
+    import json as _json_mod
+    _logger.info(_json_mod.dumps(entry, ensure_ascii=False))
+    return response
 
 
 @app.middleware("http")
@@ -324,6 +346,50 @@ def health():
     except Exception as exc:
         db_status = "error"
         db_details = {"error": str(exc)[:120]}
+
+    # Cache status
+    cache_info: dict = {}
+    try:
+        from sp5lib.cache import get_cache_stats
+        cache_info = get_cache_stats()
+    except Exception:
+        try:
+            from sp5lib.database import _cache as _dbf_cache
+            cache_info = {"entries": len(_dbf_cache) if hasattr(_dbf_cache, '__len__') else -1}
+        except Exception:
+            cache_info = {}
+
+    # Last 10 errors from log file
+    recent_errors: list = []
+    try:
+        import json as _j
+        from .dependencies import SP5_LOG_FILE
+        with open(SP5_LOG_FILE, 'r', encoding='utf-8', errors='replace') as _lf:
+            lines = _lf.readlines()
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = _j.loads(line)
+            except Exception:
+                continue
+            if entry.get('level') in ('ERROR', 'WARNING'):
+                recent_errors.append(entry)
+            if len(recent_errors) >= 10:
+                break
+        recent_errors = list(reversed(recent_errors))
+    except Exception:
+        pass
+
+    # Frontend error count
+    fe_count = 0
+    try:
+        from .routers.admin import _load_frontend_errors
+        fe_count = len(_load_frontend_errors())
+    except Exception:
+        pass
+
     return {
         "status": "ok",
         "version": _API_VERSION,
@@ -332,6 +398,9 @@ def health():
             "status": db_status,
             **db_details,
         },
+        "cache": cache_info,
+        "frontend_errors_count": fe_count,
+        "recent_errors": recent_errors,
     }
 
 

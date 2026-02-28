@@ -15,20 +15,41 @@ from sp5lib.database import SP5Database
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-# ── Logging setup ───────────────────────────────────────────────
+# ── Structured JSON Logging setup ───────────────────────────────
+import json as _json
+from datetime import datetime as _dt
+
+class _JsonFormatter(logging.Formatter):
+    """Emit log records as single-line JSON objects."""
+    def format(self, record: logging.LogRecord) -> str:
+        entry = {
+            "timestamp": _dt.utcfromtimestamp(record.created).strftime('%Y-%m-%dT%H:%M:%S.') + f"{int(record.msecs):03d}Z",
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            entry["exc"] = self.formatException(record.exc_info)
+        return _json.dumps(entry, ensure_ascii=False)
+
 _log_file = '/tmp/sp5-api.log'
 _handler = logging.handlers.RotatingFileHandler(
     _log_file, maxBytes=10 * 1024 * 1024, backupCount=3
 )
-_handler.setFormatter(logging.Formatter(
-    '%(asctime)s %(levelname)s %(name)s %(message)s'
-))
+_handler.setFormatter(_JsonFormatter())
+
 _logger = logging.getLogger('sp5api')
-_logger.setLevel(logging.INFO)
+# Log level configurable via ENV
+_log_level_str = os.environ.get('SP5_LOG_LEVEL', 'INFO').upper()
+_log_level = getattr(logging, _log_level_str, logging.INFO)
+_logger.setLevel(_log_level)
 _logger.addHandler(_handler)
 _stderr_handler = logging.StreamHandler()
-_stderr_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+_stderr_handler.setFormatter(_JsonFormatter())
 _logger.addHandler(_stderr_handler)
+
+# Keep reference to log file path for health endpoint
+SP5_LOG_FILE = _log_file
 
 # ── Rate Limiter ─────────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])

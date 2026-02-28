@@ -1,0 +1,10 @@
+[
+  {
+    "timestamp": "2026-02-28T12:00:00Z",
+    "error": "Test error from curl",
+    "component_stack": null,
+    "url": "http://localhost:5173/dashboard",
+    "user_agent": null,
+    "client_ip": "127.0.0.1"
+  }
+]

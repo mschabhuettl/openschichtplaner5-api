@@ -459,3 +459,59 @@ def compact_database(_cur_user: dict = Depends(require_admin)):
         'total_records_removed': total_removed,
         'details': results,
     }
+
+
+# ── Frontend Error Reporting ──────────────────────────────────
+
+_FRONTEND_ERRORS_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'frontend_errors.json')
+
+def _load_frontend_errors() -> list:
+    os.makedirs(os.path.dirname(_FRONTEND_ERRORS_FILE), exist_ok=True)
+    if not os.path.exists(_FRONTEND_ERRORS_FILE):
+        return []
+    with open(_FRONTEND_ERRORS_FILE, 'r', encoding='utf-8') as f:
+        try:
+            return json.load(f)
+        except Exception:
+            return []
+
+def _save_frontend_errors(errors: list):
+    os.makedirs(os.path.dirname(_FRONTEND_ERRORS_FILE), exist_ok=True)
+    with open(_FRONTEND_ERRORS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(errors, f, ensure_ascii=False, indent=2)
+
+
+class FrontendErrorReport(BaseModel):
+    error: str
+    component_stack: Optional[str] = None
+    url: Optional[str] = None
+    user_agent: Optional[str] = None
+    timestamp: Optional[str] = None
+
+
+@router.post("/api/errors", tags=["Health"], summary="Report frontend error")
+def report_frontend_error(body: FrontendErrorReport, request: Request):
+    """Receive a frontend error report and store it."""
+    errors = _load_frontend_errors()
+    entry = {
+        "timestamp": body.timestamp or __import__('datetime').datetime.utcnow().isoformat() + 'Z',
+        "error": body.error,
+        "component_stack": body.component_stack,
+        "url": body.url,
+        "user_agent": body.user_agent,
+        "client_ip": request.client.host if request.client else 'unknown',
+    }
+    errors.append(entry)
+    # Keep last 500 errors
+    if len(errors) > 500:
+        errors = errors[-500:]
+    _save_frontend_errors(errors)
+    _logger.warning("Frontend error reported: %s", body.error[:200])
+    return {"ok": True}
+
+
+@router.get("/api/admin/frontend-errors", tags=["Health"], summary="List frontend errors (Admin)")
+def get_frontend_errors(_cur_user: dict = Depends(require_admin)):
+    """Return all stored frontend errors."""
+    errors = _load_frontend_errors()
+    return {"count": len(errors), "errors": errors[-100:]}  # last 100
