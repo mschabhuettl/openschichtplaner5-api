@@ -84,6 +84,52 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
         raise _sanitize_500(e)
 
 
+# ── Bulk Absence ──────────────────────────────────────────────
+
+class BulkAbsenceCreate(BaseModel):
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$', description="Datum (YYYY-MM-DD)")
+    leave_type_id: int = Field(..., gt=0)
+    employee_ids: Optional[List[int]] = Field(None, description="Bestimmte MA-IDs; None = alle aktiven MA")
+
+    @field_validator('date')
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        from datetime import datetime as _dtt
+        try:
+            _dtt.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError("Datum muss ein gültiges Datum im Format YYYY-MM-DD sein")
+        return v
+
+
+@router.post("/api/absences/bulk", tags=["Absences"], summary="Bulk absence: add absence for multiple employees")
+def bulk_create_absence(body: BulkAbsenceCreate, _cur_user: dict = Depends(require_planer)):
+    """Add an absence entry for multiple employees (or all active) on one date."""
+    db = get_db()
+    if db.get_leave_type(body.leave_type_id) is None:
+        raise HTTPException(status_code=404, detail=f"Abwesenheitstyp {body.leave_type_id} nicht gefunden")
+
+    if body.employee_ids:
+        employees = [db.get_employee(eid) for eid in body.employee_ids]
+        employees = [e for e in employees if e is not None]
+    else:
+        employees = db.get_employees(include_hidden=False)
+
+    results = {"ok": True, "created": 0, "skipped": 0, "errors": []}
+    for emp in employees:
+        try:
+            db.add_absence(emp['ID'], body.date, body.leave_type_id)
+            broadcast("absence_changed", {"employee_id": emp['ID'], "date": body.date})
+            results["created"] += 1
+        except ValueError:
+            # Already exists – skip silently
+            results["skipped"] += 1
+        except Exception as e:
+            results["errors"].append({"id": emp['ID'], "error": str(e)})
+
+    return results
+
+
 # ── Leave Entitlements ────────────────────────────────────────
 
 @router.get("/api/leave-entitlements")

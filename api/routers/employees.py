@@ -371,3 +371,53 @@ async def upload_employee_photo(emp_id: int, file: UploadFile = File(...)):
         pass  # best effort
 
     return {"ok": True, "photo_url": f"/api/employees/{emp_id}/photo", "path": rel_path}
+
+
+# ── Bulk Operations ─────────────────────────────────────────
+
+class BulkEmployeeAction(BaseModel):
+    employee_ids: List[int] = Field(..., min_length=1, description="Liste von Mitarbeiter-IDs")
+    action: str = Field(..., description="'hide', 'show', 'assign_group', 'remove_group'")
+    group_id: Optional[int] = Field(None, description="Ziel-Gruppe für assign_group/remove_group")
+
+
+@router.post("/api/employees/bulk", tags=["Employees"], summary="Bulk employee actions")
+def bulk_employee_action(body: BulkEmployeeAction, _cur_user: dict = Depends(require_admin)):
+    """Bulk operations: hide/show employees or assign/remove them from a group."""
+    db = get_db()
+    results = {"ok": True, "affected": 0, "errors": []}
+
+    if body.action in ('hide', 'show'):
+        hide_val = body.action == 'hide'
+        for emp_id in body.employee_ids:
+            try:
+                db.update_employee(emp_id, {'HIDE': hide_val})
+                results["affected"] += 1
+            except Exception as e:
+                results["errors"].append({"id": emp_id, "error": str(e)})
+
+    elif body.action == 'assign_group':
+        if not body.group_id:
+            raise HTTPException(status_code=400, detail="group_id erforderlich für assign_group")
+        for emp_id in body.employee_ids:
+            try:
+                # add_group_member is idempotent (ignore duplicate)
+                db.add_group_member(body.group_id, emp_id)
+                results["affected"] += 1
+            except Exception as e:
+                results["errors"].append({"id": emp_id, "error": str(e)})
+
+    elif body.action == 'remove_group':
+        if not body.group_id:
+            raise HTTPException(status_code=400, detail="group_id erforderlich für remove_group")
+        for emp_id in body.employee_ids:
+            try:
+                db.remove_group_member(body.group_id, emp_id)
+                results["affected"] += 1
+            except Exception as e:
+                results["errors"].append({"id": emp_id, "error": str(e)})
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unbekannte Aktion: {body.action}")
+
+    return results
