@@ -656,19 +656,24 @@ def get_dashboard_upcoming():
 # ── Dashboard: Stats ──────────────────────────────────────────
 
 @app.get("/api/dashboard/stats")
-def get_dashboard_stats():
+def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None):
     """Return key statistics: total employees, active shifts this month, vacation days used."""
     from datetime import date
     import calendar as _cal
+    from datetime import datetime as _dt
     db = get_db()
     today = date.today()
+
+    # Use requested year/month or fall back to today
+    req_year = year if year else today.year
+    req_month = month if month else today.month
 
     # Total employees
     employees = db.get_employees(include_hidden=False)
     total_employees = len(employees)
 
-    # Active shifts (distinct shifts used in MASHI for current month)
-    year_str = f"{today.year:04d}-{today.month:02d}"
+    # Active shifts (distinct shifts used in MASHI for requested month)
+    year_str = f"{req_year:04d}-{req_month:02d}"
     shifts_used_ids = set()
     shifts_this_month = 0
     for r in db._read('MASHI'):
@@ -682,16 +687,15 @@ def get_dashboard_stats():
     lt_map = {lt['ID']: lt for lt in db.get_leave_types(include_hidden=True)}
     vacation_ids = {lt_id for lt_id, lt in lt_map.items() if lt.get('ENTITLED')}
 
-    year_prefix = str(today.year)
+    year_prefix = str(req_year)
     vacation_days_used = sum(
         1 for r in db._read('ABSEN')
         if r.get('DATE', '').startswith(year_prefix)
         and r.get('LEAVETYPID') in vacation_ids
     )
 
-    # Coverage bars: per day of current month
-    num_days = _cal.monthrange(today.year, today.month)[1]
-    # Count employees scheduled per day
+    # Coverage bars: per day of requested month
+    num_days = _cal.monthrange(req_year, req_month)[1]
     day_counts: dict = {d: 0 for d in range(1, num_days + 1)}
     for r in db._read('MASHI'):
         d = r.get('DATE', '')
@@ -705,10 +709,9 @@ def get_dashboard_stats():
     coverage_by_day = []
     for day_num in range(1, num_days + 1):
         try:
-            from datetime import datetime as _dt
-            wd = _dt(today.year, today.month, day_num).weekday()
+            wd = _dt(req_year, req_month, day_num).weekday()
             is_weekend = wd >= 5
-            is_today = day_num == today.day
+            is_today = (req_year == today.year and req_month == today.month and day_num == today.day)
             coverage_by_day.append({
                 'day': day_num,
                 'count': day_counts.get(day_num, 0),
@@ -719,14 +722,33 @@ def get_dashboard_stats():
         except ValueError:
             pass
 
+    # Employee shift ranking for the month (top/bottom performers)
+    try:
+        stats = db.get_statistics(req_year, req_month)
+        emp_ranking = []
+        for s in stats:
+            emp_ranking.append({
+                'employee_id': s.get('employee_id', 0),
+                'employee_name': s.get('employee_name', ''),
+                'employee_short': s.get('employee_short', ''),
+                'shifts_count': s.get('shifts_count', 0),
+                'actual_hours': round(s.get('actual_hours', 0), 1),
+                'target_hours': round(s.get('target_hours', 0), 1),
+                'overtime_hours': round(s.get('overtime_hours', 0), 1),
+            })
+        emp_ranking.sort(key=lambda x: -x['shifts_count'])
+    except Exception:
+        emp_ranking = []
+
     return {
         'total_employees': total_employees,
         'shifts_this_month': shifts_this_month,
         'active_shift_types': len(shifts_used_ids),
         'vacation_days_used': vacation_days_used,
         'coverage_by_day': coverage_by_day,
-        'month': today.month,
-        'year': today.year,
+        'month': req_month,
+        'year': req_year,
+        'employee_ranking': emp_ranking,
     }
 
 
