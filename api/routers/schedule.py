@@ -3,7 +3,7 @@ import re
 import json
 from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request, Body
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, require_role,
@@ -382,18 +382,24 @@ def apply_template(template_id: int, body: TemplateApplyRequest, _cur_user: dict
 
 # ── Write: schedule entry ────────────────────────────────────
 class ScheduleEntryCreate(BaseModel):
-    employee_id: int
-    date: str
-    shift_id: int
+    employee_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    shift_id: int = Field(..., gt=0)
+
+    @field_validator('date')
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        from datetime import datetime as _dtt
+        try:
+            _dtt.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError("Datum muss ein gültiges Datum im Format YYYY-MM-DD sein")
+        return v
 
 
 @router.post("/api/schedule", tags=["Schedule"], summary="Add schedule entry", description="Assign a shift to an employee on a specific date. Requires Planer role.")
 def create_schedule_entry(body: ScheduleEntryCreate, _cur_user: dict = Depends(require_planer)):
-    try:
-        from datetime import datetime
-        datetime.strptime(body.date, '%Y-%m-%d')
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    # Date validation handled by Pydantic model
     db = get_db()
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden")

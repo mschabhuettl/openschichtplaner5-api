@@ -3,7 +3,7 @@ import os
 import re
 from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request, UploadFile, File
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, require_role,
@@ -47,107 +47,143 @@ def get_group_members(group_id: int):
 
 # ── Write: Employees ─────────────────────────────────────────
 
+_DATE_PATTERN = r'^\d{4}-\d{2}-\d{2}$'
+
+
+def _validate_date_field(v: str, field_name: str) -> str:
+    """Validate optional date string is YYYY-MM-DD if non-empty."""
+    if v:
+        import re as _re
+        from datetime import datetime as _dtt
+        if not _re.match(_DATE_PATTERN, v):
+            raise ValueError(f"'{field_name}' muss im Format YYYY-MM-DD sein")
+        try:
+            _dtt.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError(f"'{field_name}' ist kein gültiges Datum")
+    return v
+
+
 class EmployeeCreate(BaseModel):
-    NAME: str
-    FIRSTNAME: str = ''
-    SHORTNAME: str = ''
-    NUMBER: str = ''
-    SEX: int = 0
-    HRSDAY: float = 0.0
-    HRSWEEK: float = 0.0
-    HRSMONTH: float = 0.0
-    HRSTOTAL: float = 0.0
-    WORKDAYS: str = '1 1 1 1 1 0 0 0'
+    NAME: str = Field(..., min_length=1, max_length=100, description="Nachname (Pflichtfeld)")
+    FIRSTNAME: str = Field('', max_length=100)
+    SHORTNAME: str = Field('', max_length=20)
+    NUMBER: str = Field('', max_length=20)
+    SEX: int = Field(0, ge=0, le=2)
+    HRSDAY: float = Field(0.0, ge=0.0, le=24.0)
+    HRSWEEK: float = Field(0.0, ge=0.0, le=168.0)
+    HRSMONTH: float = Field(0.0, ge=0.0, le=744.0)
+    HRSTOTAL: float = Field(0.0, ge=0.0)
+    WORKDAYS: str = Field('1 1 1 1 1 0 0 0', max_length=20)
     HIDE: bool = False
-    BOLD: int = 0
+    BOLD: int = Field(0, ge=0, le=1)
     # Personal data
-    SALUTATION: str = ''
-    STREET: str = ''
-    ZIP: str = ''
-    TOWN: str = ''
-    PHONE: str = ''
-    EMAIL: str = ''
-    FUNCTION: str = ''
-    BIRTHDAY: str = ''
-    EMPSTART: str = ''
-    EMPEND: str = ''
+    SALUTATION: str = Field('', max_length=50)
+    STREET: str = Field('', max_length=200)
+    ZIP: str = Field('', max_length=20)
+    TOWN: str = Field('', max_length=100)
+    PHONE: str = Field('', max_length=50)
+    EMAIL: str = Field('', max_length=200)
+    FUNCTION: str = Field('', max_length=100)
+    BIRTHDAY: str = Field('', max_length=10)
+    EMPSTART: str = Field('', max_length=10)
+    EMPEND: str = Field('', max_length=10)
     # Calculation settings
-    CALCBASE: int = 0
-    DEDUCTHOL: int = 0
+    CALCBASE: int = Field(0, ge=0)
+    DEDUCTHOL: int = Field(0, ge=0, le=1)
     # Free text fields
-    NOTE1: str = ''
-    NOTE2: str = ''
-    NOTE3: str = ''
-    NOTE4: str = ''
-    ARBITR1: str = ''
-    ARBITR2: str = ''
-    ARBITR3: str = ''
+    NOTE1: str = Field('', max_length=500)
+    NOTE2: str = Field('', max_length=500)
+    NOTE3: str = Field('', max_length=500)
+    NOTE4: str = Field('', max_length=500)
+    ARBITR1: str = Field('', max_length=200)
+    ARBITR2: str = Field('', max_length=200)
+    ARBITR3: str = Field('', max_length=200)
     # Colors (BGR int: 0=black, 16777215=white)
-    CFGLABEL: Optional[int] = None
-    CBKLABEL: Optional[int] = None
-    CBKSCHED: Optional[int] = None
+    CFGLABEL: Optional[int] = Field(None, ge=0, le=16777215)
+    CBKLABEL: Optional[int] = Field(None, ge=0, le=16777215)
+    CBKSCHED: Optional[int] = Field(None, ge=0, le=16777215)
+
+    @field_validator('NAME')
+    @classmethod
+    def name_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("NAME darf nicht leer sein")
+        return v
+
+    @field_validator('BIRTHDAY', 'EMPSTART', 'EMPEND', mode='before')
+    @classmethod
+    def validate_dates(cls, v):
+        if v is None:
+            return ''
+        return _validate_date_field(str(v), 'Datum')
+
+    @model_validator(mode='after')
+    def empend_after_empstart(self) -> 'EmployeeCreate':
+        if self.EMPSTART and self.EMPEND and self.EMPEND < self.EMPSTART:
+            raise ValueError("EMPEND muss >= EMPSTART sein")
+        return self
 
 
 class EmployeeUpdate(BaseModel):
-    NAME: Optional[str] = None
-    FIRSTNAME: Optional[str] = None
-    SHORTNAME: Optional[str] = None
-    NUMBER: Optional[str] = None
-    SEX: Optional[int] = None
-    HRSDAY: Optional[float] = None
-    HRSWEEK: Optional[float] = None
-    HRSMONTH: Optional[float] = None
-    HRSTOTAL: Optional[float] = None
-    WORKDAYS: Optional[str] = None
+    NAME: Optional[str] = Field(None, min_length=1, max_length=100)
+    FIRSTNAME: Optional[str] = Field(None, max_length=100)
+    SHORTNAME: Optional[str] = Field(None, max_length=20)
+    NUMBER: Optional[str] = Field(None, max_length=20)
+    SEX: Optional[int] = Field(None, ge=0, le=2)
+    HRSDAY: Optional[float] = Field(None, ge=0.0, le=24.0)
+    HRSWEEK: Optional[float] = Field(None, ge=0.0, le=168.0)
+    HRSMONTH: Optional[float] = Field(None, ge=0.0, le=744.0)
+    HRSTOTAL: Optional[float] = Field(None, ge=0.0)
+    WORKDAYS: Optional[str] = Field(None, max_length=20)
     HIDE: Optional[bool] = None
-    BOLD: Optional[int] = None
+    BOLD: Optional[int] = Field(None, ge=0, le=1)
     POSITION: Optional[int] = None
     # Personal data
-    SALUTATION: Optional[str] = None
-    STREET: Optional[str] = None
-    ZIP: Optional[str] = None
-    TOWN: Optional[str] = None
-    PHONE: Optional[str] = None
-    EMAIL: Optional[str] = None
-    FUNCTION: Optional[str] = None
-    BIRTHDAY: Optional[str] = None
-    EMPSTART: Optional[str] = None
-    EMPEND: Optional[str] = None
+    SALUTATION: Optional[str] = Field(None, max_length=50)
+    STREET: Optional[str] = Field(None, max_length=200)
+    ZIP: Optional[str] = Field(None, max_length=20)
+    TOWN: Optional[str] = Field(None, max_length=100)
+    PHONE: Optional[str] = Field(None, max_length=50)
+    EMAIL: Optional[str] = Field(None, max_length=200)
+    FUNCTION: Optional[str] = Field(None, max_length=100)
+    BIRTHDAY: Optional[str] = Field(None, max_length=10)
+    EMPSTART: Optional[str] = Field(None, max_length=10)
+    EMPEND: Optional[str] = Field(None, max_length=10)
     # Calculation settings
-    CALCBASE: Optional[int] = None
-    DEDUCTHOL: Optional[int] = None
+    CALCBASE: Optional[int] = Field(None, ge=0)
+    DEDUCTHOL: Optional[int] = Field(None, ge=0, le=1)
     # Free text fields
-    NOTE1: Optional[str] = None
-    NOTE2: Optional[str] = None
-    NOTE3: Optional[str] = None
-    NOTE4: Optional[str] = None
-    ARBITR1: Optional[str] = None
-    ARBITR2: Optional[str] = None
-    ARBITR3: Optional[str] = None
+    NOTE1: Optional[str] = Field(None, max_length=500)
+    NOTE2: Optional[str] = Field(None, max_length=500)
+    NOTE3: Optional[str] = Field(None, max_length=500)
+    NOTE4: Optional[str] = Field(None, max_length=500)
+    ARBITR1: Optional[str] = Field(None, max_length=200)
+    ARBITR2: Optional[str] = Field(None, max_length=200)
+    ARBITR3: Optional[str] = Field(None, max_length=200)
     # Colors (BGR int)
-    CFGLABEL: Optional[int] = None
-    CBKLABEL: Optional[int] = None
-    CBKSCHED: Optional[int] = None
+    CFGLABEL: Optional[int] = Field(None, ge=0, le=16777215)
+    CBKLABEL: Optional[int] = Field(None, ge=0, le=16777215)
+    CBKSCHED: Optional[int] = Field(None, ge=0, le=16777215)
+
+    @field_validator('NAME')
+    @classmethod
+    def name_not_blank(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.strip():
+            raise ValueError("NAME darf nicht leer sein")
+        return v
+
+    @field_validator('BIRTHDAY', 'EMPSTART', 'EMPEND', mode='before')
+    @classmethod
+    def validate_dates(cls, v):
+        if v is None or v == '':
+            return v
+        return _validate_date_field(str(v), 'Datum')
 
 
 @router.post("/api/employees", tags=["Employees"], summary="Create employee", description="Create a new employee record. Requires Admin role.")
 def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admin)):
-    if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
-    if body.HRSDAY is not None and body.HRSDAY < 0:
-        raise HTTPException(status_code=400, detail="Feld 'HRSDAY' darf nicht negativ sein")
-    if body.HRSWEEK is not None and body.HRSWEEK < 0:
-        raise HTTPException(status_code=400, detail="Feld 'HRSWEEK' darf nicht negativ sein")
-    if body.HRSMONTH is not None and body.HRSMONTH < 0:
-        raise HTTPException(status_code=400, detail="Feld 'HRSMONTH' darf nicht negativ sein")
-    # Validate optional date fields
-    for field_name, val in [('BIRTHDAY', body.BIRTHDAY), ('EMPSTART', body.EMPSTART), ('EMPEND', body.EMPEND)]:
-        if val:
-            try:
-                from datetime import datetime as _dtt
-                _dtt.strptime(val, '%Y-%m-%d')
-            except ValueError:
-                raise HTTPException(status_code=400, detail=f"Feld '{field_name}' muss im Format YYYY-MM-DD sein")
+    # Validation handled by Pydantic Field constraints and validators
     try:
         result = get_db().create_employee(body.model_dump())
         return {"ok": True, "record": result}
@@ -163,19 +199,8 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
 @router.put("/api/employees/{emp_id}", tags=["Employees"], summary="Update employee", description="Update an existing employee. Requires Admin role.")
 def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends(require_admin)):
     try:
+        # Validation handled by Pydantic Field constraints and validators
         data = {k: v for k, v in body.model_dump().items() if v is not None}
-        # Validate negative hours if provided
-        for field in ('HRSDAY', 'HRSWEEK', 'HRSMONTH', 'HRSTOTAL'):
-            if field in data and data[field] < 0:
-                raise HTTPException(status_code=400, detail=f"Feld '{field}' darf nicht negativ sein")
-        # Validate date fields if provided
-        for field in ('BIRTHDAY', 'EMPSTART', 'EMPEND'):
-            if field in data and data[field]:
-                try:
-                    from datetime import datetime as _dtt
-                    _dtt.strptime(data[field], '%Y-%m-%d')
-                except ValueError:
-                    raise HTTPException(status_code=400, detail=f"Feld '{field}' muss im Format YYYY-MM-DD sein")
         result = get_db().update_employee(emp_id, data)
         return {"ok": True, "record": result}
     except HTTPException:

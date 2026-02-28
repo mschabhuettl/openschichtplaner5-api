@@ -4,7 +4,7 @@ import re
 import json
 from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import date, timedelta
 from ..dependencies import (
@@ -33,9 +33,19 @@ def delete_absence_only(employee_id: int, date: str, _cur_user: dict = Depends(r
 
 # ── Write: absence ───────────────────────────────────────────
 class AbsenceCreate(BaseModel):
-    employee_id: int
-    date: str
-    leave_type_id: int
+    employee_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    leave_type_id: int = Field(..., gt=0)
+
+    @field_validator('date')
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        from datetime import datetime as _dtt
+        try:
+            _dtt.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError("Datum muss ein gültiges Datum im Format YYYY-MM-DD sein")
+        return v
 
 
 @router.get("/api/absences", tags=["Absences"], summary="List absences", description="Return absence entries, optionally filtered by year, employee, or leave type.")
@@ -56,11 +66,7 @@ def get_all_group_assignments():
 
 @router.post("/api/absences", tags=["Absences"], summary="Create absence", description="Add an absence entry for an employee on a date. Requires Planer role.")
 def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer)):
-    try:
-        from datetime import datetime
-        datetime.strptime(body.date, '%Y-%m-%d')
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
+    # Date validation handled by Pydantic model
     db = get_db()
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden")
@@ -86,11 +92,11 @@ def get_leave_entitlements(
 
 
 class LeaveEntitlementCreate(BaseModel):
-    employee_id: int
-    year: int
-    days: float
-    carry_forward: Optional[float] = 0
-    leave_type_id: Optional[int] = 0
+    employee_id: int = Field(..., gt=0)
+    year: int = Field(..., ge=2000, le=2100, description="Urlaubsjahr")
+    days: float = Field(..., ge=0, le=366, description="Urlaubsanspruch in Tagen")
+    carry_forward: Optional[float] = Field(0, ge=0, le=366)
+    leave_type_id: Optional[int] = Field(0, ge=0)
 
 
 @router.post("/api/leave-entitlements")
@@ -134,22 +140,31 @@ def get_holiday_bans(
 
 
 class HolidayBanCreate(BaseModel):
-    group_id: int
-    start_date: str
-    end_date: str
-    reason: Optional[str] = ''
+    group_id: int = Field(..., gt=0)
+    start_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    end_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    reason: Optional[str] = Field('', max_length=500)
+
+    @field_validator('start_date', 'end_date')
+    @classmethod
+    def validate_dates(cls, v: str) -> str:
+        from datetime import datetime as _dtt
+        try:
+            _dtt.strptime(v, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError("Datum muss ein gültiges Datum im Format YYYY-MM-DD sein")
+        return v
+
+    @model_validator(mode='after')
+    def end_after_start(self) -> 'HolidayBanCreate':
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValueError("end_date muss >= start_date sein")
+        return self
 
 
 @router.post("/api/holiday-bans")
 def create_holiday_ban(body: HolidayBanCreate, _cur_user: dict = Depends(require_planer)):
-    try:
-        from datetime import datetime
-        datetime.strptime(body.start_date, '%Y-%m-%d')
-        datetime.strptime(body.end_date, '%Y-%m-%d')
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
-    if body.end_date < body.start_date:
-        raise HTTPException(status_code=400, detail="end_date must be >= start_date")
+    # Date validation and range check handled by Pydantic model
     try:
         result = get_db().create_holiday_ban(
             group_id=body.group_id,
