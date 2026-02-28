@@ -103,30 +103,192 @@ import zipfile
 from datetime import datetime as _backup_dt
 from fastapi.responses import StreamingResponse
 
+_BACKUP_ALLOWED_EXT = {'.DBF', '.FPT', '.CDX'}
+_BACKUP_MAX_COUNT = 7
+
+
+def _get_db_path() -> str:
+    return os.environ.get('SP5_DB_PATH', '')
+
+
+def _get_backup_dir() -> str:
+    db_path = _get_db_path()
+    if not db_path:
+        return ''
+    backup_dir = os.path.join(os.path.dirname(db_path), 'backups')
+    os.makedirs(backup_dir, exist_ok=True)
+    return backup_dir
+
+
+def _create_zip_bytes(db_path: str) -> bytes:
+    """Create a ZIP of all DBF/FPT/CDX files and return as bytes."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
+        for fname in sorted(os.listdir(db_path)):
+            ext = os.path.splitext(fname)[1].upper()
+            if ext in _BACKUP_ALLOWED_EXT:
+                full_path = os.path.join(db_path, fname)
+                if os.path.isfile(full_path):
+                    zf.write(full_path, arcname=fname)
+    return buf.getvalue()
+
+
+def _rotate_backups(backup_dir: str, max_count: int = _BACKUP_MAX_COUNT):
+    """Keep only the newest max_count backup files."""
+    files = sorted(
+        [f for f in os.listdir(backup_dir) if f.startswith('sp5_backup_') and f.endswith('.zip')],
+        reverse=True
+    )
+    for old in files[max_count:]:
+        try:
+            os.remove(os.path.join(backup_dir, old))
+            _logger.info("Rotated old backup: %s", old)
+        except Exception as e:
+            _logger.warning("Could not remove old backup %s: %s", old, e)
+
+
+def create_auto_backup() -> str | None:
+    """
+    Create an automatic backup if the last backup is older than 24h.
+    Returns the filename of the created backup, or None if skipped.
+    """
+    db_path = _get_db_path()
+    if not db_path or not os.path.isdir(db_path):
+        _logger.warning("Auto-backup: SP5_DB_PATH not set or not a directory, skipping.")
+        return None
+
+    backup_dir = _get_backup_dir()
+    if not backup_dir:
+        return None
+
+    # Check if last backup is younger than 24h
+    existing = sorted(
+        [f for f in os.listdir(backup_dir) if f.startswith('sp5_backup_') and f.endswith('.zip')],
+        reverse=True
+    )
+    if existing:
+        newest = existing[0]
+        newest_path = os.path.join(backup_dir, newest)
+        age_hours = (
+            _backup_dt.now() - _backup_dt.fromtimestamp(os.path.getmtime(newest_path))
+        ).total_seconds() / 3600
+        if age_hours < 24:
+            _logger.info("Auto-backup: last backup is %.1fh old, skipping.", age_hours)
+            return None
+
+    ts = _backup_dt.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"sp5_backup_{ts}.zip"
+    dest = os.path.join(backup_dir, filename)
+
+    try:
+        data = _create_zip_bytes(db_path)
+        with open(dest, 'wb') as f:
+            f.write(data)
+        _rotate_backups(backup_dir)
+        _logger.info("Auto-backup created: %s (%d bytes)", filename, len(data))
+        return filename
+    except Exception as e:
+        _logger.error("Auto-backup failed: %s", e)
+        return None
+
+
+@router.get("/api/admin/backups")
+def list_backups(_admin: dict = Depends(require_admin)):
+    """List all server-side backups. Admin only."""
+    backup_dir = _get_backup_dir()
+    if not backup_dir:
+        return {"backups": [], "backup_dir": None}
+
+    files = sorted(
+        [f for f in os.listdir(backup_dir) if f.startswith('sp5_backup_') and f.endswith('.zip')],
+        reverse=True
+    )
+
+    result = []
+    for fname in files:
+        fpath = os.path.join(backup_dir, fname)
+        try:
+            stat = os.stat(fpath)
+            result.append({
+                "filename": fname,
+                "size_bytes": stat.st_size,
+                "created_at": _backup_dt.fromtimestamp(stat.st_mtime).isoformat(),
+            })
+        except Exception:
+            pass
+
+    return {"backups": result, "backup_dir": backup_dir}
+
+
+@router.get("/api/admin/backups/{filename}/download")
+def download_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
+    """Download a specific saved backup by filename. Admin only."""
+    # Security: only allow safe filenames
+    if not filename.startswith('sp5_backup_') or not filename.endswith('.zip') or '/' in filename or '..' in filename:
+        raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
+
+    backup_dir = _get_backup_dir()
+    if not backup_dir:
+        raise HTTPException(status_code=500, detail="Backup-Verzeichnis nicht konfiguriert")
+
+    fpath = os.path.join(backup_dir, filename)
+    if not os.path.isfile(fpath):
+        raise HTTPException(status_code=404, detail="Backup nicht gefunden")
+
+    with open(fpath, 'rb') as f:
+        data = f.read()
+
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.delete("/api/admin/backups/{filename}")
+def delete_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
+    """Delete a specific saved backup. Admin only."""
+    if not filename.startswith('sp5_backup_') or not filename.endswith('.zip') or '/' in filename or '..' in filename:
+        raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
+
+    backup_dir = _get_backup_dir()
+    if not backup_dir:
+        raise HTTPException(status_code=500, detail="Backup-Verzeichnis nicht konfiguriert")
+
+    fpath = os.path.join(backup_dir, filename)
+    if not os.path.isfile(fpath):
+        raise HTTPException(status_code=404, detail="Backup nicht gefunden")
+
+    os.remove(fpath)
+    return {"ok": True, "deleted": filename}
+
 
 @router.get("/api/backup/download")
 def backup_download(_admin: dict = Depends(require_admin)):
-    """Create a ZIP of all .DBF / .FPT / .CDX files and return as download. Admin only."""
-    allowed_ext = {'.DBF', '.FPT', '.CDX'}
+    """Create a ZIP of all .DBF / .FPT / .CDX files and return as download. Also saves to backup dir."""
+    db_path = _get_db_path()
+    if not db_path or not os.path.isdir(db_path):
+        raise HTTPException(status_code=500, detail=f"SP5_DB_PATH not set or invalid: {db_path!r}")
 
-    buf = io.BytesIO()
-    files_added: list[str] = []
+    data = _create_zip_bytes(db_path)
 
-    with zipfile.ZipFile(buf, mode='w', compression=zipfile.ZIP_DEFLATED) as zf:
-        for fname in os.listdir(DB_PATH):
-            ext = os.path.splitext(fname)[1].upper()
-            if ext in allowed_ext:
-                full_path = os.path.join(DB_PATH, fname)
-                if os.path.isfile(full_path):
-                    zf.write(full_path, arcname=fname)
-                    files_added.append(fname)
+    # Also persist to server-side backup dir
+    backup_dir = _get_backup_dir()
+    if backup_dir:
+        ts_save = _backup_dt.now().strftime('%Y%m%d_%H%M%S')
+        dest = os.path.join(backup_dir, f"sp5_backup_{ts_save}.zip")
+        try:
+            with open(dest, 'wb') as f:
+                f.write(data)
+            _rotate_backups(backup_dir)
+        except Exception as e:
+            _logger.warning("Could not save backup to disk: %s", e)
 
-    buf.seek(0)
     ts = _backup_dt.now().strftime('%Y%m%d_%H%M')
     filename = f"sp5_backup_{ts}.zip"
 
     return StreamingResponse(
-        buf,
+        io.BytesIO(data),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
@@ -142,9 +304,13 @@ async def backup_restore(file: UploadFile = File(...), _admin: dict = Depends(re
     """
     allowed_ext = {'.DBF', '.FPT', '.CDX'}
 
+    db_path_restore = _get_db_path()
+    if not db_path_restore or not os.path.isdir(db_path_restore):
+        raise HTTPException(status_code=500, detail=f"SP5_DB_PATH not set or invalid: {db_path_restore!r}")
+
     _logger.warning(
         "BACKUP RESTORE initiated: filename=%s size=%s — this will overwrite DB files in %s",
-        file.filename, file.size, DB_PATH
+        file.filename, file.size, db_path_restore
     )
 
     content = await file.read()
@@ -167,7 +333,7 @@ async def backup_restore(file: UploadFile = File(...), _admin: dict = Depends(re
     if not dbf_files:
         raise HTTPException(status_code=400, detail="ZIP enthält keine .DBF Dateien")
 
-    safe_db_path = os.path.abspath(DB_PATH)
+    safe_db_path = os.path.abspath(db_path_restore)
     restored: list[str] = []
     with zf:
         for name in names_in_zip:

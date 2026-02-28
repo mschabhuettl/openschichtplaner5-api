@@ -84,6 +84,14 @@ _OPENAPI_TAGS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Auto-backup on startup (only if last backup > 24h old)
+    try:
+        from .routers.admin import create_auto_backup
+        created = create_auto_backup()
+        if created:
+            _logger.info("Startup auto-backup: %s", created)
+    except Exception as _exc:
+        _logger.warning("Startup auto-backup failed: %s", _exc)
     yield
     _logger.info("SP5 API shutting down — cleaning up resources")
 
