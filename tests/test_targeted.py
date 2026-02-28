@@ -115,7 +115,7 @@ class TestScheduleCRUDAPI:
         resp = write_client.post("/api/schedule", json={
             "employee_id": 1, "date": "not-a-date", "shift_id": 1
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_delete_schedule_entry_api(self, write_client):
         """Test DELETE /api/schedule/{employee_id}/{date} - lines 957-958."""

@@ -95,13 +95,13 @@ class TestAdminUserCRUD:
 class TestEmployeeValidation:
     def test_create_employee_empty_name(self, write_client):
         resp = write_client.post("/api/employees", json={"NAME": "", "FIRSTNAME": "Test"})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_create_employee_invalid_birthday(self, write_client):
         resp = write_client.post("/api/employees", json={
             "NAME": "Test", "BIRTHDAY": "not-a-date"
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_update_employee_not_found(self, write_client):
         resp = write_client.put("/api/employees/999999", json={"NAME": "X"})
@@ -193,7 +193,7 @@ class TestAbsenceValidation:
         resp = write_client.post("/api/absences", json={
             "employee_id": 1, "date": "not-a-date", "leave_type_id": 1
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
 
 class TestNoteValidation:

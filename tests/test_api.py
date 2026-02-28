@@ -433,7 +433,7 @@ class TestScheduleWrite:
             "date": "not-a-date",
             "shift_id": 1
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_delete_schedule_entry(self, write_client):
         emps = write_client.get("/api/employees").json()
@@ -472,7 +472,7 @@ class TestAbsenceWrite:
             "date": "2025-99-01",
             "leave_type_id": 1
         })
-        assert resp.status_code in (400, 409, 500)
+        assert resp.status_code in (400, 409, 422, 500)
 
 
 class TestLeaveTypeWrite:

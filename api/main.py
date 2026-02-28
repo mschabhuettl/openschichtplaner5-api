@@ -682,8 +682,12 @@ def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None)
     today = date.today()
 
     # Use requested year/month or fall back to today
-    req_year = year if year else today.year
-    req_month = month if month else today.month
+    req_year = year if year is not None else today.year
+    req_month = month if month is not None else today.month
+
+    if not (1 <= req_month <= 12):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
 
     # Total employees
     employees = db.get_employees(include_hidden=False)
