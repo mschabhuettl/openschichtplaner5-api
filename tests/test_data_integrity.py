@@ -7,7 +7,6 @@ Tests for data-integrity and backend robustness:
 """
 import os
 import tempfile
-import pytest
 from sp5lib.dbf_reader import read_dbf, get_table_fields
 from sp5lib.dbf_writer import find_all_records
 
