@@ -1,5 +1,4 @@
 """Security Audit Round 6 — XSS Prevention & HTML Injection Tests"""
-import pytest
 from fastapi.testclient import TestClient
 from api.main import app
 
