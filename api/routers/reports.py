@@ -2332,7 +2332,7 @@ def get_fairness_score(
     db = get_db()
     employees = db.get_employees(include_hidden=False)
     if group_id:
-        members = {m["employee_id"] for m in db.get_group_members(group_id)}
+        members = set(db.get_group_members(group_id))
         employees = [e for e in employees if e["ID"] in members]
 
     shifts_map = {s["ID"]: s for s in db.get_shifts()}
@@ -3065,6 +3065,8 @@ def get_availability_matrix(
     employees = db.get_employees(include_hidden=False)
     shifts_map = {s['ID']: s for s in db.get_shifts(include_hidden=True)}
     groups_map = {g['ID']: g['NAME'] for g in db.get_groups()}
+    # Fetch all group memberships in one pass (avoids N+1 in per-employee group lookup)
+    all_group_members = db.get_all_group_members()  # {group_id: [employee_ids]}
 
     if group_id:
         members = set(db.get_group_members(group_id))
@@ -3198,11 +3200,10 @@ def get_availability_matrix(
             pattern = 'Wenige Einsätze'
             pattern_icon = '📉'
 
-        # Group
+        # Group (use pre-fetched all_group_members to avoid N+1)
         emp_groups = []
         for gid, gname in groups_map.items():
-            members = set(db.get_group_members(gid))
-            if eid in members:
+            if eid in all_group_members.get(gid, []):
                 emp_groups.append(gname)
 
         result_employees.append({
