@@ -44,7 +44,10 @@ from .dependencies import (
 )
 
 # ── Dev-mode session ────────────────────────────────────────────
-_sessions[_DEV_TOKEN] = {**_DEV_USER, 'expires_at': None}
+# Only active when SP5_DEV_MODE=true (never in production!)
+if os.environ.get('SP5_DEV_MODE', '').lower() in ('1', 'true', 'yes'):
+    _sessions[_DEV_TOKEN] = {**_DEV_USER, 'expires_at': None}
+    _logger.warning("DEV MODE ACTIVE — dev token enabled (SP5_DEV_MODE=true). Do not use in production!")
 
 # ── Config ──────────────────────────────────────────────────────
 DB_PATH = os.environ.get(
@@ -104,9 +107,23 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "x-auth-token", "Authorization"],
 )
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    # Only send HSTS if running in production (check env)
+    if os.environ.get('SP5_HSTS', '').lower() in ('1', 'true', 'yes'):
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 
 @app.exception_handler(Exception)

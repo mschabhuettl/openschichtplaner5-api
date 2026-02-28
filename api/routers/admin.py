@@ -22,6 +22,7 @@ router = APIRouter()
 @router.get("/api/periods")
 def get_periods(
     group_id: Optional[int] = Query(None),
+    _cur_user: dict = Depends(require_auth),
 ):
     return get_db().get_periods(group_id=group_id)
 
@@ -67,7 +68,7 @@ def delete_period(period_id: int, _cur_user: dict = Depends(require_planer)):
 # ── Settings (USETT) ─────────────────────────────────────────
 
 @router.get("/api/settings")
-def get_settings():
+def get_settings(_cur_user: dict = Depends(require_auth)):
     """Return global settings from 5USETT.DBF."""
     try:
         return get_db().get_usett()
@@ -132,7 +133,7 @@ def backup_download(_admin: dict = Depends(require_admin)):
 
 
 @router.post("/api/backup/restore")
-async def backup_restore(file: UploadFile = File(...)):
+async def backup_restore(file: UploadFile = File(...), _admin: dict = Depends(require_admin)):
     """Restore .DBF / .FPT / .CDX files from an uploaded ZIP.
 
     ⚠️  DESTRUCTIVE OPERATION: This endpoint overwrites existing database files on disk.

@@ -245,7 +245,7 @@ class GroupAccessSet(BaseModel):
 
 
 @router.get("/api/employee-access")
-def get_employee_access(user_id: Optional[int] = Query(None)):
+def get_employee_access(user_id: Optional[int] = Query(None), _cur_user: dict = Depends(require_admin)):
     """Get employee-level access restrictions."""
     return get_db().get_employee_access(user_id=user_id)
 
@@ -270,7 +270,7 @@ def delete_employee_access(access_id: int, _cur_user: dict = Depends(require_adm
 
 
 @router.get("/api/group-access")
-def get_group_access(user_id: Optional[int] = Query(None)):
+def get_group_access(user_id: Optional[int] = Query(None), _cur_user: dict = Depends(require_admin)):
     """Get group-level access restrictions."""
     return get_db().get_group_access(user_id=user_id)
 

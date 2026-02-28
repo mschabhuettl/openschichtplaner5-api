@@ -18,7 +18,7 @@ router = APIRouter()
 
 
 @router.get("/api/users")
-def get_users():
+def get_users(_admin: dict = Depends(require_admin)):
     return get_db().get_users()
 
 
