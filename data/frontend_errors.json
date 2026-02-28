@@ -150,5 +150,13 @@
     "url": "http://localhost/",
     "user_agent": null,
     "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-02-28T16:23:12.171479Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
   }
 ]
