@@ -477,10 +477,10 @@ def list_swap_requests(
         r = dict(req)
         req_emp = employees.get(req['requester_id'], {})
         par_emp = employees.get(req['partner_id'], {})
-        r['requester_name'] = f"{req_emp.get('NAME', '?')}, {req_emp.get('FIRSTNAME', '')}"
-        r['requester_short'] = req_emp.get('SHORTNAME', '?')
-        r['partner_name'] = f"{par_emp.get('NAME', '?')}, {par_emp.get('FIRSTNAME', '')}"
-        r['partner_short'] = par_emp.get('SHORTNAME', '?')
+        r['requester_name'] = f"{req_emp.get('NAME', 'Gelöschter MA')}, {req_emp.get('FIRSTNAME', '')}" if req_emp else f"Gelöschter MA (ID {req['requester_id']})"
+        r['requester_short'] = req_emp.get('SHORTNAME', f"#{req['requester_id']}") if req_emp else f"#{req['requester_id']}"
+        r['partner_name'] = f"{par_emp.get('NAME', 'Gelöschter MA')}, {par_emp.get('FIRSTNAME', '')}" if par_emp else f"Gelöschter MA (ID {req['partner_id']})"
+        r['partner_short'] = par_emp.get('SHORTNAME', f"#{req['partner_id']}") if par_emp else f"#{req['partner_id']}"
         r['requester_shift'] = get_shift_for(req['requester_id'], req['requester_date'])
         r['partner_shift'] = get_shift_for(req['partner_id'], req['partner_date'])
         result.append(r)
