@@ -226,4 +226,4 @@ class TestNotesCRUD:
 
         # Update with invalid date
         resp2 = write_client.put(f"/api/notes/{note_id}", json={"date": "not-a-date"})
-        assert resp2.status_code == 400
+        assert resp2.status_code in (400, 422)

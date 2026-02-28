@@ -1,6 +1,6 @@
 """Misc router: notes, wishes, handover, swap-requests, changelog, search, access."""
 from fastapi import APIRouter, HTTPException, Query, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, _sanitize_500, limiter,
@@ -32,11 +32,11 @@ def get_notes(
 
 
 class NoteCreate(BaseModel):
-    date: str
-    text: str
-    employee_id: Optional[int] = 0
-    text2: Optional[str] = ''
-    category: Optional[str] = ''
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    text: str = Field(..., min_length=1, max_length=2000)
+    employee_id: Optional[int] = Field(0, ge=0)
+    text2: Optional[str] = Field('', max_length=2000)
+    category: Optional[str] = Field('', max_length=100)
 
 
 @router.post("/api/notes", tags=["Notes"], summary="Add note", description="Create a new shift note. Requires Planer role.")
@@ -62,11 +62,11 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
 
 
 class NoteUpdate(BaseModel):
-    text: Optional[str] = None
-    text2: Optional[str] = None
-    employee_id: Optional[int] = None
-    date: Optional[str] = None
-    category: Optional[str] = None
+    text: Optional[str] = Field(None, min_length=1, max_length=2000)
+    text2: Optional[str] = Field(None, max_length=2000)
+    employee_id: Optional[int] = Field(None, ge=0)
+    date: Optional[str] = Field(None, pattern=r'^\d{4}-\d{2}-\d{2}$')
+    category: Optional[str] = Field(None, max_length=100)
 
 
 @router.put("/api/notes/{note_id}", tags=["Notes"], summary="Update note")
@@ -233,15 +233,15 @@ def global_search(q: str = Query("", description="Search query")):
 # ── Employee / Group Access Rights ───────────────────────────
 
 class EmployeeAccessSet(BaseModel):
-    user_id: int
-    employee_id: int
-    rights: int = 0
+    user_id: int = Field(..., gt=0)
+    employee_id: int = Field(..., gt=0)
+    rights: int = Field(0, ge=0)
 
 
 class GroupAccessSet(BaseModel):
-    user_id: int
-    group_id: int
-    rights: int = 0
+    user_id: int = Field(..., gt=0)
+    group_id: int = Field(..., gt=0)
+    rights: int = Field(0, ge=0)
 
 
 @router.get("/api/employee-access", tags=["Users"], summary="List employee access rules")
@@ -340,11 +340,11 @@ def get_wishes(
 
 
 class WishCreate(BaseModel):
-    employee_id: int
-    date: str
-    wish_type: str  # WUNSCH | SPERRUNG
-    shift_id: Optional[int] = None
-    note: Optional[str] = ''
+    employee_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    wish_type: str = Field(..., pattern=r'^(WUNSCH|SPERRUNG)$')  # WUNSCH | SPERRUNG
+    shift_id: Optional[int] = Field(None, gt=0)
+    note: Optional[str] = Field('', max_length=500)
 
 
 @router.post("/api/wishes", tags=["Self-Service"], summary="Create shift wish")
@@ -433,17 +433,17 @@ def delete_handover(note_id: str, _cur_user: dict = Depends(require_planer)):
 # ── Schicht-Tauschbörse ──────────────────────────────────────────
 
 class SwapRequestCreate(BaseModel):
-    requester_id: int
-    requester_date: str   # YYYY-MM-DD
-    partner_id: int
-    partner_date: str     # YYYY-MM-DD
-    note: Optional[str] = ''
+    requester_id: int = Field(..., gt=0)
+    requester_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')  # YYYY-MM-DD
+    partner_id: int = Field(..., gt=0)
+    partner_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')   # YYYY-MM-DD
+    note: Optional[str] = Field('', max_length=500)
 
 
 class SwapRequestResolve(BaseModel):
-    action: str           # 'approve' | 'reject'
-    resolved_by: Optional[str] = 'planner'
-    reject_reason: Optional[str] = ''
+    action: str = Field(..., pattern=r'^(approve|reject)$')  # 'approve' | 'reject'
+    resolved_by: Optional[str] = Field('planner', max_length=100)
+    reject_reason: Optional[str] = Field('', max_length=500)
 
 
 @router.get("/api/swap-requests", tags=["Self-Service"], summary="List shift swap requests")
@@ -567,10 +567,10 @@ def get_my_employee(cur_user: dict = Depends(require_auth)):
 
 
 class SelfWishCreate(BaseModel):
-    date: str
-    wish_type: str  # WUNSCH | SPERRUNG
-    shift_id: Optional[int] = None
-    note: Optional[str] = ''
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    wish_type: str = Field(..., pattern=r'^(WUNSCH|SPERRUNG)$')  # WUNSCH | SPERRUNG
+    shift_id: Optional[int] = Field(None, gt=0)
+    note: Optional[str] = Field('', max_length=500)
 
 
 @router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block")
@@ -622,9 +622,9 @@ def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
 
 
 class SelfAbsenceCreate(BaseModel):
-    date: str
-    leave_type_id: int
-    note: Optional[str] = ''
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    leave_type_id: int = Field(..., gt=0)
+    note: Optional[str] = Field('', max_length=500)
 
 
 @router.post("/api/self/absences", tags=["Self-Service"], summary="Submit own absence request")

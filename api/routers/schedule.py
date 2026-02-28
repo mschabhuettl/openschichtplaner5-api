@@ -187,9 +187,9 @@ def get_shift_cycle(cycle_id: int):
 
 
 class CycleAssignBody(BaseModel):
-    employee_id: int
-    cycle_id: int
-    start_date: str
+    employee_id: int = Field(..., gt=0)
+    cycle_id: int = Field(..., gt=0)
+    start_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
 
 
 @router.post("/api/shift-cycles/assign", tags=["Schedule"], summary="Assign employee to shift cycle")
@@ -218,18 +218,18 @@ def remove_cycle_assignment(employee_id: int, _cur_user: dict = Depends(require_
 # ── Shift Cycle CRUD ──────────────────────────────────────────
 
 class ShiftCycleCreateBody(BaseModel):
-    name: str
-    size_weeks: int
+    name: str = Field(..., min_length=1, max_length=100)
+    size_weeks: int = Field(..., ge=1, le=52)
 
 
 class CycleEntryItem(BaseModel):
-    index: int
-    shift_id: Optional[int] = None
+    index: int = Field(..., ge=0)
+    shift_id: Optional[int] = Field(None, gt=0)
 
 
 class ShiftCycleUpdateBody(BaseModel):
-    name: str
-    size_weeks: int
+    name: str = Field(..., min_length=1, max_length=100)
+    size_weeks: int = Field(..., ge=1, le=52)
     entries: List[CycleEntryItem] = []
 
 
@@ -287,31 +287,31 @@ def delete_shift_cycle(cycle_id: int, _cur_user: dict = Depends(require_planer))
 #       "templates" being parsed as an employee_id integer.
 
 class TemplateAssignment(BaseModel):
-    employee_id: int
-    weekday_offset: int   # 0=Mon … 6=Sun
-    shift_id: int
-    employee_name: Optional[str] = None
-    shift_name: Optional[str] = None
+    employee_id: int = Field(..., gt=0)
+    weekday_offset: int = Field(..., ge=0, le=6)   # 0=Mon … 6=Sun
+    shift_id: int = Field(..., gt=0)
+    employee_name: Optional[str] = Field(None, max_length=200)
+    shift_name: Optional[str] = Field(None, max_length=100)
 
 
 class TemplateCreate(BaseModel):
-    name: str
-    description: str = ''
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = Field('', max_length=500)
     assignments: List[TemplateAssignment]
 
 
 class TemplateApplyRequest(BaseModel):
-    target_date: str    # ISO date string — the Monday (or any anchor) of the target week
+    target_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')  # ISO date string — the Monday (or any anchor) of the target week
     force: bool = False  # overwrite existing entries?
 
 
 class TemplateCaptureRequest(BaseModel):
-    name: str
-    description: str = ''
-    year: int
-    month: int
-    week_start_day: int  # day-of-month (1-based) of the Monday to capture
-    group_id: Optional[int] = None
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str = Field('', max_length=500)
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
+    week_start_day: int = Field(..., ge=1, le=31)  # day-of-month (1-based) of the Monday to capture
+    group_id: Optional[int] = Field(None, gt=0)
 
 
 @router.get("/api/schedule/templates", tags=["Schedule"], summary="List schedule templates")
@@ -460,8 +460,8 @@ def delete_shift_only(employee_id: int, date: str, _cur_user: dict = Depends(req
 
 # ── Generate schedule from cycle ────────────────────────────
 class ScheduleGenerateRequest(BaseModel):
-    year: int
-    month: int
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
     employee_ids: Optional[List[int]] = None
     force: bool = False
     dry_run: bool = False
@@ -520,10 +520,10 @@ def get_restrictions(employee_id: Optional[int] = Query(None)):
 
 
 class RestrictionCreate(BaseModel):
-    employee_id: int
-    shift_id: int
-    reason: Optional[str] = ''
-    weekday: Optional[int] = 0
+    employee_id: int = Field(..., gt=0)
+    shift_id: int = Field(..., gt=0)
+    reason: Optional[str] = Field('', max_length=500)
+    weekday: Optional[int] = Field(0, ge=0, le=6)
 
 
 @router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction")
@@ -563,9 +563,9 @@ def remove_restriction(
 # ── Bulk Schedule Operations ─────────────────────────────────
 
 class BulkEntry(BaseModel):
-    employee_id: int
-    date: str
-    shift_id: Optional[int] = None
+    employee_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    shift_id: Optional[int] = Field(None, gt=0)
 
 
 class BulkScheduleBody(BaseModel):
@@ -610,41 +610,41 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_plan
 # ── Einsatzplan Write (SPSHI) ────────────────────────────────
 
 class EinsatzplanCreate(BaseModel):
-    employee_id: int
-    date: str
-    name: Optional[str] = ''
-    shortname: Optional[str] = ''
-    shift_id: Optional[int] = 0
-    workplace_id: Optional[int] = 0
-    startend: Optional[str] = ''
-    duration: Optional[float] = 0.0
-    colortext: Optional[int] = 0
-    colorbar: Optional[int] = 0
-    colorbk: Optional[int] = 16777215
+    employee_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    name: Optional[str] = Field('', max_length=100)
+    shortname: Optional[str] = Field('', max_length=20)
+    shift_id: Optional[int] = Field(0, ge=0)
+    workplace_id: Optional[int] = Field(0, ge=0)
+    startend: Optional[str] = Field('', max_length=20)
+    duration: Optional[float] = Field(0.0, ge=0.0)
+    colortext: Optional[int] = Field(0, ge=0, le=16777215)
+    colorbar: Optional[int] = Field(0, ge=0, le=16777215)
+    colorbk: Optional[int] = Field(16777215, ge=0, le=16777215)
 
 
 class EinsatzplanUpdate(BaseModel):
-    name: Optional[str] = None
-    shortname: Optional[str] = None
-    shift_id: Optional[int] = None
-    workplace_id: Optional[int] = None
-    startend: Optional[str] = None
-    duration: Optional[float] = None
-    colortext: Optional[int] = None
-    colorbar: Optional[int] = None
-    colorbk: Optional[int] = None
+    name: Optional[str] = Field(None, max_length=100)
+    shortname: Optional[str] = Field(None, max_length=20)
+    shift_id: Optional[int] = Field(None, ge=0)
+    workplace_id: Optional[int] = Field(None, ge=0)
+    startend: Optional[str] = Field(None, max_length=20)
+    duration: Optional[float] = Field(None, ge=0.0)
+    colortext: Optional[int] = Field(None, ge=0, le=16777215)
+    colorbar: Optional[int] = Field(None, ge=0, le=16777215)
+    colorbk: Optional[int] = Field(None, ge=0, le=16777215)
 
 
 class DeviationCreate(BaseModel):
-    employee_id: int
-    date: str
-    name: Optional[str] = 'Arbeitszeitabweichung'
-    shortname: Optional[str] = 'AZA'
-    startend: Optional[str] = ''   # e.g. "07:00-15:30"
-    duration: Optional[float] = 0.0  # minutes or hours (stores raw)
-    colortext: Optional[int] = 0
-    colorbar: Optional[int] = 0
-    colorbk: Optional[int] = 16744448  # orange-ish default
+    employee_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    name: Optional[str] = Field('Arbeitszeitabweichung', max_length=100)
+    shortname: Optional[str] = Field('AZA', max_length=20)
+    startend: Optional[str] = Field('', max_length=20)   # e.g. "07:00-15:30"
+    duration: Optional[float] = Field(0.0, ge=0.0)  # minutes or hours (stores raw)
+    colortext: Optional[int] = Field(0, ge=0, le=16777215)
+    colorbar: Optional[int] = Field(0, ge=0, le=16777215)
+    colorbk: Optional[int] = Field(16744448, ge=0, le=16777215)  # orange-ish default
 
 
 @router.post("/api/einsatzplan", tags=["Schedule"], summary="Create deployment plan entry")
@@ -764,10 +764,10 @@ def get_einsatzplan(
 # ── Cycle Exceptions ─────────────────────────────────────────
 
 class CycleExceptionSet(BaseModel):
-    employee_id: int
-    cycle_assignment_id: int
-    date: str
-    type: int = 1  # 1=skip, 0=normal
+    employee_id: int = Field(..., gt=0)
+    cycle_assignment_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    type: int = Field(1, ge=0, le=1)  # 1=skip, 0=normal
 
 
 @router.get("/api/cycle-exceptions", tags=["Schedule"], summary="List cycle exceptions")
@@ -806,9 +806,9 @@ def delete_cycle_exception(exception_id: int, _cur_user: dict = Depends(require_
 
 # ── Woche kopieren ─────────────────────────────────────────────
 class SwapShiftsRequest(BaseModel):
-    employee_id_1: int
-    employee_id_2: int
-    dates: List[str]  # YYYY-MM-DD strings
+    employee_id_1: int = Field(..., gt=0)
+    employee_id_2: int = Field(..., gt=0)
+    dates: List[str] = Field(..., min_length=1, max_length=366)  # YYYY-MM-DD strings
 
 
 @router.post("/api/schedule/swap", tags=["Schedule"], summary="Swap shifts between employees")
@@ -884,9 +884,9 @@ def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_plane
 
 
 class CopyWeekRequest(BaseModel):
-    source_employee_id: int
-    dates: List[str]               # YYYY-MM-DD strings (up to 7)
-    target_employee_ids: List[int]
+    source_employee_id: int = Field(..., gt=0)
+    dates: List[str] = Field(..., min_length=1, max_length=31)  # YYYY-MM-DD strings (up to 7)
+    target_employee_ids: List[int] = Field(..., min_length=1)
     skip_existing: bool = True     # True = don't overwrite existing entries
 
 

@@ -469,7 +469,7 @@ class TestSelfServiceWishes:
                 json={"date": "2099-12-01", "wish_type": "INVALID"},
                 headers={"X-Auth-Token": tok},
             )
-            assert resp.status_code in (400, 404)
+            assert resp.status_code in (400, 404, 422)
         finally:
             _remove_token(tok)
 

@@ -177,7 +177,7 @@ class TestScheduleGenerateValidation:
         resp = write_client.post("/api/schedule/generate", json={
             "year": 2025, "month": 13
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_generate_force_param(self, write_client):
         """Test schedule generate with force=True."""

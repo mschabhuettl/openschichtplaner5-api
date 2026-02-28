@@ -1144,7 +1144,7 @@ class TestAPIWriteEndpoints:
             "employee_id": emp_id, "date": "2025-06-01",
             "type": 9, "value": 1.0
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_shift_update_delete(self, write_client):
         create = write_client.post("/api/shifts", json={"NAME": "UpdateDelShift", "SHORTNAME": "UDS"})

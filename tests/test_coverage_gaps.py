@@ -94,7 +94,7 @@ class TestNotesEndpoints:
 
     def test_add_note_invalid_date(self, sync_client):
         resp = sync_client.post("/api/notes", json={"date": "not-a-date", "text": "hi"})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_add_note_valid(self, write_client):
         resp = write_client.post("/api/notes", json={"date": "2024-03-15", "text": "Test note"})
@@ -113,7 +113,7 @@ class TestNotesEndpoints:
 
     def test_update_note_invalid_date(self, write_client):
         resp = write_client.put("/api/notes/1", json={"date": "bad-date"})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_delete_note(self, write_client):
         # Create a note first
@@ -208,7 +208,7 @@ class TestWishes:
         resp = write_client.post("/api/wishes", json={
             "employee_id": 1, "date": "2024-03-15", "wish_type": "INVALID"
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_create_wish_valid(self, write_client):
         resp = write_client.post("/api/wishes", json={
@@ -292,11 +292,11 @@ class TestSwapRequests:
             "requester_id": 1, "requester_date": "bad-date",
             "partner_id": 2, "partner_date": "2024-03-16",
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_resolve_swap_request_invalid_action(self, write_client):
         resp = write_client.patch("/api/swap-requests/1/resolve", json={"action": "invalid"})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_resolve_swap_request_not_found(self, write_client):
         resp = write_client.patch("/api/swap-requests/999999/resolve", json={"action": "reject"})

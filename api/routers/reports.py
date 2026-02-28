@@ -6,7 +6,7 @@ import calendar as _calendar
 from datetime import datetime as _dt, date
 from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFile, File
 from fastapi.responses import Response as _Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from ..dependencies import (
     get_db, require_planer, require_auth, _sanitize_500, limiter,
@@ -1413,11 +1413,11 @@ def get_bookings(
 
 
 class BookingCreate(BaseModel):
-    employee_id: int
-    date: str
-    type: int = 0   # 0 = Iststundenkonto, 1 = Sollstundenkonto
+    employee_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    type: int = Field(0, ge=0, le=1)   # 0 = Iststundenkonto, 1 = Sollstundenkonto
     value: float
-    note: Optional[str] = ''
+    note: Optional[str] = Field('', max_length=500)
 
 
 @router.post(
@@ -1492,8 +1492,8 @@ def get_carry_forward(employee_id: int = Query(...), year: int = Query(...)):
 
 
 class CarryForwardSet(BaseModel):
-    employee_id: int
-    year: int
+    employee_id: int = Field(..., gt=0)
+    year: int = Field(..., ge=2000, le=2100)
     hours: float
 
 
@@ -1515,8 +1515,8 @@ def set_carry_forward(body: CarryForwardSet, _cur_user: dict = Depends(require_p
 
 
 class AnnualStatementBody(BaseModel):
-    employee_id: int
-    year: int
+    employee_id: int = Field(..., gt=0)
+    year: int = Field(..., ge=2000, le=2100)
 
 
 @router.post(
@@ -3221,14 +3221,14 @@ def get_availability_matrix(
 # ── Schichtplan-Simulation ────────────────────────────────────────────────────
 
 class SimulationAbsence(BaseModel):
-    emp_id: int
+    emp_id: int = Field(..., gt=0)
     dates: list  # list of 'YYYY-MM-DD' strings, or ['all'] for whole month
 
 class SimulationRequest(BaseModel):
-    year: int
-    month: int
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
     absences: list  # list of SimulationAbsence dicts
-    scenario_name: Optional[str] = "Simulation"
+    scenario_name: Optional[str] = Field("Simulation", max_length=100)
 
 @router.post(
     "/api/simulation",

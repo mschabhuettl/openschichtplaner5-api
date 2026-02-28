@@ -237,7 +237,7 @@ class TestBookingsDeleteNotFound:
         resp = write_client.post("/api/bookings", json={
             "employee_id": 1, "date": "not-a-date", "type": 0, "value": 1.0
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)  # 422 = Pydantic validation
 
 
 class TestPeriodValidation:
@@ -256,11 +256,11 @@ class TestStaffingRequirementsSpecialValidation:
 class TestShiftCycleValidation:
     def test_create_cycle_empty_name(self, write_client):
         resp = write_client.post("/api/shift-cycles", json={"name": "", "size_weeks": 1})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)  # 422 = Pydantic validation
 
     def test_create_cycle_invalid_weeks(self, write_client):
         resp = write_client.post("/api/shift-cycles", json={"name": "Test", "size_weeks": 0})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)  # 422 = Pydantic validation
 
     def test_delete_cycle_not_found(self, write_client):
         resp = write_client.delete("/api/shift-cycles/999999")
@@ -278,7 +278,7 @@ class TestRestrictionValidation:
         resp = write_client.post("/api/restrictions", json={
             "employee_id": 1, "shift_id": 1, "weekday": 10
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)  # 422 = Pydantic validation
 
 
 class TestEinsatzplanValidation:
