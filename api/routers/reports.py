@@ -177,6 +177,142 @@ def get_sickness_statistics(
     return get_db().get_sickness_statistics(year)
 
 
+# ── Shift statistics ──────────────────────────────────────────
+@router.get("/api/statistics/shifts")
+def get_shift_statistics(
+    year: int = Query(..., description="Year (YYYY)"),
+    months: int = Query(6, ge=1, le=24, description="Number of months for trend"),
+    group_id: Optional[int] = Query(None),
+):
+    """
+    Return shift-centric statistics:
+    - periods: list of {year, month, label} for trend window
+    - shift_usage: per shift, monthly counts + total
+    - employee_distribution: per employee, counts by shift category
+    - category_totals: global counts by category (Früh/Spät/Nacht/Sonstige)
+    """
+    from datetime import date as _date
+    from collections import defaultdict
+
+    db = get_db()
+    shifts_map = {s['ID']: s for s in db.get_shifts(include_hidden=True)}
+
+    if group_id is not None:
+        member_ids = set(db.get_group_members(group_id))
+    else:
+        member_ids = None
+
+    employees = {e['ID']: e for e in db.get_employees(include_hidden=False)}
+
+    # Build list of (year, month) for trend window (most recent `months` months)
+    today = _date.today()
+    end_year, end_month = today.year, today.month
+    periods = []
+    y, m = end_year, end_month
+    for _ in range(months):
+        periods.append((y, m))
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    periods.reverse()
+    period_set = set(periods)
+
+    shift_month_counts: dict = defaultdict(lambda: defaultdict(int))
+    emp_shift_counts: dict = defaultdict(lambda: defaultdict(int))
+
+    for r in db._read('MASHI'):
+        d = r.get('DATE', '')
+        if not d or len(d) < 7:
+            continue
+        try:
+            ry = int(d[0:4])
+            rm = int(d[5:7])
+        except (ValueError, IndexError):
+            continue
+        if (ry, rm) not in period_set:
+            continue
+        eid = r.get('EMPLOYEEID')
+        if member_ids is not None and eid not in member_ids:
+            continue
+        sid = r.get('SHIFTID')
+        if not sid:
+            continue
+        shift_month_counts[sid][(ry, rm)] += 1
+        emp_shift_counts[eid][sid] += 1
+
+    def categorize_shift(s: dict) -> str:
+        start = s.get('FROM0') or ''
+        if start and isinstance(start, str) and ':' in start:
+            try:
+                hour = int(start.split(':')[0])
+                if 4 <= hour < 11:
+                    return 'Früh'
+                elif 11 <= hour < 18:
+                    return 'Spät'
+                elif hour >= 18 or hour < 4:
+                    return 'Nacht'
+            except ValueError:
+                pass
+        name = (s.get('NAME', '') or '').upper()
+        short = (s.get('SHORTNAME', '') or '').upper()
+        if 'FRÜH' in name or 'FRUH' in name or short in ('F', 'FR'):
+            return 'Früh'
+        if 'SPÄT' in name or 'SPAT' in name or short in ('S', 'SP'):
+            return 'Spät'
+        if 'NACHT' in name or 'NIGHT' in name or short in ('N', 'NA'):
+            return 'Nacht'
+        return 'Sonstige'
+
+    shift_usage = []
+    for sid, month_map in shift_month_counts.items():
+        s = shifts_map.get(sid, {})
+        monthly = [{'year': ry, 'month': rm, 'count': month_map.get((ry, rm), 0)} for (ry, rm) in periods]
+        total = sum(month_map.values())
+        shift_usage.append({
+            'shift_id': sid,
+            'name': s.get('NAME', str(sid)),
+            'short': s.get('SHORTNAME', ''),
+            'color_bk': s.get('COLORBK', None),
+            'color_text': s.get('COLORTEXT', None),
+            'category': categorize_shift(s),
+            'monthly_counts': monthly,
+            'total': total,
+        })
+    shift_usage.sort(key=lambda x: -x['total'])
+
+    cat_counts_global: dict = defaultdict(int)
+    emp_distribution = []
+    for eid, shift_counts in emp_shift_counts.items():
+        emp = employees.get(eid)
+        if not emp:
+            continue
+        by_category: dict = defaultdict(int)
+        for sid, cnt in shift_counts.items():
+            cat = categorize_shift(shifts_map.get(sid, {}))
+            by_category[cat] += cnt
+            cat_counts_global[cat] += cnt
+        emp_distribution.append({
+            'employee_id': eid,
+            'name': (emp.get('LASTNAME', '') + ' ' + emp.get('FIRSTNAME', '')).strip(),
+            'short': emp.get('SHORTNAME', ''),
+            'total_shifts': sum(shift_counts.values()),
+            'by_category': dict(by_category),
+        })
+    emp_distribution.sort(key=lambda x: -x['total_shifts'])
+
+    month_names_short = ['', 'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
+                         'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
+    period_labels = [{'year': ry, 'month': rm, 'label': f"{month_names_short[rm]} {ry}"} for (ry, rm) in periods]
+
+    return {
+        'periods': period_labels,
+        'shift_usage': shift_usage,
+        'employee_distribution': emp_distribution,
+        'category_totals': dict(cat_counts_global),
+    }
+
+
 # ── Export endpoints ─────────────────────────────────────────
 
 import io
