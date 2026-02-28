@@ -14,6 +14,33 @@ from ..dependencies import (
 
 router = APIRouter()
 
+# Maximum file size for CSV imports (10 MB)
+_MAX_CSV_SIZE = 10 * 1024 * 1024
+
+_ALLOWED_CSV_CONTENT_TYPES = {
+    'text/csv',
+    'text/plain',
+    'application/csv',
+    'application/octet-stream',  # some browsers send this for .csv
+}
+
+
+async def _validate_csv_upload(file: UploadFile) -> bytes:
+    """Validate and read a CSV upload. Raises HTTPException on invalid input."""
+    ct = (file.content_type or '').lower().split(';')[0].strip()
+    if ct and ct not in _ALLOWED_CSV_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ungültiger Dateityp '{ct}'. Nur CSV-Dateien erlaubt.",
+        )
+    content = await file.read()
+    if len(content) > _MAX_CSV_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="Datei zu groß (max. 10 MB für CSV-Import).",
+        )
+    return content
+
 
 def _xlsx_response(content: bytes, filename: str) -> _Response:
     return _Response(
@@ -1564,7 +1591,7 @@ async def import_employees(file: UploadFile = File(...)):
     """Import employees from CSV. Required columns: NAME or NACHNAME.
     Accepted column aliases: VORNAME/FIRSTNAME, NACHNAME/NAME, KURZZEICHEN/SHORTNAME,
     NUMBER/PERSONALNUMMER, HRSDAY, HRSWEEK, HRSMONTH, SEX."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
@@ -1617,7 +1644,7 @@ async def import_employees(file: UploadFile = File(...)):
 async def import_shifts(file: UploadFile = File(...)):
     """Import shifts from CSV. Required: NAME.
     Optional: KURZZEICHEN/SHORTNAME, FARBE/COLORBK (hex #RRGGBB or int BGR), DURATION0."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
@@ -1682,7 +1709,7 @@ async def import_shifts(file: UploadFile = File(...)):
 )
 async def import_absences(file: UploadFile = File(...)):
     """Import absences from CSV. Required: EMPLOYEE_ID, DATE (YYYY-MM-DD), LEAVE_TYPE_ID."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
@@ -1730,7 +1757,7 @@ async def import_absences(file: UploadFile = File(...)):
 async def import_holidays(file: UploadFile = File(...)):
     """Import holidays from CSV. Required: DATE (YYYY-MM-DD), NAME.
     Optional: INTERVAL (0=einmalig, 1=jährlich), REGION (ignored, for info only)."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
@@ -1781,7 +1808,7 @@ async def import_holidays(file: UploadFile = File(...)):
 async def import_bookings_actual(file: UploadFile = File(...)):
     """Import actual-hour bookings (TYPE=0) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
@@ -1831,7 +1858,7 @@ async def import_bookings_actual(file: UploadFile = File(...)):
 async def import_bookings_nominal(file: UploadFile = File(...)):
     """Import nominal-hour bookings (TYPE=1) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
@@ -1881,7 +1908,7 @@ async def import_bookings_nominal(file: UploadFile = File(...)):
 async def import_entitlements(file: UploadFile = File(...)):
     """Import leave entitlements from CSV.
     Required: Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
@@ -1937,7 +1964,7 @@ async def import_entitlements(file: UploadFile = File(...)):
 async def import_absences_csv(file: UploadFile = File(...)):
     """Import absences from CSV using Personalnummer and Abwesenheitsart-Kürzel.
     Required: Personalnummer,Datum,Abwesenheitsart-Kürzel."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
@@ -1992,7 +2019,7 @@ async def import_absences_csv(file: UploadFile = File(...)):
 async def import_groups(file: UploadFile = File(...)):
     """Import groups from CSV.
     Required: Name. Optional: Kürzel, Übergeordnete-Gruppe-Name."""
-    content = await file.read()
+    content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
