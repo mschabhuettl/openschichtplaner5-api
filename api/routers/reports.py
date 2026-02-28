@@ -1,19 +1,14 @@
 """Reports, statistics, zeitkonto, export, import, analysis router."""
 import io
 import csv
-import re
-import json
-import zipfile
 import calendar as _calendar
-from datetime import datetime as _dt, date, timedelta
-from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request, UploadFile, File, Response
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from datetime import datetime as _dt, date
+from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFile, File
 from fastapi.responses import Response as _Response
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, get_current_user, limiter,
+    get_db, require_planer, require_auth, _sanitize_500, limiter,
 )
 
 router = APIRouter()
@@ -315,11 +310,7 @@ def get_shift_statistics(
 
 # ── Export endpoints ─────────────────────────────────────────
 
-import io
-import csv
-import calendar as _calendar
-from datetime import datetime as _dt
-from fastapi.responses import Response as _Response
+from fastapi.responses import Response as _Response  # noqa: E402
 
 
 def _int_to_rgb(color_int: int) -> str:
@@ -379,7 +370,7 @@ def export_schedule(
     if format == "xlsx":
         try:
             import openpyxl
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side  # noqa: F401
             from openpyxl.utils import get_column_letter
         except ImportError:
             raise HTTPException(status_code=500, detail="openpyxl nicht installiert.")
@@ -485,7 +476,7 @@ def export_schedule(
 
         # Build shift legend
         shifts_all = db.get_shifts(include_hidden=False)
-        leave_types_all = db.get_leave_types(include_hidden=False)
+        db.get_leave_types(include_hidden=False)
         legend_html = '<div class="no-print" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><strong style="font-size:11px;color:#334155">Legende:</strong>'
         for s in shifts_all:
             bg = s.get('COLORBK_HEX', '#fff')
@@ -903,7 +894,6 @@ def get_monthly_report(
     if format not in ("csv", "pdf"):
         raise HTTPException(status_code=400, detail="format must be 'csv' or 'pdf'")
 
-    import calendar as _cal
     from datetime import datetime as _dt
 
     MONTHS_DE = ["", "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -996,7 +986,7 @@ def get_monthly_report(
             self.set_text_color(30, 41, 59)
             self.set_font("Helvetica", "B", 13)
             self.set_xy(44, 9)
-            self.cell(0, 7, f"Monatsabschluss-Report", ln=0)
+            self.cell(0, 7, "Monatsabschluss-Report", ln=0)
             self.set_font("Helvetica", "", 9)
             self.set_xy(44, 16)
             self.cell(0, 5, f"Zeitraum: {month_label}  |  Erstellt: {_dt.now().strftime('%d.%m.%Y %H:%M')}", ln=0)
@@ -1094,7 +1084,7 @@ def get_monthly_report(
     pdf.set_draw_color(100, 116, 139)
     pdf.set_line_width(0.2)
 
-    hdr_y = pdf.get_y()
+    pdf.get_y()
     for label, w in all_cols:
         pdf.cell(w, HDR_H, label, border=1, fill=True, align="C")
     pdf.ln()
@@ -1115,15 +1105,15 @@ def get_monthly_report(
 
         col_idx = 0
         # Mitarbeiter
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Mitarbeiter"])[:24], border=1, fill=True, align="L"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Mitarbeiter"])[:24], border=1, fill=True, align="L"); col_idx += 1  # noqa: E702
         # Kürzel
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Kürzel"]), border=1, fill=True, align="C"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Kürzel"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
         # Gruppe
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Gruppe"])[:16], border=1, fill=True, align="L"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Gruppe"])[:16], border=1, fill=True, align="L"); col_idx += 1  # noqa: E702
         # Soll h
-        pdf.cell(all_cols[col_idx][1], ROW_H, f"{row['Soll-Std.']:.1f}", border=1, fill=True, align="R"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, f"{row['Soll-Std.']:.1f}", border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
         # Ist h
-        pdf.cell(all_cols[col_idx][1], ROW_H, f"{row['Ist-Std.']:.1f}", border=1, fill=True, align="R"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, f"{row['Ist-Std.']:.1f}", border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
         # ÜSt h — color
         ot_val = row["Überstunden"]
         if ot_val > 0:
@@ -1137,13 +1127,13 @@ def get_monthly_report(
         pdf.set_text_color(30, 41, 59)
         col_idx += 1
         # Dienste
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Dienste"]), border=1, fill=True, align="C"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Dienste"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
         # Abw.
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Abwesenheitstage"]), border=1, fill=True, align="C"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Abwesenheitstage"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
         # Url.
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Urlaubstage"]), border=1, fill=True, align="C"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Urlaubstage"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
         # Krank
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Kranktage"]), border=1, fill=True, align="C"); col_idx += 1
+        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Kranktage"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
         # Surcharge columns
         for cn in all_charge_names[:3]:
             hrs = row.get(f"Zuschlag: {cn}", 0.0)
@@ -1170,16 +1160,16 @@ def get_monthly_report(
         "Kranktage": str(total_sick),
     }
     col_idx = 0
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Mitarbeiter"][:30], border=1, fill=True, align="L"); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, "", border=1, fill=True); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, "", border=1, fill=True); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Soll-Std."], border=1, fill=True, align="R"); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Ist-Std."], border=1, fill=True, align="R"); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Überstunden"], border=1, fill=True, align="R"); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Dienste"], border=1, fill=True, align="C"); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Abwesenheitstage"], border=1, fill=True, align="C"); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Urlaubstage"], border=1, fill=True, align="C"); col_idx += 1
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Kranktage"], border=1, fill=True, align="C"); col_idx += 1
+    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Mitarbeiter"][:30], border=1, fill=True, align="L"); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, "", border=1, fill=True); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, "", border=1, fill=True); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Soll-Std."], border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Ist-Std."], border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Überstunden"], border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Dienste"], border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Abwesenheitstage"], border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Urlaubstage"], border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Kranktage"], border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
     for cn in all_charge_names[:3]:
         total_xc = round(sum(xc_by_emp.get(s["employee_id"], {}).get(cn, 0.0) for s in stats), 1)
         pdf.cell(all_cols[col_idx][1], ROW_H, f"{total_xc:.1f}" if total_xc else "-", border=1, fill=True, align="C")
@@ -1817,6 +1807,10 @@ def get_burnout_radar(
     group_id: Optional[int] = Query(None, description="Filter by group"),
 ):
     """Return list of at-risk employees (long streaks or significant overtime)."""
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
     return get_db().get_burnout_radar(
         year=year,
         month=month,
@@ -1876,7 +1870,7 @@ def get_warnings(
     - understaffing: Staffing below minimum on a day
     - conflict: Shift + absence conflict for an employee
     """
-    from datetime import date as _date, timedelta
+    from datetime import date as _date
     import calendar as _cal
     from collections import defaultdict
 
@@ -2044,7 +2038,6 @@ def get_fairness_score(
     und Feiertagsschichten unter den Mitarbeitern verteilt?
     """
     import math
-    from datetime import date, timedelta
 
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -2759,7 +2752,7 @@ def get_availability_matrix(
       - Schicht-Mix (wie oft welche Schicht)
       - Muster-Label (z.B. "3-Schicht-Rotation", "Tagschicht Mo-Fr", "Frei")
     """
-    import datetime, math
+    import datetime
     from collections import defaultdict
 
     db = get_db()
@@ -2776,7 +2769,7 @@ def get_availability_matrix(
 
     # Collect all schedule entries for the requested range
     # month range: last `months` months up to end of `year`
-    today = datetime.date.today()
+    datetime.date.today()
     end_date = datetime.date(year, 12, 31)
     start_date = (end_date - datetime.timedelta(days=months * 30)).replace(day=1)
 
@@ -2801,7 +2794,7 @@ def get_availability_matrix(
                 shift = shifts_map.get(sid)
                 short = shift.get('SHORTNAME', '?') if shift else '?'
                 name = shift.get('NAME', '?') if shift else '?'
-                color = shift.get('COLORBK_HEX', '#888') if shift else '#888'
+                shift.get('COLORBK_HEX', '#888') if shift else '#888'
                 emp_wd_shift[eid][wd][sid] += 1
                 emp_shift_total[eid][sid] += 1
                 emp_day_total[eid][wd] += 1
@@ -2971,7 +2964,7 @@ def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_pl
     employees = db.get_employees(include_hidden=False)
     shifts = db.get_shifts(include_hidden=True)
     emp_map = {e['ID']: e for e in employees}
-    shift_map = {s['ID']: s for s in shifts}
+    {s['ID']: s for s in shifts}
 
     # Days in month
     days_in_month = _cal.monthrange(year, month)[1]

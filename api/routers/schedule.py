@@ -1,13 +1,9 @@
 """Schedule, shift-cycles, staffing, einsatzplan, restrictions router."""
-import re
-import json
-from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request, Body
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, get_current_user,
+    get_db, require_admin, require_planer, _sanitize_500,
 )
 from .events import broadcast
 
@@ -23,6 +19,8 @@ def get_schedule(
 ):
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="Month must be 1-12")
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
     return get_db().get_schedule(year=year, month=month, group_id=group_id)
 
 
@@ -37,6 +35,10 @@ def get_staffing(
     year: int = Query(...),
     month: int = Query(...),
 ):
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Month must be 1-12")
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
     return get_db().get_staffing(year, month)
 
 
@@ -54,6 +56,8 @@ def get_schedule_coverage(
 
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="Month must be 1-12")
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
 
     db = get_db()
     num_days = _cal.monthrange(year, month)[1]
@@ -142,6 +146,8 @@ def get_schedule_year(
     year: int = Query(...),
     employee_id: int = Query(...),
 ):
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
     return get_db().get_schedule_year(year, employee_id)
 
 
@@ -154,6 +160,8 @@ def get_schedule_conflicts(
     """Return all scheduling conflicts for a given month."""
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="Month must be 1-12")
+    if not (2000 <= year <= 2100):
+        raise HTTPException(status_code=400, detail="Year must be 2000-2100")
     conflicts = get_db().get_schedule_conflicts(year, month, group_id)
     return {"conflicts": conflicts}
 
@@ -806,7 +814,7 @@ class SwapShiftsRequest(BaseModel):
 @router.post("/api/schedule/swap")
 def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_planer)):
     """Swap schedule entries (shifts + absences) between two employees for the given dates."""
-    from sp5lib.dbf_reader import read_dbf, get_table_fields
+    from sp5lib.dbf_reader import get_table_fields
     from sp5lib.dbf_writer import find_all_records
     from datetime import datetime as _dt3
 
@@ -899,7 +907,7 @@ def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
 
     # Collect source entries grouped by date
     # We query each date individually via the schedule tables
-    from sp5lib.dbf_reader import read_dbf, get_table_fields
+    from sp5lib.dbf_reader import get_table_fields
     from sp5lib.dbf_writer import find_all_records
     source_entries: dict[str, list[dict]] = {}  # date → list of entry dicts
     for date_str in body.dates:

@@ -1,15 +1,10 @@
 """Absences, leave entitlements, holiday bans, annual close router."""
 import os
-import re
-import json
-from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, List, Dict, Any
-from datetime import date, timedelta
+from typing import Optional, List
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, get_current_user,
+    get_db, require_admin, require_planer, _sanitize_500,
 )
 from .events import broadcast
 
@@ -271,7 +266,7 @@ def run_annual_close(body: AnnualCloseBody, _cur_user: dict = Depends(require_ad
 
 # ── Absence Status (approval workflow) ───────────────────────────────────────
 
-import json as _json
+import json as _json  # noqa: E402
 
 _STATUS_FILE = os.path.join(os.path.dirname(__file__), '..', 'absence_status.json')
 

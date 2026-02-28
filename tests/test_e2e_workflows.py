@@ -11,7 +11,6 @@ Szenarien:
 import io
 import zipfile
 import secrets
-import pytest
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -80,7 +79,7 @@ class TestPlanungsWorkflow:
         assert isinstance(sched, (list, dict)), "Schedule-Response ungültig"
         # Flache Suche nach dem angelegten Eintrag
         entries = sched if isinstance(sched, list) else sched.get("entries", [])
-        matched = [
+        [
             e for e in entries
             if str(e.get("employee_id") or e.get("EMPLOYEE_ID", "")) == str(emp_id)
             and e.get("date", "")[:10] == test_date
@@ -167,7 +166,7 @@ class TestUrlaubsWorkflow:
         assert resp.json().get("ok") is True
 
         # 4. Abwesenheiten abrufen & prüfen ob der Eintrag vorhanden
-        absences_resp = client.get(f"/api/absences?year=2025")
+        absences_resp = client.get("/api/absences?year=2025")
         assert absences_resp.status_code == 200
         absences = absences_resp.json()
         assert isinstance(absences, list)
@@ -459,7 +458,6 @@ class TestAuthWorkflow:
     def test_login_creates_valid_token(self, app, patched_db):
         """Login gibt gültigen Token zurück der für API-Aufrufe nutzbar ist."""
         from starlette.testclient import TestClient
-        from api.main import _sessions
 
         client = TestClient(app)
 

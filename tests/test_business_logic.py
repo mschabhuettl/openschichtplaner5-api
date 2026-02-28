@@ -5,8 +5,6 @@ These tests exercise sp5lib modules directly (without the HTTP layer).
 """
 import os
 import sys
-import struct
-import tempfile
 import shutil
 import pytest
 

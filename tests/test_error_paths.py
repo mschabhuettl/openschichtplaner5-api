@@ -666,7 +666,7 @@ class TestEinsatzplanDeviation:
 
 # ─── Fixture for tmp_db in error path tests ──────────────────────────────────
 
-import shutil
+import shutil  # noqa: E402
 
 _REAL_DB_PATH = (
     "/home/claw/.openclaw/workspace/sp5_db/Daten"

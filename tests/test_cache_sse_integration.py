@@ -8,7 +8,7 @@ Abdeckung:
 """
 import pytest
 import secrets
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from starlette.testclient import TestClient
 
 
@@ -59,7 +59,6 @@ class TestSSEAuth:
         The actual streaming would block, so we just verify auth passes
         by checking the route with a mock that short-circuits the stream.
         """
-        from api.routers import events as sse_events
         tok = _inject_token('Leser', 'sse_test_user')
         try:
             # Verify auth works: calling the dependency directly
@@ -90,7 +89,7 @@ class TestCacheInvalidation:
         emp_id = first_emp['ID']
 
         # Notiere Cache-Größe vor Update
-        cache_before = len(_GLOBAL_DBF_CACHE)
+        len(_GLOBAL_DBF_CACHE)
 
         # Update: ein harmloser BOLD-Toggle oder NOTE
         update_resp = sync_client.put(

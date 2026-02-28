@@ -1,11 +1,9 @@
 """Master data router: shifts, leave-types, workplaces, holidays, extracharges, staffing-requirements, skills."""
-from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, get_current_user,
+    get_db, require_admin, require_planer, require_auth, _sanitize_500,
 )
 
 router = APIRouter()
@@ -156,7 +154,7 @@ def update_shift(shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(req
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_shift(shift_id, data)
         return {"ok": True, "record": result}
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail=f"Schicht ID {shift_id} nicht gefunden")
     except Exception as e:
         raise _sanitize_500(e, f'update_shift/{shift_id}')
@@ -215,7 +213,7 @@ def update_leave_type(lt_id: int, body: LeaveTypeUpdate, _cur_user: dict = Depen
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_leave_type(lt_id, data)
         return {"ok": True, "record": result}
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail=f"Abwesenheitstyp ID {lt_id} nicht gefunden")
     except Exception as e:
         raise _sanitize_500(e, f'update_leave_type/{lt_id}')
@@ -530,10 +528,10 @@ def delete_special_staffing(record_id: int, _cur_user: dict = Depends(require_pl
 
 
 # ── Kompetenz-Matrix / Skills ────────────────────────────────────
-import uuid as _uuid
-import os
-import json as _json
-from datetime import datetime as _dt
+import uuid as _uuid  # noqa: E402
+import os  # noqa: E402
+import json as _json  # noqa: E402
+from datetime import datetime as _dt  # noqa: E402
 
 def _skills_path() -> str:
     data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
@@ -601,11 +599,11 @@ def update_skill(skill_id: str, body: SkillUpdate, _cur_user: dict = Depends(req
     data = _load_skills()
     for s in data["skills"]:
         if s["id"] == skill_id:
-            if body.name is not None: s["name"] = body.name
-            if body.description is not None: s["description"] = body.description
-            if body.color is not None: s["color"] = body.color
-            if body.icon is not None: s["icon"] = body.icon
-            if body.category is not None: s["category"] = body.category
+            if body.name is not None: s["name"] = body.name  # noqa: E701
+            if body.description is not None: s["description"] = body.description  # noqa: E701
+            if body.color is not None: s["color"] = body.color  # noqa: E701
+            if body.icon is not None: s["icon"] = body.icon  # noqa: E701
+            if body.category is not None: s["category"] = body.category  # noqa: E701
             _save_skills(data)
             return s
     raise HTTPException(status_code=404, detail="Skill not found")
@@ -692,7 +690,7 @@ def get_skills_matrix(_cur_user: dict = Depends(require_auth)):
         holders = [a for a in assignments if a["skill_id"] == sid]
         experts = [a for a in holders if a.get("level", 1) >= 3]
         expiring = []
-        today = _dt.today().date().isoformat()
+        _dt.today().date().isoformat()
         soon = _dt.today().date().replace(
             year=_dt.today().date().year,
             month=min(_dt.today().date().month + 3, 12)

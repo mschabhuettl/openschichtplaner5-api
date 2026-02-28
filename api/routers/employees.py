@@ -1,13 +1,10 @@
 """Employees and groups router."""
 import os
-import re
-from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request, UploadFile, File
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, get_current_user,
+    get_db, require_admin, _sanitize_500,
 )
 
 router = APIRouter()
@@ -205,7 +202,7 @@ def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends
         return {"ok": True, "record": result}
     except HTTPException:
         raise
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
     except Exception as e:
         raise _sanitize_500(e, f'update_employee/{emp_id}')
@@ -291,7 +288,7 @@ def update_group(group_id: int, body: GroupUpdate, _cur_user: dict = Depends(req
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_group(group_id, data)
         return {"ok": True, "record": result}
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail=f"Gruppe ID {group_id} nicht gefunden")
     except Exception as e:
         raise _sanitize_500(e, f'update_group/{group_id}')
@@ -327,7 +324,6 @@ def remove_group_member(group_id: int, emp_id: int, _cur_user: dict = Depends(re
 
 # ── Import endpoints ─────────────────────────────────────────
 
-from fastapi import UploadFile, File
 
 
 @router.post("/api/employees/{emp_id}/photo")

@@ -8,8 +8,6 @@ Testet einen realistischen Ablauf:
   4. Als Leser einloggen → Lesezugriff prüfen
   5. Als Leser versuchen zu schreiben → 403
 """
-import secrets
-import pytest
 
 
 class TestFullWorkflow:
@@ -183,10 +181,10 @@ class TestNotesCRUD:
         assert resp.status_code == 200
         created = resp.json()
         assert created.get("ok") is True
-        note_id = created["record"]["id"]
+        created["record"]["id"]
 
         # Read
-        resp2 = write_client.get(f"/api/notes?date=2025-08-01")
+        resp2 = write_client.get("/api/notes?date=2025-08-01")
         assert resp2.status_code == 200
 
     def test_update_note(self, write_client):

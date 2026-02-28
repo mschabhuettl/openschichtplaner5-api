@@ -4,13 +4,12 @@ import io
 import zipfile
 import json
 from datetime import datetime as _backup_dt
-from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request, UploadFile, File
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, get_current_user, limiter,
+    get_db, require_admin, require_planer, require_auth, _sanitize_500, _logger, limiter,
 )
 
 router = APIRouter()
@@ -99,9 +98,6 @@ def update_settings(body: SettingsUpdate, _cur_user: dict = Depends(require_admi
 
 # ── Backup / Restore endpoints ───────────────────────────────
 
-import zipfile
-from datetime import datetime as _backup_dt
-from fastapi.responses import StreamingResponse
 
 _BACKUP_ALLOWED_EXT = {'.DBF', '.FPT', '.CDX'}
 _BACKUP_MAX_COUNT = 7

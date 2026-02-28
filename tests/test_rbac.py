@@ -50,22 +50,18 @@ def leser_token():
 
 class TestUnauthenticated:
     def test_employees_requires_auth(self, app):
-        from starlette.testclient import TestClient
         with TestClient(app, raise_server_exceptions=False) as raw:
             assert raw.get('/api/employees').status_code == 401
 
     def test_schedule_requires_auth(self, app):
-        from starlette.testclient import TestClient
         with TestClient(app, raise_server_exceptions=False) as raw:
             assert raw.get('/api/schedule?year=2024&month=1').status_code == 401
 
     def test_users_requires_auth(self, app):
-        from starlette.testclient import TestClient
         with TestClient(app, raise_server_exceptions=False) as raw:
             assert raw.get('/api/users').status_code == 401
 
     def test_401_error_has_detail(self, app):
-        from starlette.testclient import TestClient
         with TestClient(app, raise_server_exceptions=False) as raw:
             res = raw.get('/api/employees')
         assert 'detail' in res.json()
@@ -142,7 +138,7 @@ class TestPlanerPermissions:
             json={'date': '2024-06-01', 'text': 'Test note', 'employee_id': 0},
             headers=_h(planer_token),
         )
-        assert res.status_code not in (401, 403), f"Planer should be able to add notes"
+        assert res.status_code not in (401, 403), "Planer should be able to add notes"
 
 
 # ── Admin ──────────────────────────────────────────────────────────────────────

@@ -13,35 +13,22 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 # Add parent dir to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException, Query, Header, Depends, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
-from typing import Optional, List
-from sp5lib.database import SP5Database
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
+from fastapi import FastAPI, HTTPException, Query, Request  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
+from typing import Optional  # noqa: E402
+from slowapi import _rate_limit_exceeded_handler  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
 
 # ── Import shared dependencies ──────────────────────────────────
 # These are re-exported here so tests can still do `from api.main import _sessions`
-from .dependencies import (
+from .dependencies import (  # noqa: E402
     _sessions,
-    _failed_logins,
-    _TOKEN_EXPIRE_HOURS,
-    _LOCKOUT_WINDOW,
-    _LOCKOUT_MAX,
-    _ROLE_LEVEL,
     _DEV_TOKEN,
     _DEV_USER,
     _is_token_valid,
-    get_current_user,
-    require_auth,
-    require_role,
-    require_admin,
-    require_planer,
     get_db,
-    _sanitize_500,
     _logger,
     limiter,
 )
@@ -226,9 +213,8 @@ async def auth_middleware(request: Request, call_next):
 
 
 # ── Changelog Middleware ────────────────────────────────────────
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request as StarletteRequest
-import re as _re
+from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
+from starlette.requests import Request as StarletteRequest  # noqa: E402
 
 
 class ChangelogMiddleware(BaseHTTPMiddleware):
@@ -304,7 +290,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestLoggingMiddleware)
 
 # ── Include routers ─────────────────────────────────────────────
-from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc, events
+from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc, events  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(employees.router)

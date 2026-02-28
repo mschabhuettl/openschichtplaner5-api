@@ -3,7 +3,6 @@ Shared dependencies for OpenSchichtplaner5 API.
 Extracted from main.py for modular router support.
 """
 import os
-import sys
 import logging
 import logging.handlers
 import time as _time

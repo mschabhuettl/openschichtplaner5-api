@@ -1,16 +1,12 @@
 """Auth and user management router."""
-import os
 import time as _time
 import secrets
-from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Header, Depends, Request
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, _sessions, _failed_logins, _LOCKOUT_WINDOW,
-    _LOCKOUT_MAX, _TOKEN_EXPIRE_HOURS, _ROLE_LEVEL, get_current_user,
-    _is_token_valid, limiter, invalidate_sessions_for_user,
+    get_db, require_admin, _sanitize_500, _logger, _sessions, _failed_logins, _LOCKOUT_WINDOW,
+    _LOCKOUT_MAX, _TOKEN_EXPIRE_HOURS, limiter, invalidate_sessions_for_user,
 )
 
 router = APIRouter()
@@ -78,7 +74,7 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
             _admin.get('NAME'), user_id, list(data.keys())
         )
         return {"ok": True, "record": result}
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(status_code=404, detail=f"Benutzer ID {user_id} nicht gefunden")
     except Exception as e:
         raise _sanitize_500(e, f'update_user/{user_id}')
@@ -131,7 +127,6 @@ def change_user_password(user_id: int, body: ChangePasswordBody, _admin: dict = 
 @limiter.limit("5/minute")
 def login(request: Request, body: LoginBody):
     """Simple login: verify username+password against 5USER.DBF."""
-    import secrets
     client_ip = request.client.host if request.client else 'unknown'
     now = _time.time()
     username = body.username

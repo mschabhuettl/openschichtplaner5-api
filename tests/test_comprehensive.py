@@ -6,8 +6,6 @@ Target: push coverage from 46% to >80%.
 import os
 import sys
 import shutil
-import json
-import tempfile
 import pytest
 
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -488,7 +486,7 @@ class TestExtracharges:
 
     def test_is_validday_active(self):
         from sp5lib.database import SP5Database
-        db = SP5Database.__new__(SP5Database)
+        SP5Database.__new__(SP5Database)
         # '1111100' = Mon-Fri active, Sat-Sun not
         assert SP5Database._is_validday_active('1111100', 0) is True  # Monday
         assert SP5Database._is_validday_active('1111100', 5) is False  # Saturday

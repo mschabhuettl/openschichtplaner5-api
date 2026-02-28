@@ -1,5 +1,4 @@
 """Security Round 4 tests — new endpoints audit."""
-import pytest
 
 
 class TestHealthEndpoint:

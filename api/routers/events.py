@@ -6,7 +6,7 @@ import threading
 from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-from .auth import require_auth
+from ..dependencies import require_auth
 
 _logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ async def _event_generator(request: Request, queue: asyncio.Queue) -> AsyncGener
     """Yield SSE-formatted strings from the queue until the client disconnects."""
     try:
         # Send initial "connected" event
-        yield f"event: connected\ndata: {{}}\n\n"
+        yield "event: connected\ndata: {}\n\n"
         while True:
             if await request.is_disconnected():
                 break

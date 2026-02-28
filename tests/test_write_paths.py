@@ -18,7 +18,7 @@ _backend = os.path.dirname(_here)
 if _backend not in sys.path:
     sys.path.insert(0, _backend)
 
-from sp5lib.dbf_writer import (
+from sp5lib.dbf_writer import (  # noqa: E402
     _encode_string,
     _encode_field,
     append_record,

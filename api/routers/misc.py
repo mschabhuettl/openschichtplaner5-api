@@ -1,18 +1,12 @@
 """Misc router: notes, wishes, handover, swap-requests, changelog, search, access."""
-import re
-import json
-from fastapi import APIRouter, HTTPException, Query, Header, Depends, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request as StarletteRequest
-import re as _re
+from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, require_role,
-    _sanitize_500, _logger, _sessions, get_current_user, limiter,
+    get_db, require_admin, require_planer, require_auth, _sanitize_500, limiter,
 )
 from .events import broadcast
+from .schedule import swap_shifts, SwapShiftsRequest
 
 router = APIRouter()
 
@@ -377,7 +371,7 @@ def delete_wish(wish_id: int, _cur_user: dict = Depends(require_planer)):
 
 # ── Übergabe-Protokoll ────────────────────────────────────────────────────────
 # In-memory store (reset on restart – kann später auf DB umgestellt werden)
-import uuid as _uuid
+import uuid as _uuid  # noqa: E402
 
 _handover_notes: list[dict] = []
 
