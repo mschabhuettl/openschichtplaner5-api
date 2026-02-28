@@ -240,7 +240,7 @@ def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
 _PHOTOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'uploads', 'photos')
 
 
-@router.get("/api/employees/{emp_id}/photo")
+@router.get("/api/employees/{emp_id}/photo", tags=["Employees"], summary="Get employee photo")
 async def get_employee_photo(emp_id: int):
     from fastapi.responses import FileResponse as _FileResponse
     import pathlib
@@ -285,7 +285,7 @@ class GroupMemberBody(BaseModel):
     employee_id: int
 
 
-@router.post("/api/groups")
+@router.post("/api/groups", tags=["Groups"], summary="Create group")
 def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
@@ -297,7 +297,7 @@ def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
         raise _sanitize_500(e, 'create_group')
 
 
-@router.put("/api/groups/{group_id}")
+@router.put("/api/groups/{group_id}", tags=["Groups"], summary="Update group")
 def update_group(group_id: int, body: GroupUpdate, _cur_user: dict = Depends(require_admin)):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -310,7 +310,7 @@ def update_group(group_id: int, body: GroupUpdate, _cur_user: dict = Depends(req
         raise _sanitize_500(e, f'update_group/{group_id}')
 
 
-@router.delete("/api/groups/{group_id}")
+@router.delete("/api/groups/{group_id}", tags=["Groups"], summary="Delete group")
 def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_group(group_id)
@@ -320,7 +320,7 @@ def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
         raise _sanitize_500(e, f'delete_group/{group_id}')
 
 
-@router.post("/api/groups/{group_id}/members")
+@router.post("/api/groups/{group_id}/members", tags=["Groups"], summary="Add group member")
 def add_group_member(group_id: int, body: GroupMemberBody, _cur_user: dict = Depends(require_admin)):
     try:
         result = get_db().add_group_member(group_id, body.employee_id)
@@ -329,7 +329,7 @@ def add_group_member(group_id: int, body: GroupMemberBody, _cur_user: dict = Dep
         raise _sanitize_500(e, f'add_group_member/{group_id}')
 
 
-@router.delete("/api/groups/{group_id}/members/{emp_id}")
+@router.delete("/api/groups/{group_id}/members/{emp_id}", tags=["Groups"], summary="Remove group member")
 def remove_group_member(group_id: int, emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().remove_group_member(group_id, emp_id)
@@ -343,7 +343,7 @@ def remove_group_member(group_id: int, emp_id: int, _cur_user: dict = Depends(re
 
 
 
-@router.post("/api/employees/{emp_id}/photo")
+@router.post("/api/employees/{emp_id}/photo", tags=["Employees"], summary="Upload employee photo")
 async def upload_employee_photo(emp_id: int, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Upload a photo for an employee (JPG/PNG/GIF)."""
     import pathlib

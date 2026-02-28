@@ -66,7 +66,7 @@ async def _event_generator(request: Request, queue: asyncio.Queue) -> AsyncGener
         _logger.debug("SSE client disconnected. Remaining: %d", len(_subscribers))
 
 
-@router.get("", summary="SSE event stream", description=(
+@router.get("", tags=["Events"], summary="SSE event stream", description=(
     "Connect to receive real-time events.\n\n"
     "Events: `connected`, `schedule_changed`, `conflict_updated`, `note_added`, `absence_changed`"
 ))

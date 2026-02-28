@@ -18,7 +18,7 @@ router = APIRouter()
 
 # ── Periods ───────────────────────────────────────────────────
 
-@router.get("/api/periods")
+@router.get("/api/periods", tags=["Admin"], summary="List accounting periods")
 def get_periods(
     group_id: Optional[int] = Query(None),
     _cur_user: dict = Depends(require_auth),
@@ -33,7 +33,7 @@ class PeriodCreate(BaseModel):
     description: str = ''
 
 
-@router.post("/api/periods")
+@router.post("/api/periods", tags=["Admin"], summary="Create accounting period")
 def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
@@ -55,7 +55,7 @@ def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer))
         raise _sanitize_500(e)
 
 
-@router.delete("/api/periods/{period_id}")
+@router.delete("/api/periods/{period_id}", tags=["Admin"], summary="Delete accounting period")
 def delete_period(period_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_period(period_id)
@@ -66,7 +66,7 @@ def delete_period(period_id: int, _cur_user: dict = Depends(require_planer)):
 
 # ── Settings (USETT) ─────────────────────────────────────────
 
-@router.get("/api/settings")
+@router.get("/api/settings", tags=["Admin"], summary="Get application settings")
 def get_settings(_cur_user: dict = Depends(require_auth)):
     """Return global settings from 5USETT.DBF."""
     try:
@@ -85,7 +85,7 @@ class SettingsUpdate(BaseModel):
     BACKUPFR: Optional[int] = None
 
 
-@router.put("/api/settings")
+@router.put("/api/settings", tags=["Admin"], summary="Update application settings")
 def update_settings(body: SettingsUpdate, _cur_user: dict = Depends(require_admin)):
     """Update global settings in 5USETT.DBF."""
     data = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -192,7 +192,7 @@ def create_auto_backup() -> str | None:
         return None
 
 
-@router.get("/api/admin/backups")
+@router.get("/api/admin/backups", tags=["Backup"], summary="List database backups")
 def list_backups(_admin: dict = Depends(require_admin)):
     """List all server-side backups. Admin only."""
     backup_dir = _get_backup_dir()
@@ -220,7 +220,7 @@ def list_backups(_admin: dict = Depends(require_admin)):
     return {"backups": result, "backup_dir": backup_dir}
 
 
-@router.get("/api/admin/backups/{filename}/download")
+@router.get("/api/admin/backups/{filename}/download", tags=["Backup"], summary="Download database backup")
 def download_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
     """Download a specific saved backup by filename. Admin only."""
     # Security: only allow safe filenames
@@ -245,7 +245,7 @@ def download_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
     )
 
 
-@router.delete("/api/admin/backups/{filename}")
+@router.delete("/api/admin/backups/{filename}", tags=["Backup"], summary="Delete database backup")
 def delete_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
     """Delete a specific saved backup. Admin only."""
     if not filename.startswith('sp5_backup_') or not filename.endswith('.zip') or '/' in filename or '..' in filename:
@@ -263,7 +263,7 @@ def delete_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
     return {"ok": True, "deleted": filename}
 
 
-@router.get("/api/backup/download")
+@router.get("/api/backup/download", tags=["Backup"], summary="Download current database backup")
 def backup_download(_admin: dict = Depends(require_admin)):
     """Create a ZIP of all .DBF / .FPT / .CDX files and return as download. Also saves to backup dir."""
     db_path = _get_db_path()
@@ -294,7 +294,7 @@ def backup_download(_admin: dict = Depends(require_admin)):
     )
 
 
-@router.post("/api/backup/restore")
+@router.post("/api/backup/restore", tags=["Backup"], summary="Restore database from backup")
 async def backup_restore(file: UploadFile = File(...), _admin: dict = Depends(require_admin)):
     """Restore .DBF / .FPT / .CDX files from an uploaded ZIP.
 
@@ -360,7 +360,7 @@ async def backup_restore(file: UploadFile = File(...), _admin: dict = Depends(re
 
 # ── Admin: Compact database ───────────────────────────────────────────────────
 
-@router.post("/api/admin/compact")
+@router.post("/api/admin/compact", tags=["Admin"], summary="Compact database (PACK)")
 def compact_database(_cur_user: dict = Depends(require_admin)):
     """
     Compact all .DBF files in SP5_DB_PATH by rewriting them without deleted records.

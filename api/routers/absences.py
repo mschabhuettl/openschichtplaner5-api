@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 
-@router.delete("/api/absences/{employee_id}/{date}")
+@router.delete("/api/absences/{employee_id}/{date}", tags=["Absences"], summary="Delete absence entry")
 def delete_absence_only(employee_id: int, date: str, _cur_user: dict = Depends(require_planer)):
     """Delete only absence entries (ABSEN) for an employee on a date, leaving shifts intact."""
     try:
@@ -55,7 +55,7 @@ def list_absences(
     return get_db().get_absences_list(year=year, employee_id=employee_id, leave_type_id=leave_type_id)
 
 
-@router.get("/api/group-assignments")
+@router.get("/api/group-assignments", tags=["Groups"], summary="List group assignments")
 def get_all_group_assignments():
     """Return all group assignments (employee_id, group_id pairs)."""
     return get_db().get_all_group_assignments()
@@ -127,7 +127,7 @@ def bulk_create_absence(body: BulkAbsenceCreate, _cur_user: dict = Depends(requi
 
 # ── Leave Entitlements ────────────────────────────────────────
 
-@router.get("/api/leave-entitlements")
+@router.get("/api/leave-entitlements", tags=["Absences"], summary="List vacation entitlements")
 def get_leave_entitlements(
     year: Optional[int] = Query(None),
     employee_id: Optional[int] = Query(None),
@@ -143,7 +143,7 @@ class LeaveEntitlementCreate(BaseModel):
     leave_type_id: Optional[int] = Field(0, ge=0)
 
 
-@router.post("/api/leave-entitlements")
+@router.post("/api/leave-entitlements", tags=["Absences"], summary="Set vacation entitlement")
 def set_leave_entitlement(body: LeaveEntitlementCreate, _cur_user: dict = Depends(require_planer)):
     try:
         result = get_db().set_leave_entitlement(
@@ -158,7 +158,7 @@ def set_leave_entitlement(body: LeaveEntitlementCreate, _cur_user: dict = Depend
         raise _sanitize_500(e)
 
 
-@router.get("/api/leave-balance")
+@router.get("/api/leave-balance", tags=["Absences"], summary="Get employee leave balance")
 def get_leave_balance(
     year: int = Query(...),
     employee_id: int = Query(...),
@@ -166,7 +166,7 @@ def get_leave_balance(
     return get_db().get_leave_balance(employee_id=employee_id, year=year)
 
 
-@router.get("/api/leave-balance/group")
+@router.get("/api/leave-balance/group", tags=["Absences"], summary="Get group leave balance")
 def get_leave_balance_group(
     year: int = Query(...),
     group_id: int = Query(...),
@@ -176,7 +176,7 @@ def get_leave_balance_group(
 
 # ── Holiday Bans ──────────────────────────────────────────────
 
-@router.get("/api/holiday-bans")
+@router.get("/api/holiday-bans", tags=["Absences"], summary="List holiday ban periods")
 def get_holiday_bans(
     group_id: Optional[int] = Query(None),
 ):
@@ -206,7 +206,7 @@ class HolidayBanCreate(BaseModel):
         return self
 
 
-@router.post("/api/holiday-bans")
+@router.post("/api/holiday-bans", tags=["Absences"], summary="Create holiday ban period")
 def create_holiday_ban(body: HolidayBanCreate, _cur_user: dict = Depends(require_planer)):
     # Date validation and range check handled by Pydantic model
     try:
@@ -221,7 +221,7 @@ def create_holiday_ban(body: HolidayBanCreate, _cur_user: dict = Depends(require
         raise _sanitize_500(e)
 
 
-@router.delete("/api/holiday-bans/{ban_id}")
+@router.delete("/api/holiday-bans/{ban_id}", tags=["Absences"], summary="Delete holiday ban period")
 def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_holiday_ban(ban_id)
@@ -232,7 +232,7 @@ def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
 
 # ── Annual Close ──────────────────────────────────────────────
 
-@router.get("/api/annual-close/preview")
+@router.get("/api/annual-close/preview", tags=["Absences"], summary="Preview annual close (Jahresabschluss)")
 def annual_close_preview(
     year: int = Query(...),
     group_id: Optional[int] = Query(None),
@@ -251,7 +251,7 @@ class AnnualCloseBody(BaseModel):
     max_carry_forward_days: Optional[float] = 10
 
 
-@router.post("/api/annual-close")
+@router.post("/api/annual-close", tags=["Absences"], summary="Execute annual close")
 def run_annual_close(body: AnnualCloseBody, _cur_user: dict = Depends(require_admin)):
     try:
         result = get_db().run_annual_close(
@@ -287,7 +287,7 @@ def _save_absence_status(data: dict) -> None:
         pass
 
 
-@router.get("/api/absences/status")
+@router.get("/api/absences/status", tags=["Absences"], summary="List absence approval status")
 def get_all_absence_statuses():
     """Return the status dict for all absences (id → {status, reject_reason}).
     Also supports legacy format (id → status string) and normalizes on read."""
@@ -307,7 +307,7 @@ class AbsenceStatusPatch(BaseModel):
     reject_reason: Optional[str] = Field(None, max_length=500)
 
 
-@router.patch("/api/absences/{absence_id}/status")
+@router.patch("/api/absences/{absence_id}/status", tags=["Absences"], summary="Update absence approval status")
 def patch_absence_status(absence_id: int, body: AbsenceStatusPatch, _cur_user: dict = Depends(require_planer)):
     """Update approval status for an absence record."""
     allowed = {'pending', 'approved', 'rejected'}

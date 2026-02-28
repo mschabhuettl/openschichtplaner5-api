@@ -24,13 +24,13 @@ def get_schedule(
     return get_db().get_schedule(year=year, month=month, group_id=group_id)
 
 
-@router.get("/api/cycles")
+@router.get("/api/cycles", tags=["Schedule"], summary="List schedule cycles")
 def get_cycles():
     return get_db().get_cycles()
 
 
 # ── Staffing requirements ────────────────────────────────────
-@router.get("/api/staffing")
+@router.get("/api/staffing", tags=["Schedule"], summary="Staffing overview")
 def get_staffing(
     year: int = Query(...),
     month: int = Query(...),
@@ -43,7 +43,7 @@ def get_staffing(
 
 
 # ── Schedule Coverage (Personalbedarf-Ampel) ─────────────────
-@router.get("/api/schedule/coverage")
+@router.get("/api/schedule/coverage", tags=["Schedule"], summary="Schedule coverage analysis")
 def get_schedule_coverage(
     year: int = Query(..., description="Year (YYYY)"),
     month: int = Query(..., description="Month (1-12)"),
@@ -113,7 +113,7 @@ def get_schedule_coverage(
 
 
 # ── Day schedule ─────────────────────────────────────────────
-@router.get("/api/schedule/day")
+@router.get("/api/schedule/day", tags=["Schedule"], summary="Daily schedule view")
 def get_schedule_day(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     group_id: Optional[int] = Query(None),
@@ -127,7 +127,7 @@ def get_schedule_day(
 
 
 # ── Week schedule ────────────────────────────────────────────
-@router.get("/api/schedule/week")
+@router.get("/api/schedule/week", tags=["Schedule"], summary="Weekly schedule view")
 def get_schedule_week(
     date: str = Query(..., description="Any date within the target week (YYYY-MM-DD)"),
     group_id: Optional[int] = Query(None),
@@ -141,7 +141,7 @@ def get_schedule_week(
 
 
 # ── Year overview ────────────────────────────────────────────
-@router.get("/api/schedule/year")
+@router.get("/api/schedule/year", tags=["Schedule"], summary="Yearly schedule overview")
 def get_schedule_year(
     year: int = Query(...),
     employee_id: int = Query(...),
@@ -151,7 +151,7 @@ def get_schedule_year(
     return get_db().get_schedule_year(year, employee_id)
 
 
-@router.get("/api/schedule/conflicts")
+@router.get("/api/schedule/conflicts", tags=["Schedule"], summary="Schedule conflict detection")
 def get_schedule_conflicts(
     year: int = Query(..., description="Year (YYYY)"),
     month: int = Query(..., description="Month (1-12)"),
@@ -168,17 +168,17 @@ def get_schedule_conflicts(
 
 # ── Shift Cycles ─────────────────────────────────────────────
 
-@router.get("/api/shift-cycles")
+@router.get("/api/shift-cycles", tags=["Schedule"], summary="List shift rotation cycles")
 def get_shift_cycles():
     return get_db().get_shift_cycles()
 
 
-@router.get("/api/shift-cycles/assign")
+@router.get("/api/shift-cycles/assign", tags=["Schedule"], summary="List cycle assignments")
 def get_cycle_assignments():
     return get_db().get_cycle_assignments()
 
 
-@router.get("/api/shift-cycles/{cycle_id}")
+@router.get("/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Get shift cycle by ID")
 def get_shift_cycle(cycle_id: int):
     c = get_db().get_shift_cycle(cycle_id)
     if c is None:
@@ -192,7 +192,7 @@ class CycleAssignBody(BaseModel):
     start_date: str
 
 
-@router.post("/api/shift-cycles/assign")
+@router.post("/api/shift-cycles/assign", tags=["Schedule"], summary="Assign employee to shift cycle")
 def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
@@ -206,7 +206,7 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer
         raise _sanitize_500(e)
 
 
-@router.delete("/api/shift-cycles/assign/{employee_id}")
+@router.delete("/api/shift-cycles/assign/{employee_id}", tags=["Schedule"], summary="Remove employee from shift cycle")
 def remove_cycle_assignment(employee_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().remove_cycle_assignment(employee_id)
@@ -233,7 +233,7 @@ class ShiftCycleUpdateBody(BaseModel):
     entries: List[CycleEntryItem] = []
 
 
-@router.post("/api/shift-cycles")
+@router.post("/api/shift-cycles", tags=["Schedule"], summary="Create shift cycle")
 def create_shift_cycle(body: ShiftCycleCreateBody, _cur_user: dict = Depends(require_planer)):
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
@@ -246,7 +246,7 @@ def create_shift_cycle(body: ShiftCycleCreateBody, _cur_user: dict = Depends(req
         raise _sanitize_500(e)
 
 
-@router.put("/api/shift-cycles/{cycle_id}")
+@router.put("/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Update shift cycle")
 def update_shift_cycle(cycle_id: int, body: ShiftCycleUpdateBody, _cur_user: dict = Depends(require_planer)):
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
@@ -268,7 +268,7 @@ def update_shift_cycle(cycle_id: int, body: ShiftCycleUpdateBody, _cur_user: dic
         raise _sanitize_500(e)
 
 
-@router.delete("/api/shift-cycles/{cycle_id}")
+@router.delete("/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Delete shift cycle")
 def delete_shift_cycle(cycle_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_shift_cycle(cycle_id)
@@ -314,14 +314,14 @@ class TemplateCaptureRequest(BaseModel):
     group_id: Optional[int] = None
 
 
-@router.get("/api/schedule/templates")
+@router.get("/api/schedule/templates", tags=["Schedule"], summary="List schedule templates")
 def list_templates():
     """List all saved schedule templates."""
     db = get_db()
     return db.get_schedule_templates()
 
 
-@router.post("/api/schedule/templates")
+@router.post("/api/schedule/templates", tags=["Schedule"], summary="Create schedule template")
 def create_template(body: TemplateCreate, _cur_user: dict = Depends(require_planer)):
     """Create a new schedule template."""
     db = get_db()
@@ -334,7 +334,7 @@ def create_template(body: TemplateCreate, _cur_user: dict = Depends(require_plan
     return template
 
 
-@router.post("/api/schedule/templates/capture")
+@router.post("/api/schedule/templates/capture", tags=["Schedule"], summary="Capture week as template")
 def capture_template(body: TemplateCaptureRequest, _cur_user: dict = Depends(require_planer)):
     """Capture the current week's schedule entries as a new template."""
     db = get_db()
@@ -364,7 +364,7 @@ def capture_template(body: TemplateCaptureRequest, _cur_user: dict = Depends(req
     return template
 
 
-@router.delete("/api/schedule/templates/{template_id}")
+@router.delete("/api/schedule/templates/{template_id}", tags=["Schedule"], summary="Delete schedule template")
 def delete_template(template_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a schedule template by ID."""
     db = get_db()
@@ -374,7 +374,7 @@ def delete_template(template_id: int, _cur_user: dict = Depends(require_planer))
     return {"deleted": True, "id": template_id}
 
 
-@router.post("/api/schedule/templates/{template_id}/apply")
+@router.post("/api/schedule/templates/{template_id}/apply", tags=["Schedule"], summary="Apply template to week")
 def apply_template(template_id: int, body: TemplateApplyRequest, _cur_user: dict = Depends(require_planer)):
     """Apply a schedule template to a target week."""
     db = get_db()
@@ -424,7 +424,7 @@ def create_schedule_entry(body: ScheduleEntryCreate, _cur_user: dict = Depends(r
         raise _sanitize_500(e)
 
 
-@router.delete("/api/schedule/{employee_id}/{date}")
+@router.delete("/api/schedule/{employee_id}/{date}", tags=["Schedule"], summary="Delete schedule entry")
 def delete_schedule_entry(employee_id: int, date: str, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
@@ -443,7 +443,7 @@ def delete_schedule_entry(employee_id: int, date: str, _cur_user: dict = Depends
         raise _sanitize_500(e)
 
 
-@router.delete("/api/schedule-shift/{employee_id}/{date}")
+@router.delete("/api/schedule-shift/{employee_id}/{date}", tags=["Schedule"], summary="Delete shift override")
 def delete_shift_only(employee_id: int, date: str, _cur_user: dict = Depends(require_planer)):
     """Delete only shift entries (MASHI/SPSHI) for an employee on a date, leaving absences intact."""
     try:
@@ -468,7 +468,7 @@ class ScheduleGenerateRequest(BaseModel):
     respect_restrictions: bool = True
 
 
-@router.post("/api/schedule/generate")
+@router.post("/api/schedule/generate", tags=["Schedule"], summary="Auto-generate schedule from cycles")
 def generate_schedule(body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_planer)):
     """Generate (or preview) schedule entries for a month based on cycle assignments.
     dry_run=True: returns preview without writing.
@@ -513,7 +513,7 @@ def generate_schedule(body: ScheduleGenerateRequest, _cur_user: dict = Depends(r
 
 # ── Restrictions ──────────────────────────────────────────────
 
-@router.get("/api/restrictions")
+@router.get("/api/restrictions", tags=["Schedule"], summary="List employee shift restrictions")
 def get_restrictions(employee_id: Optional[int] = Query(None)):
     """Return all shift restrictions, optionally filtered by employee_id."""
     return get_db().get_restrictions(employee_id=employee_id)
@@ -526,7 +526,7 @@ class RestrictionCreate(BaseModel):
     weekday: Optional[int] = 0
 
 
-@router.post("/api/restrictions")
+@router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction")
 def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_admin)):
     """Add a shift restriction for an employee."""
     weekday = body.weekday or 0
@@ -544,7 +544,7 @@ def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_a
         raise _sanitize_500(e)
 
 
-@router.delete("/api/restrictions/{employee_id}/{shift_id}")
+@router.delete("/api/restrictions/{employee_id}/{shift_id}", tags=["Schedule"], summary="Remove shift restriction")
 def remove_restriction(
     employee_id: int,
     shift_id: int,
@@ -573,7 +573,7 @@ class BulkScheduleBody(BaseModel):
     overwrite: bool = True
 
 
-@router.post("/api/schedule/bulk")
+@router.post("/api/schedule/bulk", tags=["Schedule"], summary="Bulk schedule operations")
 def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_planer)):
     """Bulk create/update/delete schedule entries in a single request.
     If shift_id is null the entry is deleted; otherwise created or overwritten."""
@@ -647,7 +647,7 @@ class DeviationCreate(BaseModel):
     colorbk: Optional[int] = 16744448  # orange-ish default
 
 
-@router.post("/api/einsatzplan")
+@router.post("/api/einsatzplan", tags=["Schedule"], summary="Create deployment plan entry")
 def create_einsatzplan_entry(body: EinsatzplanCreate, _cur_user: dict = Depends(require_planer)):
     """Create a Sonderdienst entry in SPSHI (TYPE=0)."""
     try:
@@ -680,7 +680,7 @@ def create_einsatzplan_entry(body: EinsatzplanCreate, _cur_user: dict = Depends(
         raise _sanitize_500(e)
 
 
-@router.put("/api/einsatzplan/{entry_id}")
+@router.put("/api/einsatzplan/{entry_id}", tags=["Schedule"], summary="Update deployment plan entry")
 def update_einsatzplan_entry(entry_id: int, body: EinsatzplanUpdate, _cur_user: dict = Depends(require_planer)):
     """Update an existing SPSHI entry."""
     data = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -700,7 +700,7 @@ def update_einsatzplan_entry(entry_id: int, body: EinsatzplanUpdate, _cur_user: 
         raise _sanitize_500(e)
 
 
-@router.delete("/api/einsatzplan/{entry_id}")
+@router.delete("/api/einsatzplan/{entry_id}", tags=["Schedule"], summary="Delete deployment plan entry")
 def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a SPSHI entry by ID."""
     try:
@@ -714,7 +714,7 @@ def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_pl
         raise _sanitize_500(e)
 
 
-@router.post("/api/einsatzplan/deviation")
+@router.post("/api/einsatzplan/deviation", tags=["Schedule"], summary="Record deployment deviation")
 def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_planer)):
     """Create an Arbeitszeitabweichung entry in SPSHI (TYPE=1)."""
     try:
@@ -747,7 +747,7 @@ def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_pl
         raise _sanitize_500(e)
 
 
-@router.get("/api/einsatzplan")
+@router.get("/api/einsatzplan", tags=["Schedule"], summary="List deployment plan entries")
 def get_einsatzplan(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     group_id: Optional[int] = Query(None),
@@ -770,7 +770,7 @@ class CycleExceptionSet(BaseModel):
     type: int = 1  # 1=skip, 0=normal
 
 
-@router.get("/api/cycle-exceptions")
+@router.get("/api/cycle-exceptions", tags=["Schedule"], summary="List cycle exceptions")
 def get_cycle_exceptions(
     employee_id: Optional[int] = Query(None),
     cycle_assignment_id: Optional[int] = Query(None),
@@ -780,7 +780,7 @@ def get_cycle_exceptions(
                                           cycle_assignment_id=cycle_assignment_id)
 
 
-@router.post("/api/cycle-exceptions")
+@router.post("/api/cycle-exceptions", tags=["Schedule"], summary="Create cycle exception")
 def set_cycle_exception(body: CycleExceptionSet, _cur_user: dict = Depends(require_planer)):
     """Set a cycle exception for a specific date."""
     try:
@@ -795,7 +795,7 @@ def set_cycle_exception(body: CycleExceptionSet, _cur_user: dict = Depends(requi
         raise _sanitize_500(e)
 
 
-@router.delete("/api/cycle-exceptions/{exception_id}")
+@router.delete("/api/cycle-exceptions/{exception_id}", tags=["Schedule"], summary="Delete cycle exception")
 def delete_cycle_exception(exception_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a cycle exception by ID."""
     count = get_db().delete_cycle_exception(exception_id)
@@ -811,7 +811,7 @@ class SwapShiftsRequest(BaseModel):
     dates: List[str]  # YYYY-MM-DD strings
 
 
-@router.post("/api/schedule/swap")
+@router.post("/api/schedule/swap", tags=["Schedule"], summary="Swap shifts between employees")
 def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_planer)):
     """Swap schedule entries (shifts + absences) between two employees for the given dates."""
     from sp5lib.dbf_reader import get_table_fields
@@ -890,7 +890,7 @@ class CopyWeekRequest(BaseModel):
     skip_existing: bool = True     # True = don't overwrite existing entries
 
 
-@router.post("/api/schedule/copy-week")
+@router.post("/api/schedule/copy-week", tags=["Schedule"], summary="Copy week schedule")
 def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
     """Copy one employee's schedule entries (shifts + absences) for given dates to one or more target employees."""
     db = get_db()

@@ -23,11 +23,21 @@ def _xlsx_response(content: bytes, filename: str) -> _Response:
 
 
 # ── Monthly statistics ───────────────────────────────────────
-@router.get("/api/statistics")
+@router.get(
+    "/api/statistics",
+    tags=["Statistics"],
+    summary="Monthly statistics",
+    description=(
+        "Return per-employee statistics for a given month.\n\n"
+        "Each row contains target hours, actual hours, overtime, vacation days, and sick days. "
+        "Optionally filter by `group_id`. Defaults to the current year/month if not specified.\n\n"
+        "**Required role:** Leser (read-only)"
+    ),
+)
 def get_statistics(
     year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
     month: Optional[int] = Query(None, description="Month (1-12), defaults to current month"),
-    group_id: Optional[int] = Query(None),
+    group_id: Optional[int] = Query(None, description="Filter by group ID"),
 ):
     from datetime import date as _date
     if year is None:
@@ -40,10 +50,20 @@ def get_statistics(
 
 
 # ── Year Summary (Jahresrückblick) ────────────────────────────
-@router.get("/api/statistics/year-summary")
+@router.get(
+    "/api/statistics/year-summary",
+    tags=["Statistics"],
+    summary="Year summary (Jahresrückblick)",
+    description=(
+        "Return aggregated statistics for all 12 months of a year (Jahresrückblick).\n\n"
+        "Contains per-employee totals for the full year plus month-by-month breakdown. "
+        "Optionally filter by `group_id`.\n\n"
+        "**Required role:** Leser"
+    ),
+)
 def get_year_summary(
     year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
-    group_id: Optional[int] = Query(None),
+    group_id: Optional[int] = Query(None, description="Filter by group ID"),
 ):
     """Return aggregated statistics for all 12 months of a year (Jahresrückblick)."""
     from datetime import date as _date
@@ -128,7 +148,17 @@ def get_year_summary(
 
 
 # ── Employee detailed statistics ─────────────────────────────
-@router.get("/api/statistics/employee/{emp_id}")
+@router.get(
+    "/api/statistics/employee/{emp_id}",
+    tags=["Statistics"],
+    summary="Employee statistics",
+    description=(
+        "Return detailed statistics for a single employee.\n\n"
+        "Without `month`: returns 12-month yearly breakdown. "
+        "With `month`: returns daily schedule details for that month.\n\n"
+        "**Required role:** Leser"
+    ),
+)
 def get_employee_statistics(
     emp_id: int,
     year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
@@ -154,7 +184,20 @@ def get_employee_statistics(
 
 
 # ── Sickness / Krankenstand statistics ───────────────────────
-@router.get("/api/statistics/sickness")
+@router.get(
+    "/api/statistics/sickness",
+    tags=["Statistics"],
+    summary="Sickness statistics (Krankenstand)",
+    description=(
+        "Return sickness (Krankenstand) statistics for a given year.\n\n"
+        "Response contains:\n"
+        "- `per_employee`: sick days, episodes, Bradford factor per employee\n"
+        "- `per_month`: 12-element list with monthly sick-day totals\n"
+        "- `per_weekday`: 7-element list with per-weekday sick-day totals\n"
+        "- `totals`: total_sick_days, affected_employees, total_employees\n\n"
+        "**Required role:** Leser"
+    ),
+)
 def get_sickness_statistics(
     year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
 ):
@@ -173,7 +216,20 @@ def get_sickness_statistics(
 
 
 # ── Shift statistics ──────────────────────────────────────────
-@router.get("/api/statistics/shifts")
+@router.get(
+    "/api/statistics/shifts",
+    tags=["Statistics"],
+    summary="Shift statistics (trend)",
+    description=(
+        "Return shift-centric statistics over a rolling window of months.\n\n"
+        "Response contains:\n"
+        "- `periods`: list of {year, month, label} for the trend window\n"
+        "- `shift_usage`: per-shift monthly counts and totals\n"
+        "- `employee_distribution`: per-employee shift counts by category\n"
+        "- `category_totals`: global counts by category (Früh/Spät/Nacht/Sonstige)\n\n"
+        "**Required role:** Leser"
+    ),
+)
 def get_shift_statistics(
     year: int = Query(..., description="Year (YYYY)"),
     months: int = Query(6, ge=1, le=24, description="Number of months for trend"),
@@ -335,7 +391,25 @@ def _csv_response(rows: list, filename: str) -> _Response:
     )
 
 
-@router.get("/api/export/schedule")
+@router.get(
+    "/api/export/schedule",
+    tags=["Export"],
+    summary="Export schedule",
+    description=(
+        "Export the monthly schedule as CSV, HTML, or XLSX.\n\n"
+        "- `month`: required, format `YYYY-MM`\n"
+        "- `group_id`: optional filter\n"
+        "- `format`: `csv` (default), `html`, or `xlsx`\n\n"
+        "Returns a file download with appropriate Content-Disposition header.\n\n"
+        "**Required role:** Planer"
+    ),
+    responses={
+        200: {"description": "File download (CSV/HTML/XLSX)"},
+        400: {"description": "Invalid month format or format type"},
+        401: {"description": "Not authenticated"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
 @limiter.limit("10/minute")
 def export_schedule(
     request: Request,
@@ -561,7 +635,22 @@ def export_schedule(
         )
 
 
-@router.get("/api/export/statistics")
+@router.get(
+    "/api/export/statistics",
+    tags=["Export"],
+    summary="Export yearly statistics",
+    description=(
+        "Export yearly statistics (all 12 months) as CSV or HTML.\n\n"
+        "Includes per-employee target hours, actual hours, overtime, vacation days, and sick days "
+        "plus a summary row per employee across the year.\n\n"
+        "**Required role:** Planer"
+    ),
+    responses={
+        200: {"description": "File download (CSV/HTML)"},
+        401: {"description": "Not authenticated"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
 @limiter.limit("10/minute")
 def export_statistics(
     request: Request,
@@ -712,7 +801,21 @@ def export_statistics(
         )
 
 
-@router.get("/api/export/employees")
+@router.get(
+    "/api/export/employees",
+    tags=["Export"],
+    summary="Export employee list",
+    description=(
+        "Export all active employees as CSV or HTML.\n\n"
+        "Columns: ID, Name, Vorname, Kürzel, Personalnummer, Std/Tag, Std/Woche, Std/Monat, Arbeitstage.\n\n"
+        "**Required role:** Planer"
+    ),
+    responses={
+        200: {"description": "File download (CSV/HTML)"},
+        401: {"description": "Not authenticated"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
 @limiter.limit("10/minute")
 def export_employees(
     request: Request,
@@ -800,7 +903,21 @@ def export_employees(
     return _csv_response(rows, "mitarbeiter.csv")
 
 
-@router.get("/api/export/absences")
+@router.get(
+    "/api/export/absences",
+    tags=["Export"],
+    summary="Export absences",
+    description=(
+        "Export absence entries for a given year as CSV or HTML.\n\n"
+        "Optionally filter by `group_id`. Columns include employee name/short, leave type, date, and notes.\n\n"
+        "**Required role:** Planer"
+    ),
+    responses={
+        200: {"description": "File download (CSV/HTML)"},
+        401: {"description": "Not authenticated"},
+        429: {"description": "Rate limit exceeded"},
+    },
+)
 @limiter.limit("10/minute")
 def export_absences(
     request: Request,
@@ -877,7 +994,23 @@ def export_absences(
 
 # ── Monatsabschluss-Report ───────────────────────────────────
 
-@router.get("/api/reports/monthly")
+@router.get(
+    "/api/reports/monthly",
+    tags=["Export"],
+    summary="Monthly closing report (Monatsabschluss)",
+    description=(
+        "Generate a monthly closing report (Monatsabschluss) for all employees.\n\n"
+        "- **CSV**: target/actual hours, overtime, extra-charge hours, vacation/sick days per employee\n"
+        "- **PDF**: professional A4 report with table and totals row\n\n"
+        "Optionally filter by `group_id`.\n\n"
+        "**Required role:** Leser"
+    ),
+    responses={
+        200: {"description": "File download (CSV/PDF)"},
+        400: {"description": "Invalid month or format"},
+        401: {"description": "Not authenticated"},
+    },
+)
 def get_monthly_report(
     year: int = Query(..., description="Year (YYYY)"),
     month: int = Query(..., description="Month (1-12)"),
@@ -1186,7 +1319,16 @@ def get_monthly_report(
 
 # ── Zeitkonto / Überstunden ──────────────────────────────────
 
-@router.get("/api/zeitkonto")
+@router.get(
+    "/api/zeitkonto",
+    tags=["Statistics"],
+    summary="Time balance (Zeitkonto)",
+    description=(
+        "Return yearly time balance for all employees (or filtered by group/employee).\n\n"
+        "Each row contains target hours, actual hours, and the running saldo per month.\n\n"
+        "**Required role:** Leser"
+    ),
+)
 def get_zeitkonto(
     year: int = Query(..., description="Year"),
     group_id: Optional[int] = Query(None, description="Filter by group ID"),
@@ -1195,7 +1337,19 @@ def get_zeitkonto(
     return get_db().get_zeitkonto(year=year, group_id=group_id, employee_id=employee_id)
 
 
-@router.get("/api/zeitkonto/detail")
+@router.get(
+    "/api/zeitkonto/detail",
+    tags=["Statistics"],
+    summary="Time balance detail for one employee",
+    description=(
+        "Return the full monthly time-balance calculation for a single employee in a given year.\n\n"
+        "Returns 404 if the employee is not found.\n\n"
+        "**Required role:** Leser"
+    ),
+    responses={
+        404: {"description": "Employee not found"},
+    },
+)
 def get_zeitkonto_detail(
     year: int = Query(..., description="Year"),
     employee_id: int = Query(..., description="Employee ID"),
@@ -1207,7 +1361,16 @@ def get_zeitkonto_detail(
     return result
 
 
-@router.get("/api/zeitkonto/summary")
+@router.get(
+    "/api/zeitkonto/summary",
+    tags=["Statistics"],
+    summary="Time balance summary (team totals)",
+    description=(
+        "Return aggregated time-balance totals for a year (optionally filtered by group).\n\n"
+        "Includes total target/actual hours, overall saldo, and counts of employees with positive/negative saldo.\n\n"
+        "**Required role:** Leser"
+    ),
+)
 def get_zeitkonto_summary(
     year: int = Query(..., description="Year"),
     group_id: Optional[int] = Query(None, description="Filter by group ID"),
@@ -1230,7 +1393,16 @@ def get_zeitkonto_summary(
     }
 
 
-@router.get("/api/bookings")
+@router.get(
+    "/api/bookings",
+    tags=["Statistics"],
+    summary="List manual hour bookings",
+    description=(
+        "Return manual hour bookings (Stundenbuchungen). "
+        "Filter by `year`, `month`, and/or `employee_id`.\n\n"
+        "**Required role:** Leser"
+    ),
+)
 def get_bookings(
     year: Optional[int] = Query(None, description="Filter by year"),
     month: Optional[int] = Query(None, description="Filter by month (1-12), use with year"),
@@ -1247,7 +1419,20 @@ class BookingCreate(BaseModel):
     note: Optional[str] = ''
 
 
-@router.post("/api/bookings")
+@router.post(
+    "/api/bookings",
+    tags=["Statistics"],
+    summary="Create manual hour booking",
+    description=(
+        "Create a manual hour booking (Stundenbuchung) for an employee.\n\n"
+        "`type`: 0 = Ist-Stunden, 1 = Soll-Stunden\n\n"
+        "**Required role:** Planer"
+    ),
+    responses={
+        400: {"description": "Invalid date format or type"},
+        401: {"description": "Not authenticated"},
+    },
+)
 def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
@@ -1269,7 +1454,16 @@ def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer
         raise _sanitize_500(e)
 
 
-@router.delete("/api/bookings/{booking_id}")
+@router.delete(
+    "/api/bookings/{booking_id}",
+    tags=["Statistics"],
+    summary="Delete manual hour booking",
+    description="Delete a manual hour booking by ID. Returns 404 if not found.\n\n**Required role:** Planer",
+    responses={
+        404: {"description": "Booking not found"},
+        401: {"description": "Not authenticated"},
+    },
+)
 def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_booking(booking_id)
@@ -1284,7 +1478,11 @@ def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
 
 # ── Carry Forward (Saldo-Übertrag) ────────────────────────────
 
-@router.get("/api/bookings/carry-forward")
+@router.get(
+    "/api/bookings/carry-forward",
+    tags=["Statistics"],
+    summary="Get carry-forward saldo",
+)
 def get_carry_forward(employee_id: int = Query(...), year: int = Query(...)):
     try:
         return get_db().get_carry_forward(employee_id=employee_id, year=year)
@@ -1298,7 +1496,11 @@ class CarryForwardSet(BaseModel):
     hours: float
 
 
-@router.post("/api/bookings/carry-forward")
+@router.post(
+    "/api/bookings/carry-forward",
+    tags=["Statistics"],
+    summary="Set carry-forward saldo",
+)
 def set_carry_forward(body: CarryForwardSet, _cur_user: dict = Depends(require_planer)):
     try:
         result = get_db().set_carry_forward(
@@ -1316,7 +1518,11 @@ class AnnualStatementBody(BaseModel):
     year: int
 
 
-@router.post("/api/bookings/annual-statement")
+@router.post(
+    "/api/bookings/annual-statement",
+    tags=["Statistics"],
+    summary="Generate annual statement",
+)
 def annual_statement(body: AnnualStatementBody, _cur_user: dict = Depends(require_planer)):
     try:
         result = get_db().calculate_annual_statement(
@@ -1328,7 +1534,11 @@ def annual_statement(body: AnnualStatementBody, _cur_user: dict = Depends(requir
         raise _sanitize_500(e)
 
 
-@router.get("/api/overtime-records")
+@router.get(
+    "/api/overtime-records",
+    tags=["Statistics"],
+    summary="List overtime records",
+)
 def get_overtime_records(
     year: Optional[int] = Query(None, description="Filter by year"),
     employee_id: Optional[int] = Query(None, description="Filter by employee ID"),
@@ -1344,7 +1554,11 @@ def _decode_csv(content: bytes) -> str:
         return content.decode('latin-1')
 
 
-@router.post("/api/import/employees")
+@router.post(
+    "/api/import/employees",
+    tags=["Import"],
+    summary="Import employees from CSV",
+)
 async def import_employees(file: UploadFile = File(...)):
     """Import employees from CSV. Required columns: NAME or NACHNAME.
     Accepted column aliases: VORNAME/FIRSTNAME, NACHNAME/NAME, KURZZEICHEN/SHORTNAME,
@@ -1394,7 +1608,11 @@ async def import_employees(file: UploadFile = File(...)):
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
 
-@router.post("/api/import/shifts")
+@router.post(
+    "/api/import/shifts",
+    tags=["Import"],
+    summary="Import shifts from CSV",
+)
 async def import_shifts(file: UploadFile = File(...)):
     """Import shifts from CSV. Required: NAME.
     Optional: KURZZEICHEN/SHORTNAME, FARBE/COLORBK (hex #RRGGBB or int BGR), DURATION0."""
@@ -1456,7 +1674,11 @@ async def import_shifts(file: UploadFile = File(...)):
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
 
-@router.post("/api/import/absences")
+@router.post(
+    "/api/import/absences",
+    tags=["Import"],
+    summary="Import absences from CSV",
+)
 async def import_absences(file: UploadFile = File(...)):
     """Import absences from CSV. Required: EMPLOYEE_ID, DATE (YYYY-MM-DD), LEAVE_TYPE_ID."""
     content = await file.read()
@@ -1499,7 +1721,11 @@ async def import_absences(file: UploadFile = File(...)):
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
 
-@router.post("/api/import/holidays")
+@router.post(
+    "/api/import/holidays",
+    tags=["Import"],
+    summary="Import holidays from CSV",
+)
 async def import_holidays(file: UploadFile = File(...)):
     """Import holidays from CSV. Required: DATE (YYYY-MM-DD), NAME.
     Optional: INTERVAL (0=einmalig, 1=jährlich), REGION (ignored, for info only)."""
@@ -1546,7 +1772,11 @@ async def import_holidays(file: UploadFile = File(...)):
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
 
-@router.post("/api/import/bookings-actual")
+@router.post(
+    "/api/import/bookings-actual",
+    tags=["Import"],
+    summary="Import actual-hour bookings from CSV",
+)
 async def import_bookings_actual(file: UploadFile = File(...)):
     """Import actual-hour bookings (TYPE=0) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
@@ -1592,7 +1822,11 @@ async def import_bookings_actual(file: UploadFile = File(...)):
     return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
-@router.post("/api/import/bookings-nominal")
+@router.post(
+    "/api/import/bookings-nominal",
+    tags=["Import"],
+    summary="Import nominal-hour bookings from CSV",
+)
 async def import_bookings_nominal(file: UploadFile = File(...)):
     """Import nominal-hour bookings (TYPE=1) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
@@ -1638,7 +1872,11 @@ async def import_bookings_nominal(file: UploadFile = File(...)):
     return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
-@router.post("/api/import/entitlements")
+@router.post(
+    "/api/import/entitlements",
+    tags=["Import"],
+    summary="Import vacation entitlements from CSV",
+)
 async def import_entitlements(file: UploadFile = File(...)):
     """Import leave entitlements from CSV.
     Required: Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage."""
@@ -1690,7 +1928,11 @@ async def import_entitlements(file: UploadFile = File(...)):
     return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
-@router.post("/api/import/absences-csv")
+@router.post(
+    "/api/import/absences-csv",
+    tags=["Import"],
+    summary="Import absences from CSV (alternate format)",
+)
 async def import_absences_csv(file: UploadFile = File(...)):
     """Import absences from CSV using Personalnummer and Abwesenheitsart-Kürzel.
     Required: Personalnummer,Datum,Abwesenheitsart-Kürzel."""
@@ -1741,7 +1983,11 @@ async def import_absences_csv(file: UploadFile = File(...)):
     return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
-@router.post("/api/import/groups")
+@router.post(
+    "/api/import/groups",
+    tags=["Import"],
+    summary="Import groups from CSV",
+)
 async def import_groups(file: UploadFile = File(...)):
     """Import groups from CSV.
     Required: Name. Optional: Kürzel, Übergeordnete-Gruppe-Name."""
@@ -1798,7 +2044,11 @@ async def import_groups(file: UploadFile = File(...)):
 
 # ── Burnout-Radar ────────────────────────────────────────────
 
-@router.get("/api/burnout-radar")
+@router.get(
+    "/api/burnout-radar",
+    tags=["Statistics"],
+    summary="Burnout radar analysis",
+)
 def get_burnout_radar(
     year: int = Query(..., description="Year"),
     month: int = Query(..., description="Month 1-12"),
@@ -1824,7 +2074,11 @@ def get_burnout_radar(
 
 # ── Überstunden-Zusammenfassung ───────────────────────────────
 
-@router.get("/api/overtime-summary")
+@router.get(
+    "/api/overtime-summary",
+    tags=["Statistics"],
+    summary="Overtime summary",
+)
 def get_overtime_summary(
     year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
     group_id: Optional[int] = Query(None, description="Filter by group"),
@@ -1856,7 +2110,11 @@ def get_overtime_summary(
 
 # ── Warnings Center ──────────────────────────────────────────
 
-@router.get("/api/warnings")
+@router.get(
+    "/api/warnings",
+    tags=["Statistics"],
+    summary="Schedule warnings and anomalies",
+)
 def get_warnings(
     year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
     month: Optional[int] = Query(None, description="Month (1-12), defaults to current month"),
@@ -2028,7 +2286,11 @@ def get_warnings(
 
 
 # ── Fairness-Score ───────────────────────────────────────────────
-@router.get("/api/fairness")
+@router.get(
+    "/api/fairness",
+    tags=["Statistics"],
+    summary="Fairness analysis",
+)
 def get_fairness_score(
     year: int = Query(..., description="Year"),
     group_id: Optional[int] = Query(None, description="Filter by group"),
@@ -2146,7 +2408,11 @@ def get_fairness_score(
 
 
 # ── Kapazitäts-Forecast ──────────────────────────────────────────
-@router.get("/api/capacity-forecast")
+@router.get(
+    "/api/capacity-forecast",
+    tags=["Statistics"],
+    summary="Capacity forecast",
+)
 def get_capacity_forecast(
     year: int = Query(..., description="Year (YYYY)"),
     month: int = Query(..., description="Month (1-12)"),
@@ -2328,7 +2594,11 @@ def get_capacity_forecast(
 
 
 # ── Jahres-Kapazitätsübersicht ───────────────────────────────────────────────
-@router.get("/api/capacity-year")
+@router.get(
+    "/api/capacity-year",
+    tags=["Statistics"],
+    summary="Yearly capacity overview",
+)
 def get_capacity_year(
     year: int = Query(..., description="Year (YYYY)"),
     group_id: Optional[int] = Query(None, description="Filter by group"),
@@ -2477,7 +2747,11 @@ def get_capacity_year(
 
 # ── Qualitätsbericht ─────────────────────────────────────────────────────────
 
-@router.get("/api/quality-report")
+@router.get(
+    "/api/quality-report",
+    tags=["Statistics"],
+    summary="Schedule quality report",
+)
 def get_quality_report(
     year: int = Query(...),
     month: int = Query(...),
@@ -2739,7 +3013,11 @@ def get_quality_report(
 
 # ── Verfügbarkeits-Matrix ────────────────────────────────────────────────────
 
-@router.get("/api/availability-matrix")
+@router.get(
+    "/api/availability-matrix",
+    tags=["Statistics"],
+    summary="Employee availability matrix",
+)
 def get_availability_matrix(
     group_id: Optional[int] = Query(None),
     year: int = Query(None),
@@ -2951,7 +3229,11 @@ class SimulationRequest(BaseModel):
     absences: list  # list of SimulationAbsence dicts
     scenario_name: Optional[str] = "Simulation"
 
-@router.post("/api/simulation")
+@router.post(
+    "/api/simulation",
+    tags=["Statistics"],
+    summary="Schedule simulation",
+)
 def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_planer)):
     """
     Schichtplan-Simulation: Was passiert wenn Mitarbeiter ausfallen?

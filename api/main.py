@@ -70,6 +70,9 @@ _OPENAPI_TAGS = [
     {"name": "Import", "description": "CSV import endpoints"},
     {"name": "Backup", "description": "Database backup and restore"},
     {"name": "Notes", "description": "Shift notes and handover entries"},
+    {"name": "Self-Service", "description": "Employee self-service: own wishes, absences, profile"},
+    {"name": "Events", "description": "Calendar events and holidays"},
+    {"name": "Admin", "description": "Administrative operations (Admin only)"},
 ]
 
 async def _periodic_cleanup():
@@ -116,7 +119,7 @@ app = FastAPI(
         "- **Planer** – can write schedules and absences\n"
         "- **Admin** – full access including user and master-data management\n"
     ),
-    version="1.0.0",
+    version="0.3.9",
     openapi_tags=_OPENAPI_TAGS,
 )
 
@@ -365,7 +368,7 @@ app.include_router(events.router)
 
 # ── Routes ──────────────────────────────────────────────────────
 
-_API_VERSION = "1.0.0"
+_API_VERSION = "0.3.9"
 
 
 @app.get(
@@ -412,7 +415,7 @@ def version():
 def root():
     return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION, "backend": "dbf"}
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def frontend_root():
     """Serve the React frontend."""
     _dist = os.path.normpath(
@@ -421,16 +424,16 @@ async def frontend_root():
     index = os.path.join(_dist, 'index.html')
     if os.path.exists(index):
         return FileResponse(index)
-    return {"service": "OpenSchichtplaner5 API", "version": "0.1.0"}
+    return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION}
 
-@app.get("/api/stats")
+@app.get("/api/stats", tags=["Health"], summary="Database statistics")
 def get_stats():
     return get_db().get_stats()
 
 
 # ── Dashboard Summary ────────────────────────────────────────
 
-@app.get("/api/dashboard/summary")
+@app.get("/api/dashboard/summary", tags=["Health"], summary="Dashboard summary")
 def get_dashboard_summary(
     year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
     month: Optional[int] = Query(None, description="Month (1-12), defaults to current month"),
@@ -633,7 +636,7 @@ def get_dashboard_summary(
 
 # ── Dashboard: Today ──────────────────────────────────────────
 
-@app.get("/api/dashboard/today")
+@app.get("/api/dashboard/today", tags=["Health"], summary="Today's schedule overview")
 def get_dashboard_today():
     """Return employees on duty today, today's absences, and week peak data."""
     from datetime import date, timedelta
@@ -729,7 +732,7 @@ def get_dashboard_today():
 
 # ── Dashboard: Upcoming ───────────────────────────────────────
 
-@app.get("/api/dashboard/upcoming")
+@app.get("/api/dashboard/upcoming", tags=["Health"], summary="Upcoming schedule entries")
 def get_dashboard_upcoming():
     """Return next 3 upcoming holidays and birthdays this week."""
     from datetime import date, timedelta
@@ -815,7 +818,7 @@ def get_dashboard_upcoming():
 
 # ── Dashboard: Stats ──────────────────────────────────────────
 
-@app.get("/api/dashboard/stats")
+@app.get("/api/dashboard/stats", tags=["Health"], summary="Dashboard statistics")
 def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None):
     """Return key statistics: total employees, active shifts this month, vacation days used."""
     from datetime import date
