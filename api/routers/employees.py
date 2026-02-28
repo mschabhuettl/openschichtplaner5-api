@@ -28,8 +28,10 @@ def get_employee(emp_id: int):
 def get_groups(include_hidden: bool = False):
     db = get_db()
     groups = db.get_groups(include_hidden=include_hidden)
+    # Fetch all group→members in a single pass to avoid N+1
+    all_members = db.get_all_group_members()
     for g in groups:
-        g['member_count'] = len(db.get_group_members(g['ID']))
+        g['member_count'] = len(all_members.get(g['ID'], []))
     return groups
 
 
