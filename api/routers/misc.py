@@ -553,3 +553,101 @@ def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer))
     if not deleted:
         raise HTTPException(status_code=404, detail="Nicht gefunden")
     return {"ok": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Self-Service routes (Leser role)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/api/me/employee", tags=["Self-Service"], summary="Get current user's employee record")
+def get_my_employee(cur_user: dict = Depends(require_auth)):
+    """Returns the EMPL record matching the logged-in user by name, or null."""
+    user_name = cur_user.get('NAME', '').strip().lower()
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    match = next(
+        (e for e in employees if (e.get('NAME') or '').strip().lower() == user_name),
+        None
+    )
+    return {"employee": match, "user_id": cur_user.get('ID')}
+
+
+class SelfWishCreate(BaseModel):
+    date: str
+    wish_type: str  # WUNSCH | SPERRUNG
+    shift_id: Optional[int] = None
+    note: Optional[str] = ''
+
+
+@router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block")
+def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth)):
+    """Leser can submit a Schichtwunsch or Sperrung for themselves."""
+    user_name = cur_user.get('NAME', '').strip().lower()
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    employee = next(
+        (e for e in employees if (e.get('NAME') or '').strip().lower() == user_name),
+        None
+    )
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden")
+    wish_type = body.wish_type.upper()
+    if wish_type not in ('WUNSCH', 'SPERRUNG'):
+        raise HTTPException(status_code=400, detail="wish_type must be WUNSCH or SPERRUNG")
+    result = db.add_wish(
+        employee_id=employee['ID'],
+        date=body.date,
+        wish_type=wish_type,
+        shift_id=body.shift_id,
+        note=body.note or '',
+    )
+    return result
+
+
+@router.delete("/api/self/wishes/{wish_id}", tags=["Self-Service"], summary="Delete own wish")
+def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
+    """Leser can delete their own wishes."""
+    user_name = cur_user.get('NAME', '').strip().lower()
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    employee = next(
+        (e for e in employees if (e.get('NAME') or '').strip().lower() == user_name),
+        None
+    )
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden")
+    # Verify the wish belongs to this employee
+    wishes = db.get_wishes(employee_id=employee['ID'])
+    wish = next((w for w in wishes if w.get('id') == wish_id), None)
+    if wish is None:
+        raise HTTPException(status_code=404, detail="Wunsch nicht gefunden oder gehört nicht dir")
+    deleted = db.delete_wish(wish_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Wunsch nicht gefunden")
+    return {"deleted": wish_id}
+
+
+class SelfAbsenceCreate(BaseModel):
+    date: str
+    leave_type_id: int
+    note: Optional[str] = ''
+
+
+@router.post("/api/self/absences", tags=["Self-Service"], summary="Submit own absence request")
+def create_self_absence(body: SelfAbsenceCreate, cur_user: dict = Depends(require_auth)):
+    """Leser can submit an absence/vacation request for themselves."""
+    user_name = cur_user.get('NAME', '').strip().lower()
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    employee = next(
+        (e for e in employees if (e.get('NAME') or '').strip().lower() == user_name),
+        None
+    )
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden")
+    # Check if already exists
+    existing = db.get_absences_list(employee_id=employee['ID'])
+    if any(a.get('date') == body.date for a in existing):
+        raise HTTPException(status_code=409, detail="Abwesenheit für dieses Datum bereits vorhanden")
+    result = db.add_absence(employee['ID'], body.date, body.leave_type_id)
+    return result
