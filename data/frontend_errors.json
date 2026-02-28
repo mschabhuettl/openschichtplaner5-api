@@ -838,5 +838,37 @@
     "url": "/test",
     "user_agent": "test",
     "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-02-28T19:28:59.273736Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-02-28T19:28:59.399551Z",
+    "error": "<script>alert(1)</script>",
+    "component_stack": null,
+    "url": "/test",
+    "user_agent": "test",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-02-28T19:45:27.127276Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-02-28T19:45:27.255360Z",
+    "error": "<script>alert(1)</script>",
+    "component_stack": null,
+    "url": "/test",
+    "user_agent": "test",
+    "client_ip": "testclient"
   }
 ]
