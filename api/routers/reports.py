@@ -2185,6 +2185,152 @@ def get_capacity_forecast(
     }
 
 
+# ── Jahres-Kapazitätsübersicht ───────────────────────────────────────────────
+@router.get("/api/capacity-year")
+def get_capacity_year(
+    year: int = Query(..., description="Year (YYYY)"),
+    group_id: Optional[int] = Query(None, description="Filter by group"),
+):
+    """Return per-month capacity summary for a full year (for heatmap).
+
+    Each month:
+    - avg_staffing: average daily staffing (planned days only)
+    - ok_days, low_days, critical_days, unplanned_days
+    - coverage_pct: avg_staffing / total_employees * 100
+    - worst_status: overall month status
+    """
+    import calendar as _cal
+    from collections import defaultdict
+
+    db = get_db()
+    all_employees = db.get_employees()
+    if group_id:
+        members = db.get_group_members(group_id)
+        member_ids = {m.get('id', m.get('ID')) for m in members}
+        all_employees = [e for e in all_employees if (e.get('id') or e.get('ID')) in member_ids]
+    total_emp = len(all_employees)
+
+    def _eid(e):
+        return e.get('id') or e.get('ID')
+    emp_by_id = {_eid(e): e for e in all_employees}
+
+    staffing_req = db.get_staffing_requirements()
+    shift_reqs = staffing_req.get("shift_requirements", [])
+    min_by_weekday: dict = {}
+    for req in shift_reqs:
+        wd = req.get("weekday", -1)
+        m = req.get("min", 0) or 0
+        if wd >= 0:
+            min_by_weekday[wd] = max(min_by_weekday.get(wd, 0), m)
+
+    months_result = []
+    for month in range(1, 13):
+        import datetime as _dt
+        num_days = _cal.monthrange(year, month)[1]
+        prefix = f"{year:04d}-{month:02d}"
+
+        all_mashi = [r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)]
+        all_spshi = [r for r in db._read("SPSHI") if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0]
+        all_absences = [r for r in db._read("ABSEN") if r.get("DATE", "").startswith(prefix)]
+
+        day_scheduled: dict = defaultdict(set)
+        day_absent: dict = defaultdict(int)
+
+        for r in all_mashi:
+            d = r.get("DATE", "")
+            if d.startswith(prefix):
+                try:
+                    day = int(d[8:10])
+                    eid = r.get("EMPLOYEEID")
+                    if eid and eid in emp_by_id:
+                        day_scheduled[day].add(eid)
+                except (ValueError, IndexError):
+                    pass
+
+        for r in all_spshi:
+            d = r.get("DATE", "")
+            if d.startswith(prefix):
+                try:
+                    day = int(d[8:10])
+                    eid = r.get("EMPLOYEEID")
+                    if eid and eid in emp_by_id:
+                        day_scheduled[day].add(eid)
+                except (ValueError, IndexError):
+                    pass
+
+        for r in all_absences:
+            d = r.get("DATE", "")
+            if d.startswith(prefix):
+                try:
+                    day = int(d[8:10])
+                    day_absent[day] += 1
+                except (ValueError, IndexError):
+                    pass
+
+        ok_days = low_days = critical_days = unplanned_days = 0
+        staffing_sum = 0
+        planned_days = 0
+
+        for day in range(1, num_days + 1):
+            check_date = _dt.date(year, month, day)
+            weekday = check_date.weekday()
+            scheduled = len(day_scheduled.get(day, set()))
+            required_min = min_by_weekday.get(weekday, 0)
+
+            if required_min > 0:
+                diff = scheduled - required_min
+                if diff >= 0:
+                    ok_days += 1
+                elif diff == -1:
+                    low_days += 1
+                else:
+                    critical_days += 1
+                staffing_sum += scheduled
+                planned_days += 1
+            else:
+                if scheduled >= 3:
+                    ok_days += 1
+                    staffing_sum += scheduled
+                    planned_days += 1
+                elif scheduled >= 1:
+                    low_days += 1
+                    staffing_sum += scheduled
+                    planned_days += 1
+                else:
+                    unplanned_days += 1
+
+        avg_staffing = round(staffing_sum / max(1, planned_days), 1) if planned_days > 0 else 0
+        coverage_pct = round(avg_staffing / max(1, total_emp) * 100, 1) if total_emp > 0 else 0
+
+        if critical_days > 0:
+            worst_status = "critical"
+        elif low_days > 2:
+            worst_status = "low"
+        elif unplanned_days > num_days // 2:
+            worst_status = "unplanned"
+        else:
+            worst_status = "ok"
+
+        months_result.append({
+            "month": month,
+            "num_days": num_days,
+            "avg_staffing": avg_staffing,
+            "coverage_pct": coverage_pct,
+            "ok_days": ok_days,
+            "low_days": low_days,
+            "critical_days": critical_days,
+            "unplanned_days": unplanned_days,
+            "planned_days": planned_days,
+            "worst_status": worst_status,
+            "total_employees": total_emp,
+        })
+
+    return {
+        "year": year,
+        "total_employees": total_emp,
+        "months": months_result,
+    }
+
 
 # ── Qualitätsbericht ─────────────────────────────────────────────────────────
 
