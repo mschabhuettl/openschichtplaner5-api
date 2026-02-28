@@ -457,12 +457,14 @@ class ScheduleGenerateRequest(BaseModel):
     employee_ids: Optional[List[int]] = None
     force: bool = False
     dry_run: bool = False
+    respect_restrictions: bool = True
 
 
 @router.post("/api/schedule/generate")
 def generate_schedule(body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_planer)):
     """Generate (or preview) schedule entries for a month based on cycle assignments.
-    dry_run=True: returns preview without writing."""
+    dry_run=True: returns preview without writing.
+    respect_restrictions=True: skips shifts that employee has a restriction for."""
     if not (1 <= body.month <= 12):
         raise HTTPException(status_code=400, detail="Month must be 1-12")
     try:
@@ -472,22 +474,29 @@ def generate_schedule(body: ScheduleGenerateRequest, _cur_user: dict = Depends(r
             employee_ids=body.employee_ids,
             force=body.force,
             dry_run=body.dry_run,
+            respect_restrictions=body.respect_restrictions,
         )
         created = result['created']
         skipped = result['skipped']
+        skipped_restriction = result.get('skipped_restriction', 0)
         errors = result.get('errors', [])
         preview = result.get('preview', [])
+        report = result.get('report', {})
         if body.dry_run:
             message = f"Vorschau: {created} Einträge würden erstellt, {skipped} übersprungen"
         else:
             message = f"{created} Einträge erstellt, {skipped} übersprungen"
+        if skipped_restriction:
+            message += f", {skipped_restriction} wegen Sperren übersprungen"
         if errors:
             message += f", {len(errors)} Fehler"
         return {
             'created': created,
             'skipped': skipped,
+            'skipped_restriction': skipped_restriction,
             'errors': errors,
             'preview': preview,
+            'report': report,
             'message': message,
         }
     except Exception as e:
