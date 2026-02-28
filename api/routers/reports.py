@@ -723,9 +723,9 @@ def export_statistics(
             ot_color = "#16a34a" if ot >= 0 else "#dc2626"
             detail_rows += (
                 f'<tr>'
-                f'<td class="center">{MONTHS_DE[r["Monat"]]}</td>'
-                f'<td class="name">{r["Mitarbeiter"]}</td>'
-                f'<td class="center">{r["Kürzel"]}</td>'
+                f'<td class="center">{_html.escape(str(MONTHS_DE[r["Monat"]]))}</td>'
+                f'<td class="name">{_html.escape(str(r["Mitarbeiter"]))}</td>'
+                f'<td class="center">{_html.escape(str(r["Kürzel"]))}</td>'
                 f'<td class="num">{r["Soll (h)"]:.1f}</td>'
                 f'<td class="num">{r["Ist (h)"]:.1f}</td>'
                 f'<td class="num" style="color:{ot_color};font-weight:bold">{"+" if ot>=0 else ""}{ot:.1f}</td>'
