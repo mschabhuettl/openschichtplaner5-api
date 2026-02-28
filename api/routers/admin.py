@@ -149,6 +149,14 @@ async def backup_restore(file: UploadFile = File(...), _admin: dict = Depends(re
 
     content = await file.read()
 
+    # Enforce maximum upload size (50 MB)
+    MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Upload zu groß. Maximum: {MAX_UPLOAD_BYTES // (1024*1024)} MB"
+        )
+
     try:
         zf = zipfile.ZipFile(io.BytesIO(content))
     except zipfile.BadZipFile:

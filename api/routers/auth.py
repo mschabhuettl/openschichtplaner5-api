@@ -10,7 +10,7 @@ from ..dependencies import (
     get_db, require_admin, require_planer, require_auth, require_role,
     _sanitize_500, _logger, _sessions, _failed_logins, _LOCKOUT_WINDOW,
     _LOCKOUT_MAX, _TOKEN_EXPIRE_HOURS, _ROLE_LEVEL, get_current_user,
-    _is_token_valid, limiter,
+    _is_token_valid, limiter, invalidate_sessions_for_user,
 )
 
 router = APIRouter()
@@ -53,6 +53,10 @@ def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
         raise HTTPException(status_code=400, detail="role muss Admin, Planer oder Leser sein")
     try:
         result = get_db().create_user(body.model_dump())
+        _logger.warning(
+            "AUDIT USER_CREATE | admin=%s new_user=%s role=%s",
+            _admin.get('NAME'), body.NAME, body.role
+        )
         return {"ok": True, "record": result}
     except ValueError as e:
         if str(e).startswith('DUPLICATE:USERNAME:'):
@@ -69,6 +73,10 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
         raise HTTPException(status_code=400, detail="role muss Admin, Planer oder Leser sein")
     try:
         result = get_db().update_user(user_id, data)
+        _logger.warning(
+            "AUDIT USER_UPDATE | admin=%s target_id=%d fields=%s",
+            _admin.get('NAME'), user_id, list(data.keys())
+        )
         return {"ok": True, "record": result}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=f"Benutzer ID {user_id} nicht gefunden")
@@ -82,6 +90,11 @@ def delete_user(user_id: int, _admin: dict = Depends(require_admin)):
         count = get_db().delete_user(user_id)
         if count == 0:
             raise HTTPException(status_code=404, detail=f"Benutzer ID {user_id} nicht gefunden")
+        removed = invalidate_sessions_for_user(user_id)
+        _logger.warning(
+            "AUDIT USER_DELETE | admin=%s target_id=%d sessions_revoked=%d",
+            _admin.get('NAME'), user_id, removed
+        )
         return {"ok": True, "hidden": count}
     except HTTPException:
         raise
@@ -101,7 +114,13 @@ def change_user_password(user_id: int, body: ChangePasswordBody, _admin: dict = 
         ok = get_db().change_password(user_id, body.new_password)
         if not ok:
             raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
-        return {"ok": True}
+        # Invalidate all existing sessions for this user (token rotation on pw change)
+        removed = invalidate_sessions_for_user(user_id)
+        _logger.warning(
+            "AUDIT PASSWORD_CHANGE | admin=%s target_id=%d sessions_revoked=%d",
+            _admin.get('NAME'), user_id, removed
+        )
+        return {"ok": True, "sessions_revoked": removed}
     except HTTPException:
         raise
     except Exception as e:

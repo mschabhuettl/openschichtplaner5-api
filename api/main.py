@@ -124,6 +124,17 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-XSS-Protection"] = "1; mode=block"
+    # Content Security Policy: restrict resource loading to same origin
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none';"
+    )
+    response.headers["Content-Security-Policy"] = csp
     # Only send HSTS if running in production (check env)
     if os.environ.get('SP5_HSTS', '').lower() in ('1', 'true', 'yes'):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"

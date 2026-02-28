@@ -119,6 +119,14 @@ def get_db() -> SP5Database:
     return SP5Database(_main.DB_PATH)
 
 
+def invalidate_sessions_for_user(user_id: int) -> int:
+    """Remove all active sessions for a given user ID. Returns count removed."""
+    to_remove = [tok for tok, s in _sessions.items() if s.get('ID') == user_id]
+    for tok in to_remove:
+        del _sessions[tok]
+    return len(to_remove)
+
+
 def _sanitize_500(e: Exception, context: str = '') -> HTTPException:
     """Log full exception, return sanitized 500."""
     _logger.error(
