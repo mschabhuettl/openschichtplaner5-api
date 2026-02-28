@@ -130,6 +130,13 @@ async def security_headers_middleware(request: Request, call_next):
         "frame-ancestors 'none';"
     )
     response.headers["Content-Security-Policy"] = csp
+    # Additional security headers
+    response.headers["Permissions-Policy"] = (
+        "accelerometer=(), camera=(), geolocation=(), gyroscope=(), "
+        "magnetometer=(), microphone=(), payment=(), usb=()"
+    )
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     # Only send HSTS if running in production (check env)
     if os.environ.get('SP5_HSTS', '').lower() in ('1', 'true', 'yes'):
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
