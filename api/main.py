@@ -120,7 +120,7 @@ app = FastAPI(
         "- **Planer** – can write schedules and absences\n"
         "- **Admin** – full access including user and master-data management\n"
     ),
-    version="0.4.1",
+    version="0.4.8",
     openapi_tags=_OPENAPI_TAGS,
 )
 
@@ -358,7 +358,7 @@ app.include_router(notifications.router)
 
 # ── Routes ──────────────────────────────────────────────────────
 
-_API_VERSION = "0.4.1"
+_API_VERSION = "0.4.8"
 
 
 @app.get(
