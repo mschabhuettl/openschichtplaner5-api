@@ -1631,7 +1631,8 @@ async def import_employees(file: UploadFile = File(...), _cur_user: dict = Depen
             db.create_employee(data)
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -1698,7 +1699,8 @@ async def import_shifts(file: UploadFile = File(...), _cur_user: dict = Depends(
             db.create_shift(data)
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -1746,7 +1748,8 @@ async def import_absences(file: UploadFile = File(...), _cur_user: dict = Depend
             db.add_absence(emp_id, date_raw, lt_id)
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -1798,7 +1801,8 @@ async def import_holidays(file: UploadFile = File(...), _cur_user: dict = Depend
             db.create_holiday(data)
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -1848,7 +1852,8 @@ async def import_bookings_actual(file: UploadFile = File(...), _cur_user: dict =
             db.create_booking(emp['ID'], date_raw, 0, stunden, notiz)
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -1899,7 +1904,8 @@ async def import_bookings_nominal(file: UploadFile = File(...), _cur_user: dict 
             db.create_booking(emp['ID'], date_raw, 1, stunden, notiz)
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -1956,7 +1962,8 @@ async def import_entitlements(file: UploadFile = File(...), _cur_user: dict = De
             db.set_leave_entitlement(emp['ID'], year, tage, leave_type_id=lt['ID'])
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -2012,7 +2019,8 @@ async def import_absences_csv(file: UploadFile = File(...), _cur_user: dict = De
             db.add_absence(emp['ID'], date_raw, lt['ID'])
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -2072,7 +2080,8 @@ async def import_groups(file: UploadFile = File(...), _cur_user: dict = Depends(
             group_by_name[name.upper()] = {'NAME': name, 'ID': -1}
             imported += 1
         except Exception as e:
-            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            import logging as _log_mod
+            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
             skipped += 1
 
