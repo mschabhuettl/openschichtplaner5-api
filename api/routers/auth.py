@@ -1,13 +1,18 @@
 """Auth and user management router."""
+import os
 import time as _time
 import secrets
 from fastapi import APIRouter, HTTPException, Header, Depends, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 from ..dependencies import (
     get_db, require_admin, _sanitize_500, _logger, _sessions, _failed_logins, _LOCKOUT_WINDOW,
     _LOCKOUT_MAX, _TOKEN_EXPIRE_HOURS, _MAX_SESSIONS_PER_USER, limiter, invalidate_sessions_for_user,
 )
+
+_IS_DEV = os.environ.get('SP5_DEV_MODE', '').lower() in ('1', 'true', 'yes')
+_COOKIE_NAME = 'sp5_token'
 
 router = APIRouter()
 
@@ -174,17 +179,36 @@ def login(request: Request, body: LoginBody):
     token = secrets.token_hex(32)
     expires_at = now + _TOKEN_EXPIRE_HOURS * 3600
     _sessions[token] = {**user, 'expires_at': expires_at}
-    return {
+
+    # Set HttpOnly cookie (Secure only in production)
+    response = JSONResponse(content={
         "ok": True,
         "token": token,
         "user": user,
         "expires_at": expires_at,
-    }
+    })
+    cookie_kwargs = dict(
+        key=_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite='strict',
+        path='/',
+        max_age=int(_TOKEN_EXPIRE_HOURS * 3600),
+    )
+    if not _IS_DEV:
+        cookie_kwargs['secure'] = True
+    response.set_cookie(**cookie_kwargs)
+    return response
 
 
 @router.post("/api/auth/logout", tags=["Auth"], summary="Logout", description="Invalidate the current session token.")
-def logout(x_auth_token: Optional[str] = Header(None)):
-    """Invalidate the session token."""
-    if x_auth_token and x_auth_token in _sessions:
-        del _sessions[x_auth_token]
-    return {"ok": True}
+def logout(request: Request, x_auth_token: Optional[str] = Header(None)):
+    """Invalidate the session token. Reads from cookie or X-Auth-Token header."""
+    # Prefer cookie, fall back to header
+    token = request.cookies.get(_COOKIE_NAME) or x_auth_token
+    if token and token in _sessions:
+        del _sessions[token]
+    response = JSONResponse(content={"ok": True})
+    # Clear the cookie
+    response.delete_cookie(key=_COOKIE_NAME, path='/', samesite='strict')
+    return response

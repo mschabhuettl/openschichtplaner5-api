@@ -94,10 +94,14 @@ def get_current_user(
 ) -> Optional[dict]:
     """Return user dict for the given token, or None.
 
-    Reads from X-Auth-Token header first; falls back to ?token= query param
-    for SSE connections where EventSource cannot set custom headers.
+    Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
+    (query param kept for SSE connections where EventSource cannot set headers).
     """
-    token = x_auth_token or request.query_params.get('token')
+    token = (
+        x_auth_token
+        or request.cookies.get('sp5_token')
+        or request.query_params.get('token')
+    )
     if token and _is_token_valid(token):
         return _sessions[token]
     return None

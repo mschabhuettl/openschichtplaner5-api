@@ -225,7 +225,7 @@ async def request_logging_middleware(request: Request, call_next):
     start = _t.time()
     response = await call_next(request)
     duration_ms = round((_t.time() - start) * 1000)
-    token = request.headers.get('x-auth-token') or request.query_params.get('token')
+    token = request.headers.get('x-auth-token') or request.cookies.get('sp5_token') or request.query_params.get('token')
     user = _sessions.get(token, {}).get('NAME', '-') if token else '-'
     now = _dt2.now(_tz2.utc)
     ts = now.strftime('%Y-%m-%dT%H:%M:%S.') + f"{now.microsecond // 1000:03d}Z"
@@ -253,7 +253,8 @@ async def auth_middleware(request: Request, call_next):
     if path in _PUBLIC_PATHS or not path.startswith('/api/'):
         return await call_next(request)
     # SSE endpoint also accepts token as query param (EventSource doesn't support headers)
-    token = request.headers.get('x-auth-token') or request.query_params.get('token')
+    # Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
+    token = request.headers.get('x-auth-token') or request.cookies.get('sp5_token') or request.query_params.get('token')
     if not token or not _is_token_valid(token):
         _logger.warning("AUTH 401 | ip=%s method=%s path=%s", client_ip, method, path)
         return JSONResponse(
