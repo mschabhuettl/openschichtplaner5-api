@@ -120,7 +120,11 @@ def bulk_create_absence(body: BulkAbsenceCreate, _cur_user: dict = Depends(requi
             # Already exists – skip silently
             results["skipped"] += 1
         except Exception as e:
-            results["errors"].append({"id": emp['ID'], "error": str(e)})
+            import logging as _logging
+            _logging.getLogger('sp5api').error(
+                "bulk_create_absence emp_id=%s error=%s", emp['ID'], str(e)
+            )
+            results["errors"].append({"id": emp['ID'], "error": "Interner Fehler beim Speichern"})
 
     return results
 

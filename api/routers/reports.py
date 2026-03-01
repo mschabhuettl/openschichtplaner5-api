@@ -9,7 +9,7 @@ from fastapi.responses import Response as _Response
 from pydantic import BaseModel, Field
 from typing import Optional
 from ..dependencies import (
-    get_db, require_planer, require_auth, _sanitize_500, limiter,
+    get_db, require_planer, require_auth, require_admin, _sanitize_500, limiter,
 )
 
 router = APIRouter()
@@ -1587,7 +1587,7 @@ def _decode_csv(content: bytes) -> str:
     tags=["Import"],
     summary="Import employees from CSV",
 )
-async def import_employees(file: UploadFile = File(...)):
+async def import_employees(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import employees from CSV. Required columns: NAME or NACHNAME.
     Accepted column aliases: VORNAME/FIRSTNAME, NACHNAME/NAME, KURZZEICHEN/SHORTNAME,
     NUMBER/PERSONALNUMMER, HRSDAY, HRSWEEK, HRSMONTH, SEX."""
@@ -1631,7 +1631,8 @@ async def import_employees(file: UploadFile = File(...)):
             db.create_employee(data)
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i} ({name}): {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
@@ -1641,7 +1642,7 @@ async def import_employees(file: UploadFile = File(...)):
     tags=["Import"],
     summary="Import shifts from CSV",
 )
-async def import_shifts(file: UploadFile = File(...)):
+async def import_shifts(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import shifts from CSV. Required: NAME.
     Optional: KURZZEICHEN/SHORTNAME, FARBE/COLORBK (hex #RRGGBB or int BGR), DURATION0."""
     content = await _validate_csv_upload(file)
@@ -1697,7 +1698,8 @@ async def import_shifts(file: UploadFile = File(...)):
             db.create_shift(data)
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i} ({name}): {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
@@ -1707,7 +1709,7 @@ async def import_shifts(file: UploadFile = File(...)):
     tags=["Import"],
     summary="Import absences from CSV",
 )
-async def import_absences(file: UploadFile = File(...)):
+async def import_absences(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import absences from CSV. Required: EMPLOYEE_ID, DATE (YYYY-MM-DD), LEAVE_TYPE_ID."""
     content = await _validate_csv_upload(file)
     text = _decode_csv(content)
@@ -1744,7 +1746,8 @@ async def import_absences(file: UploadFile = File(...)):
             db.add_absence(emp_id, date_raw, lt_id)
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i}: {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
@@ -1754,7 +1757,7 @@ async def import_absences(file: UploadFile = File(...)):
     tags=["Import"],
     summary="Import holidays from CSV",
 )
-async def import_holidays(file: UploadFile = File(...)):
+async def import_holidays(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import holidays from CSV. Required: DATE (YYYY-MM-DD), NAME.
     Optional: INTERVAL (0=einmalig, 1=jährlich), REGION (ignored, for info only)."""
     content = await _validate_csv_upload(file)
@@ -1795,7 +1798,8 @@ async def import_holidays(file: UploadFile = File(...)):
             db.create_holiday(data)
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i} ({name}): {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
@@ -1805,7 +1809,7 @@ async def import_holidays(file: UploadFile = File(...)):
     tags=["Import"],
     summary="Import actual-hour bookings from CSV",
 )
-async def import_bookings_actual(file: UploadFile = File(...)):
+async def import_bookings_actual(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import actual-hour bookings (TYPE=0) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
     content = await _validate_csv_upload(file)
@@ -1844,7 +1848,8 @@ async def import_bookings_actual(file: UploadFile = File(...)):
             db.create_booking(emp['ID'], date_raw, 0, stunden, notiz)
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i}: {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -1855,7 +1860,7 @@ async def import_bookings_actual(file: UploadFile = File(...)):
     tags=["Import"],
     summary="Import nominal-hour bookings from CSV",
 )
-async def import_bookings_nominal(file: UploadFile = File(...)):
+async def import_bookings_nominal(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import nominal-hour bookings (TYPE=1) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
     content = await _validate_csv_upload(file)
@@ -1894,7 +1899,8 @@ async def import_bookings_nominal(file: UploadFile = File(...)):
             db.create_booking(emp['ID'], date_raw, 1, stunden, notiz)
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i}: {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -1905,7 +1911,7 @@ async def import_bookings_nominal(file: UploadFile = File(...)):
     tags=["Import"],
     summary="Import vacation entitlements from CSV",
 )
-async def import_entitlements(file: UploadFile = File(...)):
+async def import_entitlements(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import leave entitlements from CSV.
     Required: Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage."""
     content = await _validate_csv_upload(file)
@@ -1950,7 +1956,8 @@ async def import_entitlements(file: UploadFile = File(...)):
             db.set_leave_entitlement(emp['ID'], year, tage, leave_type_id=lt['ID'])
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i}: {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -1961,7 +1968,7 @@ async def import_entitlements(file: UploadFile = File(...)):
     tags=["Import"],
     summary="Import absences from CSV (alternate format)",
 )
-async def import_absences_csv(file: UploadFile = File(...)):
+async def import_absences_csv(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import absences from CSV using Personalnummer and Abwesenheitsart-Kürzel.
     Required: Personalnummer,Datum,Abwesenheitsart-Kürzel."""
     content = await _validate_csv_upload(file)
@@ -2005,7 +2012,8 @@ async def import_absences_csv(file: UploadFile = File(...)):
             db.add_absence(emp['ID'], date_raw, lt['ID'])
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i}: {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2016,7 +2024,7 @@ async def import_absences_csv(file: UploadFile = File(...)):
     tags=["Import"],
     summary="Import groups from CSV",
 )
-async def import_groups(file: UploadFile = File(...)):
+async def import_groups(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
     """Import groups from CSV.
     Required: Name. Optional: Kürzel, Übergeordnete-Gruppe-Name."""
     content = await _validate_csv_upload(file)
@@ -2064,7 +2072,8 @@ async def import_groups(file: UploadFile = File(...)):
             group_by_name[name.upper()] = {'NAME': name, 'ID': -1}
             imported += 1
         except Exception as e:
-            errors.append(f"Zeile {i} ({name}): {e}")
+            import logging as _log_mod; _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+            errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
