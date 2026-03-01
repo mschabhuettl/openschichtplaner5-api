@@ -7,6 +7,7 @@ from ..dependencies import (
     get_db, require_admin, require_planer, _sanitize_500,
 )
 from .events import broadcast
+from .notifications import create_notification
 
 router = APIRouter()
 
@@ -327,4 +328,32 @@ def patch_absence_status(absence_id: int, body: AbsenceStatusPatch, _cur_user: d
         entry["reject_reason"] = ""  # clear reason when not rejected
     data[str(absence_id)] = entry
     _save_absence_status(data)
+
+    # ── Notification trigger: inform employee about status change ──
+    if body.status in ('approved', 'rejected'):
+        try:
+            # Look up the absence to find the employee
+            all_absences = get_db().get_absences()
+            absence = next((a for a in all_absences if a.get('ID') == absence_id), None)
+            if absence:
+                emp_id = absence.get('MitarbeiterID') or absence.get('employee_id')
+                emp_name = absence.get('MitarbeiterName', f'MA #{emp_id}')
+                date_str = absence.get('Datum') or absence.get('date', '')
+                if body.status == 'approved':
+                    title = '✅ Urlaubsantrag genehmigt'
+                    message = f'Dein Urlaubsantrag für {date_str} wurde genehmigt.'
+                else:
+                    reason = entry.get('reject_reason', '')
+                    title = '❌ Urlaubsantrag abgelehnt'
+                    message = f'Dein Urlaubsantrag für {date_str} wurde abgelehnt.' + (f' Grund: {reason}' if reason else '')
+                create_notification(
+                    type='absence_status',
+                    title=title,
+                    message=message,
+                    recipient_employee_id=emp_id,
+                    link='/urlaub',
+                )
+        except Exception:
+            pass  # Never fail the main request due to notification issues
+
     return {"ok": True, "id": absence_id, **entry}

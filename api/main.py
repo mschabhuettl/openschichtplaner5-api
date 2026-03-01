@@ -342,7 +342,7 @@ app.add_middleware(ChangelogMiddleware)
 # RequestLoggingMiddleware removed — duplicate of request_logging_middleware above
 
 # ── Include routers ─────────────────────────────────────────────
-from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc, events  # noqa: E402
+from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc, events, notifications  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(employees.router)
@@ -353,6 +353,7 @@ app.include_router(reports.router)
 app.include_router(admin.router)
 app.include_router(misc.router)
 app.include_router(events.router)
+app.include_router(notifications.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────

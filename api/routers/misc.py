@@ -7,6 +7,7 @@ from ..dependencies import (
 )
 from .events import broadcast
 from .schedule import swap_shifts, SwapShiftsRequest
+from .notifications import create_notification
 
 router = APIRouter()
 
@@ -505,6 +506,22 @@ def create_swap_request(request: Request, body: SwapRequestCreate, _cur_user: di
     )
     get_db().log_action('system', 'CREATE', 'swap_request', entry['id'],
                         f"MA {body.requester_id} → MA {body.partner_id} ({body.requester_date}↔{body.partner_date})")
+
+    # ── Notification: inform the partner about incoming swap request ──
+    try:
+        employees = get_db().get_employees()
+        requester = next((e for e in employees if e.get('ID') == body.requester_id), None)
+        req_name = f"{requester.get('Vorname', '')} {requester.get('Nachname', '')}".strip() if requester else f'MA #{body.requester_id}'
+        create_notification(
+            type='swap_request',
+            title='🔄 Neue Tauschanfrage',
+            message=f'{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date}).',
+            recipient_employee_id=body.partner_id,
+            link='/tauschboerse',
+        )
+    except Exception:
+        pass
+
     return entry
 
 
