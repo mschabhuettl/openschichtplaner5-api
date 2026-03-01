@@ -342,7 +342,7 @@ def get_wishes(
 class WishCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
-    wish_type: str = Field(..., pattern=r'^(WUNSCH|SPERRUNG)$')  # WUNSCH | SPERRUNG
+    wish_type: str  # WUNSCH | SPERRUNG (case-insensitive, validated in endpoint)
     shift_id: Optional[int] = Field(None, gt=0)
     note: Optional[str] = Field('', max_length=500)
 
@@ -568,7 +568,7 @@ def get_my_employee(cur_user: dict = Depends(require_auth)):
 
 class SelfWishCreate(BaseModel):
     date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
-    wish_type: str = Field(..., pattern=r'^(WUNSCH|SPERRUNG)$')  # WUNSCH | SPERRUNG
+    wish_type: str  # WUNSCH | SPERRUNG (case-insensitive, validated in endpoint)
     shift_id: Optional[int] = Field(None, gt=0)
     note: Optional[str] = Field('', max_length=500)
 
