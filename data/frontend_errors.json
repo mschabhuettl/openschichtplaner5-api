@@ -2006,5 +2006,53 @@
     "url": "/test",
     "user_agent": "test",
     "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T02:32:27.158455Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "https://example.com",
+    "user_agent": "test-agent",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T02:32:45.396963Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T02:32:45.525188Z",
+    "error": "<script>alert(1)</script>",
+    "component_stack": null,
+    "url": "/test",
+    "user_agent": "test",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T02:33:10.584088Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "https://example.com",
+    "user_agent": "test-agent",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T02:33:29.012424Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T02:33:29.142282Z",
+    "error": "<script>alert(1)</script>",
+    "component_stack": null,
+    "url": "/test",
+    "user_agent": "test",
+    "client_ip": "testclient"
   }
 ]

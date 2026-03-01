@@ -12,7 +12,7 @@ import threading
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
-from ..dependencies import get_db, require_planer, _sanitize_500
+from ..dependencies import get_db, require_planer, require_admin, _sanitize_500
 
 router = APIRouter()
 
@@ -33,11 +33,28 @@ def _load() -> list:
 
 
 def _save(data: list) -> None:
+    """Atomically write notifications to disk (write-to-temp + os.replace).
+
+    This prevents concurrent readers from seeing a half-written file.
+    Must be called while _lock is held.
+    """
     try:
-        with open(_NOTIF_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        import tempfile
+        dir_ = os.path.dirname(os.path.abspath(_NOTIF_FILE))
+        with tempfile.NamedTemporaryFile(
+            'w', encoding='utf-8', dir=dir_, delete=False, suffix='.tmp'
+        ) as tmp:
+            json.dump(data, tmp, indent=2, ensure_ascii=False)
+            tmp_path = tmp.name
+        os.replace(tmp_path, _NOTIF_FILE)
     except Exception:
         pass
+
+
+def _load_safe() -> list:
+    """Load notifications under lock to prevent reads during writes."""
+    with _lock:
+        return _load()
 
 
 def _next_id(data: list) -> int:
@@ -79,15 +96,22 @@ def list_notifications(
     employee_id: Optional[int] = Query(None, description="Filter by recipient employee id (0 = planner-wide)"),
     unread_only: bool = Query(False),
     limit: int = Query(50, le=200),
-    _cur_user: dict = Depends(require_planer),
+    cur_user: dict = Depends(require_planer),
 ):
     """Return notifications, newest first.
 
-    - employee_id=<id>: employee-specific notifications for that person
+    - employee_id=<id>: employee-specific notifications for that person.
+      Non-admin users may only request their own employee_id.
     - employee_id omitted: returns planner-wide notifications (recipient_employee_id=None)
     - unread_only=true: filter to unread only
     """
-    data = _load()
+    # Ownership check: non-admins may only see their own employee-specific notifications
+    is_admin = cur_user.get('ADMIN') or cur_user.get('role') == 'Admin'
+    if employee_id is not None and not is_admin:
+        if employee_id != cur_user.get('ID'):
+            from fastapi import HTTPException as _HTTPException
+            raise _HTTPException(status_code=403, detail="Zugriff verweigert: nur eigene Notifications abrufbar")
+    data = _load_safe()
     if employee_id is not None:
         data = [n for n in data if n.get('recipient_employee_id') == employee_id]
     else:
@@ -102,10 +126,10 @@ def list_notifications(
 def list_all_notifications(
     unread_only: bool = Query(False),
     limit: int = Query(100, le=500),
-    _cur_user: dict = Depends(require_planer),
+    _cur_user: dict = Depends(require_admin),
 ):
-    """Return all notifications (for admin/planner overview)."""
-    data = _load()
+    """Return all notifications (admin-only overview of every notification in the system)."""
+    data = _load_safe()
     if unread_only:
         data = [n for n in data if not n.get('read')]
     data = sorted(data, key=lambda n: n.get('created_at', ''), reverse=True)[:limit]
@@ -113,12 +137,20 @@ def list_all_notifications(
 
 
 @router.patch("/api/notifications/{notif_id}/read", tags=["Notifications"], summary="Mark notification as read")
-def mark_read(notif_id: int, _cur_user: dict = Depends(require_planer)):
-    """Mark a single notification as read."""
+def mark_read(notif_id: int, cur_user: dict = Depends(require_planer)):
+    """Mark a single notification as read.
+
+    Non-admin users may only mark their own notifications as read.
+    """
+    is_admin = cur_user.get('ADMIN') or cur_user.get('role') == 'Admin'
     with _lock:
         data = _load()
         for n in data:
             if n['id'] == notif_id:
+                # Ownership check: notification must belong to current user (or be planner-wide for admins)
+                recipient = n.get('recipient_employee_id')
+                if not is_admin and recipient is not None and recipient != cur_user.get('ID'):
+                    raise HTTPException(status_code=403, detail="Zugriff verweigert: Notification gehört nicht dir")
                 n['read'] = True
                 _save(data)
                 return {"ok": True}
@@ -148,12 +180,21 @@ def mark_all_read(
 
 
 @router.delete("/api/notifications/{notif_id}", tags=["Notifications"], summary="Delete notification")
-def delete_notification(notif_id: int, _cur_user: dict = Depends(require_planer)):
-    """Delete a notification."""
+def delete_notification(notif_id: int, cur_user: dict = Depends(require_planer)):
+    """Delete a notification.
+
+    Non-admin users may only delete their own notifications.
+    """
+    is_admin = cur_user.get('ADMIN') or cur_user.get('role') == 'Admin'
     with _lock:
         data = _load()
-        new_data = [n for n in data if n['id'] != notif_id]
-        if len(new_data) == len(data):
+        target = next((n for n in data if n['id'] == notif_id), None)
+        if target is None:
             raise HTTPException(status_code=404, detail="Notification not found")
+        # Ownership check
+        recipient = target.get('recipient_employee_id')
+        if not is_admin and recipient is not None and recipient != cur_user.get('ID'):
+            raise HTTPException(status_code=403, detail="Zugriff verweigert: Notification gehört nicht dir")
+        new_data = [n for n in data if n['id'] != notif_id]
         _save(new_data)
     return {"ok": True}
