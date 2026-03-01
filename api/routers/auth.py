@@ -7,8 +7,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, _sanitize_500, _logger, _sessions, _failed_logins, _LOCKOUT_WINDOW,
-    _LOCKOUT_MAX, _TOKEN_EXPIRE_HOURS, _MAX_SESSIONS_PER_USER, limiter, invalidate_sessions_for_user,
+    get_db, require_admin, require_auth, _sanitize_500, _logger, _sessions, _failed_logins,
+    _LOCKOUT_WINDOW, _LOCKOUT_MAX, _TOKEN_EXPIRE_HOURS, _MAX_SESSIONS_PER_USER, limiter,
+    invalidate_sessions_for_user,
 )
 
 _IS_DEV = os.environ.get('SP5_DEV_MODE', '').lower() in ('1', 'true', 'yes')
@@ -199,6 +200,12 @@ def login(request: Request, body: LoginBody):
         cookie_kwargs['secure'] = True
     response.set_cookie(**cookie_kwargs)
     return response
+
+
+@router.get("/api/auth/me", tags=["Auth"], summary="Current user info")
+def me(user: dict = Depends(require_auth)):
+    """Return the current authenticated user's info."""
+    return {k: v for k, v in user.items() if k != 'expires_at'}
 
 
 @router.post("/api/auth/logout", tags=["Auth"], summary="Logout", description="Invalidate the current session token.")

@@ -28,6 +28,7 @@ from .dependencies import (  # noqa: E402
     _sessions,
     _DEV_TOKEN,
     _DEV_USER,
+    _DEV_MODE_ACTIVE,
     _is_token_valid,
     get_db,
     _logger,
@@ -119,7 +120,7 @@ app = FastAPI(
         "- **Planer** – can write schedules and absences\n"
         "- **Admin** – full access including user and master-data management\n"
     ),
-    version="0.3.9",
+    version="0.4.1",
     openapi_tags=_OPENAPI_TAGS,
 )
 
@@ -210,7 +211,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ── Public paths (no auth required) ────────────────────────────
-_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '/api/version', '/', '/api/errors'}
+_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '/api/version', '/', '/api/errors', '/api/dev/mode'}
 
 
 @app.middleware("http")
@@ -356,7 +357,7 @@ app.include_router(events.router)
 
 # ── Routes ──────────────────────────────────────────────────────
 
-_API_VERSION = "0.3.10"
+_API_VERSION = "0.4.1"
 
 
 @app.get(
@@ -413,6 +414,11 @@ async def frontend_root():
     if os.path.exists(index):
         return FileResponse(index)
     return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION}
+
+@app.get("/api/dev/mode", tags=["Health"], summary="Dev mode status")
+def get_dev_mode():
+    """Returns whether SP5_DEV_MODE is active. Safe to call without auth."""
+    return {"dev_mode": _DEV_MODE_ACTIVE}
 
 @app.get("/api/stats", tags=["Health"], summary="Database statistics")
 def get_stats():

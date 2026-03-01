@@ -75,6 +75,9 @@ _ROLE_LEVEL = {'Leser': 1, 'Planer': 2, 'Admin': 3}
 _DEV_TOKEN = "__dev_mode__"
 _DEV_USER = {"ID": 0, "NAME": "Developer", "role": "Admin", "ADMIN": True, "RIGHTS": 255}
 
+# Whether dev mode is active (cached at import time)
+_DEV_MODE_ACTIVE = os.environ.get('SP5_DEV_MODE', '').lower() in ('1', 'true', 'yes')
+
 
 def _is_token_valid(token: str) -> bool:
     """Return True if the token exists and has not expired."""
@@ -96,13 +99,19 @@ def get_current_user(
 
     Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
     (query param kept for SSE connections where EventSource cannot set headers).
+
+    In dev mode (SP5_DEV_MODE=true), the '__dev_mode__' token is pre-registered
+    in _sessions at startup, giving full Admin access.
     """
     token = (
         x_auth_token
         or request.cookies.get('sp5_token')
         or request.query_params.get('token')
     )
-    if token and _is_token_valid(token):
+    if not token:
+        return None
+
+    if _is_token_valid(token):
         return _sessions[token]
     return None
 
