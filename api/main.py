@@ -356,7 +356,7 @@ app.include_router(events.router)
 
 # ── Routes ──────────────────────────────────────────────────────
 
-_API_VERSION = "0.3.9"
+_API_VERSION = "0.3.10"
 
 
 @app.get(
