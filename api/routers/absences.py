@@ -337,7 +337,7 @@ def patch_absence_status(absence_id: int, body: AbsenceStatusPatch, _cur_user: d
             absence = next((a for a in all_absences if a.get('ID') == absence_id), None)
             if absence:
                 emp_id = absence.get('MitarbeiterID') or absence.get('employee_id')
-                emp_name = absence.get('MitarbeiterName', f'MA #{emp_id}')
+                _emp_name = absence.get('MitarbeiterName', f'MA #{emp_id}')
                 date_str = absence.get('Datum') or absence.get('date', '')
                 if body.status == 'approved':
                     title = '✅ Urlaubsantrag genehmigt'
