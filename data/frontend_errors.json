@@ -1878,5 +1878,37 @@
     "url": "/test",
     "user_agent": "test",
     "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T01:46:49.439Z",
+    "error": "error loading dynamically imported module: http://192.168.11.101:5173/src/pages/Schichtwuensche.tsx?t=1772328845581\n",
+    "component_stack": "\nRenderedRoute@http://192.168.11.101:5173/node_modules/.vite/deps/react-router-dom.js?v=b836fb07:6331:23\nRoutes@http://192.168.11.101:5173/node_modules/.vite/deps/react-router-dom.js?v=b836fb07:7191:16\nSuspense@unknown:0:0\nmain@unknown:0:0\ndiv@unknown:0:0\ndiv@unknown:0:0\nAppInner@http://192.168.11.101:5173/src/App.tsx?t=1772328921533:332:20\nAuthGate@http://192.168.11.101:5173/src/App.tsx?t=1772328921533:1526:42\nSSEProvider@http://192.168.11.101:5173/src/contexts/SSEContext.tsx?t=1772328887778:7:28\nAuthProvider@http://192.168.11.101:5173/src/contexts/AuthContext.tsx?t=1772328887778:93:29\nRouter@http://192.168.11.101:5173/node_modules/.vite/deps/react-router-dom.js?v=b836fb07:7121:16\nBrowserRouter@http://192.168.11.101:5173/node_modules/.vite/deps/react-router-dom.js?v=b836fb07:10321:23\nToastProvider@http://192.168.11.101:5173/src/contexts/ToastContext.tsx?t=1772328845747:5:30\nLanguageProvider@http://192.168.11.101:5173/src/i18n/context.tsx?t=1772328845782:6:33\nThemeProvider@http://192.168.11.101:5173/src/contexts/ThemeContext.tsx?t=1772328845744:6:30\nErrorBoundary@http://192.168.11.101:5173/src/components/ErrorBoundary.tsx?t=1772328845490:21:5\nApp@unknown:0:0",
+    "url": "http://192.168.11.101:5173/schichtwuensche",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0",
+    "client_ip": "127.0.0.1"
+  },
+  {
+    "timestamp": "2026-03-01T01:51:15.948545Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "https://example.com",
+    "user_agent": "test-agent",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T01:51:34.159521Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-01T01:51:34.291832Z",
+    "error": "<script>alert(1)</script>",
+    "component_stack": null,
+    "url": "/test",
+    "user_agent": "test",
+    "client_ip": "testclient"
   }
 ]
