@@ -783,6 +783,15 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_plan
     updated = 0
     deleted = 0
     db = get_db()
+    # Pre-validate all shift_ids to avoid partial writes with bad data
+    shift_id_cache: dict = {}
+    for entry in body.entries:
+        if entry.shift_id is not None and entry.shift_id not in shift_id_cache:
+            shift_id_cache[entry.shift_id] = db.get_shift(entry.shift_id)
+        if entry.shift_id is not None and shift_id_cache.get(entry.shift_id) is None:
+            raise HTTPException(
+                status_code=404, detail=f"Schicht {entry.shift_id} nicht gefunden"
+            )
     for entry in body.entries:
         try:
             _dt2.strptime(entry.date, "%Y-%m-%d")
@@ -1153,10 +1162,19 @@ def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_plane
             # Delete both
             db.delete_schedule_entry(body.employee_id_1, date_str)
             db.delete_schedule_entry(body.employee_id_2, date_str)
-            # Write crossed
+            # Write crossed — on any error, attempt rollback to avoid data loss
+            pre_errors = len(errors)
             write_entries(body.employee_id_1, date_str, entries2)
             write_entries(body.employee_id_2, date_str, entries1)
-            swapped += 1
+            if len(errors) > pre_errors:
+                # Write failed partially: try to restore originals
+                db.delete_schedule_entry(body.employee_id_1, date_str)
+                db.delete_schedule_entry(body.employee_id_2, date_str)
+                write_entries(body.employee_id_1, date_str, entries1)
+                write_entries(body.employee_id_2, date_str, entries2)
+                errors.append(f"{date_str}: Swap fehlgeschlagen, Original wiederhergestellt")
+            else:
+                swapped += 1
         except Exception as exc:
             errors.append(f"{date_str}: {exc}")
 
