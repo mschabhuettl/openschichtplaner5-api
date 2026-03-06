@@ -158,7 +158,6 @@ class TestAbsenceStatusValidation:
 class TestAbsenceStatusAuthorization:
     def test_unauthenticated_returns_401(self, app):
         """Unauthenticated request returns 401."""
-        from starlette.testclient import TestClient
 
         c = TestClient(app, raise_server_exceptions=False)
         resp = c.patch("/api/absences/1/status", json={"status": "approved"})
