@@ -733,17 +733,17 @@ class RestrictionCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     shift_id: int = Field(..., gt=0)
     reason: Optional[str] = Field("", max_length=500)
-    weekday: Optional[int] = Field(0, ge=0, le=6)
+    weekday: Optional[int] = Field(0, ge=0, le=7)
 
 
 @router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction")
 def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_admin)):
     """Add a shift restriction for an employee."""
     weekday = body.weekday or 0
-    if not (0 <= weekday <= 6):
+    if not (0 <= weekday <= 7):
         raise HTTPException(
             status_code=400,
-            detail="weekday muss zwischen 0 (Mo) und 6 (So) liegen (0 = alle Wochentage)",
+            detail="weekday muss zwischen 0 (alle Wochentage) und 7 (So) liegen — 1=Mo, 2=Di, ..., 7=So",
         )
     try:
         result = get_db().set_restriction(
