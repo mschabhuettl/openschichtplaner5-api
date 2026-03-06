@@ -8,7 +8,7 @@ from datetime import datetime as _dt, date
 from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFile, File
 from fastapi.responses import Response as _Response
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 from ..dependencies import (
     get_db,
     require_planer,
@@ -526,9 +526,9 @@ def export_schedule(
 
     # Build lookup: (emp_id, date) -> entry
     entry_map: dict = {}
-    for e in entries:
-        key = (e["employee_id"], e["date"])
-        entry_map[key] = e
+    for _entry in entries:
+        key = (_entry["employee_id"], _entry["date"])
+        entry_map[key] = _entry
 
     num_days = _calendar.monthrange(year, mon)[1]
     days = [f"{year:04d}-{mon:02d}-{d:02d}" for d in range(1, num_days + 1)]
@@ -619,7 +619,7 @@ def export_schedule(
                 date_str = f"{year:04d}-{mon:02d}-{d:02d}"
                 wd = _dt(year, mon, d).weekday()
                 is_weekend = wd >= 5
-                e = entry_map.get((emp["ID"], date_str))
+                e = entry_map.get((emp["ID"], date_str))  # type: ignore[assignment]
                 cell = ws.cell(r_idx, col)
                 if e:
                     bg = e.get("color_bk", "#4A90D9").lstrip("#")
@@ -649,7 +649,7 @@ def export_schedule(
             }
             for date in days:
                 day_num = int(date.split("-")[2])
-                e = entry_map.get((emp["ID"], date))
+                e = entry_map.get((emp["ID"], date))  # type: ignore[assignment]
                 row[str(day_num)] = e["display_name"] if e else ""
             rows.append(row)
         return _csv_response(rows, f"dienstplan_{month}.csv")
@@ -709,7 +709,7 @@ def export_schedule(
             for date in days:
                 wd = _dt(year, mon, int(date.split("-")[2])).weekday()
                 is_weekend = wd >= 5
-                e = entry_map.get((emp["ID"], date))
+                e = entry_map.get((emp["ID"], date))  # type: ignore[assignment]
                 if e:
                     bg = e.get("color_bk", "#4A90D9")
                     fg = e.get("color_text", "#FFFFFF")
@@ -1429,7 +1429,7 @@ def get_monthly_report(
     ]
     # Dynamic surcharge cols (max 3 displayed to fit page)
     xc_cols = [(f"ZZ: {cn[:8]}", 16) for cn in all_charge_names[:3]]
-    all_cols = fixed_cols + xc_cols
+    all_cols: List[tuple[str, float]] = fixed_cols + xc_cols
 
     # Scale if too wide
     total_w = sum(w for _, w in all_cols)

@@ -261,7 +261,7 @@ def global_search(q: str = Query("", description="Search query")):
             )
 
     # Sort by score descending, limit to 30 total
-    results.sort(key=lambda x: -x["score"])
+    results.sort(key=lambda x: -(x["score"] or 0))  # type: ignore[operator]  # score is always numeric but typed as mixed dict value
     results = results[:30]
     # Remove internal score field from output
     for r in results:

@@ -3,7 +3,7 @@
 import os
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from ..dependencies import (
     get_db,
     require_admin,
@@ -162,7 +162,7 @@ def bulk_create_absence(
     else:
         employees = db.get_employees(include_hidden=False)
 
-    results = {"ok": True, "created": 0, "skipped": 0, "errors": []}
+    results: dict = {"ok": True, "created": 0, "skipped": 0, "errors": []}
     for emp in employees:
         try:
             db.add_absence(emp["ID"], body.date, body.leave_type_id)

@@ -488,7 +488,7 @@ def compact_database(_cur_user: dict = Depends(require_admin)):
         )
 
     dbf_files = [f for f in os.listdir(db_path) if f.upper().endswith(".DBF")]
-    results = []
+    results: list = []
     total_removed = 0
 
     for fname in sorted(dbf_files):
