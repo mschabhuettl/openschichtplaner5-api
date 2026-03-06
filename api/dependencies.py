@@ -7,7 +7,6 @@ import os
 import logging
 import logging.handlers
 import time as _time
-import traceback
 
 from fastapi import HTTPException, Header, Depends, Request
 from typing import Optional
@@ -245,13 +244,12 @@ def write_audit_log(action: str, actor: str, details: dict) -> None:
 
 
 def _sanitize_500(e: Exception, context: str = "") -> HTTPException:
-    """Log full exception, return sanitized 500."""
-    _logger.error(
-        "500 error context=%s type=%s msg=%s trace=%s",
+    """Log full exception with traceback, return sanitized 500."""
+    _logger.exception(
+        "500 error context=%s type=%s msg=%s",
         context,
         type(e).__name__,
         str(e),
-        traceback.format_exc().splitlines()[-1],
     )
     return HTTPException(
         status_code=500,

@@ -9,6 +9,8 @@ from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFil
 from fastapi.responses import Response as _Response
 from pydantic import BaseModel, Field
 from typing import List, Optional, Any
+import logging as _logging
+
 from ..dependencies import (
     get_db,
     require_planer,
@@ -17,6 +19,8 @@ from ..dependencies import (
     _sanitize_500,
     limiter,
 )
+
+_logger = _logging.getLogger("sp5api")
 
 router = APIRouter()
 
@@ -2057,9 +2061,7 @@ async def import_employees(
             existing_keys.add(dup_key)  # prevent duplicate within the same file
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": f"{name}: Importfehler — {e}"})
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2148,9 +2150,7 @@ async def import_shifts(
             existing_shift_names.add(name.strip().upper())
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": f"{name}: Importfehler — {e}"})
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -2211,9 +2211,7 @@ async def import_absences(
             db.add_absence(emp_id, date_raw, lt_id)
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": f"Importfehler — {e}"})
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2275,9 +2273,7 @@ async def import_holidays(
             db.create_holiday(data)
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": f"{name}: Importfehler — {e}"})
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2343,9 +2339,7 @@ async def import_bookings_actual(
             db.create_booking(emp["ID"], date_raw, 0, stunden, notiz)
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": "Importfehler (siehe Server-Log)"})
             skipped += 1
 
@@ -2412,9 +2406,7 @@ async def import_bookings_nominal(
             db.create_booking(emp["ID"], date_raw, 1, stunden, notiz)
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": "Importfehler (siehe Server-Log)"})
             skipped += 1
 
@@ -2500,9 +2492,7 @@ async def import_entitlements(
             db.set_leave_entitlement(emp["ID"], year, tage, leave_type_id=lt["ID"])
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": "Importfehler (siehe Server-Log)"})
             skipped += 1
 
@@ -2588,9 +2578,7 @@ async def import_absences_csv(
             db.add_absence(emp["ID"], date_raw, lt["ID"])
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": "Importfehler (siehe Server-Log)"})
             skipped += 1
 
@@ -2666,9 +2654,7 @@ async def import_groups(
             group_by_name[name.upper()] = {"NAME": name, "ID": -1}
             imported += 1
         except Exception as e:
-            import logging as _log_mod
-
-            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
+            _logger.exception("import row %s error: %s", i, e)
             errors.append({"row": i, "reason": f"{name}: Importfehler — {e}"})
             skipped += 1
 

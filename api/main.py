@@ -507,7 +507,7 @@ class ChangelogMiddleware(BaseHTTPMiddleware):
                 details=f"{method} {path}",
             )
         except Exception:
-            pass
+            _logger.debug("Changelog middleware audit log failed", exc_info=True)
         return response
 
 
@@ -899,7 +899,7 @@ def get_dashboard_summary(
                         )
         staffing_warnings.sort(key=lambda x: x["date"])
     except Exception:
-        pass
+        _logger.debug("Staffing warnings computation failed", exc_info=True)
 
     return {
         "employees": {"total": total_employees, "active": total_employees},
@@ -1086,7 +1086,7 @@ def get_dashboard_upcoming():
                             }
                         )
                     except Exception:
-                        pass
+                        _logger.debug("Holiday date adjustment failed", exc_info=True)
             upcoming_holidays.sort(key=lambda x: x["date"])
             upcoming_holidays = upcoming_holidays[:3]
 

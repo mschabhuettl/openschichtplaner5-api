@@ -355,10 +355,17 @@ def me(user: dict = Depends(require_auth)):
 )
 def logout(request: Request, x_auth_token: Optional[str] = Header(None)):
     """Invalidate the session token. Reads from cookie or X-Auth-Token header."""
+    client_ip = request.client.host if request.client else "unknown"
     # Prefer cookie, fall back to header
     token = request.cookies.get(_COOKIE_NAME) or x_auth_token
     if token and token in _sessions:
+        user_info = _sessions[token]
+        username = user_info.get("NAME", "?")
+        user_id = user_info.get("ID", "?")
         del _sessions[token]
+        _logger.info("AUTH LOGOUT | ip=%s username=%s user_id=%s", client_ip, username, user_id)
+    else:
+        _logger.info("AUTH LOGOUT_NO_SESSION | ip=%s", client_ip)
     response = JSONResponse(content={"ok": True})
     # Clear the cookie
     response.delete_cookie(key=_COOKIE_NAME, path="/", samesite="strict")
