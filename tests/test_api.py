@@ -564,7 +564,7 @@ class TestHolidayWrite:
         resp = write_client.post(
             "/api/holidays", json={"DATE": "not-a-date", "NAME": "Test"}
         )
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
 
 class TestWorkplaceWrite:

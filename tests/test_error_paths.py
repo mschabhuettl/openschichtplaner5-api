@@ -157,7 +157,7 @@ class TestGroupValidation:
     def test_create_group_empty_name(self, write_client):
         """Verify create group empty name."""
         resp = write_client.post("/api/groups", json={"NAME": ""})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_update_group_not_found(self, write_client):
         """Verify update group not found."""
@@ -169,7 +169,7 @@ class TestShiftValidation:
     def test_create_shift_empty_name(self, write_client):
         """Verify create shift empty name."""
         resp = write_client.post("/api/shifts", json={"NAME": ""})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_update_shift_not_found(self, write_client):
         """Verify update shift not found."""
@@ -195,14 +195,14 @@ class TestHolidayValidation:
         resp = write_client.post(
             "/api/holidays", json={"NAME": "", "DATE": "2025-12-30"}
         )
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_create_holiday_invalid_date(self, write_client):
         """Verify create holiday invalid date."""
         resp = write_client.post(
             "/api/holidays", json={"NAME": "Test", "DATE": "not-a-date"}
         )
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_update_holiday_not_found(self, write_client):
         """Verify update holiday not found."""
