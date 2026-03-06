@@ -667,20 +667,71 @@ def resolve_swap_request(
         )
 
     if body.action == "approve":
-        # Execute the actual shift swap for both dates
-        swap_result = swap_shifts(
-            SwapShiftsRequest(
-                employee_id_1=entry["requester_id"],
-                employee_id_2=entry["partner_id"],
-                dates=[entry["requester_date"]]
-                if entry["requester_date"] == entry["partner_date"]
-                else [entry["requester_date"], entry["partner_date"]],
+        requester_id = entry["requester_id"]
+        partner_id = entry["partner_id"]
+        req_date = entry["requester_date"]
+        par_date = entry["partner_date"]
+
+        if req_date == par_date:
+            # Same-date swap: use existing swap_shifts helper
+            swap_result = swap_shifts(
+                SwapShiftsRequest(
+                    employee_id_1=requester_id,
+                    employee_id_2=partner_id,
+                    dates=[req_date],
+                )
             )
-        )
-        # If different dates, we need to swap requester→partner_date and partner→requester_date
-        if entry["requester_date"] != entry["partner_date"]:
-            # Custom cross-date swap: move requester's shift to partner_date and vice versa
-            pass  # The swap above handles same-dates; cross-date swap is complex — mark as todo
+        else:
+            # Cross-date swap:
+            # - requester (emp A) had shift on req_date → emp B gets it on req_date
+            # - partner   (emp B) had shift on par_date → emp A gets it on par_date
+            from sp5lib.dbf_reader import get_table_fields
+            from sp5lib.dbf_writer import find_all_records
+
+            db = get_db()
+            errors: list = []
+
+            def _collect(emp_id: int, date_str: str):
+                result = []
+                for table, kind in [("MASHI", "shift"), ("ABSEN", "absence")]:
+                    filepath = db._table(table)
+                    fields = get_table_fields(filepath)
+                    matches = find_all_records(filepath, fields, EMPLOYEEID=emp_id, DATE=date_str)
+                    for _, rec in matches:
+                        if kind == "shift":
+                            result.append({"kind": "shift", "shift_id": rec.get("SHIFTID"), "workplace_id": rec.get("WORKPLACID", 0)})
+                        else:
+                            result.append({"kind": "absence", "leave_type_id": rec.get("LEAVETYPID")})
+                return result
+
+            def _write(emp_id: int, date_str: str, entries):
+                for e in entries:
+                    try:
+                        if e["kind"] == "shift":
+                            db.add_schedule_entry(emp_id, date_str, e["shift_id"])
+                        elif e["kind"] == "absence" and e.get("leave_type_id"):
+                            db.add_absence(emp_id, date_str, e["leave_type_id"])
+                    except Exception as exc:
+                        errors.append(f"MA {emp_id} / {date_str}: {exc}")
+
+            entries_a_on_req = _collect(requester_id, req_date)  # A's shift on their date
+            entries_b_on_par = _collect(partner_id, par_date)    # B's shift on their date
+
+            # Delete originals
+            db.delete_schedule_entry(requester_id, req_date)
+            db.delete_schedule_entry(partner_id, par_date)
+
+            # Cross-write: A gets B's shift on par_date, B gets A's shift on req_date
+            _write(requester_id, par_date, entries_b_on_par)
+            _write(partner_id, req_date, entries_a_on_req)
+
+            swap_result = {
+                "ok": True,
+                "swapped_days": 1,
+                "errors": errors,
+                "message": f"Kreuz-Tausch: MA {requester_id} ({req_date}) ↔ MA {partner_id} ({par_date})"
+                + (f", {len(errors)} Fehler" if errors else ""),
+            }
         get_db().log_action(
             body.resolved_by or "planner",
             "UPDATE",
