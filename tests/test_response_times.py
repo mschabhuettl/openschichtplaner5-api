@@ -3,6 +3,7 @@ Performance test: assert key endpoints respond in < 2s.
 
 Uses the shared sync_client fixture (admin role, real DBF data via mtime cache).
 """
+
 import time
 import pytest
 

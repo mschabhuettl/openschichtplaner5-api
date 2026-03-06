@@ -1,4 +1,5 @@
 """Tests targeting coverage gaps in events, misc, and reports routers."""
+
 import secrets
 from starlette.testclient import TestClient
 
@@ -7,21 +8,24 @@ from starlette.testclient import TestClient
 # Helpers (copied from conftest pattern)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _inject_token(role: str, name: str = "test_user") -> str:
     from api.main import _sessions
+
     tok = secrets.token_hex(20)
     _sessions[tok] = {
-        'ID': 800 + abs(hash(role + name)) % 50,
-        'NAME': name,
-        'role': role,
-        'ADMIN': role == 'Admin',
-        'RIGHTS': 255 if role == 'Admin' else (2 if role == 'Planer' else 1),
+        "ID": 800 + abs(hash(role + name)) % 50,
+        "NAME": name,
+        "role": role,
+        "ADMIN": role == "Admin",
+        "RIGHTS": 255 if role == "Admin" else (2 if role == "Planer" else 1),
     }
     return tok
 
 
 def _remove_token(tok: str) -> None:
     from api.main import _sessions
+
     _sessions.pop(tok, None)
 
 
@@ -29,10 +33,12 @@ def _remove_token(tok: str) -> None:
 # events.py – SSE broadcast / stream
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class TestEventsBroadcast:
     def test_broadcast_no_subscribers(self):
         """broadcast() should not raise when no subscribers are connected."""
         from api.routers.events import broadcast
+
         broadcast("test_event", {"foo": "bar"})  # should not raise
 
     def test_broadcast_removes_dead_subscriber(self):
@@ -54,6 +60,7 @@ class TestEventsBroadcast:
     def test_sse_endpoint_requires_auth(self, app):
         """GET /api/events without token → 401."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=False) as c:
             resp = c.get("/api/events")
         assert resp.status_code == 401
@@ -62,9 +69,10 @@ class TestEventsBroadcast:
         """GET /api/events with valid token returns 200 (checked via HEAD-like approach)."""
         # SSE streams indefinitely; we verify auth works via the broadcast function
         # and that the endpoint is registered (accessible with auth)
-        tok = _inject_token('Leser', 'sse_user')
+        tok = _inject_token("Leser", "sse_user")
         try:
             from api.routers.events import broadcast
+
             # Just verify broadcast works with no subs
             broadcast("test", {"key": "value"})
             # Verify auth check works (no token → 401 already tested)
@@ -76,6 +84,7 @@ class TestEventsBroadcast:
 # ─────────────────────────────────────────────────────────────────────────────
 # misc.py – notes, search, access, changelog, wishes, handover, swap-requests
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestNotesEndpoints:
     def test_get_notes(self, sync_client):
@@ -102,7 +111,9 @@ class TestNotesEndpoints:
 
     def test_add_note_valid(self, write_client):
         """Verify add note valid."""
-        resp = write_client.post("/api/notes", json={"date": "2024-03-15", "text": "Test note"})
+        resp = write_client.post(
+            "/api/notes", json={"date": "2024-03-15", "text": "Test note"}
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
@@ -126,7 +137,9 @@ class TestNotesEndpoints:
     def test_delete_note(self, write_client):
         # Create a note first
         """Verify delete note."""
-        cr = write_client.post("/api/notes", json={"date": "2024-04-01", "text": "to delete"})
+        cr = write_client.post(
+            "/api/notes", json={"date": "2024-04-01", "text": "to delete"}
+        )
         assert cr.status_code == 200
         record = cr.json()["record"]
         note_id = record.get("ID") or record.get("id")
@@ -183,12 +196,16 @@ class TestAccessEndpoints:
 
     def test_set_employee_access(self, write_client):
         """Verify set employee access."""
-        resp = write_client.post("/api/employee-access", json={"user_id": 1, "employee_id": 1, "rights": 1})
+        resp = write_client.post(
+            "/api/employee-access", json={"user_id": 1, "employee_id": 1, "rights": 1}
+        )
         assert resp.status_code in (200, 400, 500)
 
     def test_set_group_access(self, write_client):
         """Verify set group access."""
-        resp = write_client.post("/api/group-access", json={"user_id": 1, "group_id": 1, "rights": 1})
+        resp = write_client.post(
+            "/api/group-access", json={"user_id": 1, "group_id": 1, "rights": 1}
+        )
         assert resp.status_code in (200, 400, 500)
 
 
@@ -201,18 +218,23 @@ class TestChangelog:
 
     def test_get_changelog_with_filters(self, sync_client):
         """Verify get changelog with filters."""
-        resp = sync_client.get("/api/changelog?limit=5&date_from=2024-01-01&date_to=2024-12-31")
+        resp = sync_client.get(
+            "/api/changelog?limit=5&date_from=2024-01-01&date_to=2024-12-31"
+        )
         assert resp.status_code == 200
 
     def test_post_changelog(self, write_client):
         """Verify post changelog."""
-        resp = write_client.post("/api/changelog", json={
-            "user": "tester",
-            "action": "CREATE",
-            "entity": "employee",
-            "entity_id": 1,
-            "details": "test entry",
-        })
+        resp = write_client.post(
+            "/api/changelog",
+            json={
+                "user": "tester",
+                "action": "CREATE",
+                "entity": "employee",
+                "entity_id": 1,
+                "details": "test entry",
+            },
+        )
         assert resp.status_code == 200
 
 
@@ -230,16 +252,18 @@ class TestWishes:
 
     def test_create_wish_invalid_type(self, write_client):
         """Verify create wish invalid type."""
-        resp = write_client.post("/api/wishes", json={
-            "employee_id": 1, "date": "2024-03-15", "wish_type": "INVALID"
-        })
+        resp = write_client.post(
+            "/api/wishes",
+            json={"employee_id": 1, "date": "2024-03-15", "wish_type": "INVALID"},
+        )
         assert resp.status_code in (400, 422)
 
     def test_create_wish_valid(self, write_client):
         """Verify create wish valid."""
-        resp = write_client.post("/api/wishes", json={
-            "employee_id": 1, "date": "2024-03-15", "wish_type": "WUNSCH"
-        })
+        resp = write_client.post(
+            "/api/wishes",
+            json={"employee_id": 1, "date": "2024-03-15", "wish_type": "WUNSCH"},
+        )
         assert resp.status_code in (200, 400, 500)
 
     def test_delete_wish(self, write_client):
@@ -257,12 +281,15 @@ class TestHandover:
 
     def test_create_handover(self, write_client):
         """Verify create handover."""
-        resp = write_client.post("/api/handover", json={
-            "date": "2024-03-15",
-            "author": "Tester",
-            "text": "Handover note",
-            "priority": "normal",
-        })
+        resp = write_client.post(
+            "/api/handover",
+            json={
+                "date": "2024-03-15",
+                "author": "Tester",
+                "text": "Handover note",
+                "priority": "normal",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "id" in data
@@ -270,9 +297,10 @@ class TestHandover:
     def test_update_handover(self, write_client):
         # Create one first
         """Verify update handover."""
-        cr = write_client.post("/api/handover", json={
-            "date": "2024-03-16", "author": "Tester", "text": "note"
-        })
+        cr = write_client.post(
+            "/api/handover",
+            json={"date": "2024-03-16", "author": "Tester", "text": "note"},
+        )
         note_id = cr.json()["id"]
         resp = write_client.patch(f"/api/handover/{note_id}", json={"resolved": True})
         assert resp.status_code == 200
@@ -285,9 +313,10 @@ class TestHandover:
 
     def test_delete_handover(self, write_client):
         """Verify delete handover."""
-        cr = write_client.post("/api/handover", json={
-            "date": "2024-03-17", "author": "Tester", "text": "to delete"
-        })
+        cr = write_client.post(
+            "/api/handover",
+            json={"date": "2024-03-17", "author": "Tester", "text": "to delete"},
+        )
         note_id = cr.json()["id"]
         resp = write_client.delete(f"/api/handover/{note_id}")
         assert resp.status_code == 200
@@ -299,7 +328,9 @@ class TestHandover:
 
     def test_get_handover_filtered(self, write_client):
         """Verify get handover filtered."""
-        write_client.post("/api/handover", json={"date": "2024-05-01", "author": "A", "text": "x"})
+        write_client.post(
+            "/api/handover", json={"date": "2024-05-01", "author": "A", "text": "x"}
+        )
         resp = write_client.get("/api/handover?date=2024-05-01")
         assert resp.status_code == 200
 
@@ -318,28 +349,42 @@ class TestSwapRequests:
 
     def test_create_swap_request_same_employee(self, write_client):
         """Verify create swap request same employee."""
-        resp = write_client.post("/api/swap-requests", json={
-            "requester_id": 1, "requester_date": "2024-03-15",
-            "partner_id": 1, "partner_date": "2024-03-16",
-        })
+        resp = write_client.post(
+            "/api/swap-requests",
+            json={
+                "requester_id": 1,
+                "requester_date": "2024-03-15",
+                "partner_id": 1,
+                "partner_date": "2024-03-16",
+            },
+        )
         assert resp.status_code == 400
 
     def test_create_swap_request_invalid_date(self, write_client):
         """Verify create swap request invalid date."""
-        resp = write_client.post("/api/swap-requests", json={
-            "requester_id": 1, "requester_date": "bad-date",
-            "partner_id": 2, "partner_date": "2024-03-16",
-        })
+        resp = write_client.post(
+            "/api/swap-requests",
+            json={
+                "requester_id": 1,
+                "requester_date": "bad-date",
+                "partner_id": 2,
+                "partner_date": "2024-03-16",
+            },
+        )
         assert resp.status_code in (400, 422)
 
     def test_resolve_swap_request_invalid_action(self, write_client):
         """Verify resolve swap request invalid action."""
-        resp = write_client.patch("/api/swap-requests/1/resolve", json={"action": "invalid"})
+        resp = write_client.patch(
+            "/api/swap-requests/1/resolve", json={"action": "invalid"}
+        )
         assert resp.status_code in (400, 422)
 
     def test_resolve_swap_request_not_found(self, write_client):
         """Verify resolve swap request not found."""
-        resp = write_client.patch("/api/swap-requests/999999/resolve", json={"action": "reject"})
+        resp = write_client.patch(
+            "/api/swap-requests/999999/resolve", json={"action": "reject"}
+        )
         assert resp.status_code == 404
 
     def test_delete_swap_request_not_found(self, write_client):
@@ -362,10 +407,13 @@ class TestSelfService:
 
     def test_create_self_wish(self, write_client):
         """Verify create self wish."""
-        resp = write_client.post("/api/self/wishes", json={
-            "date": "2024-06-01",
-            "wish_type": "WUNSCH",
-        })
+        resp = write_client.post(
+            "/api/self/wishes",
+            json={
+                "date": "2024-06-01",
+                "wish_type": "WUNSCH",
+            },
+        )
         assert resp.status_code in (200, 400, 404, 500)
 
     def test_delete_self_wish(self, write_client):
@@ -375,16 +423,20 @@ class TestSelfService:
 
     def test_create_self_absence(self, write_client):
         """Verify create self absence."""
-        resp = write_client.post("/api/self/absences", json={
-            "date": "2024-06-01",
-            "leave_type_id": 1,
-        })
+        resp = write_client.post(
+            "/api/self/absences",
+            json={
+                "date": "2024-06-01",
+                "leave_type_id": 1,
+            },
+        )
         assert resp.status_code in (200, 400, 404, 409, 500)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # reports.py – statistics, zeitkonto, exports, imports, analysis
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class TestStatistics:
     def test_get_statistics(self, sync_client):
@@ -465,12 +517,15 @@ class TestZeitkonto:
 class TestBookings:
     def test_post_booking(self, write_client):
         """Verify post booking."""
-        resp = write_client.post("/api/bookings", json={
-            "employee_id": 1,
-            "date": "2024-03-15",
-            "hours": 8.0,
-            "type": "actual",
-        })
+        resp = write_client.post(
+            "/api/bookings",
+            json={
+                "employee_id": 1,
+                "date": "2024-03-15",
+                "hours": 8.0,
+                "type": "actual",
+            },
+        )
         assert resp.status_code in (200, 400, 422, 500)
 
     def test_delete_booking(self, write_client):
@@ -704,13 +759,16 @@ class TestSkillsEndpoints:
     def test_create_update_delete_skill(self, admin_client):
         # Create
         """Verify create update delete skill."""
-        resp = admin_client.post("/api/skills", json={
-            "name": "TestSkill",
-            "description": "Testbeschreibung",
-            "color": "#ff0000",
-            "icon": "🔥",
-            "category": "Test",
-        })
+        resp = admin_client.post(
+            "/api/skills",
+            json={
+                "name": "TestSkill",
+                "description": "Testbeschreibung",
+                "color": "#ff0000",
+                "icon": "🔥",
+                "category": "Test",
+            },
+        )
         assert resp.status_code == 200
         skill = resp.json()
         skill_id = skill["id"]
@@ -737,11 +795,14 @@ class TestSkillsEndpoints:
         skill_id = skill_resp.json()["id"]
 
         # Assign to employee 1
-        assign_resp = admin_client.post("/api/skills/assignments", json={
-            "employee_id": 1,
-            "skill_id": skill_id,
-            "level": 2,
-        })
+        assign_resp = admin_client.post(
+            "/api/skills/assignments",
+            json={
+                "employee_id": 1,
+                "skill_id": skill_id,
+                "level": 2,
+            },
+        )
         assert assign_resp.status_code == 200
         assignment_id = assign_resp.json()["id"]
 

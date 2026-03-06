@@ -1,9 +1,15 @@
 """Misc router: notes, wishes, handover, swap-requests, changelog, search, access."""
+
 from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from pydantic import BaseModel, Field
 from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, _sanitize_500, limiter,
+    get_db,
+    require_admin,
+    require_planer,
+    require_auth,
+    _sanitize_500,
+    limiter,
 )
 from .events import broadcast
 from .schedule import swap_shifts, SwapShiftsRequest
@@ -12,49 +18,67 @@ from .notifications import create_notification
 router = APIRouter()
 
 
-
 # ── Notes ─────────────────────────────────────────────────────
 
-@router.get("/api/notes", tags=["Notes"], summary="List notes", description="Return shift notes, optionally filtered by date or employee.")
+
+@router.get(
+    "/api/notes",
+    tags=["Notes"],
+    summary="List notes",
+    description="Return shift notes, optionally filtered by date or employee.",
+)
 def get_notes(
     date: Optional[str] = Query(None, description="Filter by date YYYY-MM-DD"),
     employee_id: Optional[int] = Query(None),
     year: Optional[int] = Query(None, description="Filter by year (use with month)"),
-    month: Optional[int] = Query(None, description="Filter by month 1-12 (use with year)"),
+    month: Optional[int] = Query(
+        None, description="Filter by month 1-12 (use with year)"
+    ),
 ):
     if year is not None and month is not None:
         import calendar as _cal
+
         last_day = _cal.monthrange(year, month)[1]
         date_from = f"{year:04d}-{month:02d}-01"
         date_to = f"{year:04d}-{month:02d}-{last_day:02d}"
         all_notes = get_db().get_notes(date=None, employee_id=employee_id)
-        return [n for n in all_notes if date_from <= (n.get('date') or '') <= date_to]
+        return [n for n in all_notes if date_from <= (n.get("date") or "") <= date_to]
     return get_db().get_notes(date=date, employee_id=employee_id)
 
 
 class NoteCreate(BaseModel):
-    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     text: str = Field(..., min_length=1, max_length=2000)
     employee_id: Optional[int] = Field(0, ge=0)
-    text2: Optional[str] = Field('', max_length=2000)
-    category: Optional[str] = Field('', max_length=100)
+    text2: Optional[str] = Field("", max_length=2000)
+    category: Optional[str] = Field("", max_length=100)
 
 
-@router.post("/api/notes", tags=["Notes"], summary="Add note", description="Create a new shift note. Requires Planer role.")
+@router.post(
+    "/api/notes",
+    tags=["Notes"],
+    summary="Add note",
+    description="Create a new shift note. Requires Planer role.",
+)
 def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
-        datetime.strptime(body.date, '%Y-%m-%d')
+
+        datetime.strptime(body.date, "%Y-%m-%d")
     except ValueError:
-        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
+        raise HTTPException(
+            status_code=400,
+            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+        )
     try:
         import html as _html
+
         result = get_db().add_note(
             date=body.date,
             text=_html.escape(body.text),
             employee_id=body.employee_id or 0,
-            text2=_html.escape(body.text2 or ''),
-            category=body.category or '',
+            text2=_html.escape(body.text2 or ""),
+            category=body.category or "",
         )
         broadcast("note_added", {"date": body.date})
         return {"ok": True, "record": result}
@@ -66,20 +90,27 @@ class NoteUpdate(BaseModel):
     text: Optional[str] = Field(None, min_length=1, max_length=2000)
     text2: Optional[str] = Field(None, max_length=2000)
     employee_id: Optional[int] = Field(None, ge=0)
-    date: Optional[str] = Field(None, pattern=r'^\d{4}-\d{2}-\d{2}$')
+    date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     category: Optional[str] = Field(None, max_length=100)
 
 
 @router.put("/api/notes/{note_id}", tags=["Notes"], summary="Update note")
-def update_note(note_id: int, body: NoteUpdate, _cur_user: dict = Depends(require_planer)):
+def update_note(
+    note_id: int, body: NoteUpdate, _cur_user: dict = Depends(require_planer)
+):
     if body.date is not None:
         try:
             from datetime import datetime as _dt
-            _dt.strptime(body.date, '%Y-%m-%d')
+
+            _dt.strptime(body.date, "%Y-%m-%d")
         except ValueError:
-            raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
+            raise HTTPException(
+                status_code=400,
+                detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            )
     try:
         import html as _html
+
         result = get_db().update_note(
             note_id=note_id,
             text1=_html.escape(body.text) if body.text is not None else None,
@@ -129,8 +160,8 @@ def global_search(q: str = Query("", description="Search query")):
         if s in t:
             return 0.6
         # Trigram-style: count overlapping 2-char substrings
-        t_bi = {t[i:i+2] for i in range(len(t) - 1)} if len(t) >= 2 else set()
-        s_bi = {s[i:i+2] for i in range(len(s) - 1)} if len(s) >= 2 else set()
+        t_bi = {t[i : i + 2] for i in range(len(t) - 1)} if len(t) >= 2 else set()
+        s_bi = {s[i : i + 2] for i in range(len(s) - 1)} if len(s) >= 2 else set()
         if t_bi and s_bi:
             overlap = len(t_bi & s_bi) / max(len(t_bi), len(s_bi))
             if overlap > 0.3:
@@ -143,83 +174,91 @@ def global_search(q: str = Query("", description="Search query")):
     employees = db.get_employees(include_hidden=False)
     for emp in employees:
         name = f"{emp.get('NAME', '')} {emp.get('FIRSTNAME', '')}".strip()
-        short = emp.get('SHORTNAME', '') or ''
-        number = emp.get('NUMBER', '') or ''
+        short = emp.get("SHORTNAME", "") or ""
+        number = emp.get("NUMBER", "") or ""
         score = max(
             _fuzzy_score(name, query),
             _fuzzy_score(short, query),
             _fuzzy_score(number, query) * 0.9,
         )
         if score > 0.25:
-            results.append({
-                "type": "employee",
-                "id": emp.get("ID"),
-                "title": name,
-                "subtitle": f"Kürzel: {short}" if short else "",
-                "path": "/employees",
-                "icon": "👤",
-                "score": score,
-            })
+            results.append(
+                {
+                    "type": "employee",
+                    "id": emp.get("ID"),
+                    "title": name,
+                    "subtitle": f"Kürzel: {short}" if short else "",
+                    "path": "/employees",
+                    "icon": "👤",
+                    "score": score,
+                }
+            )
 
     # ── Shifts ────────────────────────────────────────────────
     shifts = db.get_shifts(include_hidden=False)
     for sh in shifts:
-        name = sh.get('NAME', '') or ''
-        short = sh.get('SHORTNAME', '') or ''
+        name = sh.get("NAME", "") or ""
+        short = sh.get("SHORTNAME", "") or ""
         score = max(
             _fuzzy_score(name, query),
             _fuzzy_score(short, query) * 0.9,
         )
         if score > 0.25:
-            results.append({
-                "type": "shift",
-                "id": sh.get("ID"),
-                "title": name,
-                "subtitle": f"Kürzel: {short}" if short else "",
-                "path": "/shifts",
-                "icon": "🕐",
-                "score": score,
-            })
+            results.append(
+                {
+                    "type": "shift",
+                    "id": sh.get("ID"),
+                    "title": name,
+                    "subtitle": f"Kürzel: {short}" if short else "",
+                    "path": "/shifts",
+                    "icon": "🕐",
+                    "score": score,
+                }
+            )
 
     # ── Leave Types ───────────────────────────────────────────
     leave_types = db.get_leave_types(include_hidden=False)
     for lt in leave_types:
-        name = lt.get('NAME', '') or ''
-        short = lt.get('SHORTNAME', '') or ''
+        name = lt.get("NAME", "") or ""
+        short = lt.get("SHORTNAME", "") or ""
         score = max(
             _fuzzy_score(name, query),
             _fuzzy_score(short, query) * 0.9,
         )
         if score > 0.25:
-            results.append({
-                "type": "leave_type",
-                "id": lt.get("ID"),
-                "title": name,
-                "subtitle": f"Kürzel: {short}" if short else "",
-                "path": "/leave-types",
-                "icon": "📋",
-                "score": score,
-            })
+            results.append(
+                {
+                    "type": "leave_type",
+                    "id": lt.get("ID"),
+                    "title": name,
+                    "subtitle": f"Kürzel: {short}" if short else "",
+                    "path": "/leave-types",
+                    "icon": "📋",
+                    "score": score,
+                }
+            )
 
     # ── Groups ────────────────────────────────────────────────
     groups = db.get_groups(include_hidden=False)
     for grp in groups:
-        name = grp.get('NAME', '') or ''
-        short = grp.get('SHORTNAME', '') or ''
+        name = grp.get("NAME", "") or ""
+        short = grp.get("SHORTNAME", "") or ""
         score = max(
             _fuzzy_score(name, query),
             _fuzzy_score(short, query) * 0.9,
         )
         if score > 0.25:
-            results.append({
-                "type": "group",
-                "id": grp.get("ID"),
-                "title": name,
-                "subtitle": f"Kürzel: {short}" if short else "",
-                "path": "/groups",
-                "icon": "🏢",
-                "score": score,
-            })
+            results.append(
+                {
+                    "type": "group",
+                    "id": grp.get("ID"),
+                    "title": name,
+                    "subtitle": f"Kürzel: {short}" if short else "",
+                    "path": "/groups",
+                    "icon": "🏢",
+                    "score": score,
+                }
+            )
 
     # Sort by score descending, limit to 30 total
     results.sort(key=lambda x: -x["score"])
@@ -233,6 +272,7 @@ def global_search(q: str = Query("", description="Search query")):
 
 # ── Employee / Group Access Rights ───────────────────────────
 
+
 class EmployeeAccessSet(BaseModel):
     user_id: int = Field(..., gt=0)
     employee_id: int = Field(..., gt=0)
@@ -245,23 +285,37 @@ class GroupAccessSet(BaseModel):
     rights: int = Field(0, ge=0)
 
 
-@router.get("/api/employee-access", tags=["Users"], summary="List employee access rules")
-def get_employee_access(user_id: Optional[int] = Query(None), _cur_user: dict = Depends(require_admin)):
+@router.get(
+    "/api/employee-access", tags=["Users"], summary="List employee access rules"
+)
+def get_employee_access(
+    user_id: Optional[int] = Query(None), _cur_user: dict = Depends(require_admin)
+):
     """Get employee-level access restrictions."""
     return get_db().get_employee_access(user_id=user_id)
 
 
-@router.post("/api/employee-access", tags=["Users"], summary="Create employee access rule")
-def set_employee_access(body: EmployeeAccessSet, _cur_user: dict = Depends(require_admin)):
+@router.post(
+    "/api/employee-access", tags=["Users"], summary="Create employee access rule"
+)
+def set_employee_access(
+    body: EmployeeAccessSet, _cur_user: dict = Depends(require_admin)
+):
     """Set employee-level access for a user."""
     try:
-        result = get_db().set_employee_access(body.user_id, body.employee_id, body.rights)
+        result = get_db().set_employee_access(
+            body.user_id, body.employee_id, body.rights
+        )
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e)
 
 
-@router.delete("/api/employee-access/{access_id}", tags=["Users"], summary="Delete employee access rule")
+@router.delete(
+    "/api/employee-access/{access_id}",
+    tags=["Users"],
+    summary="Delete employee access rule",
+)
 def delete_employee_access(access_id: int, _cur_user: dict = Depends(require_admin)):
     """Remove an employee access entry."""
     count = get_db().delete_employee_access(access_id)
@@ -271,7 +325,9 @@ def delete_employee_access(access_id: int, _cur_user: dict = Depends(require_adm
 
 
 @router.get("/api/group-access", tags=["Users"], summary="List group access rules")
-def get_group_access(user_id: Optional[int] = Query(None), _cur_user: dict = Depends(require_admin)):
+def get_group_access(
+    user_id: Optional[int] = Query(None), _cur_user: dict = Depends(require_admin)
+):
     """Get group-level access restrictions."""
     return get_db().get_group_access(user_id=user_id)
 
@@ -286,7 +342,9 @@ def set_group_access(body: GroupAccessSet, _cur_user: dict = Depends(require_adm
         raise _sanitize_500(e)
 
 
-@router.delete("/api/group-access/{access_id}", tags=["Users"], summary="Delete group access rule")
+@router.delete(
+    "/api/group-access/{access_id}", tags=["Users"], summary="Delete group access rule"
+)
 def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)):
     """Remove a group access entry."""
     count = get_db().delete_group_access(access_id)
@@ -297,6 +355,7 @@ def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)
 
 # ── Changelog / Aktivitätsprotokoll ─────────────────────────
 
+
 @router.get("/api/changelog", tags=["Admin"], summary="List audit log entries")
 def get_changelog(
     limit: int = Query(100, description="Max entries to return"),
@@ -305,13 +364,15 @@ def get_changelog(
     date_to: Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
 ):
     """Return activity log entries from changelog.json."""
-    return get_db().get_changelog(limit=limit, user=user, date_from=date_from, date_to=date_to)
+    return get_db().get_changelog(
+        limit=limit, user=user, date_from=date_from, date_to=date_to
+    )
 
 
 class ChangelogEntry(BaseModel):
     user: str
-    action: str        # CREATE / UPDATE / DELETE
-    entity: str        # employee / shift / schedule / ...
+    action: str  # CREATE / UPDATE / DELETE
+    entity: str  # employee / shift / schedule / ...
     entity_id: int
     details: Optional[str] = ""
 
@@ -331,6 +392,7 @@ def log_action(body: ChangelogEntry, _cur_user: dict = Depends(require_planer)):
 
 # ── Schicht-Wünsche & Sperrtage ─────────────────────────────────
 
+
 @router.get("/api/wishes", tags=["Self-Service"], summary="List shift wishes")
 def get_wishes(
     employee_id: Optional[int] = None,
@@ -342,27 +404,31 @@ def get_wishes(
 
 class WishCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
-    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     wish_type: str  # WUNSCH | SPERRUNG (case-insensitive, validated in endpoint)
     shift_id: Optional[int] = Field(None, gt=0)
-    note: Optional[str] = Field('', max_length=500)
+    note: Optional[str] = Field("", max_length=500)
 
 
 @router.post("/api/wishes", tags=["Self-Service"], summary="Create shift wish")
 def create_wish(body: WishCreate, _cur_user: dict = Depends(require_planer)):
     wish_type = body.wish_type.upper()
-    if wish_type not in ('WUNSCH', 'SPERRUNG'):
-        raise HTTPException(status_code=400, detail="wish_type must be WUNSCH or SPERRUNG")
+    if wish_type not in ("WUNSCH", "SPERRUNG"):
+        raise HTTPException(
+            status_code=400, detail="wish_type must be WUNSCH or SPERRUNG"
+        )
     return get_db().add_wish(
         employee_id=body.employee_id,
         date=body.date,
         wish_type=wish_type,
         shift_id=body.shift_id,
-        note=body.note or '',
+        note=body.note or "",
     )
 
 
-@router.delete("/api/wishes/{wish_id}", tags=["Self-Service"], summary="Delete shift wish")
+@router.delete(
+    "/api/wishes/{wish_id}", tags=["Self-Service"], summary="Delete shift wish"
+)
 def delete_wish(wish_id: int, _cur_user: dict = Depends(require_planer)):
     deleted = get_db().delete_wish(wish_id)
     if not deleted:
@@ -376,6 +442,7 @@ import uuid as _uuid  # noqa: E402
 
 _handover_notes: list[dict] = []
 
+
 @router.get("/api/handover", tags=["Notes"], summary="List handover notes")
 def get_handover(date: str | None = None, shift_id: int | None = None, limit: int = 50):
     """Übergabe-Notizen abrufen, optional gefiltert nach Datum/Schicht."""
@@ -385,6 +452,7 @@ def get_handover(date: str | None = None, shift_id: int | None = None, limit: in
     if shift_id is not None:
         notes = [n for n in notes if n.get("shift_id") == shift_id]
     return notes[:limit]
+
 
 @router.post("/api/handover", tags=["Notes"], summary="Create handover note")
 def create_handover(body: dict, _cur_user: dict = Depends(require_planer)):
@@ -404,8 +472,11 @@ def create_handover(body: dict, _cur_user: dict = Depends(require_planer)):
     _handover_notes.append(note)
     return note
 
+
 @router.patch("/api/handover/{note_id}", tags=["Notes"], summary="Update handover note")
-def update_handover(note_id: str, body: dict, _cur_user: dict = Depends(require_planer)):
+def update_handover(
+    note_id: str, body: dict, _cur_user: dict = Depends(require_planer)
+):
     """Notiz aktualisieren (z.B. als erledigt markieren)."""
     for note in _handover_notes:
         if note["id"] == note_id:
@@ -417,9 +488,13 @@ def update_handover(note_id: str, body: dict, _cur_user: dict = Depends(require_
                 note["priority"] = body["priority"]
             return note
     from fastapi import HTTPException
+
     raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
 
-@router.delete("/api/handover/{note_id}", tags=["Notes"], summary="Delete handover note")
+
+@router.delete(
+    "/api/handover/{note_id}", tags=["Notes"], summary="Delete handover note"
+)
 def delete_handover(note_id: str, _cur_user: dict = Depends(require_planer)):
     """Übergabe-Notiz löschen."""
     global _handover_notes
@@ -427,27 +502,31 @@ def delete_handover(note_id: str, _cur_user: dict = Depends(require_planer)):
     _handover_notes = [n for n in _handover_notes if n["id"] != note_id]
     if len(_handover_notes) == before:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
     return {"ok": True}
 
 
 # ── Schicht-Tauschbörse ──────────────────────────────────────────
 
+
 class SwapRequestCreate(BaseModel):
     requester_id: int = Field(..., gt=0)
-    requester_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')  # YYYY-MM-DD
+    requester_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
     partner_id: int = Field(..., gt=0)
-    partner_date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')   # YYYY-MM-DD
-    note: Optional[str] = Field('', max_length=500)
+    partner_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
+    note: Optional[str] = Field("", max_length=500)
 
 
 class SwapRequestResolve(BaseModel):
-    action: str = Field(..., pattern=r'^(approve|reject)$')  # 'approve' | 'reject'
-    resolved_by: Optional[str] = Field('planner', max_length=100)
-    reject_reason: Optional[str] = Field('', max_length=500)
+    action: str = Field(..., pattern=r"^(approve|reject)$")  # 'approve' | 'reject'
+    resolved_by: Optional[str] = Field("planner", max_length=100)
+    reject_reason: Optional[str] = Field("", max_length=500)
 
 
-@router.get("/api/swap-requests", tags=["Self-Service"], summary="List shift swap requests")
+@router.get(
+    "/api/swap-requests", tags=["Self-Service"], summary="List shift swap requests"
+)
 def list_swap_requests(
     status: Optional[str] = None,
     employee_id: Optional[int] = None,
@@ -456,68 +535,106 @@ def list_swap_requests(
     """List shift swap requests, optionally filtered by status or employee."""
     requests = get_db().get_swap_requests(status=status, employee_id=employee_id)
     # Enrich with employee names + shift info
-    employees = {e['ID']: e for e in get_db().get_employees(include_hidden=True)}
-    shifts = {s['ID']: s for s in get_db().get_shifts(include_hidden=True)}
+    employees = {e["ID"]: e for e in get_db().get_employees(include_hidden=True)}
+    shifts = {s["ID"]: s for s in get_db().get_shifts(include_hidden=True)}
 
     def get_shift_for(emp_id: int, date_str: str):
         sched = get_db().get_schedule_day(date_str)
         for entry in sched:
-            if entry.get('employee_id') == emp_id:
-                sid = entry.get('shift_id')
+            if entry.get("employee_id") == emp_id:
+                sid = entry.get("shift_id")
                 if sid and sid in shifts:
                     s = shifts[sid]
-                    return {'id': sid, 'name': s.get('SHORTNAME', '?'), 'color': s.get('COLOR', '#888')}
+                    return {
+                        "id": sid,
+                        "name": s.get("SHORTNAME", "?"),
+                        "color": s.get("COLOR", "#888"),
+                    }
         return None
 
     result = []
     for req in requests:
         r = dict(req)
-        req_emp = employees.get(req['requester_id'], {})
-        par_emp = employees.get(req['partner_id'], {})
-        r['requester_name'] = f"{req_emp.get('NAME', 'Gelöschter MA')}, {req_emp.get('FIRSTNAME', '')}" if req_emp else f"Gelöschter MA (ID {req['requester_id']})"
-        r['requester_short'] = req_emp.get('SHORTNAME', f"#{req['requester_id']}") if req_emp else f"#{req['requester_id']}"
-        r['partner_name'] = f"{par_emp.get('NAME', 'Gelöschter MA')}, {par_emp.get('FIRSTNAME', '')}" if par_emp else f"Gelöschter MA (ID {req['partner_id']})"
-        r['partner_short'] = par_emp.get('SHORTNAME', f"#{req['partner_id']}") if par_emp else f"#{req['partner_id']}"
-        r['requester_shift'] = get_shift_for(req['requester_id'], req['requester_date'])
-        r['partner_shift'] = get_shift_for(req['partner_id'], req['partner_date'])
+        req_emp = employees.get(req["requester_id"], {})
+        par_emp = employees.get(req["partner_id"], {})
+        r["requester_name"] = (
+            f"{req_emp.get('NAME', 'Gelöschter MA')}, {req_emp.get('FIRSTNAME', '')}"
+            if req_emp
+            else f"Gelöschter MA (ID {req['requester_id']})"
+        )
+        r["requester_short"] = (
+            req_emp.get("SHORTNAME", f"#{req['requester_id']}")
+            if req_emp
+            else f"#{req['requester_id']}"
+        )
+        r["partner_name"] = (
+            f"{par_emp.get('NAME', 'Gelöschter MA')}, {par_emp.get('FIRSTNAME', '')}"
+            if par_emp
+            else f"Gelöschter MA (ID {req['partner_id']})"
+        )
+        r["partner_short"] = (
+            par_emp.get("SHORTNAME", f"#{req['partner_id']}")
+            if par_emp
+            else f"#{req['partner_id']}"
+        )
+        r["requester_shift"] = get_shift_for(req["requester_id"], req["requester_date"])
+        r["partner_shift"] = get_shift_for(req["partner_id"], req["partner_date"])
         result.append(r)
     return result
 
 
-@router.post("/api/swap-requests", tags=["Self-Service"], summary="Create shift swap request")
+@router.post(
+    "/api/swap-requests", tags=["Self-Service"], summary="Create shift swap request"
+)
 @limiter.limit("5/minute")
-def create_swap_request(request: Request, body: SwapRequestCreate, _cur_user: dict = Depends(require_planer)):
+def create_swap_request(
+    request: Request, body: SwapRequestCreate, _cur_user: dict = Depends(require_planer)
+):
     """Create a new shift swap request."""
     from datetime import datetime as _dt4
+
     # Validate dates
     for d in [body.requester_date, body.partner_date]:
         try:
-            _dt4.strptime(d, '%Y-%m-%d')
+            _dt4.strptime(d, "%Y-%m-%d")
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
     if body.requester_id == body.partner_id:
-        raise HTTPException(status_code=400, detail="Antragsteller und Partner müssen verschieden sein")
+        raise HTTPException(
+            status_code=400, detail="Antragsteller und Partner müssen verschieden sein"
+        )
     entry = get_db().create_swap_request(
         requester_id=body.requester_id,
         requester_date=body.requester_date,
         partner_id=body.partner_id,
         partner_date=body.partner_date,
-        note=body.note or '',
+        note=body.note or "",
     )
-    get_db().log_action('system', 'CREATE', 'swap_request', entry['id'],
-                        f"MA {body.requester_id} → MA {body.partner_id} ({body.requester_date}↔{body.partner_date})")
+    get_db().log_action(
+        "system",
+        "CREATE",
+        "swap_request",
+        entry["id"],
+        f"MA {body.requester_id} → MA {body.partner_id} ({body.requester_date}↔{body.partner_date})",
+    )
 
     # ── Notification: inform the partner about incoming swap request ──
     try:
         employees = get_db().get_employees()
-        requester = next((e for e in employees if e.get('ID') == body.requester_id), None)
-        req_name = f"{requester.get('Vorname', '')} {requester.get('Nachname', '')}".strip() if requester else f'MA #{body.requester_id}'
+        requester = next(
+            (e for e in employees if e.get("ID") == body.requester_id), None
+        )
+        req_name = (
+            f"{requester.get('Vorname', '')} {requester.get('Nachname', '')}".strip()
+            if requester
+            else f"MA #{body.requester_id}"
+        )
         create_notification(
-            type='swap_request',
-            title='🔄 Neue Tauschanfrage',
-            message=f'{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date}).',
+            type="swap_request",
+            title="🔄 Neue Tauschanfrage",
+            message=f"{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date}).",
             recipient_employee_id=body.partner_id,
-            link='/tauschboerse',
+            link="/tauschboerse",
         )
     except Exception:
         pass
@@ -525,39 +642,69 @@ def create_swap_request(request: Request, body: SwapRequestCreate, _cur_user: di
     return entry
 
 
-@router.patch("/api/swap-requests/{swap_id}/resolve", tags=["Self-Service"], summary="Resolve shift swap request")
-def resolve_swap_request(swap_id: int, body: SwapRequestResolve, _cur_user: dict = Depends(require_planer)):
+@router.patch(
+    "/api/swap-requests/{swap_id}/resolve",
+    tags=["Self-Service"],
+    summary="Resolve shift swap request",
+)
+def resolve_swap_request(
+    swap_id: int, body: SwapRequestResolve, _cur_user: dict = Depends(require_planer)
+):
     """Approve or reject a swap request. If approved, executes the actual shift swap."""
-    if body.action not in ('approve', 'reject'):
-        raise HTTPException(status_code=400, detail="action muss 'approve' oder 'reject' sein")
-    entry = get_db().resolve_swap_request(swap_id, body.action,
-                                          resolved_by=body.resolved_by or 'planner',
-                                          reject_reason=body.reject_reason or '')
+    if body.action not in ("approve", "reject"):
+        raise HTTPException(
+            status_code=400, detail="action muss 'approve' oder 'reject' sein"
+        )
+    entry = get_db().resolve_swap_request(
+        swap_id,
+        body.action,
+        resolved_by=body.resolved_by or "planner",
+        reject_reason=body.reject_reason or "",
+    )
     if entry is None:
-        raise HTTPException(status_code=404, detail="Anfrage nicht gefunden oder bereits abgeschlossen")
+        raise HTTPException(
+            status_code=404, detail="Anfrage nicht gefunden oder bereits abgeschlossen"
+        )
 
-    if body.action == 'approve':
+    if body.action == "approve":
         # Execute the actual shift swap for both dates
-        swap_result = swap_shifts(SwapShiftsRequest(
-            employee_id_1=entry['requester_id'],
-            employee_id_2=entry['partner_id'],
-            dates=[entry['requester_date']] if entry['requester_date'] == entry['partner_date']
-                  else [entry['requester_date'], entry['partner_date']],
-        ))
+        swap_result = swap_shifts(
+            SwapShiftsRequest(
+                employee_id_1=entry["requester_id"],
+                employee_id_2=entry["partner_id"],
+                dates=[entry["requester_date"]]
+                if entry["requester_date"] == entry["partner_date"]
+                else [entry["requester_date"], entry["partner_date"]],
+            )
+        )
         # If different dates, we need to swap requester→partner_date and partner→requester_date
-        if entry['requester_date'] != entry['partner_date']:
+        if entry["requester_date"] != entry["partner_date"]:
             # Custom cross-date swap: move requester's shift to partner_date and vice versa
             pass  # The swap above handles same-dates; cross-date swap is complex — mark as todo
-        get_db().log_action(body.resolved_by or 'planner', 'UPDATE', 'swap_request', swap_id,
-                            f"Genehmigt: MA {entry['requester_id']} ↔ MA {entry['partner_id']}")
-        return {**entry, 'swap_result': swap_result}
+        get_db().log_action(
+            body.resolved_by or "planner",
+            "UPDATE",
+            "swap_request",
+            swap_id,
+            f"Genehmigt: MA {entry['requester_id']} ↔ MA {entry['partner_id']}",
+        )
+        return {**entry, "swap_result": swap_result}
 
-    get_db().log_action(body.resolved_by or 'planner', 'UPDATE', 'swap_request', swap_id,
-                        f"Abgelehnt: {body.reject_reason}")
+    get_db().log_action(
+        body.resolved_by or "planner",
+        "UPDATE",
+        "swap_request",
+        swap_id,
+        f"Abgelehnt: {body.reject_reason}",
+    )
     return entry
 
 
-@router.delete("/api/swap-requests/{swap_id}", tags=["Self-Service"], summary="Cancel shift swap request")
+@router.delete(
+    "/api/swap-requests/{swap_id}",
+    tags=["Self-Service"],
+    summary="Cancel shift swap request",
+)
 def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a swap request (cancel)."""
     deleted = get_db().delete_swap_request(swap_id)
@@ -570,68 +717,85 @@ def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer))
 # Self-Service routes (Leser role)
 # ─────────────────────────────────────────────────────────────────────────────
 
-@router.get("/api/me/employee", tags=["Self-Service"], summary="Get current user's employee record")
+
+@router.get(
+    "/api/me/employee",
+    tags=["Self-Service"],
+    summary="Get current user's employee record",
+)
 def get_my_employee(cur_user: dict = Depends(require_auth)):
     """Returns the EMPL record matching the logged-in user by name, or null."""
-    user_name = cur_user.get('NAME', '').strip().lower()
+    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
     match = next(
-        (e for e in employees if (e.get('NAME') or '').strip().lower() == user_name),
-        None
+        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
+        None,
     )
-    return {"employee": match, "user_id": cur_user.get('ID')}
+    return {"employee": match, "user_id": cur_user.get("ID")}
 
 
 class SelfWishCreate(BaseModel):
-    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     wish_type: str  # WUNSCH | SPERRUNG (case-insensitive, validated in endpoint)
     shift_id: Optional[int] = Field(None, gt=0)
-    note: Optional[str] = Field('', max_length=500)
+    note: Optional[str] = Field("", max_length=500)
 
 
 @router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block")
 def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth)):
     """Leser can submit a Schichtwunsch or Sperrung for themselves."""
-    user_name = cur_user.get('NAME', '').strip().lower()
+    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
     employee = next(
-        (e for e in employees if (e.get('NAME') or '').strip().lower() == user_name),
-        None
+        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
+        None,
     )
     if employee is None:
-        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden")
+        raise HTTPException(
+            status_code=404,
+            detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden",
+        )
     wish_type = body.wish_type.upper()
-    if wish_type not in ('WUNSCH', 'SPERRUNG'):
-        raise HTTPException(status_code=400, detail="wish_type must be WUNSCH or SPERRUNG")
+    if wish_type not in ("WUNSCH", "SPERRUNG"):
+        raise HTTPException(
+            status_code=400, detail="wish_type must be WUNSCH or SPERRUNG"
+        )
     result = db.add_wish(
-        employee_id=employee['ID'],
+        employee_id=employee["ID"],
         date=body.date,
         wish_type=wish_type,
         shift_id=body.shift_id,
-        note=body.note or '',
+        note=body.note or "",
     )
     return result
 
 
-@router.delete("/api/self/wishes/{wish_id}", tags=["Self-Service"], summary="Delete own wish")
+@router.delete(
+    "/api/self/wishes/{wish_id}", tags=["Self-Service"], summary="Delete own wish"
+)
 def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
     """Leser can delete their own wishes."""
-    user_name = cur_user.get('NAME', '').strip().lower()
+    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
     employee = next(
-        (e for e in employees if (e.get('NAME') or '').strip().lower() == user_name),
-        None
+        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
+        None,
     )
     if employee is None:
-        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden")
+        raise HTTPException(
+            status_code=404,
+            detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden",
+        )
     # Verify the wish belongs to this employee
-    wishes = db.get_wishes(employee_id=employee['ID'])
-    wish = next((w for w in wishes if w.get('id') == wish_id), None)
+    wishes = db.get_wishes(employee_id=employee["ID"])
+    wish = next((w for w in wishes if w.get("id") == wish_id), None)
     if wish is None:
-        raise HTTPException(status_code=404, detail="Wunsch nicht gefunden oder gehört nicht dir")
+        raise HTTPException(
+            status_code=404, detail="Wunsch nicht gefunden oder gehört nicht dir"
+        )
     deleted = db.delete_wish(wish_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Wunsch nicht gefunden")
@@ -639,26 +803,35 @@ def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
 
 
 class SelfAbsenceCreate(BaseModel):
-    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     leave_type_id: int = Field(..., gt=0)
-    note: Optional[str] = Field('', max_length=500)
+    note: Optional[str] = Field("", max_length=500)
 
 
-@router.post("/api/self/absences", tags=["Self-Service"], summary="Submit own absence request")
-def create_self_absence(body: SelfAbsenceCreate, cur_user: dict = Depends(require_auth)):
+@router.post(
+    "/api/self/absences", tags=["Self-Service"], summary="Submit own absence request"
+)
+def create_self_absence(
+    body: SelfAbsenceCreate, cur_user: dict = Depends(require_auth)
+):
     """Leser can submit an absence/vacation request for themselves."""
-    user_name = cur_user.get('NAME', '').strip().lower()
+    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
     employee = next(
-        (e for e in employees if (e.get('NAME') or '').strip().lower() == user_name),
-        None
+        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
+        None,
     )
     if employee is None:
-        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden")
+        raise HTTPException(
+            status_code=404,
+            detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden",
+        )
     # Check if already exists
-    existing = db.get_absences_list(employee_id=employee['ID'])
-    if any(a.get('date') == body.date for a in existing):
-        raise HTTPException(status_code=409, detail="Abwesenheit für dieses Datum bereits vorhanden")
-    result = db.add_absence(employee['ID'], body.date, body.leave_type_id)
+    existing = db.get_absences_list(employee_id=employee["ID"])
+    if any(a.get("date") == body.date for a in existing):
+        raise HTTPException(
+            status_code=409, detail="Abwesenheit für dieses Datum bereits vorhanden"
+        )
+    result = db.add_absence(employee["ID"], body.date, body.leave_type_id)
     return result

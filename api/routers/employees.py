@@ -1,17 +1,25 @@
 """Employees and groups router."""
+
 import os
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from ..dependencies import (
-    get_db, require_admin, _sanitize_500, _logger,
+    get_db,
+    require_admin,
+    _sanitize_500,
+    _logger,
 )
 
 router = APIRouter()
 
 
-
-@router.get("/api/employees", tags=["Employees"], summary="List employees", description="Return all active employees. Set include_hidden=true to include hidden/archived employees.")
+@router.get(
+    "/api/employees",
+    tags=["Employees"],
+    summary="List employees",
+    description="Return all active employees. Set include_hidden=true to include hidden/archived employees.",
+)
 def get_employees(include_hidden: bool = False):
     return get_db().get_employees(include_hidden=include_hidden)
 
@@ -20,33 +28,45 @@ def get_employees(include_hidden: bool = False):
 def get_employee(emp_id: int):
     e = get_db().get_employee(emp_id)
     if e is None:
-        raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
+        raise HTTPException(
+            status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
+        )
     return e
 
 
-@router.get("/api/groups", tags=["Groups"], summary="List groups", description="Return all groups. Set include_hidden=true to include hidden/archived groups.")
+@router.get(
+    "/api/groups",
+    tags=["Groups"],
+    summary="List groups",
+    description="Return all groups. Set include_hidden=true to include hidden/archived groups.",
+)
 def get_groups(include_hidden: bool = False):
     db = get_db()
     groups = db.get_groups(include_hidden=include_hidden)
     # Fetch all group→members in a single pass to avoid N+1
     all_members = db.get_all_group_members()
     for g in groups:
-        g['member_count'] = len(all_members.get(g['ID'], []))
+        g["member_count"] = len(all_members.get(g["ID"], []))
     return groups
 
 
-@router.get("/api/groups/{group_id}/members", tags=["Groups"], summary="List group members", description="Return all employees assigned to the given group.")
+@router.get(
+    "/api/groups/{group_id}/members",
+    tags=["Groups"],
+    summary="List group members",
+    description="Return all employees assigned to the given group.",
+)
 def get_group_members(group_id: int):
     db = get_db()
     member_ids = db.get_group_members(group_id)
     employees = db.get_employees(include_hidden=True)
-    emp_map = {e['ID']: e for e in employees}
+    emp_map = {e["ID"]: e for e in employees}
     return [emp_map[mid] for mid in member_ids if mid in emp_map]
 
 
 # ── Write: Employees ─────────────────────────────────────────
 
-_DATE_PATTERN = r'^\d{4}-\d{2}-\d{2}$'
+_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
 
 def _validate_date_field(v: str, field_name: str) -> str:
@@ -54,71 +74,74 @@ def _validate_date_field(v: str, field_name: str) -> str:
     if v:
         import re as _re
         from datetime import datetime as _dtt
+
         if not _re.match(_DATE_PATTERN, v):
             raise ValueError(f"'{field_name}' muss im Format YYYY-MM-DD sein")
         try:
-            _dtt.strptime(v, '%Y-%m-%d')
+            _dtt.strptime(v, "%Y-%m-%d")
         except ValueError:
             raise ValueError(f"'{field_name}' ist kein gültiges Datum")
     return v
 
 
 class EmployeeCreate(BaseModel):
-    NAME: str = Field(..., min_length=1, max_length=100, description="Nachname (Pflichtfeld)")
-    FIRSTNAME: str = Field('', max_length=100)
-    SHORTNAME: str = Field('', max_length=20)
-    NUMBER: str = Field('', max_length=20)
+    NAME: str = Field(
+        ..., min_length=1, max_length=100, description="Nachname (Pflichtfeld)"
+    )
+    FIRSTNAME: str = Field("", max_length=100)
+    SHORTNAME: str = Field("", max_length=20)
+    NUMBER: str = Field("", max_length=20)
     SEX: int = Field(0, ge=0, le=2)
     HRSDAY: float = Field(0.0, ge=0.0, le=24.0)
     HRSWEEK: float = Field(0.0, ge=0.0, le=168.0)
     HRSMONTH: float = Field(0.0, ge=0.0, le=744.0)
     HRSTOTAL: float = Field(0.0, ge=0.0)
-    WORKDAYS: str = Field('1 1 1 1 1 0 0 0', max_length=20)
+    WORKDAYS: str = Field("1 1 1 1 1 0 0 0", max_length=20)
     HIDE: bool = False
     BOLD: int = Field(0, ge=0, le=1)
     # Personal data
-    SALUTATION: str = Field('', max_length=50)
-    STREET: str = Field('', max_length=200)
-    ZIP: str = Field('', max_length=20)
-    TOWN: str = Field('', max_length=100)
-    PHONE: str = Field('', max_length=50)
-    EMAIL: str = Field('', max_length=200)
-    FUNCTION: str = Field('', max_length=100)
-    BIRTHDAY: str = Field('', max_length=10)
-    EMPSTART: str = Field('', max_length=10)
-    EMPEND: str = Field('', max_length=10)
+    SALUTATION: str = Field("", max_length=50)
+    STREET: str = Field("", max_length=200)
+    ZIP: str = Field("", max_length=20)
+    TOWN: str = Field("", max_length=100)
+    PHONE: str = Field("", max_length=50)
+    EMAIL: str = Field("", max_length=200)
+    FUNCTION: str = Field("", max_length=100)
+    BIRTHDAY: str = Field("", max_length=10)
+    EMPSTART: str = Field("", max_length=10)
+    EMPEND: str = Field("", max_length=10)
     # Calculation settings
     CALCBASE: int = Field(0, ge=0)
     DEDUCTHOL: int = Field(0, ge=0, le=1)
     # Free text fields
-    NOTE1: str = Field('', max_length=500)
-    NOTE2: str = Field('', max_length=500)
-    NOTE3: str = Field('', max_length=500)
-    NOTE4: str = Field('', max_length=500)
-    ARBITR1: str = Field('', max_length=200)
-    ARBITR2: str = Field('', max_length=200)
-    ARBITR3: str = Field('', max_length=200)
+    NOTE1: str = Field("", max_length=500)
+    NOTE2: str = Field("", max_length=500)
+    NOTE3: str = Field("", max_length=500)
+    NOTE4: str = Field("", max_length=500)
+    ARBITR1: str = Field("", max_length=200)
+    ARBITR2: str = Field("", max_length=200)
+    ARBITR3: str = Field("", max_length=200)
     # Colors (BGR int: 0=black, 16777215=white)
     CFGLABEL: Optional[int] = Field(None, ge=0, le=16777215)
     CBKLABEL: Optional[int] = Field(None, ge=0, le=16777215)
     CBKSCHED: Optional[int] = Field(None, ge=0, le=16777215)
 
-    @field_validator('NAME')
+    @field_validator("NAME")
     @classmethod
     def name_not_blank(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("NAME darf nicht leer sein")
         return v
 
-    @field_validator('BIRTHDAY', 'EMPSTART', 'EMPEND', mode='before')
+    @field_validator("BIRTHDAY", "EMPSTART", "EMPEND", mode="before")
     @classmethod
     def validate_dates(cls, v):
         if v is None:
-            return ''
-        return _validate_date_field(str(v), 'Datum')
+            return ""
+        return _validate_date_field(str(v), "Datum")
 
-    @model_validator(mode='after')
-    def empend_after_empstart(self) -> 'EmployeeCreate':
+    @model_validator(mode="after")
+    def empend_after_empstart(self) -> "EmployeeCreate":
         if self.EMPSTART and self.EMPEND and self.EMPEND < self.EMPSTART:
             raise ValueError("EMPEND muss >= EMPSTART sein")
         return self
@@ -165,87 +188,119 @@ class EmployeeUpdate(BaseModel):
     CBKLABEL: Optional[int] = Field(None, ge=0, le=16777215)
     CBKSCHED: Optional[int] = Field(None, ge=0, le=16777215)
 
-    @field_validator('NAME')
+    @field_validator("NAME")
     @classmethod
     def name_not_blank(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("NAME darf nicht leer sein")
         return v
 
-    @field_validator('BIRTHDAY', 'EMPSTART', 'EMPEND', mode='before')
+    @field_validator("BIRTHDAY", "EMPSTART", "EMPEND", mode="before")
     @classmethod
     def validate_dates(cls, v):
-        if v is None or v == '':
+        if v is None or v == "":
             return v
-        return _validate_date_field(str(v), 'Datum')
+        return _validate_date_field(str(v), "Datum")
 
 
-@router.post("/api/employees", tags=["Employees"], summary="Create employee", description="Create a new employee record. Requires Admin role.")
+@router.post(
+    "/api/employees",
+    tags=["Employees"],
+    summary="Create employee",
+    description="Create a new employee record. Requires Admin role.",
+)
 def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admin)):
     # Validation handled by Pydantic Field constraints and validators
     try:
         result = get_db().create_employee(body.model_dump())
         _logger.warning(
             "AUDIT EMPLOYEE_CREATE | user=%s name=%s shortname=%s id=%s",
-            _cur_user.get('NAME'), body.NAME, body.SHORTNAME, result.get('ID')
+            _cur_user.get("NAME"),
+            body.NAME,
+            body.SHORTNAME,
+            result.get("ID"),
         )
         return {"ok": True, "record": result}
     except ValueError as e:
-        if str(e).startswith('DUPLICATE:SHORTNAME:'):
-            sn = (body.SHORTNAME or '').strip()
-            raise HTTPException(status_code=409, detail=f"Kürzel '{sn}' ist bereits vergeben")
-        raise _sanitize_500(e, 'create_employee')
+        if str(e).startswith("DUPLICATE:SHORTNAME:"):
+            sn = (body.SHORTNAME or "").strip()
+            raise HTTPException(
+                status_code=409, detail=f"Kürzel '{sn}' ist bereits vergeben"
+            )
+        raise _sanitize_500(e, "create_employee")
     except Exception as e:
-        raise _sanitize_500(e, 'create_employee')
+        raise _sanitize_500(e, "create_employee")
 
 
-@router.put("/api/employees/{emp_id}", tags=["Employees"], summary="Update employee", description="Update an existing employee. Requires Admin role.")
-def update_employee(emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends(require_admin)):
+@router.put(
+    "/api/employees/{emp_id}",
+    tags=["Employees"],
+    summary="Update employee",
+    description="Update an existing employee. Requires Admin role.",
+)
+def update_employee(
+    emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends(require_admin)
+):
     try:
         # Validation handled by Pydantic Field constraints and validators
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_employee(emp_id, data)
         _logger.warning(
             "AUDIT EMPLOYEE_UPDATE | user=%s emp_id=%d fields=%s",
-            _cur_user.get('NAME'), emp_id, list(data.keys())
+            _cur_user.get("NAME"),
+            emp_id,
+            list(data.keys()),
         )
         return {"ok": True, "record": result}
     except HTTPException:
         raise
     except ValueError:
-        raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
+        raise HTTPException(
+            status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
+        )
     except Exception as e:
-        raise _sanitize_500(e, f'update_employee/{emp_id}')
+        raise _sanitize_500(e, f"update_employee/{emp_id}")
 
 
-@router.delete("/api/employees/{emp_id}", tags=["Employees"], summary="Delete (hide) employee", description="Marks an employee as hidden. Requires Admin role.")
+@router.delete(
+    "/api/employees/{emp_id}",
+    tags=["Employees"],
+    summary="Delete (hide) employee",
+    description="Marks an employee as hidden. Requires Admin role.",
+)
 def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_employee(emp_id)
         if count == 0:
-            raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
+            raise HTTPException(
+                status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
+            )
         _logger.warning(
-            "AUDIT EMPLOYEE_DELETE | user=%s emp_id=%d",
-            _cur_user.get('NAME'), emp_id
+            "AUDIT EMPLOYEE_DELETE | user=%s emp_id=%d", _cur_user.get("NAME"), emp_id
         )
         return {"ok": True, "hidden": count}
     except HTTPException:
         raise
     except Exception as e:
-        raise _sanitize_500(e, f'delete_employee/{emp_id}')
+        raise _sanitize_500(e, f"delete_employee/{emp_id}")
 
 
 # ── Employee Photo Upload ─────────────────────────────────────
 
-_PHOTOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'uploads', 'photos')
+_PHOTOS_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "uploads", "photos"
+)
 
 
-@router.get("/api/employees/{emp_id}/photo", tags=["Employees"], summary="Get employee photo")
+@router.get(
+    "/api/employees/{emp_id}/photo", tags=["Employees"], summary="Get employee photo"
+)
 async def get_employee_photo(emp_id: int):
     from fastapi.responses import FileResponse as _FileResponse
     import pathlib
+
     photos_dir = pathlib.Path(_PHOTOS_DIR)
-    for ext in ('.jpg', '.jpeg', '.png', '.gif'):
+    for ext in (".jpg", ".jpeg", ".png", ".gif"):
         p = photos_dir / f"{emp_id}{ext}"
         if p.exists():
             return _FileResponse(str(p))
@@ -254,14 +309,15 @@ async def get_employee_photo(emp_id: int):
 
 # ── Write: Groups ─────────────────────────────────────────────
 
+
 class GroupCreate(BaseModel):
     NAME: str
-    SHORTNAME: str = ''
+    SHORTNAME: str = ""
     SUPERID: int = 0
     HIDE: bool = False
     BOLD: int = 0
     DAILYDEM: int = 0
-    ARBITR: str = ''
+    ARBITR: str = ""
     CFGLABEL: Optional[int] = None
     CBKLABEL: Optional[int] = None
     CBKSCHED: Optional[int] = None
@@ -291,80 +347,111 @@ def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     try:
         result = get_db().create_group(body.model_dump())
-        _logger.warning("AUDIT GROUP_CREATE | user=%s name=%s id=%s", _cur_user.get('NAME'), body.NAME, result.get('ID'))
+        _logger.warning(
+            "AUDIT GROUP_CREATE | user=%s name=%s id=%s",
+            _cur_user.get("NAME"),
+            body.NAME,
+            result.get("ID"),
+        )
         return {"ok": True, "record": result}
     except Exception as e:
-        raise _sanitize_500(e, 'create_group')
+        raise _sanitize_500(e, "create_group")
 
 
 @router.put("/api/groups/{group_id}", tags=["Groups"], summary="Update group")
-def update_group(group_id: int, body: GroupUpdate, _cur_user: dict = Depends(require_admin)):
+def update_group(
+    group_id: int, body: GroupUpdate, _cur_user: dict = Depends(require_admin)
+):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_group(group_id, data)
-        _logger.warning("AUDIT GROUP_UPDATE | user=%s group_id=%d fields=%s", _cur_user.get('NAME'), group_id, list(data.keys()))
+        _logger.warning(
+            "AUDIT GROUP_UPDATE | user=%s group_id=%d fields=%s",
+            _cur_user.get("NAME"),
+            group_id,
+            list(data.keys()),
+        )
         return {"ok": True, "record": result}
     except ValueError:
-        raise HTTPException(status_code=404, detail=f"Gruppe ID {group_id} nicht gefunden")
+        raise HTTPException(
+            status_code=404, detail=f"Gruppe ID {group_id} nicht gefunden"
+        )
     except Exception as e:
-        raise _sanitize_500(e, f'update_group/{group_id}')
+        raise _sanitize_500(e, f"update_group/{group_id}")
 
 
 @router.delete("/api/groups/{group_id}", tags=["Groups"], summary="Delete group")
 def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_group(group_id)
-        _logger.warning("AUDIT GROUP_DELETE | user=%s group_id=%d", _cur_user.get('NAME'), group_id)
+        _logger.warning(
+            "AUDIT GROUP_DELETE | user=%s group_id=%d", _cur_user.get("NAME"), group_id
+        )
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise _sanitize_500(e, f'delete_group/{group_id}')
+        raise _sanitize_500(e, f"delete_group/{group_id}")
 
 
-@router.post("/api/groups/{group_id}/members", tags=["Groups"], summary="Add group member")
-def add_group_member(group_id: int, body: GroupMemberBody, _cur_user: dict = Depends(require_admin)):
+@router.post(
+    "/api/groups/{group_id}/members", tags=["Groups"], summary="Add group member"
+)
+def add_group_member(
+    group_id: int, body: GroupMemberBody, _cur_user: dict = Depends(require_admin)
+):
     try:
         result = get_db().add_group_member(group_id, body.employee_id)
         return {"ok": True, "record": result}
     except Exception as e:
-        raise _sanitize_500(e, f'add_group_member/{group_id}')
+        raise _sanitize_500(e, f"add_group_member/{group_id}")
 
 
-@router.delete("/api/groups/{group_id}/members/{emp_id}", tags=["Groups"], summary="Remove group member")
-def remove_group_member(group_id: int, emp_id: int, _cur_user: dict = Depends(require_admin)):
+@router.delete(
+    "/api/groups/{group_id}/members/{emp_id}",
+    tags=["Groups"],
+    summary="Remove group member",
+)
+def remove_group_member(
+    group_id: int, emp_id: int, _cur_user: dict = Depends(require_admin)
+):
     try:
         count = get_db().remove_group_member(group_id, emp_id)
         return {"ok": True, "removed": count}
     except Exception as e:
-        raise _sanitize_500(e, f'remove_group_member/{group_id}/{emp_id}')
-
+        raise _sanitize_500(e, f"remove_group_member/{group_id}/{emp_id}")
 
 
 # ── Import endpoints ─────────────────────────────────────────
 
 
-
-@router.post("/api/employees/{emp_id}/photo", tags=["Employees"], summary="Upload employee photo")
-async def upload_employee_photo(emp_id: int, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+@router.post(
+    "/api/employees/{emp_id}/photo", tags=["Employees"], summary="Upload employee photo"
+)
+async def upload_employee_photo(
+    emp_id: int, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Upload a photo for an employee (JPG/PNG/GIF)."""
     import pathlib
+
     photos_dir = pathlib.Path(_PHOTOS_DIR)
     photos_dir.mkdir(parents=True, exist_ok=True)
 
     db = get_db()
     emp = db.get_employee(emp_id)
     if not emp:
-        raise HTTPException(status_code=404, detail=f"Mitarbeiter {emp_id} nicht gefunden")
+        raise HTTPException(
+            status_code=404, detail=f"Mitarbeiter {emp_id} nicht gefunden"
+        )
 
-    ct = (file.content_type or '').lower()
-    allowed = ('image/jpeg', 'image/png', 'image/gif')
+    ct = (file.content_type or "").lower()
+    allowed = ("image/jpeg", "image/png", "image/gif")
     if ct not in allowed:
         raise HTTPException(status_code=400, detail="Nur JPG, PNG oder GIF erlaubt")
 
-    ext = '.jpg'
-    if ct == 'image/png':
-        ext = '.png'
-    elif ct == 'image/gif':
-        ext = '.gif'
+    ext = ".jpg"
+    if ct == "image/png":
+        ext = ".png"
+    elif ct == "image/gif":
+        ext = ".gif"
 
     # Remove old photos for this employee
     for old in photos_dir.glob(f"{emp_id}.*"):
@@ -382,7 +469,7 @@ async def upload_employee_photo(emp_id: int, file: UploadFile = File(...), _cur_
 
     rel_path = f"uploads/photos/{emp_id}{ext}"
     try:
-        db.update_employee(emp_id, {'PHOTO': rel_path})
+        db.update_employee(emp_id, {"PHOTO": rel_path})
     except Exception:
         pass  # best effort
 
@@ -391,49 +478,63 @@ async def upload_employee_photo(emp_id: int, file: UploadFile = File(...), _cur_
 
 # ── Bulk Operations ─────────────────────────────────────────
 
+
 class BulkEmployeeAction(BaseModel):
-    employee_ids: List[int] = Field(..., min_length=1, description="Liste von Mitarbeiter-IDs")
-    action: str = Field(..., description="'hide', 'show', 'assign_group', 'remove_group'")
-    group_id: Optional[int] = Field(None, description="Ziel-Gruppe für assign_group/remove_group")
+    employee_ids: List[int] = Field(
+        ..., min_length=1, description="Liste von Mitarbeiter-IDs"
+    )
+    action: str = Field(
+        ..., description="'hide', 'show', 'assign_group', 'remove_group'"
+    )
+    group_id: Optional[int] = Field(
+        None, description="Ziel-Gruppe für assign_group/remove_group"
+    )
 
 
 @router.post("/api/employees/bulk", tags=["Employees"], summary="Bulk employee actions")
-def bulk_employee_action(body: BulkEmployeeAction, _cur_user: dict = Depends(require_admin)):
+def bulk_employee_action(
+    body: BulkEmployeeAction, _cur_user: dict = Depends(require_admin)
+):
     """Bulk operations: hide/show employees or assign/remove them from a group."""
     db = get_db()
-    results = {"ok": True, "affected": 0, "errors": []}
+    affected: int = 0
+    errors: list = []
 
-    if body.action in ('hide', 'show'):
-        hide_val = body.action == 'hide'
+    if body.action in ("hide", "show"):
+        hide_val = body.action == "hide"
         for emp_id in body.employee_ids:
             try:
-                db.update_employee(emp_id, {'HIDE': hide_val})
-                results["affected"] += 1
+                db.update_employee(emp_id, {"HIDE": hide_val})
+                affected += 1
             except Exception as e:
-                results["errors"].append({"id": emp_id, "error": str(e)})
+                errors.append({"id": emp_id, "error": str(e)})
 
-    elif body.action == 'assign_group':
+    elif body.action == "assign_group":
         if not body.group_id:
-            raise HTTPException(status_code=400, detail="group_id erforderlich für assign_group")
+            raise HTTPException(
+                status_code=400, detail="group_id erforderlich für assign_group"
+            )
         for emp_id in body.employee_ids:
             try:
                 # add_group_member is idempotent (ignore duplicate)
                 db.add_group_member(body.group_id, emp_id)
-                results["affected"] += 1
+                affected += 1
             except Exception as e:
-                results["errors"].append({"id": emp_id, "error": str(e)})
+                errors.append({"id": emp_id, "error": str(e)})
 
-    elif body.action == 'remove_group':
+    elif body.action == "remove_group":
         if not body.group_id:
-            raise HTTPException(status_code=400, detail="group_id erforderlich für remove_group")
+            raise HTTPException(
+                status_code=400, detail="group_id erforderlich für remove_group"
+            )
         for emp_id in body.employee_ids:
             try:
                 db.remove_group_member(body.group_id, emp_id)
-                results["affected"] += 1
+                affected += 1
             except Exception as e:
-                results["errors"].append({"id": emp_id, "error": str(e)})
+                errors.append({"id": emp_id, "error": str(e)})
 
     else:
         raise HTTPException(status_code=400, detail=f"Unbekannte Aktion: {body.action}")
 
-    return results
+    return {"ok": True, "affected": affected, "errors": errors}

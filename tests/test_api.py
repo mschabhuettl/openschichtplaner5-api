@@ -4,12 +4,14 @@ API integration tests for OpenSchichtplaner5 backend.
 Uses a real copy of the SP5 database (read-only tests use a shared session-copy,
 write tests each get a fresh copy via write_client fixture).
 """
+
 import pytest
 
 
 # ─────────────────────────────────────────────────────────────
 # READ TESTS (session-scoped client, shared DB copy)
 # ─────────────────────────────────────────────────────────────
+
 
 class TestRoot:
     def test_api_root(self, sync_client):
@@ -204,7 +206,12 @@ class TestStatistics:
         data = sync_client.get("/api/statistics?year=2024&month=6").json()
         if data:
             stat = data[0]
-            for field in ("employee_name", "target_hours", "actual_hours", "overtime_hours"):
+            for field in (
+                "employee_name",
+                "target_hours",
+                "actual_hours",
+                "overtime_hours",
+            ):
                 assert field in stat, f"Missing field: {field}"
 
 
@@ -388,6 +395,7 @@ class TestChangelog:
 # WRITE TESTS (function-scoped client, fresh DB copy per test)
 # ─────────────────────────────────────────────────────────────
 
+
 class TestEmployeeCreate:
     def test_create_employee(self, write_client):
         """Verify create employee."""
@@ -476,21 +484,19 @@ class TestScheduleWrite:
         shifts = write_client.get("/api/shifts").json()
         emp_id = emps[0]["ID"]
         shift_id = shifts[0]["ID"]
-        resp = write_client.post("/api/schedule", json={
-            "employee_id": emp_id,
-            "date": "2025-01-15",
-            "shift_id": shift_id
-        })
+        resp = write_client.post(
+            "/api/schedule",
+            json={"employee_id": emp_id, "date": "2025-01-15", "shift_id": shift_id},
+        )
         # Could be 200 (ok) or 409 (conflict if entry exists)
         assert resp.status_code in (200, 409)
 
     def test_create_schedule_entry_invalid_date(self, write_client):
         """Verify create schedule entry invalid date."""
-        resp = write_client.post("/api/schedule", json={
-            "employee_id": 1,
-            "date": "not-a-date",
-            "shift_id": 1
-        })
+        resp = write_client.post(
+            "/api/schedule",
+            json={"employee_id": 1, "date": "not-a-date", "shift_id": 1},
+        )
         assert resp.status_code in (400, 422)
 
     def test_delete_schedule_entry(self, write_client):
@@ -500,11 +506,10 @@ class TestScheduleWrite:
         emp_id = emps[0]["ID"]
         shift_id = shifts[0]["ID"]
         # Create first
-        write_client.post("/api/schedule", json={
-            "employee_id": emp_id,
-            "date": "2025-02-10",
-            "shift_id": shift_id
-        })
+        write_client.post(
+            "/api/schedule",
+            json={"employee_id": emp_id, "date": "2025-02-10", "shift_id": shift_id},
+        )
         # Then delete
         resp = write_client.delete(f"/api/schedule/{emp_id}/2025-02-10")
         assert resp.status_code == 200
@@ -519,27 +524,27 @@ class TestAbsenceWrite:
             pytest.skip("No leave types configured")
         emp_id = emps[0]["ID"]
         lt_id = lt_list[0]["ID"]
-        resp = write_client.post("/api/absences", json={
-            "employee_id": emp_id,
-            "date": "2025-03-10",
-            "leave_type_id": lt_id
-        })
+        resp = write_client.post(
+            "/api/absences",
+            json={"employee_id": emp_id, "date": "2025-03-10", "leave_type_id": lt_id},
+        )
         assert resp.status_code in (200, 409)
 
     def test_create_absence_invalid_date(self, write_client):
         """Verify create absence invalid date."""
-        resp = write_client.post("/api/absences", json={
-            "employee_id": 1,
-            "date": "2025-99-01",
-            "leave_type_id": 1
-        })
+        resp = write_client.post(
+            "/api/absences",
+            json={"employee_id": 1, "date": "2025-99-01", "leave_type_id": 1},
+        )
         assert resp.status_code in (400, 409, 422, 500)
 
 
 class TestLeaveTypeWrite:
     def test_create_leave_type(self, write_client):
         """Verify create leave type."""
-        resp = write_client.post("/api/leave-types", json={"NAME": "Test-Urlaub", "SHORTNAME": "TU"})
+        resp = write_client.post(
+            "/api/leave-types", json={"NAME": "Test-Urlaub", "SHORTNAME": "TU"}
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
@@ -547,27 +552,27 @@ class TestLeaveTypeWrite:
 class TestHolidayWrite:
     def test_create_holiday(self, write_client):
         """Verify create holiday."""
-        resp = write_client.post("/api/holidays", json={
-            "DATE": "2025-12-26",
-            "NAME": "Zweiter Weihnachtstag",
-            "INTERVAL": 1
-        })
+        resp = write_client.post(
+            "/api/holidays",
+            json={"DATE": "2025-12-26", "NAME": "Zweiter Weihnachtstag", "INTERVAL": 1},
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
     def test_create_holiday_invalid_date(self, write_client):
         """Verify create holiday invalid date."""
-        resp = write_client.post("/api/holidays", json={
-            "DATE": "not-a-date",
-            "NAME": "Test"
-        })
+        resp = write_client.post(
+            "/api/holidays", json={"DATE": "not-a-date", "NAME": "Test"}
+        )
         assert resp.status_code == 400
 
 
 class TestWorkplaceWrite:
     def test_create_workplace(self, write_client):
         """Verify create workplace."""
-        resp = write_client.post("/api/workplaces", json={"NAME": "Testort", "SHORTNAME": "TO"})
+        resp = write_client.post(
+            "/api/workplaces", json={"NAME": "Testort", "SHORTNAME": "TO"}
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
@@ -575,10 +580,9 @@ class TestWorkplaceWrite:
 class TestNoteWrite:
     def test_create_note(self, write_client):
         """Verify create note."""
-        resp = write_client.post("/api/notes", json={
-            "date": "2025-06-01",
-            "text": "Test-Notiz"
-        })
+        resp = write_client.post(
+            "/api/notes", json={"date": "2025-06-01", "text": "Test-Notiz"}
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
@@ -588,13 +592,16 @@ class TestBookingWrite:
         """Verify create booking."""
         emps = write_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
-        resp = write_client.post("/api/bookings", json={
-            "employee_id": emp_id,
-            "date": "2024-06-15",
-            "type": 0,
-            "value": 8.0,
-            "note": "Test"
-        })
+        resp = write_client.post(
+            "/api/bookings",
+            json={
+                "employee_id": emp_id,
+                "date": "2024-06-15",
+                "type": 0,
+                "value": 8.0,
+                "note": "Test",
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
@@ -606,13 +613,16 @@ class TestBulkSchedule:
         shifts = write_client.get("/api/shifts").json()
         emp_id = emps[0]["ID"]
         shift_id = shifts[0]["ID"]
-        resp = write_client.post("/api/schedule/bulk", json={
-            "entries": [
-                {"employee_id": emp_id, "date": "2025-04-07", "shift_id": shift_id},
-                {"employee_id": emp_id, "date": "2025-04-08", "shift_id": shift_id},
-            ],
-            "overwrite": True
-        })
+        resp = write_client.post(
+            "/api/schedule/bulk",
+            json={
+                "entries": [
+                    {"employee_id": emp_id, "date": "2025-04-07", "shift_id": shift_id},
+                    {"employee_id": emp_id, "date": "2025-04-08", "shift_id": shift_id},
+                ],
+                "overwrite": True,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "created" in data

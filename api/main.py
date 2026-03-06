@@ -1,4 +1,5 @@
 """FastAPI application for OpenSchichtplaner5."""
+
 import os
 import sys
 import time as _startup_time_module
@@ -8,7 +9,7 @@ from dotenv import load_dotenv
 _APP_START_TIME = _startup_time_module.time()
 
 # Load .env file if present
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Add parent dir to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -39,23 +40,25 @@ from .dependencies import (  # noqa: E402
 
 # ── Dev-mode session ────────────────────────────────────────────
 # Only active when SP5_DEV_MODE=true (never in production!)
-if os.environ.get('SP5_DEV_MODE', '').lower() in ('1', 'true', 'yes'):
-    _sessions[_DEV_TOKEN] = {**_DEV_USER, 'expires_at': None}
-    _logger.warning("DEV MODE ACTIVE — dev token enabled (SP5_DEV_MODE=true). Do not use in production!")
+if os.environ.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes"):
+    _sessions[_DEV_TOKEN] = {**_DEV_USER, "expires_at": None}
+    _logger.warning(
+        "DEV MODE ACTIVE — dev token enabled (SP5_DEV_MODE=true). Do not use in production!"
+    )
 
 # ── Config ──────────────────────────────────────────────────────
 DB_PATH = os.environ.get(
-    'SP5_DB_PATH',
-    os.path.join(os.path.dirname(__file__), '..', '..', '..', 'sp5_db', 'Daten')
+    "SP5_DB_PATH",
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "sp5_db", "Daten"),
 )
 DB_PATH = os.path.normpath(DB_PATH)
 
 # CORS origins from env
-_raw_origins = os.environ.get('ALLOWED_ORIGINS', '')
-ALLOWED_ORIGINS = (
-    [o.strip() for o in _raw_origins.split(',') if o.strip()]
-    or ['http://localhost:5173', 'http://localhost:8000']
-)
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()] or [
+    "http://localhost:5173",
+    "http://localhost:8000",
+]
 
 _OPENAPI_TAGS = [
     {"name": "Health", "description": "System health and version info"},
@@ -71,28 +74,37 @@ _OPENAPI_TAGS = [
     {"name": "Import", "description": "CSV import endpoints"},
     {"name": "Backup", "description": "Database backup and restore"},
     {"name": "Notes", "description": "Shift notes and handover entries"},
-    {"name": "Self-Service", "description": "Employee self-service: own wishes, absences, profile"},
+    {
+        "name": "Self-Service",
+        "description": "Employee self-service: own wishes, absences, profile",
+    },
     {"name": "Events", "description": "Calendar events and holidays"},
     {"name": "Admin", "description": "Administrative operations (Admin only)"},
 ]
 
+
 async def _periodic_cleanup():
     """Background task: purge expired sessions and stale failed-login entries every 5 minutes."""
     import asyncio
+
     while True:
         await asyncio.sleep(300)
         try:
             sess = purge_expired_sessions()
             logins = purge_stale_failed_logins()
             if sess or logins:
-                _logger.debug("Periodic cleanup: removed %d expired sessions, %d stale lockout entries", sess, logins)
+                _logger.debug(
+                    "Periodic cleanup: removed %d expired sessions, %d stale lockout entries",
+                    sess,
+                    logins,
+                )
         except Exception as _exc:  # pragma: no cover
             _logger.warning("Periodic cleanup error: %s", _exc)
 
 
 def _check_db_files_on_startup(db_path: str) -> None:
     """Check that critical DBF files are readable on startup. Logs warnings for missing/unreadable files."""
-    CRITICAL_TABLES = ['EMPL', 'USER', 'SHIFT', 'MASHI', 'ABSEN']
+    CRITICAL_TABLES = ["EMPL", "USER", "SHIFT", "MASHI", "ABSEN"]
     missing = []
     for table in CRITICAL_TABLES:
         path = os.path.join(db_path, f"5{table}.DBF")
@@ -103,20 +115,27 @@ def _check_db_files_on_startup(db_path: str) -> None:
     if missing:
         _logger.error(
             "STARTUP DB CHECK FAILED — %d critical table(s) missing/unreadable: %s",
-            len(missing), ", ".join(missing),
+            len(missing),
+            ", ".join(missing),
         )
     else:
-        _logger.info("Startup DB check OK — all %d critical tables accessible at %s", len(CRITICAL_TABLES), db_path)
+        _logger.info(
+            "Startup DB check OK — all %d critical tables accessible at %s",
+            len(CRITICAL_TABLES),
+            db_path,
+        )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import asyncio
+
     # Startup DB accessibility check
     _check_db_files_on_startup(DB_PATH)
     # Auto-backup on startup (only if last backup > 24h old)
     try:
         from .routers.admin import create_auto_backup
+
         created = create_auto_backup()
         if created:
             _logger.info("Startup auto-backup: %s", created)
@@ -184,8 +203,10 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     # Only send HSTS if running in production (check env)
-    if os.environ.get('SP5_HSTS', '').lower() in ('1', 'true', 'yes'):
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if os.environ.get("SP5_HSTS", "").lower() in ("1", "true", "yes"):
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
     return response
 
 
@@ -204,7 +225,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     }
     errors = []
     for e in exc.errors():
-        field = ".".join(str(loc) for loc in e.get("loc", []) if loc not in ("body", "query", "path"))
+        field = ".".join(
+            str(loc) for loc in e.get("loc", []) if loc not in ("body", "query", "path")
+        )
         etype = e.get("type", "")
         msg = _TYPE_MSGS.get(etype, e.get("msg", "Ungültiger Wert"))
         if field:
@@ -219,9 +242,11 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def global_exception_handler(request: Request, exc: Exception):
     """Catch unhandled exceptions, log with details, return sanitized 500."""
     import traceback
+
     _logger.error(
         "Unhandled exception: %s %s | %s | %s",
-        request.method, request.url.path,
+        request.method,
+        request.url.path,
         type(exc).__name__,
         traceback.format_exc().splitlines()[-1],
     )
@@ -232,7 +257,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # ── Public paths (no auth required) ────────────────────────────
-_PUBLIC_PATHS = {'/api/auth/login', '/api/auth/logout', '/api', '/api/health', '/api/version', '/', '/api/errors', '/api/dev/mode'}
+_PUBLIC_PATHS = {
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api",
+    "/api/health",
+    "/api/version",
+    "/",
+    "/api/errors",
+    "/api/dev/mode",
+}
 
 
 @app.middleware("http")
@@ -242,15 +276,20 @@ async def request_logging_middleware(request: Request, call_next):
     import uuid as _uuid
     import json as _json_mod
     from datetime import datetime as _dt2, timezone as _tz2
+
     # Generate a short unique request ID for correlating log entries
     req_id = _uuid.uuid4().hex[:8]
     start = _t.time()
     response = await call_next(request)
     duration_ms = round((_t.time() - start) * 1000)
-    token = request.headers.get('x-auth-token') or request.cookies.get('sp5_token') or request.query_params.get('token')
-    user = _sessions.get(token, {}).get('NAME', '-') if token else '-'
+    token = (
+        request.headers.get("x-auth-token")
+        or request.cookies.get("sp5_token")
+        or request.query_params.get("token")
+    )
+    user = _sessions.get(token, {}).get("NAME", "-") if token else "-"
     now = _dt2.now(_tz2.utc)
-    ts = now.strftime('%Y-%m-%dT%H:%M:%S.') + f"{now.microsecond // 1000:03d}Z"
+    ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
     entry = {
         "timestamp": ts,
         "req_id": req_id,
@@ -270,34 +309,40 @@ async def auth_middleware(request: Request, call_next):
     """Require authentication for all /api/* endpoints except public ones."""
     path = request.url.path
     method = request.method
-    client_ip = request.client.host if request.client else 'unknown'
+    client_ip = request.client.host if request.client else "unknown"
 
-    if path in _PUBLIC_PATHS or not path.startswith('/api/'):
+    if path in _PUBLIC_PATHS or not path.startswith("/api/"):
         return await call_next(request)
     # SSE endpoint also accepts token as query param (EventSource doesn't support headers)
     # Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
-    token = request.headers.get('x-auth-token') or request.cookies.get('sp5_token') or request.query_params.get('token')
+    token = (
+        request.headers.get("x-auth-token")
+        or request.cookies.get("sp5_token")
+        or request.query_params.get("token")
+    )
     if not token or not _is_token_valid(token):
         _logger.warning("AUTH 401 | ip=%s method=%s path=%s", client_ip, method, path)
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Nicht angemeldet"}
-        )
+        return JSONResponse(status_code=401, content={"detail": "Nicht angemeldet"})
     response = await call_next(request)
     if response.status_code == 403:
         user_info = _sessions.get(token, {})
         _logger.warning(
             "AUTH 403 | ip=%s method=%s path=%s user=%s",
-            client_ip, method, path, user_info.get('NAME', '?')
+            client_ip,
+            method,
+            path,
+            user_info.get("NAME", "?"),
         )
-    if method in ('POST', 'PUT', 'DELETE') and response.status_code < 400:
+    if method in ("POST", "PUT", "DELETE") and response.status_code < 400:
         user_info = _sessions.get(token, {})
         _logger.info(
             "WRITE %s | ip=%s path=%s user=%s",
-            method, client_ip, path, user_info.get('NAME', '?')
+            method,
+            client_ip,
+            path,
+            user_info.get("NAME", "?"),
         )
     return response
-
 
 
 # ── Changelog Middleware ────────────────────────────────────────
@@ -309,44 +354,49 @@ class ChangelogMiddleware(BaseHTTPMiddleware):
     """Automatically log CREATE/UPDATE/DELETE actions from the API."""
 
     _ENTITY_MAP = {
-        'employees': 'employee',
-        'groups': 'group',
-        'shifts': 'shift',
-        'leave-types': 'leave_type',
-        'holidays': 'holiday',
-        'workplaces': 'workplace',
-        'schedule': 'schedule',
-        'absences': 'absence',
-        'users': 'user',
-        'extracharges': 'extracharge',
+        "employees": "employee",
+        "groups": "group",
+        "shifts": "shift",
+        "leave-types": "leave_type",
+        "holidays": "holiday",
+        "workplaces": "workplace",
+        "schedule": "schedule",
+        "absences": "absence",
+        "users": "user",
+        "extracharges": "extracharge",
     }
 
     async def dispatch(self, request: StarletteRequest, call_next):
         response = await call_next(request)
         method = request.method
-        if method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        if method not in ("POST", "PUT", "PATCH", "DELETE"):
             return response
         if response.status_code >= 300:
             return response
         path = request.url.path
-        if 'changelog' in path or 'backup' in path or 'compact' in path:
+        if "changelog" in path or "backup" in path or "compact" in path:
             return response
-        parts = [p for p in path.strip('/').split('/') if p]
-        entity = 'unknown'
+        parts = [p for p in path.strip("/").split("/") if p]
+        entity = "unknown"
         entity_id = 0
         if len(parts) >= 2:
             segment = parts[1]
-            entity = self._ENTITY_MAP.get(segment, segment.replace('-', '_'))
+            entity = self._ENTITY_MAP.get(segment, segment.replace("-", "_"))
         if len(parts) >= 3:
             try:
                 entity_id = int(parts[2])
             except ValueError:
                 entity_id = 0
-        action_map = {'POST': 'CREATE', 'PUT': 'UPDATE', 'PATCH': 'UPDATE', 'DELETE': 'DELETE'}
+        action_map = {
+            "POST": "CREATE",
+            "PUT": "UPDATE",
+            "PATCH": "UPDATE",
+            "DELETE": "DELETE",
+        }
         action = action_map.get(method, method)
         try:
             get_db().log_action(
-                user='api',
+                user="api",
                 action=action,
                 entity=entity,
                 entity_id=entity_id,
@@ -363,7 +413,18 @@ app.add_middleware(ChangelogMiddleware)
 # RequestLoggingMiddleware removed — duplicate of request_logging_middleware above
 
 # ── Include routers ─────────────────────────────────────────────
-from .routers import auth, employees, schedule, absences, master_data, reports, admin, misc, events, notifications  # noqa: E402
+from .routers import (  # noqa: E402
+    auth,
+    employees,
+    schedule,
+    absences,
+    master_data,
+    reports,
+    admin,
+    misc,
+    events,
+    notifications,
+)
 
 app.include_router(auth.router)
 app.include_router(employees.router)
@@ -396,6 +457,7 @@ def health():
     Returns minimal info only. Sensitive details (DB path, logs, cache) are admin-only.
     """
     import time as _t
+
     db_status = "connected"
     try:
         db = get_db()
@@ -422,37 +484,56 @@ def version():
     return {"version": _API_VERSION, "service": "OpenSchichtplaner5 API"}
 
 
-@app.get("/api", tags=["Health"], summary="API root", description="Returns basic service info.")
+@app.get(
+    "/api",
+    tags=["Health"],
+    summary="API root",
+    description="Returns basic service info.",
+)
 def root():
-    return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION, "backend": "dbf"}
+    """Return basic service info for the API root endpoint."""
+    return {
+        "service": "OpenSchichtplaner5 API",
+        "version": _API_VERSION,
+        "backend": "dbf",
+    }
+
 
 @app.get("/", include_in_schema=False)
 async def frontend_root():
     """Serve the React frontend."""
     _dist = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
+        os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
     )
-    index = os.path.join(_dist, 'index.html')
+    index = os.path.join(_dist, "index.html")
     if os.path.exists(index):
         return FileResponse(index)
     return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION}
+
 
 @app.get("/api/dev/mode", tags=["Health"], summary="Dev mode status")
 def get_dev_mode():
     """Returns whether SP5_DEV_MODE is active. Safe to call without auth."""
     return {"dev_mode": _DEV_MODE_ACTIVE}
 
+
 @app.get("/api/stats", tags=["Health"], summary="Database statistics")
 def get_stats():
+    """Return database statistics from the connected SP5 database."""
     return get_db().get_stats()
 
 
 # ── Dashboard Summary ────────────────────────────────────────
 
+
 @app.get("/api/dashboard/summary", tags=["Health"], summary="Dashboard summary")
 def get_dashboard_summary(
-    year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
-    month: Optional[int] = Query(None, description="Month (1-12), defaults to current month"),
+    year: Optional[int] = Query(
+        None, description="Year (YYYY), defaults to current year"
+    ),
+    month: Optional[int] = Query(
+        None, description="Month (1-12), defaults to current month"
+    ),
 ):
     """Return all KPIs needed for the Dashboard in one request."""
     import calendar as _cal
@@ -467,7 +548,9 @@ def get_dashboard_summary(
         month = _today.month
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
+        raise HTTPException(
+            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+        )
 
     db = get_db()
     today = date.today()
@@ -476,8 +559,18 @@ def get_dashboard_summary(
 
     # ── Month label ───────────────────────────────────────────
     month_names_de = [
-        "Januar", "Februar", "März", "April", "Mai", "Juni",
-        "Juli", "August", "September", "Oktober", "November", "Dezember",
+        "Januar",
+        "Februar",
+        "März",
+        "April",
+        "Mai",
+        "Juni",
+        "Juli",
+        "August",
+        "September",
+        "Oktober",
+        "November",
+        "Dezember",
     ]
     month_label = f"{month_names_de[month - 1]} {year}"
 
@@ -519,18 +612,18 @@ def get_dashboard_summary(
     # Count working days for coverage %
     num_days = _cal.monthrange(year, month)[1]
     working_days = sum(
-        1 for d in range(1, num_days + 1)
-        if _dt(year, month, d).weekday() < 5
+        1 for d in range(1, num_days + 1) if _dt(year, month, d).weekday() < 5
     )
     max_possible = total_employees * working_days if working_days > 0 else 1
     coverage_pct = (
-        round((total_shifts_scheduled / max_possible) * 100)
-        if max_possible > 0 else 0
+        round((total_shifts_scheduled / max_possible) * 100) if max_possible > 0 else 0
     )
 
     # ── Absences this month ───────────────────────────────────
     lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
-    abs_by_type: dict = defaultdict(lambda: {"count": 0, "name": "", "color": "#6B7280"})
+    abs_by_type: dict = defaultdict(
+        lambda: {"count": 0, "name": "", "color": "#6B7280"}
+    )
     total_absences_month = 0
 
     for r in db._read("ABSEN"):
@@ -558,11 +651,13 @@ def get_dashboard_summary(
         zeitkonto_alerts = []
         for s in stats:
             if s["overtime_hours"] < -8:
-                zeitkonto_alerts.append({
-                    "employee": s["employee_name"],
-                    "employee_short": s["employee_short"],
-                    "hours_diff": round(s["overtime_hours"], 1),
-                })
+                zeitkonto_alerts.append(
+                    {
+                        "employee": s["employee_name"],
+                        "employee_short": s["employee_short"],
+                        "hours_diff": round(s["overtime_hours"], 1),
+                    }
+                )
         zeitkonto_alerts.sort(key=lambda x: x["hours_diff"])
         zeitkonto_alerts = zeitkonto_alerts[:10]
     except Exception:
@@ -583,11 +678,13 @@ def get_dashboard_summary(
             days_until = (bday_this_year - today).days
             if 0 <= days_until <= 30:
                 name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", ")
-                upcoming_birthdays.append({
-                    "name": name,
-                    "date": bday_raw[5:],  # MM-DD
-                    "days_until": days_until,
-                })
+                upcoming_birthdays.append(
+                    {
+                        "name": name,
+                        "date": bday_raw[5:],  # MM-DD
+                        "days_until": days_until,
+                    }
+                )
         except (ValueError, IndexError):
             continue
     upcoming_birthdays.sort(key=lambda x: x["days_until"])
@@ -619,14 +716,17 @@ def get_dashboard_summary(
                     shift_id = req.get("shift_id")
                     actual = actual_by_shift.get(shift_id, 0)
                     if actual < min_req:
-                        staffing_warnings.append({
-                            "date": check_str,
-                            "shift": req.get("shift_short") or req.get("shift_name", "?"),
-                            "shift_name": req.get("shift_name", "?"),
-                            "actual": actual,
-                            "required": min_req,
-                            "color": req.get("color_bk", "#EF4444"),
-                        })
+                        staffing_warnings.append(
+                            {
+                                "date": check_str,
+                                "shift": req.get("shift_short")
+                                or req.get("shift_name", "?"),
+                                "shift_name": req.get("shift_name", "?"),
+                                "actual": actual,
+                                "required": min_req,
+                                "color": req.get("color_bk", "#EF4444"),
+                            }
+                        )
         staffing_warnings.sort(key=lambda x: x["date"])
     except Exception:
         pass
@@ -650,63 +750,78 @@ def get_dashboard_summary(
         "month_label": month_label,
     }
 
+
 # ── Dashboard: Today ──────────────────────────────────────────
+
 
 @app.get("/api/dashboard/today", tags=["Health"], summary="Today's schedule overview")
 def get_dashboard_today():
     """Return employees on duty today, today's absences, and week peak data."""
     from datetime import date, timedelta
+
     db = get_db()
     today = date.today()
     today_str = today.isoformat()
     today_weekday = today.weekday()  # 0=Mon
 
     # Build shift map for startend lookup
-    shifts_map = {s['ID']: s for s in db.get_shifts(include_hidden=True)}
+    shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
 
     # Helper: get startend for a shift on a given weekday
     def get_shift_startend(shift_id: int, weekday: int) -> str:
         shift = shifts_map.get(shift_id)
         if not shift:
-            return ''
-        key = f'STARTEND{weekday}'
-        return shift.get(key, shift.get('STARTEND0', ''))
+            return ""
+        key = f"STARTEND{weekday}"
+        return shift.get(key, shift.get("STARTEND0", ""))
 
     entries = db.get_schedule_day(today_str)
     on_duty = []
     absences = []
 
     for e in entries:
-        kind = e.get('kind')
-        if kind in ('shift', 'special_shift'):
+        kind = e.get("kind")
+        if kind in ("shift", "special_shift"):
             # Prefer SPSHI startend if available, else look up from SHIFT table
-            startend = e.get('spshi_startend', '')
-            if not startend and e.get('shift_id'):
-                startend = get_shift_startend(e['shift_id'], today_weekday)
-            on_duty.append({
-                'employee_id': e['employee_id'],
-                'employee_name': e['employee_name'],
-                'employee_short': e['employee_short'],
-                'shift_name': e['shift_name'] or e.get('display_name', ''),
-                'shift_short': e['shift_short'] or e.get('display_name', ''),
-                'color_bk': e['color_bk'],
-                'color_text': e['color_text'],
-                'workplace_name': e.get('workplace_name', ''),
-                'startend': startend,
-            })
-        elif kind == 'absence':
-            absences.append({
-                'employee_id': e['employee_id'],
-                'employee_name': e['employee_name'],
-                'employee_short': e['employee_short'],
-                'leave_name': e['leave_name'],
-                'color_bk': e['color_bk'],
-                'color_text': e['color_text'],
-            })
+            startend = e.get("spshi_startend", "")
+            if not startend and e.get("shift_id"):
+                startend = get_shift_startend(e["shift_id"], today_weekday)
+            on_duty.append(
+                {
+                    "employee_id": e["employee_id"],
+                    "employee_name": e["employee_name"],
+                    "employee_short": e["employee_short"],
+                    "shift_name": e["shift_name"] or e.get("display_name", ""),
+                    "shift_short": e["shift_short"] or e.get("display_name", ""),
+                    "color_bk": e["color_bk"],
+                    "color_text": e["color_text"],
+                    "workplace_name": e.get("workplace_name", ""),
+                    "startend": startend,
+                }
+            )
+        elif kind == "absence":
+            absences.append(
+                {
+                    "employee_id": e["employee_id"],
+                    "employee_name": e["employee_name"],
+                    "employee_short": e["employee_short"],
+                    "leave_name": e["leave_name"],
+                    "color_bk": e["color_bk"],
+                    "color_text": e["color_text"],
+                }
+            )
 
     # ── Week Peak: find busiest day this week ─────────────────
     week_start = today - timedelta(days=today_weekday)  # Monday
-    week_days_de = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
+    week_days_de = [
+        "Montag",
+        "Dienstag",
+        "Mittwoch",
+        "Donnerstag",
+        "Freitag",
+        "Samstag",
+        "Sonntag",
+    ]
     week_data = []
     peak_count = 0
     peak_day = None
@@ -714,15 +829,19 @@ def get_dashboard_today():
     for i in range(7):
         day = week_start + timedelta(days=i)
         day_entries = db.get_schedule_day(day.isoformat()) if day != today else entries
-        day_count = sum(1 for e in day_entries if e.get('kind') in ('shift', 'special_shift'))
-        week_data.append({
-            'date': day.isoformat(),
-            'weekday_name': week_days_de[i],
-            'weekday_short': week_days_de[i][:2],
-            'count': day_count,
-            'is_today': day == today,
-            'is_weekend': i >= 5,
-        })
+        day_count = sum(
+            1 for e in day_entries if e.get("kind") in ("shift", "special_shift")
+        )
+        week_data.append(
+            {
+                "date": day.isoformat(),
+                "weekday_name": week_days_de[i],
+                "weekday_short": week_days_de[i][:2],
+                "count": day_count,
+                "is_today": day == today,
+                "is_weekend": i >= 5,
+            }
+        )
         if day_count > peak_count:
             peak_count = day_count
             peak_day = week_data[-1]
@@ -732,26 +851,31 @@ def get_dashboard_today():
     is_holiday_today = today_str in holiday_dates
 
     return {
-        'date': today_str,
-        'is_holiday': is_holiday_today,
-        'on_duty': on_duty,
-        'absences': absences,
-        'on_duty_count': len(on_duty),
-        'absences_count': len(absences),
-        'week_peak': {
-            'day': peak_day['weekday_name'] if peak_day else '',
-            'date': peak_day['date'] if peak_day else today_str,
-            'count': peak_count,
+        "date": today_str,
+        "is_holiday": is_holiday_today,
+        "on_duty": on_duty,
+        "absences": absences,
+        "on_duty_count": len(on_duty),
+        "absences_count": len(absences),
+        "week_peak": {
+            "day": peak_day["weekday_name"] if peak_day else "",
+            "date": peak_day["date"] if peak_day else today_str,
+            "count": peak_count,
         },
-        'week_days': week_data,
+        "week_days": week_data,
     }
+
 
 # ── Dashboard: Upcoming ───────────────────────────────────────
 
-@app.get("/api/dashboard/upcoming", tags=["Health"], summary="Upcoming schedule entries")
+
+@app.get(
+    "/api/dashboard/upcoming", tags=["Health"], summary="Upcoming schedule entries"
+)
 def get_dashboard_upcoming():
     """Return next 3 upcoming holidays and birthdays this week."""
     from datetime import date, timedelta
+
     db = get_db()
     today = date.today()
     today_str = today.isoformat()
@@ -760,36 +884,40 @@ def get_dashboard_upcoming():
     all_holidays = db.get_holidays()
     upcoming_holidays = []
     for h in all_holidays:
-        h_date = h.get('DATE', '')
+        h_date = h.get("DATE", "")
         if h_date >= today_str:
-            upcoming_holidays.append({
-                'date': h_date,
-                'name': h.get('NAME', ''),
-                'recurring': bool(h.get('INTERVAL', 0)),
-            })
-    upcoming_holidays.sort(key=lambda x: x['date'])
+            upcoming_holidays.append(
+                {
+                    "date": h_date,
+                    "name": h.get("NAME", ""),
+                    "recurring": bool(h.get("INTERVAL", 0)),
+                }
+            )
+    upcoming_holidays.sort(key=lambda x: x["date"])
     upcoming_holidays = upcoming_holidays[:3]
 
     # Also try to expand recurring holidays for current year if no future ones
     if not upcoming_holidays:
         all_holidays_raw = db.get_holidays()
-        recurring = [h for h in all_holidays_raw if h.get('INTERVAL') == 1]
+        recurring = [h for h in all_holidays_raw if h.get("INTERVAL") == 1]
         if recurring:
             for h in recurring:
-                date_str = h.get('DATE', '')
+                date_str = h.get("DATE", "")
                 if len(date_str) >= 10:
                     try:
                         adjusted = str(today.year) + date_str[4:]
                         if adjusted < today_str:
                             adjusted = str(today.year + 1) + date_str[4:]
-                        upcoming_holidays.append({
-                            'date': adjusted,
-                            'name': h.get('NAME', ''),
-                            'recurring': True,
-                        })
+                        upcoming_holidays.append(
+                            {
+                                "date": adjusted,
+                                "name": h.get("NAME", ""),
+                                "recurring": True,
+                            }
+                        )
                     except Exception:
                         pass
-            upcoming_holidays.sort(key=lambda x: x['date'])
+            upcoming_holidays.sort(key=lambda x: x["date"])
             upcoming_holidays = upcoming_holidays[:3]
 
     # Birthdays this week (Mon–Sun of current week)
@@ -800,7 +928,7 @@ def get_dashboard_upcoming():
     employees = db.get_employees(include_hidden=False)
     birthdays_this_week = []
     for emp in employees:
-        bday_raw = emp.get('BIRTHDAY', '')
+        bday_raw = emp.get("BIRTHDAY", "")
         if not bday_raw or len(bday_raw) < 10:
             continue
         try:
@@ -809,30 +937,34 @@ def get_dashboard_upcoming():
             # Check if birthday falls in current week
             bday_this_year = date(today.year, bday_month, bday_day)
             if week_start <= bday_this_year <= week_end:
-                name = emp.get('NAME', '')
-                firstname = emp.get('FIRSTNAME', '')
-                full_name = f"{name}, {firstname}".strip(', ')
+                name = emp.get("NAME", "")
+                firstname = emp.get("FIRSTNAME", "")
+                full_name = f"{name}, {firstname}".strip(", ")
                 days_until = (bday_this_year - today).days
-                birthdays_this_week.append({
-                    'employee_id': emp['ID'],
-                    'name': full_name,
-                    'short': emp.get('SHORTNAME', ''),
-                    'date': bday_raw[:10],
-                    'display_date': f"{bday_day:02d}.{bday_month:02d}.",
-                    'days_until': days_until,
-                })
+                birthdays_this_week.append(
+                    {
+                        "employee_id": emp["ID"],
+                        "name": full_name,
+                        "short": emp.get("SHORTNAME", ""),
+                        "date": bday_raw[:10],
+                        "display_date": f"{bday_day:02d}.{bday_month:02d}.",
+                        "days_until": days_until,
+                    }
+                )
         except (ValueError, IndexError):
             continue
-    birthdays_this_week.sort(key=lambda x: x['days_until'])
+    birthdays_this_week.sort(key=lambda x: x["days_until"])
 
     return {
-        'holidays': upcoming_holidays,
-        'birthdays_this_week': birthdays_this_week,
-        'week_start': week_start.isoformat(),
-        'week_end': week_end.isoformat(),
+        "holidays": upcoming_holidays,
+        "birthdays_this_week": birthdays_this_week,
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
     }
 
+
 # ── Dashboard: Stats ──────────────────────────────────────────
+
 
 @app.get("/api/dashboard/stats", tags=["Health"], summary="Dashboard statistics")
 def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None):
@@ -840,6 +972,7 @@ def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None)
     from datetime import date
     import calendar as _cal
     from datetime import datetime as _dt
+
     db = get_db()
     today = date.today()
 
@@ -849,7 +982,10 @@ def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None)
 
     if not (1 <= req_month <= 12):
         from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
+
+        raise HTTPException(
+            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+        )
 
     # Total employees
     employees = db.get_employees(include_hidden=False)
@@ -859,29 +995,30 @@ def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None)
     year_str = f"{req_year:04d}-{req_month:02d}"
     shifts_used_ids = set()
     shifts_this_month = 0
-    for r in db._read('MASHI'):
-        if r.get('DATE', '').startswith(year_str):
+    for r in db._read("MASHI"):
+        if r.get("DATE", "").startswith(year_str):
             shifts_this_month += 1
-            sid = r.get('SHIFTID')
+            sid = r.get("SHIFTID")
             if sid:
                 shifts_used_ids.add(sid)
 
     # Vacation days used this year (leave type ENTITLED=1)
-    lt_map = {lt['ID']: lt for lt in db.get_leave_types(include_hidden=True)}
-    vacation_ids = {lt_id for lt_id, lt in lt_map.items() if lt.get('ENTITLED')}
+    lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
+    vacation_ids = {lt_id for lt_id, lt in lt_map.items() if lt.get("ENTITLED")}
 
     year_prefix = str(req_year)
     vacation_days_used = sum(
-        1 for r in db._read('ABSEN')
-        if r.get('DATE', '').startswith(year_prefix)
-        and r.get('LEAVETYPID') in vacation_ids
+        1
+        for r in db._read("ABSEN")
+        if r.get("DATE", "").startswith(year_prefix)
+        and r.get("LEAVETYPID") in vacation_ids
     )
 
     # Coverage bars: per day of requested month
     num_days = _cal.monthrange(req_year, req_month)[1]
     day_counts: dict = {d: 0 for d in range(1, num_days + 1)}
-    for r in db._read('MASHI'):
-        d = r.get('DATE', '')
+    for r in db._read("MASHI"):
+        d = r.get("DATE", "")
         if d.startswith(year_str):
             try:
                 day_num = int(d[8:10])
@@ -894,14 +1031,20 @@ def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None)
         try:
             wd = _dt(req_year, req_month, day_num).weekday()
             is_weekend = wd >= 5
-            is_today = (req_year == today.year and req_month == today.month and day_num == today.day)
-            coverage_by_day.append({
-                'day': day_num,
-                'count': day_counts.get(day_num, 0),
-                'is_weekend': is_weekend,
-                'is_today': is_today,
-                'weekday': wd,
-            })
+            is_today = (
+                req_year == today.year
+                and req_month == today.month
+                and day_num == today.day
+            )
+            coverage_by_day.append(
+                {
+                    "day": day_num,
+                    "count": day_counts.get(day_num, 0),
+                    "is_weekend": is_weekend,
+                    "is_today": is_today,
+                    "weekday": wd,
+                }
+            )
         except ValueError:
             pass
 
@@ -910,49 +1053,58 @@ def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None)
         stats = db.get_statistics(req_year, req_month)
         emp_ranking = []
         for s in stats:
-            emp_ranking.append({
-                'employee_id': s.get('employee_id', 0),
-                'employee_name': s.get('employee_name', ''),
-                'employee_short': s.get('employee_short', ''),
-                'shifts_count': s.get('shifts_count', 0),
-                'actual_hours': round(s.get('actual_hours', 0), 1),
-                'target_hours': round(s.get('target_hours', 0), 1),
-                'overtime_hours': round(s.get('overtime_hours', 0), 1),
-            })
-        emp_ranking.sort(key=lambda x: -x['shifts_count'])
+            emp_ranking.append(
+                {
+                    "employee_id": s.get("employee_id", 0),
+                    "employee_name": s.get("employee_name", ""),
+                    "employee_short": s.get("employee_short", ""),
+                    "shifts_count": s.get("shifts_count", 0),
+                    "actual_hours": round(s.get("actual_hours", 0), 1),
+                    "target_hours": round(s.get("target_hours", 0), 1),
+                    "overtime_hours": round(s.get("overtime_hours", 0), 1),
+                }
+            )
+        emp_ranking.sort(key=lambda x: -x["shifts_count"])
     except Exception:
         emp_ranking = []
 
     return {
-        'total_employees': total_employees,
-        'shifts_this_month': shifts_this_month,
-        'active_shift_types': len(shifts_used_ids),
-        'vacation_days_used': vacation_days_used,
-        'coverage_by_day': coverage_by_day,
-        'month': req_month,
-        'year': req_year,
-        'employee_ranking': emp_ranking,
+        "total_employees": total_employees,
+        "shifts_this_month": shifts_this_month,
+        "active_shift_types": len(shifts_used_ids),
+        "vacation_days_used": vacation_days_used,
+        "coverage_by_day": coverage_by_day,
+        "month": req_month,
+        "year": req_year,
+        "employee_ranking": emp_ranking,
     }
-
 
 
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
 _FRONTEND_DIST = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist')
+    os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
 )
 
 if os.path.isdir(_FRONTEND_DIST):
-    app.mount("/assets", StaticFiles(directory=os.path.join(_FRONTEND_DIST, "assets")), name="assets")
+    app.mount(
+        "/assets",
+        StaticFiles(directory=os.path.join(_FRONTEND_DIST, "assets")),
+        name="assets",
+    )
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
         # Unknown /api/* paths must return 404, not the SPA — avoids silent 200 on typos/missing endpoints
+        """Serve the React SPA index.html for all unmatched routes."""
         if full_path.startswith("api/") or full_path == "api":
-            raise HTTPException(status_code=404, detail=f"Endpoint nicht gefunden: /{full_path}")
+            raise HTTPException(
+                status_code=404, detail=f"Endpoint nicht gefunden: /{full_path}"
+            )
         index = os.path.join(_FRONTEND_DIST, "index.html")
         return FileResponse(index)
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

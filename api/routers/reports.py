@@ -1,4 +1,5 @@
 """Reports, statistics, zeitkonto, export, import, analysis router."""
+
 import io
 import csv
 import html as _html
@@ -9,7 +10,12 @@ from fastapi.responses import Response as _Response
 from pydantic import BaseModel, Field
 from typing import Optional
 from ..dependencies import (
-    get_db, require_planer, require_auth, require_admin, _sanitize_500, limiter,
+    get_db,
+    require_planer,
+    require_auth,
+    require_admin,
+    _sanitize_500,
+    limiter,
 )
 
 router = APIRouter()
@@ -18,16 +24,16 @@ router = APIRouter()
 _MAX_CSV_SIZE = 10 * 1024 * 1024
 
 _ALLOWED_CSV_CONTENT_TYPES = {
-    'text/csv',
-    'text/plain',
-    'application/csv',
-    'application/octet-stream',  # some browsers send this for .csv
+    "text/csv",
+    "text/plain",
+    "application/csv",
+    "application/octet-stream",  # some browsers send this for .csv
 }
 
 
 async def _validate_csv_upload(file: UploadFile) -> bytes:
     """Validate and read a CSV upload. Raises HTTPException on invalid input."""
-    ct = (file.content_type or '').lower().split(';')[0].strip()
+    ct = (file.content_type or "").lower().split(";")[0].strip()
     if ct and ct not in _ALLOWED_CSV_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
@@ -63,17 +69,24 @@ def _xlsx_response(content: bytes, filename: str) -> _Response:
     ),
 )
 def get_statistics(
-    year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
-    month: Optional[int] = Query(None, description="Month (1-12), defaults to current month"),
+    year: Optional[int] = Query(
+        None, description="Year (YYYY), defaults to current year"
+    ),
+    month: Optional[int] = Query(
+        None, description="Month (1-12), defaults to current month"
+    ),
     group_id: Optional[int] = Query(None, description="Filter by group ID"),
 ):
     from datetime import date as _date
+
     if year is None:
         year = _date.today().year
     if month is None:
         month = _date.today().month
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
+        raise HTTPException(
+            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+        )
     return get_db().get_statistics(year, month, group_id=group_id)
 
 
@@ -90,11 +103,14 @@ def get_statistics(
     ),
 )
 def get_year_summary(
-    year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
+    year: Optional[int] = Query(
+        None, description="Year (YYYY), defaults to current year"
+    ),
     group_id: Optional[int] = Query(None, description="Filter by group ID"),
 ):
     """Return aggregated statistics for all 12 months of a year (Jahresrückblick)."""
     from datetime import date as _date
+
     if year is None:
         year = _date.today().year
     db = get_db()
@@ -113,17 +129,19 @@ def get_year_summary(
         total_sick = sum(r.get("sick_days", 0) or 0 for r in rows)
         total_shifts = sum(r.get("shifts_count", 0) or 0 for r in rows)
         employee_count = len(rows)
-        monthly.append({
-            "month": m,
-            "actual_hours": round(total_actual, 1),
-            "target_hours": round(total_target, 1),
-            "absence_days": total_absences,
-            "vacation_days": total_vacation,
-            "sick_days": total_sick,
-            "shifts_count": total_shifts,
-            "employee_count": employee_count,
-            "overtime": round(total_actual - total_target, 1),
-        })
+        monthly.append(
+            {
+                "month": m,
+                "actual_hours": round(total_actual, 1),
+                "target_hours": round(total_target, 1),
+                "absence_days": total_absences,
+                "vacation_days": total_vacation,
+                "sick_days": total_sick,
+                "shifts_count": total_shifts,
+                "employee_count": employee_count,
+                "overtime": round(total_actual - total_target, 1),
+            }
+        )
 
     # Per-employee year totals (re-use already-fetched rows)
     for m, rows in all_monthly_rows:
@@ -148,9 +166,13 @@ def get_year_summary(
             emp_totals[eid]["vacation_days"] += r.get("vacation_used", 0) or 0
             emp_totals[eid]["sick_days"] += r.get("sick_days", 0) or 0
             emp_totals[eid]["shifts_count"] += r.get("shifts_count", 0) or 0
-            emp_totals[eid]["monthly_hours"][m - 1] = round(r.get("actual_hours", 0) or 0, 1)
+            emp_totals[eid]["monthly_hours"][m - 1] = round(
+                r.get("actual_hours", 0) or 0, 1
+            )
 
-    employees = sorted(emp_totals.values(), key=lambda x: x["actual_hours"], reverse=True)
+    employees = sorted(
+        emp_totals.values(), key=lambda x: x["actual_hours"], reverse=True
+    )
     for e in employees:
         e["actual_hours"] = round(e["actual_hours"], 1)
         e["target_hours"] = round(e["target_hours"], 1)
@@ -165,7 +187,9 @@ def get_year_summary(
         "sick_days": sum(m["sick_days"] for m in monthly),
         "shifts_count": sum(m["shifts_count"] for m in monthly),
     }
-    year_totals["overtime"] = round(year_totals["actual_hours"] - year_totals["target_hours"], 1)
+    year_totals["overtime"] = round(
+        year_totals["actual_hours"] - year_totals["target_hours"], 1
+    )
 
     return {
         "year": year,
@@ -189,8 +213,12 @@ def get_year_summary(
 )
 def get_employee_statistics(
     emp_id: int,
-    year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
-    month: Optional[int] = Query(None, description="Month (1-12); if omitted returns full year overview"),
+    year: Optional[int] = Query(
+        None, description="Year (YYYY), defaults to current year"
+    ),
+    month: Optional[int] = Query(
+        None, description="Month (1-12); if omitted returns full year overview"
+    ),
 ):
     """
     Return detailed statistics for a single employee.
@@ -198,6 +226,7 @@ def get_employee_statistics(
     With month: returns stats for that specific month only.
     """
     from datetime import date as _date
+
     if year is None:
         year = _date.today().year
     db = get_db()
@@ -206,7 +235,10 @@ def get_employee_statistics(
         raise HTTPException(status_code=404, detail=f"Employee {emp_id} not found")
     if month is not None:
         if not (1 <= month <= 12):
-            raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="Ungültiger Monat: muss zwischen 1 und 12 liegen",
+            )
         return db.get_employee_stats_month(emp_id, year, month)
     return db.get_employee_stats_year(emp_id, year)
 
@@ -227,7 +259,9 @@ def get_employee_statistics(
     ),
 )
 def get_sickness_statistics(
-    year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
+    year: Optional[int] = Query(
+        None, description="Year (YYYY), defaults to current year"
+    ),
 ):
     """Return sickness (Krankenstand) statistics for a given year.
 
@@ -238,6 +272,7 @@ def get_sickness_statistics(
     - totals: total_sick_days, affected_employees, total_employees
     """
     from datetime import date as _date
+
     if year is None:
         year = _date.today().year
     return get_db().get_sickness_statistics(year)
@@ -274,14 +309,14 @@ def get_shift_statistics(
     from collections import defaultdict
 
     db = get_db()
-    shifts_map = {s['ID']: s for s in db.get_shifts(include_hidden=True)}
+    shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
 
     if group_id is not None:
         member_ids = set(db.get_group_members(group_id))
     else:
         member_ids = None
 
-    employees = {e['ID']: e for e in db.get_employees(include_hidden=False)}
+    employees = {e["ID"]: e for e in db.get_employees(include_hidden=False)}
 
     # Build list of (year, month) for trend window (most recent `months` months)
     today = _date.today()
@@ -300,8 +335,8 @@ def get_shift_statistics(
     shift_month_counts: dict = defaultdict(lambda: defaultdict(int))
     emp_shift_counts: dict = defaultdict(lambda: defaultdict(int))
 
-    for r in db._read('MASHI'):
-        d = r.get('DATE', '')
+    for r in db._read("MASHI"):
+        d = r.get("DATE", "")
         if not d or len(d) < 7:
             continue
         try:
@@ -311,54 +346,59 @@ def get_shift_statistics(
             continue
         if (ry, rm) not in period_set:
             continue
-        eid = r.get('EMPLOYEEID')
+        eid = r.get("EMPLOYEEID")
         if member_ids is not None and eid not in member_ids:
             continue
-        sid = r.get('SHIFTID')
+        sid = r.get("SHIFTID")
         if not sid:
             continue
         shift_month_counts[sid][(ry, rm)] += 1
         emp_shift_counts[eid][sid] += 1
 
     def categorize_shift(s: dict) -> str:
-        start = s.get('FROM0') or ''
-        if start and isinstance(start, str) and ':' in start:
+        start = s.get("FROM0") or ""
+        if start and isinstance(start, str) and ":" in start:
             try:
-                hour = int(start.split(':')[0])
+                hour = int(start.split(":")[0])
                 if 4 <= hour < 11:
-                    return 'Früh'
+                    return "Früh"
                 elif 11 <= hour < 18:
-                    return 'Spät'
+                    return "Spät"
                 elif hour >= 18 or hour < 4:
-                    return 'Nacht'
+                    return "Nacht"
             except ValueError:
                 pass
-        name = (s.get('NAME', '') or '').upper()
-        short = (s.get('SHORTNAME', '') or '').upper()
-        if 'FRÜH' in name or 'FRUH' in name or short in ('F', 'FR'):
-            return 'Früh'
-        if 'SPÄT' in name or 'SPAT' in name or short in ('S', 'SP'):
-            return 'Spät'
-        if 'NACHT' in name or 'NIGHT' in name or short in ('N', 'NA'):
-            return 'Nacht'
-        return 'Sonstige'
+        name = (s.get("NAME", "") or "").upper()
+        short = (s.get("SHORTNAME", "") or "").upper()
+        if "FRÜH" in name or "FRUH" in name or short in ("F", "FR"):
+            return "Früh"
+        if "SPÄT" in name or "SPAT" in name or short in ("S", "SP"):
+            return "Spät"
+        if "NACHT" in name or "NIGHT" in name or short in ("N", "NA"):
+            return "Nacht"
+        return "Sonstige"
 
     shift_usage = []
     for sid, month_map in shift_month_counts.items():
         s = shifts_map.get(sid, {})
-        monthly = [{'year': ry, 'month': rm, 'count': month_map.get((ry, rm), 0)} for (ry, rm) in periods]
+        monthly = [
+            {"year": ry, "month": rm, "count": month_map.get((ry, rm), 0)}
+            for (ry, rm) in periods
+        ]
         total = sum(month_map.values())
-        shift_usage.append({
-            'shift_id': sid,
-            'name': s.get('NAME', str(sid)),
-            'short': s.get('SHORTNAME', ''),
-            'color_bk': s.get('COLORBK', None),
-            'color_text': s.get('COLORTEXT', None),
-            'category': categorize_shift(s),
-            'monthly_counts': monthly,
-            'total': total,
-        })
-    shift_usage.sort(key=lambda x: -x['total'])
+        shift_usage.append(
+            {
+                "shift_id": sid,
+                "name": s.get("NAME", str(sid)),
+                "short": s.get("SHORTNAME", ""),
+                "color_bk": s.get("COLORBK", None),
+                "color_text": s.get("COLORTEXT", None),
+                "category": categorize_shift(s),
+                "monthly_counts": monthly,
+                "total": total,
+            }
+        )
+    shift_usage.sort(key=lambda x: -x["total"])
 
     cat_counts_global: dict = defaultdict(int)
     emp_distribution = []
@@ -371,24 +411,44 @@ def get_shift_statistics(
             cat = categorize_shift(shifts_map.get(sid, {}))
             by_category[cat] += cnt
             cat_counts_global[cat] += cnt
-        emp_distribution.append({
-            'employee_id': eid,
-            'name': (emp.get('LASTNAME', '') + ' ' + emp.get('FIRSTNAME', '')).strip(),
-            'short': emp.get('SHORTNAME', ''),
-            'total_shifts': sum(shift_counts.values()),
-            'by_category': dict(by_category),
-        })
-    emp_distribution.sort(key=lambda x: -x['total_shifts'])
+        emp_distribution.append(
+            {
+                "employee_id": eid,
+                "name": (
+                    emp.get("LASTNAME", "") + " " + emp.get("FIRSTNAME", "")
+                ).strip(),
+                "short": emp.get("SHORTNAME", ""),
+                "total_shifts": sum(shift_counts.values()),
+                "by_category": dict(by_category),
+            }
+        )
+    emp_distribution.sort(key=lambda x: -x["total_shifts"])
 
-    month_names_short = ['', 'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
-                         'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
-    period_labels = [{'year': ry, 'month': rm, 'label': f"{month_names_short[rm]} {ry}"} for (ry, rm) in periods]
+    month_names_short = [
+        "",
+        "Jan",
+        "Feb",
+        "Mär",
+        "Apr",
+        "Mai",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Okt",
+        "Nov",
+        "Dez",
+    ]
+    period_labels = [
+        {"year": ry, "month": rm, "label": f"{month_names_short[rm]} {ry}"}
+        for (ry, rm) in periods
+    ]
 
     return {
-        'periods': period_labels,
-        'shift_usage': shift_usage,
-        'employee_distribution': emp_distribution,
-        'category_totals': dict(cat_counts_global),
+        "periods": period_labels,
+        "shift_usage": shift_usage,
+        "employee_distribution": emp_distribution,
+        "category_totals": dict(cat_counts_global),
     }
 
 
@@ -408,7 +468,7 @@ def _int_to_rgb(color_int: int) -> str:
 def _csv_response(rows: list, filename: str) -> _Response:
     buf = io.StringIO()
     if rows:
-        writer = csv.DictWriter(buf, fieldnames=rows[0].keys(), lineterminator='\r\n')
+        writer = csv.DictWriter(buf, fieldnames=rows[0].keys(), lineterminator="\r\n")
         writer.writeheader()
         writer.writerows(rows)
     content = buf.getvalue()
@@ -457,13 +517,13 @@ def export_schedule(
     employees = db.get_employees(include_hidden=False)
     if group_id is not None:
         member_ids = set(db.get_group_members(group_id))
-        employees = [e for e in employees if e['ID'] in member_ids]
-    employees.sort(key=lambda x: x.get('POSITION', 0))
+        employees = [e for e in employees if e["ID"] in member_ids]
+    employees.sort(key=lambda x: x.get("POSITION", 0))
 
     # Build lookup: (emp_id, date) -> entry
     entry_map: dict = {}
     for e in entries:
-        key = (e['employee_id'], e['date'])
+        key = (e["employee_id"], e["date"])
         entry_map[key] = e
 
     num_days = _calendar.monthrange(year, mon)[1]
@@ -476,11 +536,23 @@ def export_schedule(
             from openpyxl.utils import get_column_letter
         except ImportError:
             raise HTTPException(status_code=500, detail="openpyxl nicht installiert.")
-        _month_names_de = ["Januar", "Februar", "März", "April", "Mai", "Juni",
-                           "Juli", "August", "September", "Oktober", "November", "Dezember"]
+        _month_names_de = [
+            "Januar",
+            "Februar",
+            "März",
+            "April",
+            "Mai",
+            "Juni",
+            "Juli",
+            "August",
+            "September",
+            "Oktober",
+            "November",
+            "Dezember",
+        ]
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = f"{_month_names_de[mon-1]} {year}"
+        ws.title = f"{_month_names_de[mon - 1]} {year}"
         # Header row
         thin = Side(border_style="thin", color="CBD5E1")
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
@@ -491,12 +563,12 @@ def export_schedule(
         ws.cell(1, 1).fill = header_fill
         ws.cell(1, 1).alignment = Alignment(horizontal="left")
         ws.cell(1, 1).border = border
-        ws.column_dimensions['A'].width = 22
+        ws.column_dimensions["A"].width = 22
         ws.cell(1, 2, "Kürzel").font = header_font
         ws.cell(1, 2).fill = header_fill
         ws.cell(1, 2).alignment = Alignment(horizontal="center")
         ws.cell(1, 2).border = border
-        ws.column_dimensions['B'].width = 6
+        ws.column_dimensions["B"].width = 6
         for d in range(1, num_days + 1):
             col = d + 2
             wd = _dt(year, mon, d).weekday()
@@ -504,23 +576,33 @@ def export_schedule(
             cell = ws.cell(1, col, f"{d}\n{wd_abbr}")
             cell.font = header_font
             is_weekend = wd >= 5
-            cell.fill = PatternFill(fill_type="solid", fgColor="475569" if is_weekend else "1E293B")
+            cell.fill = PatternFill(
+                fill_type="solid", fgColor="475569" if is_weekend else "1E293B"
+            )
             cell.alignment = Alignment(horizontal="center", wrap_text=True)
             cell.border = border
             ws.column_dimensions[get_column_letter(col)].width = 4.5
         ws.row_dimensions[1].height = 28
         # Data rows
         for r_idx, emp in enumerate(employees, start=2):
-            emp_name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(', ')
-            short = emp.get('SHORTNAME', '')
+            emp_name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", ")
+            short = emp.get("SHORTNAME", "")
             # Employee name cell
-            cbklabel = emp.get('CBKLABEL', 16777215)
-            cbklabel_hex = emp.get('CBKLABEL_HEX', '#f8fafc')
-            cfglabel_hex = emp.get('CFGLABEL_HEX', '#000000')
-            emp_bg = cbklabel_hex.lstrip('#') if (cbklabel and cbklabel != 16777215 and cbklabel != 0) else "F8FAFC"
-            emp_fg = cfglabel_hex.lstrip('#') if (cbklabel and cbklabel != 16777215 and cbklabel != 0) else "1E293B"
+            cbklabel = emp.get("CBKLABEL", 16777215)
+            cbklabel_hex = emp.get("CBKLABEL_HEX", "#f8fafc")
+            cfglabel_hex = emp.get("CFGLABEL_HEX", "#000000")
+            emp_bg = (
+                cbklabel_hex.lstrip("#")
+                if (cbklabel and cbklabel != 16777215 and cbklabel != 0)
+                else "F8FAFC"
+            )
+            emp_fg = (
+                cfglabel_hex.lstrip("#")
+                if (cbklabel and cbklabel != 16777215 and cbklabel != 0)
+                else "1E293B"
+            )
             name_cell = ws.cell(r_idx, 1, emp_name)
-            name_cell.font = Font(bold=bool(emp.get('BOLD')), color=emp_fg, size=9)
+            name_cell.font = Font(bold=bool(emp.get("BOLD")), color=emp_fg, size=9)
             name_cell.fill = PatternFill(fill_type="solid", fgColor=emp_bg)
             name_cell.border = border
             short_cell = ws.cell(r_idx, 2, short)
@@ -533,16 +615,18 @@ def export_schedule(
                 date_str = f"{year:04d}-{mon:02d}-{d:02d}"
                 wd = _dt(year, mon, d).weekday()
                 is_weekend = wd >= 5
-                e = entry_map.get((emp['ID'], date_str))
+                e = entry_map.get((emp["ID"], date_str))
                 cell = ws.cell(r_idx, col)
                 if e:
-                    bg = e.get('color_bk', '#4A90D9').lstrip('#')
-                    fg = e.get('color_text', '#FFFFFF').lstrip('#')
-                    cell.value = e.get('display_name', '')
+                    bg = e.get("color_bk", "#4A90D9").lstrip("#")
+                    fg = e.get("color_text", "#FFFFFF").lstrip("#")
+                    cell.value = e.get("display_name", "")
                     cell.font = Font(bold=True, color=fg, size=8)
                     cell.fill = PatternFill(fill_type="solid", fgColor=bg)
                 else:
-                    cell.fill = PatternFill(fill_type="solid", fgColor="EBEBEB" if is_weekend else "FFFFFF")
+                    cell.fill = PatternFill(
+                        fill_type="solid", fgColor="EBEBEB" if is_weekend else "FFFFFF"
+                    )
                 cell.alignment = Alignment(horizontal="center")
                 cell.border = border
             ws.row_dimensions[r_idx].height = 14
@@ -554,19 +638,33 @@ def export_schedule(
         rows = []
         for emp in employees:
             row: dict = {
-                "Mitarbeiter": f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(', '),
-                "Kürzel": emp.get('SHORTNAME', ''),
+                "Mitarbeiter": f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(
+                    ", "
+                ),
+                "Kürzel": emp.get("SHORTNAME", ""),
             }
             for date in days:
-                day_num = int(date.split('-')[2])
-                e = entry_map.get((emp['ID'], date))
-                row[str(day_num)] = e['display_name'] if e else ''
+                day_num = int(date.split("-")[2])
+                e = entry_map.get((emp["ID"], date))
+                row[str(day_num)] = e["display_name"] if e else ""
             rows.append(row)
         return _csv_response(rows, f"dienstplan_{month}.csv")
     else:
         # HTML export
-        _month_names_de = ["Januar", "Februar", "März", "April", "Mai", "Juni",
-                           "Juli", "August", "September", "Oktober", "November", "Dezember"]
+        _month_names_de = [
+            "Januar",
+            "Februar",
+            "März",
+            "April",
+            "Mai",
+            "Juni",
+            "Juli",
+            "August",
+            "September",
+            "Oktober",
+            "November",
+            "Dezember",
+        ]
         month_name = f"{_month_names_de[mon - 1]} {year}"
         day_headers = ""
         for d in range(1, num_days + 1):
@@ -581,40 +679,42 @@ def export_schedule(
         db.get_leave_types(include_hidden=False)
         legend_html = '<div class="no-print" style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><strong style="font-size:11px;color:#334155">Legende:</strong>'
         for s in shifts_all:
-            bg = s.get('COLORBK_HEX', '#fff')
-            fg = s.get('COLORTEXT_HEX', '#000')
-            name = s.get('NAME', '')
-            short = s.get('SHORTNAME', '')
+            bg = s.get("COLORBK_HEX", "#fff")
+            fg = s.get("COLORTEXT_HEX", "#000")
+            name = s.get("NAME", "")
+            short = s.get("SHORTNAME", "")
             legend_html += f'<span style="background:{bg};color:{fg};padding:2px 6px;border:1px solid #ccc;border-radius:3px;font-size:10px;font-weight:bold" title="{_html.escape(name)}">{_html.escape(short)}</span>'
-        legend_html += '</div>'
+        legend_html += "</div>"
 
         rows_html = ""
         for emp in employees:
-            emp_name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(', ')
-            short = emp.get('SHORTNAME', '')
+            emp_name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", ")
+            short = emp.get("SHORTNAME", "")
             # Use employee's label color (CBKLABEL) if not white/default
-            cbklabel = emp.get('CBKLABEL', 16777215)
-            cbklabel_hex = emp.get('CBKLABEL_HEX', '#f8fafc')
-            cfglabel_hex = emp.get('CFGLABEL_HEX', '#000000')
-            bold_style = 'font-weight:bold;' if emp.get('BOLD') else ''
+            cbklabel = emp.get("CBKLABEL", 16777215)
+            cbklabel_hex = emp.get("CBKLABEL_HEX", "#f8fafc")
+            cfglabel_hex = emp.get("CFGLABEL_HEX", "#000000")
+            bold_style = "font-weight:bold;" if emp.get("BOLD") else ""
             if cbklabel and cbklabel != 16777215 and cbklabel != 0:
-                emp_style = f'background:{cbklabel_hex};color:{cfglabel_hex};{bold_style}'
+                emp_style = (
+                    f"background:{cbklabel_hex};color:{cfglabel_hex};{bold_style}"
+                )
             else:
-                emp_style = f'background:#f8fafc;{bold_style}'
+                emp_style = f"background:#f8fafc;{bold_style}"
             rows_html += f'<tr><td class="emp-name" style="{emp_style}">{_html.escape(emp_name)}</td><td class="emp-short">{_html.escape(short)}</td>'
             for date in days:
-                wd = _dt(year, mon, int(date.split('-')[2])).weekday()
+                wd = _dt(year, mon, int(date.split("-")[2])).weekday()
                 is_weekend = wd >= 5
-                e = entry_map.get((emp['ID'], date))
+                e = entry_map.get((emp["ID"], date))
                 if e:
-                    bg = e.get('color_bk', '#4A90D9')
-                    fg = e.get('color_text', '#FFFFFF')
-                    display = e.get('display_name', '')
+                    bg = e.get("color_bk", "#4A90D9")
+                    fg = e.get("color_text", "#FFFFFF")
+                    display = e.get("display_name", "")
                     rows_html += f'<td class="day-cell" style="background:{bg};color:{fg}"><span title="{_html.escape(str(e.get("shift_name", e.get("leave_name", display))))}">{_html.escape(str(display))}</span></td>'
                 else:
-                    weekend_style = 'background:#f0f0f0;' if is_weekend else ''
+                    weekend_style = "background:#f0f0f0;" if is_weekend else ""
                     rows_html += f'<td class="day-cell" style="{weekend_style}"></td>'
-            rows_html += '</tr>\n'
+            rows_html += "</tr>\n"
 
         html = f"""<!DOCTYPE html>
 <html lang="de">
@@ -659,7 +759,9 @@ def export_schedule(
         return _Response(
             content=html,
             media_type="text/html; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="dienstplan_{month}.html"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="dienstplan_{month}.html"'
+            },
         )
 
 
@@ -692,24 +794,33 @@ def export_statistics(
     for mon in range(1, 13):
         month_stats = db.get_statistics(year=year, month=mon, group_id=group_id)
         for s in month_stats:
-            rows_data.append({
-                "Monat": mon,
-                "Mitarbeiter": s['employee_name'],
-                "Kürzel": s['employee_short'],
-                "Soll (h)": s['target_hours'],
-                "Ist (h)": s['actual_hours'],
-                "Überstunden (h)": s['overtime_hours'],
-                "Abwesenheitstage": s['absence_days'],
-                "Urlaubstage": s['vacation_used'],
-            })
+            rows_data.append(
+                {
+                    "Monat": mon,
+                    "Mitarbeiter": s["employee_name"],
+                    "Kürzel": s["employee_short"],
+                    "Soll (h)": s["target_hours"],
+                    "Ist (h)": s["actual_hours"],
+                    "Überstunden (h)": s["overtime_hours"],
+                    "Abwesenheitstage": s["absence_days"],
+                    "Urlaubstage": s["vacation_used"],
+                }
+            )
 
     # Also build a summary per employee (sum over year)
     from collections import defaultdict
-    summary: dict = defaultdict(lambda: {
-        "Mitarbeiter": "", "Kürzel": "",
-        "Soll (h)": 0.0, "Ist (h)": 0.0, "Überstunden (h)": 0.0,
-        "Abwesenheitstage": 0, "Urlaubstage": 0,
-    })
+
+    summary: dict = defaultdict(
+        lambda: {
+            "Mitarbeiter": "",
+            "Kürzel": "",
+            "Soll (h)": 0.0,
+            "Ist (h)": 0.0,
+            "Überstunden (h)": 0.0,
+            "Abwesenheitstage": 0,
+            "Urlaubstage": 0,
+        }
+    )
     for r in rows_data:
         k = r["Mitarbeiter"]
         summary[k]["Mitarbeiter"] = r["Mitarbeiter"]
@@ -723,8 +834,21 @@ def export_statistics(
     if format == "csv":
         return _csv_response(rows_data, f"statistiken_{year}.csv")
     else:
-        MONTHS_DE = ["", "Januar", "Februar", "März", "April", "Mai", "Juni",
-                     "Juli", "August", "September", "Oktober", "November", "Dezember"]
+        MONTHS_DE = [
+            "",
+            "Januar",
+            "Februar",
+            "März",
+            "April",
+            "Mai",
+            "Juni",
+            "Juli",
+            "August",
+            "September",
+            "Oktober",
+            "November",
+            "Dezember",
+        ]
 
         # Build summary table rows
         summary_rows = ""
@@ -732,15 +856,15 @@ def export_statistics(
             ot = s["Überstunden (h)"]
             ot_color = "#16a34a" if ot >= 0 else "#dc2626"
             summary_rows += (
-                f'<tr>'
+                f"<tr>"
                 f'<td class="name">{_html.escape(str(s["Mitarbeiter"]))}</td>'
                 f'<td class="center">{_html.escape(str(s["Kürzel"]))}</td>'
                 f'<td class="num">{s["Soll (h)"]:.1f}</td>'
                 f'<td class="num">{s["Ist (h)"]:.1f}</td>'
-                f'<td class="num" style="color:{ot_color};font-weight:bold">{"+" if ot>=0 else ""}{ot:.1f}</td>'
+                f'<td class="num" style="color:{ot_color};font-weight:bold">{"+" if ot >= 0 else ""}{ot:.1f}</td>'
                 f'<td class="num">{s["Abwesenheitstage"]}</td>'
                 f'<td class="num">{s["Urlaubstage"]}</td>'
-                f'</tr>\n'
+                f"</tr>\n"
             )
 
         # Build monthly detail rows
@@ -749,16 +873,16 @@ def export_statistics(
             ot = r["Überstunden (h)"]
             ot_color = "#16a34a" if ot >= 0 else "#dc2626"
             detail_rows += (
-                f'<tr>'
+                f"<tr>"
                 f'<td class="center">{_html.escape(str(MONTHS_DE[r["Monat"]]))}</td>'
                 f'<td class="name">{_html.escape(str(r["Mitarbeiter"]))}</td>'
                 f'<td class="center">{_html.escape(str(r["Kürzel"]))}</td>'
                 f'<td class="num">{r["Soll (h)"]:.1f}</td>'
                 f'<td class="num">{r["Ist (h)"]:.1f}</td>'
-                f'<td class="num" style="color:{ot_color};font-weight:bold">{"+" if ot>=0 else ""}{ot:.1f}</td>'
+                f'<td class="num" style="color:{ot_color};font-weight:bold">{"+" if ot >= 0 else ""}{ot:.1f}</td>'
                 f'<td class="num">{r["Abwesenheitstage"]}</td>'
                 f'<td class="num">{r["Urlaubstage"]}</td>'
-                f'</tr>\n'
+                f"</tr>\n"
             )
 
         html = f"""<!DOCTYPE html>
@@ -825,7 +949,9 @@ def export_statistics(
         return _Response(
             content=html,
             media_type="text/html; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="statistiken_{year}.html"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="statistiken_{year}.html"'
+            },
         )
 
 
@@ -854,23 +980,33 @@ def export_employees(
     employees = db.get_employees(include_hidden=False)
     rows = []
     for emp in employees:
-        rows.append({
-            "ID": emp.get('ID', ''),
-            "Name": emp.get('NAME', ''),
-            "Vorname": emp.get('FIRSTNAME', ''),
-            "Kürzel": emp.get('SHORTNAME', ''),
-            "Personalnummer": emp.get('NUMBER', ''),
-            "Std/Tag": emp.get('HRSDAY', 0),
-            "Std/Woche": emp.get('HRSWEEK', 0),
-            "Std/Monat": emp.get('HRSMONTH', 0),
-            "Arbeitstage": emp.get('WORKDAYS', ''),
-        })
+        rows.append(
+            {
+                "ID": emp.get("ID", ""),
+                "Name": emp.get("NAME", ""),
+                "Vorname": emp.get("FIRSTNAME", ""),
+                "Kürzel": emp.get("SHORTNAME", ""),
+                "Personalnummer": emp.get("NUMBER", ""),
+                "Std/Tag": emp.get("HRSDAY", 0),
+                "Std/Woche": emp.get("HRSWEEK", 0),
+                "Std/Monat": emp.get("HRSMONTH", 0),
+                "Arbeitstage": emp.get("WORKDAYS", ""),
+            }
+        )
     if format == "html":
-        headers_html = "".join(f"<th>{_html.escape(str(h))}</th>" for h in rows[0].keys()) if rows else ""
+        headers_html = (
+            "".join(f"<th>{_html.escape(str(h))}</th>" for h in rows[0].keys())
+            if rows
+            else ""
+        )
         rows_html = ""
         for i, row in enumerate(rows):
             bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
-            rows_html += f'<tr style="background:{bg}">' + "".join(f"<td>{_html.escape(str(v))}</td>" for v in row.values()) + "</tr>\n"
+            rows_html += (
+                f'<tr style="background:{bg}">'
+                + "".join(f"<td>{_html.escape(str(v))}</td>" for v in row.values())
+                + "</tr>\n"
+            )
         html = f"""<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -917,6 +1053,7 @@ def export_employees(
                 cell.alignment = Alignment(horizontal="left")
                 cell.border = border
                 from openpyxl.utils import get_column_letter
+
                 ws.column_dimensions[get_column_letter(c)].width = w
             for r_idx, row in enumerate(rows, start=2):
                 fill_color = "F8FAFC" if r_idx % 2 == 0 else "FFFFFF"
@@ -956,42 +1093,54 @@ def export_absences(
 ):
     db = get_db()
     employees = db.get_employees(include_hidden=False)
-    emp_map = {e['ID']: e for e in employees}
-    lt_map = {lt['ID']: lt for lt in db.get_leave_types(include_hidden=True)}
+    emp_map = {e["ID"]: e for e in employees}
+    lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
 
     if group_id is not None:
         member_ids = set(db.get_group_members(group_id))
         emp_map = {k: v for k, v in emp_map.items() if k in member_ids}
 
     year_str = str(year)
-    raw_absences = db._read('ABSEN')
+    raw_absences = db._read("ABSEN")
 
     rows = []
     for r in raw_absences:
-        d = r.get('DATE', '')
+        d = r.get("DATE", "")
         if not (d and d.startswith(year_str)):
             continue
-        eid = r.get('EMPLOYEEID')
+        eid = r.get("EMPLOYEEID")
         if eid not in emp_map:
             continue
         emp = emp_map[eid]
-        ltid = r.get('LEAVETYPID')
+        ltid = r.get("LEAVETYPID")
         lt = lt_map.get(ltid) if ltid else None
-        rows.append({
-            "Datum": d,
-            "Mitarbeiter": f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(', '),
-            "Kürzel": emp.get('SHORTNAME', ''),
-            "Abwesenheitsart": lt.get('NAME', '') if lt else '',
-            "Kürzel Art": lt.get('SHORTNAME', '') if lt else '',
-        })
+        rows.append(
+            {
+                "Datum": d,
+                "Mitarbeiter": f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(
+                    ", "
+                ),
+                "Kürzel": emp.get("SHORTNAME", ""),
+                "Abwesenheitsart": lt.get("NAME", "") if lt else "",
+                "Kürzel Art": lt.get("SHORTNAME", "") if lt else "",
+            }
+        )
 
-    rows.sort(key=lambda x: (x['Datum'], x['Mitarbeiter']))
+    rows.sort(key=lambda x: (x["Datum"], x["Mitarbeiter"]))
     if format == "html":
-        headers_html = "".join(f"<th>{_html.escape(str(h))}</th>" for h in rows[0].keys()) if rows else ""
+        headers_html = (
+            "".join(f"<th>{_html.escape(str(h))}</th>" for h in rows[0].keys())
+            if rows
+            else ""
+        )
         rows_html = ""
         for i, row in enumerate(rows):
             bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
-            rows_html += f'<tr style="background:{bg}">' + "".join(f"<td>{_html.escape(str(v))}</td>" for v in row.values()) + "</tr>\n"
+            rows_html += (
+                f'<tr style="background:{bg}">'
+                + "".join(f"<td>{_html.escape(str(v))}</td>" for v in row.values())
+                + "</tr>\n"
+            )
         html = f"""<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -1015,12 +1164,15 @@ def export_absences(
         return _Response(
             content=html,
             media_type="text/html; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="abwesenheiten_{year}.html"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="abwesenheiten_{year}.html"'
+            },
         )
     return _csv_response(rows, f"abwesenheiten_{year}.csv")
 
 
 # ── Monatsabschluss-Report ───────────────────────────────────
+
 
 @router.get(
     "/api/reports/monthly",
@@ -1057,8 +1209,21 @@ def get_monthly_report(
 
     from datetime import datetime as _dt
 
-    MONTHS_DE = ["", "Januar", "Februar", "März", "April", "Mai", "Juni",
-                 "Juli", "August", "September", "Oktober", "November", "Dezember"]
+    MONTHS_DE = [
+        "",
+        "Januar",
+        "Februar",
+        "März",
+        "April",
+        "Mai",
+        "Juni",
+        "Juli",
+        "August",
+        "September",
+        "Oktober",
+        "November",
+        "Dezember",
+    ]
     month_label = f"{MONTHS_DE[month]} {year}"
 
     db = get_db()
@@ -1068,8 +1233,7 @@ def get_monthly_report(
 
     if not stats:
         raise HTTPException(
-            status_code=404,
-            detail=f"Keine Daten für {month_label} gefunden."
+            status_code=404, detail=f"Keine Daten für {month_label} gefunden."
         )
 
     # ── Extra-charge hours per employee ───────────────────────
@@ -1078,7 +1242,9 @@ def get_monthly_report(
     # For performance, only compute if there are extra charges defined.
     try:
         charges_list = db.get_extracharges(include_hidden=False)
-        all_charge_names: list = [c["NAME"] for c in charges_list] if charges_list else []
+        all_charge_names: list = (
+            [c["NAME"] for c in charges_list] if charges_list else []
+        )
         xc_by_emp: dict = {}
         if charges_list:
             for s in stats:
@@ -1115,27 +1281,34 @@ def get_monthly_report(
     if format == "csv":
         buf = io.StringIO()
         if rows:
-            writer = csv.DictWriter(buf, fieldnames=rows[0].keys(), lineterminator='\r\n')
+            writer = csv.DictWriter(
+                buf, fieldnames=rows[0].keys(), lineterminator="\r\n"
+            )
             writer.writeheader()
             writer.writerows(rows)
         content = buf.getvalue()
         return _Response(
             content=content.encode("utf-8-sig"),  # BOM for Excel compatibility
             media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="{filename_base}.csv"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename_base}.csv"'
+            },
         )
 
     # ── PDF output ────────────────────────────────────────────
     try:
         from fpdf import FPDF, XPos, YPos
     except ImportError:
-        raise HTTPException(status_code=500, detail="fpdf2 nicht installiert. Bitte 'pip install fpdf2' ausführen.")
+        raise HTTPException(
+            status_code=500,
+            detail="fpdf2 nicht installiert. Bitte 'pip install fpdf2' ausführen.",
+        )
 
     class SP5Report(FPDF):
         def header(self):
             # Logo placeholder
             self.set_fill_color(30, 41, 59)  # dark slate
-            self.rect(10, 8, 30, 16, 'F')
+            self.rect(10, 8, 30, 16, "F")
             self.set_font("Helvetica", "B", 9)
             self.set_text_color(255, 255, 255)
             self.set_xy(10, 11)
@@ -1150,7 +1323,13 @@ def get_monthly_report(
             self.cell(0, 7, "Monatsabschluss-Report", new_x=XPos.RIGHT, new_y=YPos.TOP)
             self.set_font("Helvetica", "", 9)
             self.set_xy(44, 16)
-            self.cell(0, 5, f"Zeitraum: {month_label}  |  Erstellt: {_dt.now().strftime('%d.%m.%Y %H:%M')}", new_x=XPos.RIGHT, new_y=YPos.TOP)
+            self.cell(
+                0,
+                5,
+                f"Zeitraum: {month_label}  |  Erstellt: {_dt.now().strftime('%d.%m.%Y %H:%M')}",
+                new_x=XPos.RIGHT,
+                new_y=YPos.TOP,
+            )
             self.set_draw_color(30, 41, 59)
             self.set_line_width(0.5)
             self.line(10, 26, self.w - 10, 26)
@@ -1160,7 +1339,12 @@ def get_monthly_report(
             self.set_y(-12)
             self.set_font("Helvetica", "I", 7)
             self.set_text_color(120, 120, 120)
-            self.cell(0, 5, f"OpenSchichtplaner5  |  {month_label}  |  Seite {self.page_no()}", align="C")
+            self.cell(
+                0,
+                5,
+                f"OpenSchichtplaner5  |  {month_label}  |  Seite {self.page_no()}",
+                align="C",
+            )
 
     pdf = SP5Report(orientation="L", unit="mm", format="A4")
     pdf.set_auto_page_break(auto=True, margin=18)
@@ -1194,7 +1378,7 @@ def get_monthly_report(
         x = 10 + i * box_w
         pdf.set_xy(x, box_y)
         pdf.set_fill_color(241, 245, 249)
-        pdf.rect(x, box_y, box_w - 1, 14, 'FD')
+        pdf.rect(x, box_y, box_w - 1, 14, "FD")
         pdf.set_font("Helvetica", "", 7)
         pdf.set_text_color(100, 116, 139)
         pdf.set_xy(x, box_y + 1)
@@ -1203,7 +1387,11 @@ def get_monthly_report(
         pdf.set_text_color(30, 41, 59)
         if lbl == "Überstunden":
             ot_val = total_ot
-            pdf.set_text_color(22, 163, 74 if ot_val >= 0 else 220, )
+            pdf.set_text_color(
+                22,
+                163,
+                74 if ot_val >= 0 else 220,
+            )
             if ot_val < 0:
                 pdf.set_text_color(220, 38, 38)
         pdf.set_xy(x, box_y + 6)
@@ -1266,15 +1454,55 @@ def get_monthly_report(
 
         col_idx = 0
         # Mitarbeiter
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Mitarbeiter"])[:24], border=1, fill=True, align="L"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            str(row["Mitarbeiter"])[:24],
+            border=1,
+            fill=True,
+            align="L",
+        )
+        col_idx += 1  # noqa: E702
         # Kürzel
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Kürzel"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            str(row["Kürzel"]),
+            border=1,
+            fill=True,
+            align="C",
+        )
+        col_idx += 1  # noqa: E702
         # Gruppe
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Gruppe"])[:16], border=1, fill=True, align="L"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            str(row["Gruppe"])[:16],
+            border=1,
+            fill=True,
+            align="L",
+        )
+        col_idx += 1  # noqa: E702
         # Soll h
-        pdf.cell(all_cols[col_idx][1], ROW_H, f"{row['Soll-Std.']:.1f}", border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            f"{row['Soll-Std.']:.1f}",
+            border=1,
+            fill=True,
+            align="R",
+        )
+        col_idx += 1  # noqa: E702
         # Ist h
-        pdf.cell(all_cols[col_idx][1], ROW_H, f"{row['Ist-Std.']:.1f}", border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            f"{row['Ist-Std.']:.1f}",
+            border=1,
+            fill=True,
+            align="R",
+        )
+        col_idx += 1  # noqa: E702
         # ÜSt h — color
         ot_val = row["Überstunden"]
         if ot_val > 0:
@@ -1284,21 +1512,67 @@ def get_monthly_report(
         else:
             pdf.set_text_color(100, 116, 139)
         ot_sign = "+" if ot_val > 0 else ""
-        pdf.cell(all_cols[col_idx][1], ROW_H, f"{ot_sign}{ot_val:.1f}", border=1, fill=True, align="R")
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            f"{ot_sign}{ot_val:.1f}",
+            border=1,
+            fill=True,
+            align="R",
+        )
         pdf.set_text_color(30, 41, 59)
         col_idx += 1
         # Dienste
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Dienste"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            str(row["Dienste"]),
+            border=1,
+            fill=True,
+            align="C",
+        )
+        col_idx += 1  # noqa: E702
         # Abw.
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Abwesenheitstage"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            str(row["Abwesenheitstage"]),
+            border=1,
+            fill=True,
+            align="C",
+        )
+        col_idx += 1  # noqa: E702
         # Url.
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Urlaubstage"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            str(row["Urlaubstage"]),
+            border=1,
+            fill=True,
+            align="C",
+        )
+        col_idx += 1  # noqa: E702
         # Krank
-        pdf.cell(all_cols[col_idx][1], ROW_H, str(row["Kranktage"]), border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            str(row["Kranktage"]),
+            border=1,
+            fill=True,
+            align="C",
+        )
+        col_idx += 1  # noqa: E702
         # Surcharge columns
         for cn in all_charge_names[:3]:
             hrs = row.get(f"Zuschlag: {cn}", 0.0)
-            pdf.cell(all_cols[col_idx][1], ROW_H, f"{hrs:.1f}" if hrs else "-", border=1, fill=True, align="C")
+            pdf.cell(
+                all_cols[col_idx][1],
+                ROW_H,
+                f"{hrs:.1f}" if hrs else "-",
+                border=1,
+                fill=True,
+                align="C",
+            )
             col_idx += 1
         pdf.ln()
 
@@ -1321,31 +1595,107 @@ def get_monthly_report(
         "Kranktage": str(total_sick),
     }
     col_idx = 0
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Mitarbeiter"][:30], border=1, fill=True, align="L"); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, "", border=1, fill=True); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, "", border=1, fill=True); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Soll-Std."], border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Ist-Std."], border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Überstunden"], border=1, fill=True, align="R"); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Dienste"], border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Abwesenheitstage"], border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Urlaubstage"], border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
-    pdf.cell(all_cols[col_idx][1], ROW_H, totals_row["Kranktage"], border=1, fill=True, align="C"); col_idx += 1  # noqa: E702
+    pdf.cell(
+        all_cols[col_idx][1],
+        ROW_H,
+        totals_row["Mitarbeiter"][:30],
+        border=1,
+        fill=True,
+        align="L",
+    )
+    col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, "", border=1, fill=True)
+    col_idx += 1  # noqa: E702
+    pdf.cell(all_cols[col_idx][1], ROW_H, "", border=1, fill=True)
+    col_idx += 1  # noqa: E702
+    pdf.cell(
+        all_cols[col_idx][1],
+        ROW_H,
+        totals_row["Soll-Std."],
+        border=1,
+        fill=True,
+        align="R",
+    )
+    col_idx += 1  # noqa: E702
+    pdf.cell(
+        all_cols[col_idx][1],
+        ROW_H,
+        totals_row["Ist-Std."],
+        border=1,
+        fill=True,
+        align="R",
+    )
+    col_idx += 1  # noqa: E702
+    pdf.cell(
+        all_cols[col_idx][1],
+        ROW_H,
+        totals_row["Überstunden"],
+        border=1,
+        fill=True,
+        align="R",
+    )
+    col_idx += 1  # noqa: E702
+    pdf.cell(
+        all_cols[col_idx][1],
+        ROW_H,
+        totals_row["Dienste"],
+        border=1,
+        fill=True,
+        align="C",
+    )
+    col_idx += 1  # noqa: E702
+    pdf.cell(
+        all_cols[col_idx][1],
+        ROW_H,
+        totals_row["Abwesenheitstage"],
+        border=1,
+        fill=True,
+        align="C",
+    )
+    col_idx += 1  # noqa: E702
+    pdf.cell(
+        all_cols[col_idx][1],
+        ROW_H,
+        totals_row["Urlaubstage"],
+        border=1,
+        fill=True,
+        align="C",
+    )
+    col_idx += 1  # noqa: E702
+    pdf.cell(
+        all_cols[col_idx][1],
+        ROW_H,
+        totals_row["Kranktage"],
+        border=1,
+        fill=True,
+        align="C",
+    )
+    col_idx += 1  # noqa: E702
     for cn in all_charge_names[:3]:
-        total_xc = round(sum(xc_by_emp.get(s["employee_id"], {}).get(cn, 0.0) for s in stats), 1)
-        pdf.cell(all_cols[col_idx][1], ROW_H, f"{total_xc:.1f}" if total_xc else "-", border=1, fill=True, align="C")
+        total_xc = round(
+            sum(xc_by_emp.get(s["employee_id"], {}).get(cn, 0.0) for s in stats), 1
+        )
+        pdf.cell(
+            all_cols[col_idx][1],
+            ROW_H,
+            f"{total_xc:.1f}" if total_xc else "-",
+            border=1,
+            fill=True,
+            align="C",
+        )
         col_idx += 1
     pdf.ln()
 
     pdf_bytes = pdf.output()
     return _Response(
-        content=bytes(pdf_bytes),
+        content=bytes(pdf_bytes or b""),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename_base}.pdf"'},
     )
 
 
 # ── Zeitkonto / Überstunden ──────────────────────────────────
+
 
 @router.get(
     "/api/zeitkonto",
@@ -1404,20 +1754,20 @@ def get_zeitkonto_summary(
     group_id: Optional[int] = Query(None, description="Filter by group ID"),
 ):
     rows = get_db().get_zeitkonto(year=year, group_id=group_id)
-    total_target = sum(r['total_target_hours'] for r in rows)
-    total_actual = sum(r['total_actual_hours'] for r in rows)
-    total_saldo = sum(r['total_saldo'] for r in rows)
-    pos = sum(1 for r in rows if r['total_saldo'] >= 0)
+    total_target = sum(r["total_target_hours"] for r in rows)
+    total_actual = sum(r["total_actual_hours"] for r in rows)
+    total_saldo = sum(r["total_saldo"] for r in rows)
+    pos = sum(1 for r in rows if r["total_saldo"] >= 0)
     neg = len(rows) - pos
     return {
-        'year': year,
-        'group_id': group_id,
-        'employee_count': len(rows),
-        'total_target_hours': round(total_target, 2),
-        'total_actual_hours': round(total_actual, 2),
-        'total_saldo': round(total_saldo, 2),
-        'positive_count': pos,
-        'negative_count': neg,
+        "year": year,
+        "group_id": group_id,
+        "employee_count": len(rows),
+        "total_target_hours": round(total_target, 2),
+        "total_actual_hours": round(total_actual, 2),
+        "total_saldo": round(total_saldo, 2),
+        "positive_count": pos,
+        "negative_count": neg,
     }
 
 
@@ -1433,7 +1783,9 @@ def get_zeitkonto_summary(
 )
 def get_bookings(
     year: Optional[int] = Query(None, description="Filter by year"),
-    month: Optional[int] = Query(None, description="Filter by month (1-12), use with year"),
+    month: Optional[int] = Query(
+        None, description="Filter by month (1-12), use with year"
+    ),
     employee_id: Optional[int] = Query(None, description="Filter by employee ID"),
 ):
     return get_db().get_bookings(year=year, month=month, employee_id=employee_id)
@@ -1441,10 +1793,10 @@ def get_bookings(
 
 class BookingCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
-    date: str = Field(..., pattern=r'^\d{4}-\d{2}-\d{2}$')
-    type: int = Field(0, ge=0, le=1)   # 0 = Iststundenkonto, 1 = Sollstundenkonto
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    type: int = Field(0, ge=0, le=1)  # 0 = Iststundenkonto, 1 = Sollstundenkonto
     value: float
-    note: Optional[str] = Field('', max_length=500)
+    note: Optional[str] = Field("", max_length=500)
 
 
 @router.post(
@@ -1464,9 +1816,13 @@ class BookingCreate(BaseModel):
 def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
-        datetime.strptime(body.date, '%Y-%m-%d')
+
+        datetime.strptime(body.date, "%Y-%m-%d")
     except ValueError:
-        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
+        raise HTTPException(
+            status_code=400,
+            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+        )
     if body.type not in (0, 1):
         raise HTTPException(status_code=400, detail="type must be 0 (Ist) or 1 (Soll)")
     try:
@@ -1475,7 +1831,7 @@ def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer
             date_str=body.date,
             booking_type=body.type,
             value=body.value,
-            note=body.note or '',
+            note=body.note or "",
         )
         return {"ok": True, "record": result}
     except Exception as e:
@@ -1505,6 +1861,7 @@ def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
 
 
 # ── Carry Forward (Saldo-Übertrag) ────────────────────────────
+
 
 @router.get(
     "/api/bookings/carry-forward",
@@ -1551,7 +1908,9 @@ class AnnualStatementBody(BaseModel):
     tags=["Statistics"],
     summary="Generate annual statement",
 )
-def annual_statement(body: AnnualStatementBody, _cur_user: dict = Depends(require_planer)):
+def annual_statement(
+    body: AnnualStatementBody, _cur_user: dict = Depends(require_planer)
+):
     try:
         result = get_db().calculate_annual_statement(
             employee_id=body.employee_id,
@@ -1577,9 +1936,9 @@ def get_overtime_records(
 def _decode_csv(content: bytes) -> str:
     """Try UTF-8 with BOM first, then latin-1."""
     try:
-        return content.decode('utf-8-sig')
+        return content.decode("utf-8-sig")
     except UnicodeDecodeError:
-        return content.decode('latin-1')
+        return content.decode("latin-1")
 
 
 @router.post(
@@ -1587,7 +1946,9 @@ def _decode_csv(content: bytes) -> str:
     tags=["Import"],
     summary="Import employees from CSV",
 )
-async def import_employees(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_employees(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import employees from CSV. Required columns: NAME or NACHNAME.
     Accepted column aliases: VORNAME/FIRSTNAME, NACHNAME/NAME, KURZZEICHEN/SHORTNAME,
     NUMBER/PERSONALNUMMER, HRSDAY, HRSWEEK, HRSMONTH, SEX."""
@@ -1605,10 +1966,10 @@ async def import_employees(file: UploadFile = File(...), _cur_user: dict = Depen
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
 
         # Alias mapping
-        name = row.get('NAME') or row.get('NACHNAME') or ''
-        firstname = row.get('FIRSTNAME') or row.get('VORNAME') or ''
-        shortname = row.get('SHORTNAME') or row.get('KURZZEICHEN') or ''
-        number = row.get('NUMBER') or row.get('PERSONALNUMMER') or ''
+        name = row.get("NAME") or row.get("NACHNAME") or ""
+        firstname = row.get("FIRSTNAME") or row.get("VORNAME") or ""
+        shortname = row.get("SHORTNAME") or row.get("KURZZEICHEN") or ""
+        number = row.get("NUMBER") or row.get("PERSONALNUMMER") or ""
 
         if not name:
             errors.append(f"Zeile {i}: NAME/NACHNAME fehlt — übersprungen")
@@ -1617,22 +1978,23 @@ async def import_employees(file: UploadFile = File(...), _cur_user: dict = Depen
 
         try:
             data = {
-                'NAME': name,
-                'FIRSTNAME': firstname,
-                'SHORTNAME': shortname,
-                'NUMBER': number,
-                'SEX': int(row.get('SEX') or 0),
-                'HRSDAY': float(row.get('HRSDAY') or 0),
-                'HRSWEEK': float(row.get('HRSWEEK') or 0),
-                'HRSMONTH': float(row.get('HRSMONTH') or 0),
-                'WORKDAYS': row.get('WORKDAYS') or '1 1 1 1 1 0 0 0',
-                'HIDE': False,
+                "NAME": name,
+                "FIRSTNAME": firstname,
+                "SHORTNAME": shortname,
+                "NUMBER": number,
+                "SEX": int(row.get("SEX") or 0),
+                "HRSDAY": float(row.get("HRSDAY") or 0),
+                "HRSWEEK": float(row.get("HRSWEEK") or 0),
+                "HRSMONTH": float(row.get("HRSMONTH") or 0),
+                "WORKDAYS": row.get("WORKDAYS") or "1 1 1 1 1 0 0 0",
+                "HIDE": False,
             }
             db.create_employee(data)
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -1643,7 +2005,9 @@ async def import_employees(file: UploadFile = File(...), _cur_user: dict = Depen
     tags=["Import"],
     summary="Import shifts from CSV",
 )
-async def import_shifts(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_shifts(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import shifts from CSV. Required: NAME.
     Optional: KURZZEICHEN/SHORTNAME, FARBE/COLORBK (hex #RRGGBB or int BGR), DURATION0."""
     content = await _validate_csv_upload(file)
@@ -1660,7 +2024,7 @@ async def import_shifts(file: UploadFile = File(...), _cur_user: dict = Depends(
         if not val:
             return 16777215  # white
         val = val.strip()
-        if val.startswith('#') and len(val) == 7:
+        if val.startswith("#") and len(val) == 7:
             try:
                 r = int(val[1:3], 16)
                 g = int(val[3:5], 16)
@@ -1676,31 +2040,34 @@ async def import_shifts(file: UploadFile = File(...), _cur_user: dict = Depends(
     for i, row in enumerate(reader, start=2):
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
 
-        name = row.get('NAME') or ''
+        name = row.get("NAME") or ""
         if not name:
             errors.append(f"Zeile {i}: NAME fehlt — übersprungen")
             skipped += 1
             continue
 
-        shortname = row.get('SHORTNAME') or row.get('KURZZEICHEN') or ''
-        colorbk_raw = row.get('COLORBK') or row.get('FARBE') or row.get('HINTERGRUNDFARBE') or ''
-        colortext_raw = row.get('COLORTEXT') or row.get('TEXTFARBE') or ''
+        shortname = row.get("SHORTNAME") or row.get("KURZZEICHEN") or ""
+        colorbk_raw = (
+            row.get("COLORBK") or row.get("FARBE") or row.get("HINTERGRUNDFARBE") or ""
+        )
+        colortext_raw = row.get("COLORTEXT") or row.get("TEXTFARBE") or ""
 
         try:
             data = {
-                'NAME': name,
-                'SHORTNAME': shortname,
-                'COLORBK': _parse_color(colorbk_raw),
-                'COLORTEXT': _parse_color(colortext_raw) if colortext_raw else 0,
-                'COLORBAR': 0,
-                'DURATION0': float(row.get('DURATION0') or row.get('DAUER') or 0),
-                'HIDE': False,
+                "NAME": name,
+                "SHORTNAME": shortname,
+                "COLORBK": _parse_color(colorbk_raw),
+                "COLORTEXT": _parse_color(colortext_raw) if colortext_raw else 0,
+                "COLORBAR": 0,
+                "DURATION0": float(row.get("DURATION0") or row.get("DAUER") or 0),
+                "HIDE": False,
             }
             db.create_shift(data)
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -1711,7 +2078,9 @@ async def import_shifts(file: UploadFile = File(...), _cur_user: dict = Depends(
     tags=["Import"],
     summary="Import absences from CSV",
 )
-async def import_absences(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_absences(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import absences from CSV. Required: EMPLOYEE_ID, DATE (YYYY-MM-DD), LEAVE_TYPE_ID."""
     content = await _validate_csv_upload(file)
     text = _decode_csv(content)
@@ -1725,20 +2094,25 @@ async def import_absences(file: UploadFile = File(...), _cur_user: dict = Depend
     for i, row in enumerate(reader, start=2):
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
 
-        emp_id_raw = row.get('EMPLOYEE_ID') or row.get('MITARBEITER_ID') or ''
-        date_raw = row.get('DATE') or row.get('DATUM') or ''
-        lt_id_raw = row.get('LEAVE_TYPE_ID') or row.get('ABWESENHEITSART_ID') or ''
+        emp_id_raw = row.get("EMPLOYEE_ID") or row.get("MITARBEITER_ID") or ""
+        date_raw = row.get("DATE") or row.get("DATUM") or ""
+        lt_id_raw = row.get("LEAVE_TYPE_ID") or row.get("ABWESENHEITSART_ID") or ""
 
         if not emp_id_raw or not date_raw or not lt_id_raw:
-            errors.append(f"Zeile {i}: Pflichtfelder fehlen (EMPLOYEE_ID, DATE, LEAVE_TYPE_ID) — übersprungen")
+            errors.append(
+                f"Zeile {i}: Pflichtfelder fehlen (EMPLOYEE_ID, DATE, LEAVE_TYPE_ID) — übersprungen"
+            )
             skipped += 1
             continue
 
         try:
             from datetime import datetime
-            datetime.strptime(date_raw, '%Y-%m-%d')
+
+            datetime.strptime(date_raw, "%Y-%m-%d")
         except ValueError:
-            errors.append(f"Zeile {i}: Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen")
+            errors.append(
+                f"Zeile {i}: Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen"
+            )
             skipped += 1
             continue
 
@@ -1749,7 +2123,8 @@ async def import_absences(file: UploadFile = File(...), _cur_user: dict = Depend
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -1760,7 +2135,9 @@ async def import_absences(file: UploadFile = File(...), _cur_user: dict = Depend
     tags=["Import"],
     summary="Import holidays from CSV",
 )
-async def import_holidays(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_holidays(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import holidays from CSV. Required: DATE (YYYY-MM-DD), NAME.
     Optional: INTERVAL (0=einmalig, 1=jährlich), REGION (ignored, for info only)."""
     content = await _validate_csv_upload(file)
@@ -1775,8 +2152,8 @@ async def import_holidays(file: UploadFile = File(...), _cur_user: dict = Depend
     for i, row in enumerate(reader, start=2):
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
 
-        date_raw = row.get('DATE') or row.get('DATUM') or ''
-        name = row.get('NAME') or row.get('BEZEICHNUNG') or ''
+        date_raw = row.get("DATE") or row.get("DATUM") or ""
+        name = row.get("NAME") or row.get("BEZEICHNUNG") or ""
 
         if not date_raw or not name:
             errors.append(f"Zeile {i}: DATE und NAME sind Pflicht — übersprungen")
@@ -1785,24 +2162,28 @@ async def import_holidays(file: UploadFile = File(...), _cur_user: dict = Depend
 
         try:
             from datetime import datetime
-            datetime.strptime(date_raw, '%Y-%m-%d')
+
+            datetime.strptime(date_raw, "%Y-%m-%d")
         except ValueError:
-            errors.append(f"Zeile {i}: Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen")
+            errors.append(
+                f"Zeile {i}: Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen"
+            )
             skipped += 1
             continue
 
         try:
-            interval_raw = row.get('INTERVAL') or row.get('JAEHRLICH') or '0'
+            interval_raw = row.get("INTERVAL") or row.get("JAEHRLICH") or "0"
             data = {
-                'DATE': date_raw,
-                'NAME': name,
-                'INTERVAL': int(interval_raw) if interval_raw.isdigit() else 0,
+                "DATE": date_raw,
+                "NAME": name,
+                "INTERVAL": int(interval_raw) if interval_raw.isdigit() else 0,
             }
             db.create_holiday(data)
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
@@ -1813,7 +2194,9 @@ async def import_holidays(file: UploadFile = File(...), _cur_user: dict = Depend
     tags=["Import"],
     summary="Import actual-hour bookings from CSV",
 )
-async def import_bookings_actual(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_bookings_actual(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import actual-hour bookings (TYPE=0) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
     content = await _validate_csv_upload(file)
@@ -1825,35 +2208,44 @@ async def import_bookings_actual(file: UploadFile = File(...), _cur_user: dict =
     errors = []
     db = get_db()
 
-    emp_by_number = {(str(e.get('NUMBER', '')) or '').strip(): e for e in db.get_employees(include_hidden=False)}
+    emp_by_number = {
+        (str(e.get("NUMBER", "")) or "").strip(): e
+        for e in db.get_employees(include_hidden=False)
+    }
 
     for i, row in enumerate(reader, start=2):
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
-        nummer = row.get('PERSONALNUMMER') or row.get('NUMBER') or ''
-        date_raw = row.get('DATUM') or row.get('DATE') or ''
-        stunden_raw = row.get('STUNDEN') or row.get('HOURS') or ''
-        notiz = row.get('NOTIZ') or row.get('NOTE') or ''
+        nummer = row.get("PERSONALNUMMER") or row.get("NUMBER") or ""
+        date_raw = row.get("DATUM") or row.get("DATE") or ""
+        stunden_raw = row.get("STUNDEN") or row.get("HOURS") or ""
+        notiz = row.get("NOTIZ") or row.get("NOTE") or ""
 
         if not nummer or not date_raw or not stunden_raw:
-            errors.append(f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen")
+            errors.append(
+                f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"
+            )
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append(f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen")
+            errors.append(
+                f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen"
+            )
             skipped += 1
             continue
 
         try:
             from datetime import datetime as _dt
-            _dt.strptime(date_raw, '%Y-%m-%d')
-            stunden = float(stunden_raw.replace(',', '.'))
-            db.create_booking(emp['ID'], date_raw, 0, stunden, notiz)
+
+            _dt.strptime(date_raw, "%Y-%m-%d")
+            stunden = float(stunden_raw.replace(",", "."))
+            db.create_booking(emp["ID"], date_raw, 0, stunden, notiz)
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -1865,7 +2257,9 @@ async def import_bookings_actual(file: UploadFile = File(...), _cur_user: dict =
     tags=["Import"],
     summary="Import nominal-hour bookings from CSV",
 )
-async def import_bookings_nominal(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_bookings_nominal(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import nominal-hour bookings (TYPE=1) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
     content = await _validate_csv_upload(file)
@@ -1877,35 +2271,44 @@ async def import_bookings_nominal(file: UploadFile = File(...), _cur_user: dict 
     errors = []
     db = get_db()
 
-    emp_by_number = {(str(e.get('NUMBER', '')) or '').strip(): e for e in db.get_employees(include_hidden=False)}
+    emp_by_number = {
+        (str(e.get("NUMBER", "")) or "").strip(): e
+        for e in db.get_employees(include_hidden=False)
+    }
 
     for i, row in enumerate(reader, start=2):
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
-        nummer = row.get('PERSONALNUMMER') or row.get('NUMBER') or ''
-        date_raw = row.get('DATUM') or row.get('DATE') or ''
-        stunden_raw = row.get('STUNDEN') or row.get('HOURS') or ''
-        notiz = row.get('NOTIZ') or row.get('NOTE') or ''
+        nummer = row.get("PERSONALNUMMER") or row.get("NUMBER") or ""
+        date_raw = row.get("DATUM") or row.get("DATE") or ""
+        stunden_raw = row.get("STUNDEN") or row.get("HOURS") or ""
+        notiz = row.get("NOTIZ") or row.get("NOTE") or ""
 
         if not nummer or not date_raw or not stunden_raw:
-            errors.append(f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen")
+            errors.append(
+                f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"
+            )
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append(f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen")
+            errors.append(
+                f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen"
+            )
             skipped += 1
             continue
 
         try:
             from datetime import datetime as _dt
-            _dt.strptime(date_raw, '%Y-%m-%d')
-            stunden = float(stunden_raw.replace(',', '.'))
-            db.create_booking(emp['ID'], date_raw, 1, stunden, notiz)
+
+            _dt.strptime(date_raw, "%Y-%m-%d")
+            stunden = float(stunden_raw.replace(",", "."))
+            db.create_booking(emp["ID"], date_raw, 1, stunden, notiz)
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -1917,7 +2320,9 @@ async def import_bookings_nominal(file: UploadFile = File(...), _cur_user: dict 
     tags=["Import"],
     summary="Import vacation entitlements from CSV",
 )
-async def import_entitlements(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_entitlements(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import leave entitlements from CSV.
     Required: Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage."""
     content = await _validate_csv_upload(file)
@@ -1929,41 +2334,60 @@ async def import_entitlements(file: UploadFile = File(...), _cur_user: dict = De
     errors = []
     db = get_db()
 
-    emp_by_number = {(str(e.get('NUMBER', '')) or '').strip(): e for e in db.get_employees(include_hidden=False)}
-    lt_by_short = {lt['SHORTNAME'].strip().upper(): lt for lt in db.get_leave_types(include_hidden=False)}
+    emp_by_number = {
+        (str(e.get("NUMBER", "")) or "").strip(): e
+        for e in db.get_employees(include_hidden=False)
+    }
+    lt_by_short = {
+        lt["SHORTNAME"].strip().upper(): lt
+        for lt in db.get_leave_types(include_hidden=False)
+    }
 
     for i, row in enumerate(reader, start=2):
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
-        nummer = row.get('PERSONALNUMMER') or row.get('NUMBER') or ''
-        year_raw = row.get('JAHR') or row.get('YEAR') or ''
-        kuerzel = (row.get('ABWESENHEITSART') or row.get('KÜRZEL') or row.get('KURZEL') or row.get('SHORTNAME') or '').upper()
-        tage_raw = row.get('TAGE') or row.get('DAYS') or ''
+        nummer = row.get("PERSONALNUMMER") or row.get("NUMBER") or ""
+        year_raw = row.get("JAHR") or row.get("YEAR") or ""
+        kuerzel = (
+            row.get("ABWESENHEITSART")
+            or row.get("KÜRZEL")
+            or row.get("KURZEL")
+            or row.get("SHORTNAME")
+            or ""
+        ).upper()
+        tage_raw = row.get("TAGE") or row.get("DAYS") or ""
 
         if not nummer or not year_raw or not kuerzel or not tage_raw:
-            errors.append(f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage) — übersprungen")
+            errors.append(
+                f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage) — übersprungen"
+            )
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append(f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen")
+            errors.append(
+                f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen"
+            )
             skipped += 1
             continue
 
         lt = lt_by_short.get(kuerzel)
         if not lt:
-            errors.append(f"Zeile {i}: Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen")
+            errors.append(
+                f"Zeile {i}: Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen"
+            )
             skipped += 1
             continue
 
         try:
             year = int(year_raw)
-            tage = float(tage_raw.replace(',', '.'))
-            db.set_leave_entitlement(emp['ID'], year, tage, leave_type_id=lt['ID'])
+            tage = float(tage_raw.replace(",", "."))
+            db.set_leave_entitlement(emp["ID"], year, tage, leave_type_id=lt["ID"])
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -1975,7 +2399,9 @@ async def import_entitlements(file: UploadFile = File(...), _cur_user: dict = De
     tags=["Import"],
     summary="Import absences from CSV (alternate format)",
 )
-async def import_absences_csv(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_absences_csv(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import absences from CSV using Personalnummer and Abwesenheitsart-Kürzel.
     Required: Personalnummer,Datum,Abwesenheitsart-Kürzel."""
     content = await _validate_csv_upload(file)
@@ -1987,40 +2413,60 @@ async def import_absences_csv(file: UploadFile = File(...), _cur_user: dict = De
     errors = []
     db = get_db()
 
-    emp_by_number = {(str(e.get('NUMBER', '')) or '').strip(): e for e in db.get_employees(include_hidden=False)}
-    lt_by_short = {lt['SHORTNAME'].strip().upper(): lt for lt in db.get_leave_types(include_hidden=False)}
+    emp_by_number = {
+        (str(e.get("NUMBER", "")) or "").strip(): e
+        for e in db.get_employees(include_hidden=False)
+    }
+    lt_by_short = {
+        lt["SHORTNAME"].strip().upper(): lt
+        for lt in db.get_leave_types(include_hidden=False)
+    }
 
     for i, row in enumerate(reader, start=2):
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
-        nummer = row.get('PERSONALNUMMER') or row.get('NUMBER') or ''
-        date_raw = row.get('DATUM') or row.get('DATE') or ''
-        kuerzel = (row.get('ABWESENHEITSART') or row.get('KÜRZEL') or row.get('KURZEL') or row.get('SHORTNAME') or '').upper()
+        nummer = row.get("PERSONALNUMMER") or row.get("NUMBER") or ""
+        date_raw = row.get("DATUM") or row.get("DATE") or ""
+        kuerzel = (
+            row.get("ABWESENHEITSART")
+            or row.get("KÜRZEL")
+            or row.get("KURZEL")
+            or row.get("SHORTNAME")
+            or ""
+        ).upper()
 
         if not nummer or not date_raw or not kuerzel:
-            errors.append(f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Abwesenheitsart-Kürzel) — übersprungen")
+            errors.append(
+                f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Abwesenheitsart-Kürzel) — übersprungen"
+            )
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append(f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen")
+            errors.append(
+                f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen"
+            )
             skipped += 1
             continue
 
         lt = lt_by_short.get(kuerzel)
         if not lt:
-            errors.append(f"Zeile {i}: Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen")
+            errors.append(
+                f"Zeile {i}: Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen"
+            )
             skipped += 1
             continue
 
         try:
             from datetime import datetime as _dt
-            _dt.strptime(date_raw, '%Y-%m-%d')
-            db.add_absence(emp['ID'], date_raw, lt['ID'])
+
+            _dt.strptime(date_raw, "%Y-%m-%d")
+            db.add_absence(emp["ID"], date_raw, lt["ID"])
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -2032,7 +2478,9 @@ async def import_absences_csv(file: UploadFile = File(...), _cur_user: dict = De
     tags=["Import"],
     summary="Import groups from CSV",
 )
-async def import_groups(file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)):
+async def import_groups(
+    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+):
     """Import groups from CSV.
     Required: Name. Optional: Kürzel, Übergeordnete-Gruppe-Name."""
     content = await _validate_csv_upload(file)
@@ -2045,14 +2493,23 @@ async def import_groups(file: UploadFile = File(...), _cur_user: dict = Depends(
     db = get_db()
 
     existing_groups = db.get_groups(include_hidden=True)
-    group_by_name = {g['NAME'].strip().upper(): g for g in existing_groups}
+    group_by_name = {g["NAME"].strip().upper(): g for g in existing_groups}
 
     for i, row in enumerate(reader, start=2):
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
-        name = row.get('NAME') or row.get('BEZEICHNUNG') or ''
-        kuerzel = row.get('KÜRZEL') or row.get('KURZEL') or row.get('SHORTNAME') or ''
-        parent_name = (row.get('ÜBERGEORDNETE-GRUPPE-NAME') or row.get('UEBERGEORDNETE-GRUPPE-NAME') or
-                       row.get('PARENT') or row.get('SUPERGRUPPE') or '').strip().upper()
+        name = row.get("NAME") or row.get("BEZEICHNUNG") or ""
+        kuerzel = row.get("KÜRZEL") or row.get("KURZEL") or row.get("SHORTNAME") or ""
+        parent_name = (
+            (
+                row.get("ÜBERGEORDNETE-GRUPPE-NAME")
+                or row.get("UEBERGEORDNETE-GRUPPE-NAME")
+                or row.get("PARENT")
+                or row.get("SUPERGRUPPE")
+                or ""
+            )
+            .strip()
+            .upper()
+        )
 
         if not name:
             errors.append(f"Zeile {i}: NAME fehlt — übersprungen")
@@ -2063,25 +2520,28 @@ async def import_groups(file: UploadFile = File(...), _cur_user: dict = Depends(
         if parent_name:
             parent_grp = group_by_name.get(parent_name)
             if not parent_grp:
-                errors.append(f"Zeile {i}: Übergeordnete Gruppe '{parent_name}' nicht gefunden — übersprungen")
+                errors.append(
+                    f"Zeile {i}: Übergeordnete Gruppe '{parent_name}' nicht gefunden — übersprungen"
+                )
                 skipped += 1
                 continue
-            parent_id = parent_grp['ID']
+            parent_id = parent_grp["ID"]
 
         try:
             data = {
-                'NAME': name,
-                'SHORTNAME': kuerzel,
-                'SUPERID': parent_id or 0,
-                'HIDE': False,
+                "NAME": name,
+                "SHORTNAME": kuerzel,
+                "SUPERID": parent_id or 0,
+                "HIDE": False,
             }
             db.create_group(data)
             # Refresh for subsequent lookups
-            group_by_name[name.upper()] = {'NAME': name, 'ID': -1}
+            group_by_name[name.upper()] = {"NAME": name, "ID": -1}
             imported += 1
         except Exception as e:
             import logging as _log_mod
-            _log_mod.getLogger('sp5api').error("import row %s error: %s", i, e)
+
+            _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
             errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
             skipped += 1
 
@@ -2089,6 +2549,7 @@ async def import_groups(file: UploadFile = File(...), _cur_user: dict = Depends(
 
 
 # ── Burnout-Radar ────────────────────────────────────────────
+
 
 @router.get(
     "/api/burnout-radar",
@@ -2104,9 +2565,14 @@ def get_burnout_radar(
 ):
     """Return list of at-risk employees (long streaks or significant overtime)."""
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
+        raise HTTPException(
+            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+        )
     if not (2000 <= year <= 2100):
-        raise HTTPException(status_code=400, detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen")
+        raise HTTPException(
+            status_code=400,
+            detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen",
+        )
     return get_db().get_burnout_radar(
         year=year,
         month=month,
@@ -2116,9 +2582,8 @@ def get_burnout_radar(
     )
 
 
-
-
 # ── Überstunden-Zusammenfassung ───────────────────────────────
+
 
 @router.get(
     "/api/overtime-summary",
@@ -2126,35 +2591,39 @@ def get_burnout_radar(
     summary="Overtime summary",
 )
 def get_overtime_summary(
-    year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
+    year: Optional[int] = Query(
+        None, description="Year (YYYY), defaults to current year"
+    ),
     group_id: Optional[int] = Query(None, description="Filter by group"),
 ):
     """Return overtime summary (Überstunden) per employee for a given year."""
     from datetime import date as _date
+
     if year is None:
         year = _date.today().year
     rows = get_db().get_overtime_summary(year=year, group_id=group_id)
-    total_soll = sum(r['soll'] for r in rows)
-    total_ist = sum(r['ist'] for r in rows)
+    total_soll = sum(r["soll"] for r in rows)
+    total_ist = sum(r["ist"] for r in rows)
     total_delta = round(total_ist - total_soll, 2)
-    plus_count = sum(1 for r in rows if r['delta'] >= 0)
-    minus_count = sum(1 for r in rows if r['delta'] < 0)
+    plus_count = sum(1 for r in rows if r["delta"] >= 0)
+    minus_count = sum(1 for r in rows if r["delta"] < 0)
     return {
-        'year': year,
-        'group_id': group_id,
-        'employees': rows,
-        'summary': {
-            'total_soll': round(total_soll, 2),
-            'total_ist': round(total_ist, 2),
-            'total_delta': total_delta,
-            'plus_count': plus_count,
-            'minus_count': minus_count,
-            'employee_count': len(rows),
+        "year": year,
+        "group_id": group_id,
+        "employees": rows,
+        "summary": {
+            "total_soll": round(total_soll, 2),
+            "total_ist": round(total_ist, 2),
+            "total_delta": total_delta,
+            "plus_count": plus_count,
+            "minus_count": minus_count,
+            "employee_count": len(rows),
         },
     }
 
 
 # ── Warnings Center ──────────────────────────────────────────
+
 
 @router.get(
     "/api/warnings",
@@ -2162,8 +2631,12 @@ def get_overtime_summary(
     summary="Schedule warnings and anomalies",
 )
 def get_warnings(
-    year: Optional[int] = Query(None, description="Year (YYYY), defaults to current year"),
-    month: Optional[int] = Query(None, description="Month (1-12), defaults to current month"),
+    year: Optional[int] = Query(
+        None, description="Year (YYYY), defaults to current year"
+    ),
+    month: Optional[int] = Query(
+        None, description="Month (1-12), defaults to current month"
+    ),
     _cur_user: dict = Depends(require_auth),
 ):
     """Return a list of active warnings for the Warnings Center.
@@ -2185,7 +2658,9 @@ def get_warnings(
         month = today.month
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
+        raise HTTPException(
+            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+        )
 
     db = get_db()
     warnings = []
@@ -2210,23 +2685,43 @@ def get_warnings(
             next_year, next_month = year, month + 1
 
         next_prefix = f"{next_year:04d}-{next_month:02d}"
-        next_month_mashi = [r for r in db._read("MASHI") if r.get("DATE", "").startswith(next_prefix)]
-        next_month_spshi = [r for r in db._read("SPSHI") if r.get("DATE", "").startswith(next_prefix) and r.get("TYPE", 0) == 0]
+        next_month_mashi = [
+            r for r in db._read("MASHI") if r.get("DATE", "").startswith(next_prefix)
+        ]
+        next_month_spshi = [
+            r
+            for r in db._read("SPSHI")
+            if r.get("DATE", "").startswith(next_prefix) and r.get("TYPE", 0) == 0
+        ]
 
         if len(next_month_mashi) + len(next_month_spshi) == 0:
-            month_names_de = ["Januar", "Februar", "März", "April", "Mai", "Juni",
-                               "Juli", "August", "September", "Oktober", "November", "Dezember"]
+            month_names_de = [
+                "Januar",
+                "Februar",
+                "März",
+                "April",
+                "Mai",
+                "Juni",
+                "Juli",
+                "August",
+                "September",
+                "Oktober",
+                "November",
+                "Dezember",
+            ]
             next_month_name = month_names_de[next_month - 1]
-            warnings.append({
-                "id": make_id(),
-                "type": "next_month_unplanned",
-                "severity": "warning",
-                "title": f"{next_month_name} {next_year} noch nicht geplant",
-                "message": f"Nur noch {days_until_end} Tage bis Monatsende – der nächste Monat hat keinen Dienstplan.",
-                "link": "/schedule",
-                "link_label": "Zum Dienstplan",
-                "date": today.isoformat(),
-            })
+            warnings.append(
+                {
+                    "id": make_id(),
+                    "type": "next_month_unplanned",
+                    "severity": "warning",
+                    "title": f"{next_month_name} {next_year} noch nicht geplant",
+                    "message": f"Nur noch {days_until_end} Tage bis Monatsende – der nächste Monat hat keinen Dienstplan.",
+                    "link": "/schedule",
+                    "link_label": "Zum Dienstplan",
+                    "date": today.isoformat(),
+                }
+            )
 
     # ── 2. Überstunden > Schwellenwert ───────────────────────────
     OVERTIME_THRESHOLD = 20.0  # hours
@@ -2235,17 +2730,19 @@ def get_warnings(
         for s in stats:
             ot = s.get("overtime_hours", 0)
             if ot > OVERTIME_THRESHOLD:
-                warnings.append({
-                    "id": make_id(),
-                    "type": "overtime_exceeded",
-                    "severity": "warning",
-                    "title": f"Überstunden: {s['employee_name']}",
-                    "message": f"{s['employee_name']} hat {ot:+.1f}h Überstunden in {year}/{month:02d}.",
-                    "link": "/ueberstunden",
-                    "link_label": "Zur Überstunden-Ansicht",
-                    "employee_id": s["employee_id"],
-                    "date": f"{year:04d}-{month:02d}-01",
-                })
+                warnings.append(
+                    {
+                        "id": make_id(),
+                        "type": "overtime_exceeded",
+                        "severity": "warning",
+                        "title": f"Überstunden: {s['employee_name']}",
+                        "message": f"{s['employee_name']} hat {ot:+.1f}h Überstunden in {year}/{month:02d}.",
+                        "link": "/ueberstunden",
+                        "link_label": "Zur Überstunden-Ansicht",
+                        "employee_id": s["employee_id"],
+                        "date": f"{year:04d}-{month:02d}-01",
+                    }
+                )
     except Exception:
         pass
 
@@ -2259,11 +2756,18 @@ def get_warnings(
             prefix = f"{year:04d}-{month:02d}"
 
             # Collect all schedule entries for the month once
-            all_mashi = [r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)]
-            all_spshi = [r for r in db._read("SPSHI") if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0]
+            all_mashi = [
+                r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)
+            ]
+            all_spshi = [
+                r
+                for r in db._read("SPSHI")
+                if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0
+            ]
 
             for day_num in range(1, num_days + 1):
                 from datetime import datetime as _datetime
+
                 check_date = _datetime(year, month, day_num).date()
                 check_str = check_date.isoformat()
                 weekday = check_date.weekday()  # 0=Mon
@@ -2290,17 +2794,21 @@ def get_warnings(
                     shift_id = req.get("shift_id")
                     actual = actual_by_shift.get(shift_id, 0)
                     if actual < min_req:
-                        shift_name = req.get("shift_name") or req.get("shift_short", "Schicht")
-                        warnings.append({
-                            "id": make_id(),
-                            "type": "understaffing",
-                            "severity": "error",
-                            "title": f"Unterbesetzung: {shift_name} am {check_str}",
-                            "message": f"Am {check_date.strftime('%d.%m.%Y')} fehlen {min_req - actual} Mitarbeiter für {shift_name} (Ist: {actual}, Soll: {min_req}).",
-                            "link": "/schedule",
-                            "link_label": "Zum Dienstplan",
-                            "date": check_str,
-                        })
+                        shift_name = req.get("shift_name") or req.get(
+                            "shift_short", "Schicht"
+                        )
+                        warnings.append(
+                            {
+                                "id": make_id(),
+                                "type": "understaffing",
+                                "severity": "error",
+                                "title": f"Unterbesetzung: {shift_name} am {check_str}",
+                                "message": f"Am {check_date.strftime('%d.%m.%Y')} fehlen {min_req - actual} Mitarbeiter für {shift_name} (Ist: {actual}, Soll: {min_req}).",
+                                "link": "/schedule",
+                                "link_label": "Zum Dienstplan",
+                                "date": check_str,
+                            }
+                        )
     except Exception:
         pass
 
@@ -2308,17 +2816,22 @@ def get_warnings(
     try:
         conflicts = db.get_schedule_conflicts(year, month)
         for c in conflicts:
-            warnings.append({
-                "id": make_id(),
-                "type": "conflict",
-                "severity": "error",
-                "title": f"Konflikt: {c['employee_name']}",
-                "message": c.get("message", f"{c['employee_name']}: Schicht + Abwesenheit am {c['date']}"),
-                "link": "/konflikte",
-                "link_label": "Zu den Konflikten",
-                "employee_id": c["employee_id"],
-                "date": c["date"],
-            })
+            warnings.append(
+                {
+                    "id": make_id(),
+                    "type": "conflict",
+                    "severity": "error",
+                    "title": f"Konflikt: {c['employee_name']}",
+                    "message": c.get(
+                        "message",
+                        f"{c['employee_name']}: Schicht + Abwesenheit am {c['date']}",
+                    ),
+                    "link": "/konflikte",
+                    "link_label": "Zu den Konflikten",
+                    "employee_id": c["employee_id"],
+                    "date": c["date"],
+                }
+            )
     except Exception:
         pass
 
@@ -2388,7 +2901,7 @@ def get_fairness_score(
         eid = emp["ID"]
         stats[eid] = {
             "employee_id": eid,
-            "name": f"{emp.get('FIRSTNAME','')} {emp.get('NAME','')}".strip(),
+            "name": f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip(),
             "shortname": emp.get("SHORTNAME", ""),
             "total": 0,
             "weekend": 0,
@@ -2433,20 +2946,26 @@ def get_fairness_score(
         return round(max(0, 100 - cv * 100), 1)
 
     weekend_vals = [r["weekend"] for r in result]
-    night_vals   = [r["night"] for r in result]
+    night_vals = [r["night"] for r in result]
     holiday_vals = [r["holiday"] for r in result]
-    total_vals   = [r["total"] for r in result]
+    total_vals = [r["total"] for r in result]
 
     fairness = {
         "weekend_score": score(weekend_vals),
-        "night_score":   score(night_vals),
+        "night_score": score(night_vals),
         "holiday_score": score(holiday_vals),
-        "total_score":   score(total_vals),
-        "overall":       round((score(weekend_vals) + score(night_vals) + score(total_vals)) / 3, 1),
-        "avg_weekend":   round(sum(weekend_vals) / len(weekend_vals), 1),
-        "avg_night":     round(sum(night_vals)   / len(night_vals),   1) if sum(night_vals) else 0,
-        "avg_holiday":   round(sum(holiday_vals) / len(holiday_vals), 1) if sum(holiday_vals) else 0,
-        "avg_total":     round(sum(total_vals)   / len(total_vals),   1),
+        "total_score": score(total_vals),
+        "overall": round(
+            (score(weekend_vals) + score(night_vals) + score(total_vals)) / 3, 1
+        ),
+        "avg_weekend": round(sum(weekend_vals) / len(weekend_vals), 1),
+        "avg_night": round(sum(night_vals) / len(night_vals), 1)
+        if sum(night_vals)
+        else 0,
+        "avg_holiday": round(sum(holiday_vals) / len(holiday_vals), 1)
+        if sum(holiday_vals)
+        else 0,
+        "avg_total": round(sum(total_vals) / len(total_vals), 1),
     }
 
     result.sort(key=lambda x: x["name"])
@@ -2479,7 +2998,9 @@ def get_capacity_forecast(
     from collections import defaultdict
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
+        raise HTTPException(
+            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+        )
 
     db = get_db()
     num_days = _cal.monthrange(year, month)[1]
@@ -2488,25 +3009,33 @@ def get_capacity_forecast(
     # Get all employees (optionally filtered by group)
     all_employees = db.get_employees()
     if group_id:
-        members = db.get_group_members(group_id)
-        member_ids = {m.get('id', m.get('ID')) for m in members}
-        all_employees = [e for e in all_employees if (e.get('id') or e.get('ID')) in member_ids]
+        member_ids = set(db.get_group_members(group_id))
+        all_employees = [
+            e for e in all_employees if (e.get("id") or e.get("ID")) in member_ids
+        ]
     total_emp = len(all_employees)
 
     def _eid(e):
-        return e.get('id') or e.get('ID')
+        return e.get("id") or e.get("ID")
 
     emp_by_id = {_eid(e): e for e in all_employees}
 
     # Build employee name lookup
     emp_name_by_id = {
-        _eid(e): f"{e.get('firstname', e.get('FIRSTNAME',''))} {e.get('lastname', e.get('NAME',''))}".strip()
+        _eid(
+            e
+        ): f"{e.get('firstname', e.get('FIRSTNAME', ''))} {e.get('lastname', e.get('NAME', ''))}".strip()
         for e in all_employees
     }
 
     # Get leave types for labels
     leave_types_list = db.get_leave_types()
-    leave_label_by_id = {lt.get('id', lt.get('ID')): lt.get('short', lt.get('SHORTNAME', lt.get('name', lt.get('NAME', '?')))) for lt in leave_types_list}
+    leave_label_by_id = {
+        lt.get("id", lt.get("ID")): lt.get(
+            "short", lt.get("SHORTNAME", lt.get("name", lt.get("NAME", "?")))
+        )
+        for lt in leave_types_list
+    }
 
     # Get staffing requirements for minimum thresholds
     staffing_req = db.get_staffing_requirements()
@@ -2522,14 +3051,20 @@ def get_capacity_forecast(
 
     # Read schedule entries for the month
     all_mashi = [r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)]
-    all_spshi = [r for r in db._read("SPSHI") if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0]
+    all_spshi = [
+        r
+        for r in db._read("SPSHI")
+        if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0
+    ]
 
     # Read absences for the month
-    all_absences = [r for r in db._read("ABSEN") if r.get("DATE", "").startswith(prefix)]
+    all_absences = [
+        r for r in db._read("ABSEN") if r.get("DATE", "").startswith(prefix)
+    ]
 
     # Per-day aggregation
     day_scheduled: dict = defaultdict(set)  # day -> set of emp_ids
-    day_absent: dict = defaultdict(list)    # day -> [{id, name, type}]
+    day_absent: dict = defaultdict(list)  # day -> [{id, name, type}]
 
     for r in all_mashi:
         d = r.get("DATE", "")
@@ -2562,17 +3097,20 @@ def get_capacity_forecast(
                 if eid and eid in emp_by_id:
                     lt_id = r.get("LEAVETYPID") or r.get("LEAVETYPEID", 0)
                     lt_label = leave_label_by_id.get(lt_id, "Abw")
-                    day_absent[day].append({
-                        "id": eid,
-                        "name": emp_name_by_id.get(eid, f"MA {eid}"),
-                        "absence_type": lt_label,
-                    })
+                    day_absent[day].append(
+                        {
+                            "id": eid,
+                            "name": emp_name_by_id.get(eid, f"MA {eid}"),
+                            "absence_type": lt_label,
+                        }
+                    )
             except (ValueError, IndexError):
                 pass
 
     result = []
     for day in range(1, num_days + 1):
         import datetime as _dt
+
         check_date = _dt.date(year, month, day)
         weekday = check_date.weekday()  # 0=Mon
 
@@ -2605,18 +3143,20 @@ def get_capacity_forecast(
         # Vacation conflict flag: more than 30% of team absent
         conflict_flag = total_emp > 0 and absent_count >= max(2, total_emp * 0.3)
 
-        result.append({
-            "day": day,
-            "date": check_date.isoformat(),
-            "weekday": weekday,  # 0=Mon
-            "scheduled_count": scheduled,
-            "absent_count": absent_count,
-            "absent_employees": absent_list,
-            "required_min": required_min,
-            "coverage_status": status,
-            "conflict_flag": conflict_flag,
-            "total_employees": total_emp,
-        })
+        result.append(
+            {
+                "day": day,
+                "date": check_date.isoformat(),
+                "weekday": weekday,  # 0=Mon
+                "scheduled_count": scheduled,
+                "absent_count": absent_count,
+                "absent_employees": absent_list,
+                "required_min": required_min,
+                "coverage_status": status,
+                "conflict_flag": conflict_flag,
+                "total_employees": total_emp,
+            }
+        )
 
     # Summary stats
     critical_days = [r for r in result if r["coverage_status"] == "critical"]
@@ -2664,13 +3204,15 @@ def get_capacity_year(
     db = get_db()
     all_employees = db.get_employees()
     if group_id:
-        members = db.get_group_members(group_id)
-        member_ids = {m.get('id', m.get('ID')) for m in members}
-        all_employees = [e for e in all_employees if (e.get('id') or e.get('ID')) in member_ids]
+        member_ids = set(db.get_group_members(group_id))
+        all_employees = [
+            e for e in all_employees if (e.get("id") or e.get("ID")) in member_ids
+        ]
     total_emp = len(all_employees)
 
     def _eid(e):
-        return e.get('id') or e.get('ID')
+        return e.get("id") or e.get("ID")
+
     emp_by_id = {_eid(e): e for e in all_employees}
 
     staffing_req = db.get_staffing_requirements()
@@ -2685,12 +3227,21 @@ def get_capacity_year(
     months_result = []
     for month in range(1, 13):
         import datetime as _dt
+
         num_days = _cal.monthrange(year, month)[1]
         prefix = f"{year:04d}-{month:02d}"
 
-        all_mashi = [r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)]
-        all_spshi = [r for r in db._read("SPSHI") if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0]
-        all_absences = [r for r in db._read("ABSEN") if r.get("DATE", "").startswith(prefix)]
+        all_mashi = [
+            r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)
+        ]
+        all_spshi = [
+            r
+            for r in db._read("SPSHI")
+            if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0
+        ]
+        all_absences = [
+            r for r in db._read("ABSEN") if r.get("DATE", "").startswith(prefix)
+        ]
 
         day_scheduled: dict = defaultdict(set)
         day_absent: dict = defaultdict(int)
@@ -2758,8 +3309,12 @@ def get_capacity_year(
                 else:
                     unplanned_days += 1
 
-        avg_staffing = round(staffing_sum / max(1, planned_days), 1) if planned_days > 0 else 0
-        coverage_pct = round(avg_staffing / max(1, total_emp) * 100, 1) if total_emp > 0 else 0
+        avg_staffing = (
+            round(staffing_sum / max(1, planned_days), 1) if planned_days > 0 else 0
+        )
+        coverage_pct = (
+            round(avg_staffing / max(1, total_emp) * 100, 1) if total_emp > 0 else 0
+        )
 
         if critical_days > 0:
             worst_status = "critical"
@@ -2770,19 +3325,21 @@ def get_capacity_year(
         else:
             worst_status = "ok"
 
-        months_result.append({
-            "month": month,
-            "num_days": num_days,
-            "avg_staffing": avg_staffing,
-            "coverage_pct": coverage_pct,
-            "ok_days": ok_days,
-            "low_days": low_days,
-            "critical_days": critical_days,
-            "unplanned_days": unplanned_days,
-            "planned_days": planned_days,
-            "worst_status": worst_status,
-            "total_employees": total_emp,
-        })
+        months_result.append(
+            {
+                "month": month,
+                "num_days": num_days,
+                "avg_staffing": avg_staffing,
+                "coverage_pct": coverage_pct,
+                "ok_days": ok_days,
+                "low_days": low_days,
+                "critical_days": critical_days,
+                "unplanned_days": unplanned_days,
+                "planned_days": planned_days,
+                "worst_status": worst_status,
+                "total_employees": total_emp,
+            }
+        )
 
     return {
         "year": year,
@@ -2792,6 +3349,7 @@ def get_capacity_year(
 
 
 # ── Qualitätsbericht ─────────────────────────────────────────────────────────
+
 
 @router.get(
     "/api/quality-report",
@@ -2807,7 +3365,9 @@ def get_quality_report(
     from collections import defaultdict
 
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
+        raise HTTPException(
+            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+        )
 
     db = get_db()
     num_days = _cal.monthrange(year, month)[1]
@@ -2825,7 +3385,9 @@ def get_quality_report(
         if sid:
             # Stunden = Dauer in h; DURATION in Minuten oder schon Stunden?
             dur_min = s.get("DURATION", 0)  # meist Minuten
-            shifts_by_id[sid] = s.get("HOURS", dur_min / 60.0 if dur_min > 60 else dur_min)
+            shifts_by_id[sid] = s.get(
+                "HOURS", dur_min / 60.0 if dur_min > 60 else dur_min
+            )
 
     # ── Geplante Schichten (MASHI) ───────────────────────────────────────────
     day_emp_sets: dict = defaultdict(set)
@@ -2895,15 +3457,17 @@ def get_quality_report(
             status = "critical"
             critical_days.append(day)
 
-        coverage_days.append({
-            "day": day,
-            "date": date_obj,
-            "weekday": wd,
-            "is_weekend": is_weekend,
-            "scheduled": scheduled,
-            "required": required_min,
-            "status": status,
-        })
+        coverage_days.append(
+            {
+                "day": day,
+                "date": date_obj,
+                "weekday": wd,
+                "is_weekend": is_weekend,
+                "scheduled": scheduled,
+                "required": required_min,
+                "status": status,
+            }
+        )
 
     # ── Stunden-Compliance (via get_statistics für korrekte Stunden-Berechnung) ──
     hours_issues = []
@@ -2928,35 +3492,46 @@ def get_quality_report(
         issue_type = None
         if deviation_pct > 15:
             issue_type = "over"
-        elif actual < target * 0.5 and absence_days < 10 and stat.get("shifts_count", 0) > 0:
+        elif (
+            actual < target * 0.5
+            and absence_days < 10
+            and stat.get("shifts_count", 0) > 0
+        ):
             # stark unterstunden ohne Abwesenheiten = ungewöhnlich
             issue_type = "under"
         if issue_type:
-            hours_issues.append({
-                "employee_id": stat.get("employee_id"),
-                "name": stat.get("employee_name", ""),
-                "short": stat.get("employee_short", ""),
-                "target_hours": round(target, 1),
-                "actual_hours": round(actual, 1),
-                "deviation_pct": round(deviation_pct, 1),
-                "issue_type": issue_type,
-                "shifts_count": stat.get("shifts_count", 0),
-            })
+            hours_issues.append(
+                {
+                    "employee_id": stat.get("employee_id"),
+                    "name": stat.get("employee_name", ""),
+                    "short": stat.get("employee_short", ""),
+                    "target_hours": round(target, 1),
+                    "actual_hours": round(actual, 1),
+                    "deviation_pct": round(deviation_pct, 1),
+                    "issue_type": issue_type,
+                    "shifts_count": stat.get("shifts_count", 0),
+                }
+            )
         else:
             hours_ok.append(stat.get("employee_id"))
 
     # ── Score berechnen ──────────────────────────────────────────────────────
     # Formel: Gewichte Coverage 50%, Hours 30%, Konflikte 20%
     work_days_count = sum(1 for d in coverage_days if not d["is_weekend"])
-    covered_work_days = sum(1 for d in coverage_days
-                            if not d["is_weekend"] and d["status"] in ("ok", "low"))
-    coverage_score = (covered_work_days / work_days_count * 100) if work_days_count else 100
+    covered_work_days = sum(
+        1 for d in coverage_days if not d["is_weekend"] and d["status"] in ("ok", "low")
+    )
+    coverage_score = (
+        (covered_work_days / work_days_count * 100) if work_days_count else 100
+    )
     hours_score = max(0, 100 - len(hours_issues) * 5)
     # Conflicts: critical days & unplanned days penalty
     conflict_penalty = len(critical_days) * 5 + len(unplanned_days) * 3
     conflict_score = max(0, 100 - conflict_penalty)
 
-    overall_score = round(coverage_score * 0.5 + hours_score * 0.3 + conflict_score * 0.2)
+    overall_score = round(
+        coverage_score * 0.5 + hours_score * 0.3 + conflict_score * 0.2
+    )
     if overall_score >= 90:
         grade = "A"
         grade_label = "Ausgezeichnet"
@@ -2977,48 +3552,60 @@ def get_quality_report(
     # ── Issues-Liste zusammenstellen ─────────────────────────────────────────
     findings = []
     if critical_days:
-        findings.append({
-            "severity": "critical",
-            "category": "Besetzung",
-            "message": f"{len(critical_days)} Tag(e) kritisch unterbesetzt",
-            "days": critical_days,
-        })
+        findings.append(
+            {
+                "severity": "critical",
+                "category": "Besetzung",
+                "message": f"{len(critical_days)} Tag(e) kritisch unterbesetzt",
+                "days": critical_days,
+            }
+        )
     if unplanned_days:
-        findings.append({
-            "severity": "warning",
-            "category": "Planung",
-            "message": f"{len(unplanned_days)} Werktag(e) ohne Planung",
-            "days": unplanned_days,
-        })
+        findings.append(
+            {
+                "severity": "warning",
+                "category": "Planung",
+                "message": f"{len(unplanned_days)} Werktag(e) ohne Planung",
+                "days": unplanned_days,
+            }
+        )
     if low_days:
-        findings.append({
-            "severity": "info",
-            "category": "Besetzung",
-            "message": f"{len(low_days)} Tag(e) knapp besetzt",
-            "days": low_days,
-        })
+        findings.append(
+            {
+                "severity": "info",
+                "category": "Besetzung",
+                "message": f"{len(low_days)} Tag(e) knapp besetzt",
+                "days": low_days,
+            }
+        )
     over_emp = [h for h in hours_issues if h["issue_type"] == "over"]
     under_emp = [h for h in hours_issues if h["issue_type"] == "under"]
     if over_emp:
-        findings.append({
-            "severity": "warning",
-            "category": "Überstunden",
-            "message": f"{len(over_emp)} Mitarbeiter mit >15% Überstunden",
-            "employees": [h["short"] for h in over_emp],
-        })
+        findings.append(
+            {
+                "severity": "warning",
+                "category": "Überstunden",
+                "message": f"{len(over_emp)} Mitarbeiter mit >15% Überstunden",
+                "employees": [h["short"] for h in over_emp],
+            }
+        )
     if under_emp:
-        findings.append({
-            "severity": "warning",
-            "category": "Unterstunden",
-            "message": f"{len(under_emp)} Mitarbeiter stark unterstundet",
-            "employees": [h["short"] for h in under_emp],
-        })
+        findings.append(
+            {
+                "severity": "warning",
+                "category": "Unterstunden",
+                "message": f"{len(under_emp)} Mitarbeiter stark unterstundet",
+                "employees": [h["short"] for h in under_emp],
+            }
+        )
     if not findings:
-        findings.append({
-            "severity": "ok",
-            "category": "Allgemein",
-            "message": "Keine Auffälligkeiten — Monat kann abgeschlossen werden.",
-        })
+        findings.append(
+            {
+                "severity": "ok",
+                "category": "Allgemein",
+                "message": "Keine Auffälligkeiten — Monat kann abgeschlossen werden.",
+            }
+        )
 
     return {
         "year": year,
@@ -3059,6 +3646,7 @@ def get_quality_report(
 
 # ── Verfügbarkeits-Matrix ────────────────────────────────────────────────────
 
+
 @router.get(
     "/api/availability-matrix",
     tags=["Statistics"],
@@ -3081,14 +3669,14 @@ def get_availability_matrix(
 
     db = get_db()
     employees = db.get_employees(include_hidden=False)
-    shifts_map = {s['ID']: s for s in db.get_shifts(include_hidden=True)}
-    groups_map = {g['ID']: g['NAME'] for g in db.get_groups()}
+    shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
+    groups_map = {g["ID"]: g["NAME"] for g in db.get_groups()}
     # Fetch all group memberships in one pass (avoids N+1 in per-employee group lookup)
     all_group_members = db.get_all_group_members()  # {group_id: [employee_ids]}
 
     if group_id:
         members = set(db.get_group_members(group_id))
-        employees = [e for e in employees if e['ID'] in members]
+        employees = [e for e in employees if e["ID"] in members]
 
     if year is None:
         year = datetime.date.today().year
@@ -3101,7 +3689,9 @@ def get_availability_matrix(
 
     # Build per-employee, per-weekday, per-shift counts
     # weekday: 0=Mo .. 6=So
-    emp_wd_shift: dict[int, dict[int, dict]] = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    emp_wd_shift: dict[int, dict[int, dict]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(int))
+    )
     emp_shift_total: dict[int, dict] = defaultdict(lambda: defaultdict(int))
     emp_day_total: dict[int, dict] = defaultdict(lambda: defaultdict(int))
 
@@ -3110,23 +3700,23 @@ def get_availability_matrix(
     while cur <= end_date:
         entries = db.get_schedule(cur.year, cur.month)
         for e in entries:
-            d = datetime.date.fromisoformat(e['date'])
+            d = datetime.date.fromisoformat(e["date"])
             if d < start_date or d > end_date:
                 continue
-            eid = e['employee_id']
+            eid = e["employee_id"]
             wd = d.weekday()  # 0=Mo
-            sid = e.get('shift_id')
-            if e.get('kind') in ('shift', 'special_shift') and sid:
+            sid = e.get("shift_id")
+            if e.get("kind") in ("shift", "special_shift") and sid:
                 shift = shifts_map.get(sid)
-                short = shift.get('SHORTNAME', '?') if shift else '?'
-                name = shift.get('NAME', '?') if shift else '?'
-                shift.get('COLORBK_HEX', '#888') if shift else '#888'
+                short = shift.get("SHORTNAME", "?") if shift else "?"
+                name = shift.get("NAME", "?") if shift else "?"
+                shift.get("COLORBK_HEX", "#888") if shift else "#888"
                 emp_wd_shift[eid][wd][sid] += 1
                 emp_shift_total[eid][sid] += 1
                 emp_day_total[eid][wd] += 1
-            elif e.get('kind') == 'absence':
-                emp_wd_shift[eid][wd]['absence'] += 1
-                emp_shift_total[eid]['absence'] += 1
+            elif e.get("kind") == "absence":
+                emp_wd_shift[eid][wd]["absence"] += 1
+                emp_shift_total[eid]["absence"] += 1
                 emp_day_total[eid][wd] += 1
 
         # advance month
@@ -3138,10 +3728,10 @@ def get_availability_matrix(
     # Build result per employee
     result_employees = []
     for emp in employees:
-        eid = emp['ID']
+        eid = emp["ID"]
         name = f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip()
-        short = emp.get('SHORTNAME', '')
-        workdays = emp.get('WORKDAYS_LIST', [True] * 5 + [False, False])
+        short = emp.get("SHORTNAME", "")
+        workdays = emp.get("WORKDAYS_LIST", [True] * 5 + [False, False])
 
         # Per-weekday breakdown
         weekday_data = []
@@ -3151,72 +3741,84 @@ def get_availability_matrix(
             # Build list of shifts sorted by count desc
             shifts_list = []
             for sid, cnt in sorted(shift_counts.items(), key=lambda x: -x[1]):
-                if sid == 'absence':
-                    shifts_list.append({
-                        'shift_id': None,
-                        'short': 'Ab',
-                        'name': 'Abwesenheit',
-                        'color': '#94a3b8',
-                        'count': cnt,
-                        'pct': round(cnt / total_for_day * 100) if total_for_day else 0,
-                    })
+                if sid == "absence":
+                    shifts_list.append(
+                        {
+                            "shift_id": None,
+                            "short": "Ab",
+                            "name": "Abwesenheit",
+                            "color": "#94a3b8",
+                            "count": cnt,
+                            "pct": round(cnt / total_for_day * 100)
+                            if total_for_day
+                            else 0,
+                        }
+                    )
                 else:
                     shift = shifts_map.get(sid)
                     if shift:
-                        shifts_list.append({
-                            'shift_id': sid,
-                            'short': shift.get('SHORTNAME', '?'),
-                            'name': shift.get('NAME', '?'),
-                            'color': shift.get('COLORBK_HEX', '#888'),
-                            'count': cnt,
-                            'pct': round(cnt / total_for_day * 100) if total_for_day else 0,
-                        })
-            weekday_data.append({
-                'weekday': wd,
-                'total': total_for_day,
-                'configured': workdays[wd] if wd < len(workdays) else False,
-                'shifts': shifts_list,
-                # dominant shift
-                'dominant_shift': shifts_list[0] if shifts_list else None,
-            })
+                        shifts_list.append(
+                            {
+                                "shift_id": sid,
+                                "short": shift.get("SHORTNAME", "?"),
+                                "name": shift.get("NAME", "?"),
+                                "color": shift.get("COLORBK_HEX", "#888"),
+                                "count": cnt,
+                                "pct": round(cnt / total_for_day * 100)
+                                if total_for_day
+                                else 0,
+                            }
+                        )
+            weekday_data.append(
+                {
+                    "weekday": wd,
+                    "total": total_for_day,
+                    "configured": workdays[wd] if wd < len(workdays) else False,
+                    "shifts": shifts_list,
+                    # dominant shift
+                    "dominant_shift": shifts_list[0] if shifts_list else None,
+                }
+            )
 
         # Overall shift mix
-        total_shifts = sum(v for k, v in emp_shift_total[eid].items() if k != 'absence')
+        total_shifts = sum(v for k, v in emp_shift_total[eid].items() if k != "absence")
         shift_mix = []
         for sid, cnt in sorted(emp_shift_total[eid].items(), key=lambda x: -x[1]):
-            if sid == 'absence':
+            if sid == "absence":
                 continue
             shift = shifts_map.get(sid)
             if shift:
-                shift_mix.append({
-                    'shift_id': sid,
-                    'short': shift.get('SHORTNAME', '?'),
-                    'name': shift.get('NAME', '?'),
-                    'color': shift.get('COLORBK_HEX', '#888'),
-                    'count': cnt,
-                    'pct': round(cnt / total_shifts * 100) if total_shifts else 0,
-                })
+                shift_mix.append(
+                    {
+                        "shift_id": sid,
+                        "short": shift.get("SHORTNAME", "?"),
+                        "name": shift.get("NAME", "?"),
+                        "color": shift.get("COLORBK_HEX", "#888"),
+                        "count": cnt,
+                        "pct": round(cnt / total_shifts * 100) if total_shifts else 0,
+                    }
+                )
 
         # Pattern label
-        active_wd = sum(1 for w in weekday_data if w['total'] > 0)
+        active_wd = sum(1 for w in weekday_data if w["total"] > 0)
         if total_shifts == 0:
-            pattern = 'Keine Daten'
-            pattern_icon = '⬜'
-        elif len(set(s['shift_id'] for s in shift_mix)) >= 3:
-            pattern = '3-Schicht-Rotation'
-            pattern_icon = '🔄'
-        elif len(set(s['shift_id'] for s in shift_mix)) == 2:
-            pattern = '2-Schicht-Wechsel'
-            pattern_icon = '↔️'
+            pattern = "Keine Daten"
+            pattern_icon = "⬜"
+        elif len(set(s["shift_id"] for s in shift_mix)) >= 3:
+            pattern = "3-Schicht-Rotation"
+            pattern_icon = "🔄"
+        elif len(set(s["shift_id"] for s in shift_mix)) == 2:
+            pattern = "2-Schicht-Wechsel"
+            pattern_icon = "↔️"
         elif active_wd >= 5:
-            pattern = 'Tagschicht Mo–Fr'
-            pattern_icon = '☀️'
+            pattern = "Tagschicht Mo–Fr"
+            pattern_icon = "☀️"
         elif active_wd >= 3:
-            pattern = 'Teilzeit'
-            pattern_icon = '📅'
+            pattern = "Teilzeit"
+            pattern_icon = "📅"
         else:
-            pattern = 'Wenige Einsätze'
-            pattern_icon = '📉'
+            pattern = "Wenige Einsätze"
+            pattern_icon = "📉"
 
         # Group (use pre-fetched all_group_members to avoid N+1)
         emp_groups = []
@@ -3224,41 +3826,53 @@ def get_availability_matrix(
             if eid in all_group_members.get(gid, []):
                 emp_groups.append(gname)
 
-        result_employees.append({
-            'id': eid,
-            'name': name,
-            'short': short,
-            'groups': emp_groups,
-            'pattern': pattern,
-            'pattern_icon': pattern_icon,
-            'total_shifts': total_shifts,
-            'shift_mix': shift_mix,
-            'weekdays': weekday_data,
-            # configured workdays from employee record
-            'workdays_config': workdays,
-        })
+        result_employees.append(
+            {
+                "id": eid,
+                "name": name,
+                "short": short,
+                "groups": emp_groups,
+                "pattern": pattern,
+                "pattern_icon": pattern_icon,
+                "total_shifts": total_shifts,
+                "shift_mix": shift_mix,
+                "weekdays": weekday_data,
+                # configured workdays from employee record
+                "workdays_config": workdays,
+            }
+        )
 
     # Coverage per weekday (how many employees available)
     weekday_coverage = []
     for wd in range(7):
-        configured = sum(1 for emp in employees
-                         if wd < len(emp.get('WORKDAYS_LIST', [])) and emp['WORKDAYS_LIST'][wd])
-        actual = sum(1 for e in result_employees if e['weekdays'][wd]['total'] > 0)
-        weekday_coverage.append({
-            'weekday': wd,
-            'configured': configured,
-            'actual_data': actual,
-        })
+        configured = sum(
+            1
+            for emp in employees
+            if wd < len(emp.get("WORKDAYS_LIST", [])) and emp["WORKDAYS_LIST"][wd]
+        )
+        actual = sum(1 for e in result_employees if e["weekdays"][wd]["total"] > 0)
+        weekday_coverage.append(
+            {
+                "weekday": wd,
+                "configured": configured,
+                "actual_data": actual,
+            }
+        )
 
     return {
-        'year': year,
-        'months': months,
-        'start_date': start_date.isoformat(),
-        'end_date': end_date.isoformat(),
-        'employees': result_employees,
-        'weekday_coverage': weekday_coverage,
-        'shifts': [
-            {'id': s['ID'], 'name': s['NAME'], 'short': s['SHORTNAME'], 'color': s.get('COLORBK_HEX', '#888')}
+        "year": year,
+        "months": months,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "employees": result_employees,
+        "weekday_coverage": weekday_coverage,
+        "shifts": [
+            {
+                "id": s["ID"],
+                "name": s["NAME"],
+                "short": s["SHORTNAME"],
+                "color": s.get("COLORBK_HEX", "#888"),
+            }
             for s in db.get_shifts(include_hidden=False)
         ],
     }
@@ -3266,15 +3880,18 @@ def get_availability_matrix(
 
 # ── Schichtplan-Simulation ────────────────────────────────────────────────────
 
+
 class SimulationAbsence(BaseModel):
     emp_id: int = Field(..., gt=0)
     dates: list  # list of 'YYYY-MM-DD' strings, or ['all'] for whole month
+
 
 class SimulationRequest(BaseModel):
     year: int = Field(..., ge=2000, le=2100)
     month: int = Field(..., ge=1, le=12)
     absences: list  # list of SimulationAbsence dicts
     scenario_name: Optional[str] = Field("Simulation", max_length=100)
+
 
 @router.post(
     "/api/simulation",
@@ -3287,13 +3904,14 @@ def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_pl
     Vergleicht Ist-Besetzung mit simulierter Besetzung nach Ausfall.
     """
     import calendar as _cal
+
     db = get_db()
     year, month = body.year, body.month
     entries = db.get_schedule(year=year, month=month)
     employees = db.get_employees(include_hidden=False)
     shifts = db.get_shifts(include_hidden=True)
-    emp_map = {e['ID']: e for e in employees}
-    {s['ID']: s for s in shifts}
+    emp_map = {e["ID"]: e for e in employees}
+    {s["ID"]: s for s in shifts}
 
     # Days in month
     days_in_month = _cal.monthrange(year, month)[1]
@@ -3302,9 +3920,9 @@ def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_pl
     # Build absent set: {emp_id: set(dates)}
     absent_map: dict = {}
     for ab in body.absences:
-        emp_id = ab['emp_id'] if isinstance(ab, dict) else ab.emp_id
-        dates_raw = ab['dates'] if isinstance(ab, dict) else ab.dates
-        if dates_raw == ['all'] or dates_raw == 'all':
+        emp_id = ab["emp_id"] if isinstance(ab, dict) else ab.emp_id
+        dates_raw = ab["dates"] if isinstance(ab, dict) else ab.dates
+        if dates_raw == ["all"] or dates_raw == "all":
             dates_set = set(date_strs)
         else:
             dates_set = set(dates_raw)
@@ -3317,13 +3935,19 @@ def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_pl
     affected_employees = set(absent_map.keys())
 
     for date_str in date_strs:
-        day_entries = [e for e in entries if e['date'] == date_str and e['kind'] == 'shift']
+        day_entries = [
+            e for e in entries if e["date"] == date_str and e["kind"] == "shift"
+        ]
         baseline_count = len(day_entries)
 
         # Remove entries for absent employees on this date
         simulated = [
-            e for e in day_entries
-            if not (e['employee_id'] in absent_map and date_str in absent_map[e['employee_id']])
+            e
+            for e in day_entries
+            if not (
+                e["employee_id"] in absent_map
+                and date_str in absent_map[e["employee_id"]]
+            )
         ]
         sim_count = len(simulated)
         lost = baseline_count - sim_count
@@ -3332,77 +3956,89 @@ def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_pl
         # Who is missing on this day
         missing_emps = []
         for e in day_entries:
-            eid = e['employee_id']
+            eid = e["employee_id"]
             if eid in absent_map and date_str in absent_map[eid]:
                 emp = emp_map.get(eid, {})
-                missing_emps.append({
-                    'emp_id': eid,
-                    'name': f"{emp.get('FIRSTNAME','')} {emp.get('NAME','')}".strip(),
-                    'shortname': emp.get('SHORTNAME', str(eid)),
-                    'shift_id': e.get('shift_id'),
-                    'shift_name': e.get('display_name', ''),
-                })
+                missing_emps.append(
+                    {
+                        "emp_id": eid,
+                        "name": f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip(),
+                        "shortname": emp.get("SHORTNAME", str(eid)),
+                        "shift_id": e.get("shift_id"),
+                        "shift_name": e.get("display_name", ""),
+                    }
+                )
 
         # Potential cover candidates: employees with shifts that day NOT absent
         cover_candidates = []
         for e in day_entries:
-            eid = e['employee_id']
+            eid = e["employee_id"]
             if eid not in absent_map or date_str not in absent_map.get(eid, set()):
                 emp = emp_map.get(eid, {})
-                cover_candidates.append({
-                    'emp_id': eid,
-                    'name': f"{emp.get('FIRSTNAME','')} {emp.get('NAME','')}".strip(),
-                    'shortname': emp.get('SHORTNAME', str(eid)),
-                })
+                cover_candidates.append(
+                    {
+                        "emp_id": eid,
+                        "name": f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip(),
+                        "shortname": emp.get("SHORTNAME", str(eid)),
+                    }
+                )
 
         # Status
         if sim_count == 0 and baseline_count > 0:
-            status = 'critical'
+            status = "critical"
             critical_days += 1
         elif lost > 0:
-            status = 'degraded'
+            status = "degraded"
         else:
-            status = 'ok'
+            status = "ok"
 
-        day_stats.append({
-            'date': date_str,
-            'day': int(date_str.split('-')[2]),
-            'weekday': _cal.weekday(year, month, int(date_str.split('-')[2])),
-            'baseline_count': baseline_count,
-            'simulated_count': sim_count,
-            'lost_shifts': lost,
-            'status': status,
-            'missing': missing_emps,
-            'cover_candidates': cover_candidates[:5],  # top 5
-        })
+        day_stats.append(
+            {
+                "date": date_str,
+                "day": int(date_str.split("-")[2]),
+                "weekday": _cal.weekday(year, month, int(date_str.split("-")[2])),
+                "baseline_count": baseline_count,
+                "simulated_count": sim_count,
+                "lost_shifts": lost,
+                "status": status,
+                "missing": missing_emps,
+                "cover_candidates": cover_candidates[:5],  # top 5
+            }
+        )
 
     # Per-employee impact summary
     employee_impacts = []
     for emp_id in absent_map:
         emp = emp_map.get(emp_id, {})
-        emp_entries = [e for e in entries if e['employee_id'] == emp_id and e['kind'] == 'shift']
+        emp_entries = [
+            e for e in entries if e["employee_id"] == emp_id and e["kind"] == "shift"
+        ]
         absent_dates = absent_map[emp_id]
-        affected = [e for e in emp_entries if e['date'] in absent_dates]
-        employee_impacts.append({
-            'emp_id': emp_id,
-            'name': f"{emp.get('FIRSTNAME','')} {emp.get('NAME','')}".strip(),
-            'shortname': emp.get('SHORTNAME', str(emp_id)),
-            'total_shifts_in_month': len(emp_entries),
-            'absent_shifts': len(affected),
-            'absent_days': sorted(list(absent_dates & {e['date'] for e in emp_entries})),
-        })
+        affected = [e for e in emp_entries if e["date"] in absent_dates]
+        employee_impacts.append(
+            {
+                "emp_id": emp_id,
+                "name": f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip(),
+                "shortname": emp.get("SHORTNAME", str(emp_id)),
+                "total_shifts_in_month": len(emp_entries),
+                "absent_shifts": len(affected),
+                "absent_days": sorted(
+                    list(absent_dates & {e["date"] for e in emp_entries})
+                ),
+            }
+        )
 
     return {
-        'scenario_name': body.scenario_name,
-        'year': year,
-        'month': month,
-        'days': day_stats,
-        'summary': {
-            'total_lost_shifts': total_lost_shifts,
-            'critical_days': critical_days,
-            'degraded_days': sum(1 for d in day_stats if d['status'] == 'degraded'),
-            'ok_days': sum(1 for d in day_stats if d['status'] == 'ok'),
-            'affected_employees': len(affected_employees),
+        "scenario_name": body.scenario_name,
+        "year": year,
+        "month": month,
+        "days": day_stats,
+        "summary": {
+            "total_lost_shifts": total_lost_shifts,
+            "critical_days": critical_days,
+            "degraded_days": sum(1 for d in day_stats if d["status"] == "degraded"),
+            "ok_days": sum(1 for d in day_stats if d["status"] == "ok"),
+            "affected_employees": len(affected_employees),
         },
-        'employee_impacts': employee_impacts,
+        "employee_impacts": employee_impacts,
     }

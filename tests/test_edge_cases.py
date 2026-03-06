@@ -2,11 +2,13 @@
 Edge case tests for OpenSchichtplaner5 backend.
 Covers: invalid month/year bounds, missing DB files, empty results, long strings.
 """
+
 import os
 import pytest
 
 
 # ── Month/Year bounds validation ──────────────────────────────────────────────
+
 
 class TestMonthYearBounds:
     """Verify all endpoints reject out-of-range month/year values."""
@@ -119,44 +121,51 @@ class TestMonthYearBounds:
 
 # ── DBF reader edge cases ─────────────────────────────────────────────────────
 
+
 class TestDbfReaderEdgeCases:
     """Verify DBF reader handles missing/corrupt files gracefully."""
 
     def test_read_dbf_missing_file_returns_empty(self):
         """Verify read dbf missing file returns empty."""
         from sp5lib.dbf_reader import read_dbf
+
         result = read_dbf("/nonexistent/path/MISSING.DBF")
         assert result == []
 
     def test_get_table_fields_missing_file_returns_empty(self):
         """Verify get table fields missing file returns empty."""
         from sp5lib.dbf_reader import get_table_fields
+
         result = get_table_fields("/nonexistent/path/MISSING.DBF")
         assert result == []
 
     def test_read_dbf_empty_path_returns_empty(self):
         """Verify read dbf empty path returns empty."""
         from sp5lib.dbf_reader import read_dbf
+
         result = read_dbf("")
         assert result == []
 
     def test_read_dbf_truncated_file_returns_empty(self, tmp_path):
         """Verify read dbf truncated file returns empty."""
         from sp5lib.dbf_reader import read_dbf
+
         f = tmp_path / "truncated.dbf"
-        f.write_bytes(b'\x03\x00')  # too short (< 32 bytes)
+        f.write_bytes(b"\x03\x00")  # too short (< 32 bytes)
         result = read_dbf(str(f))
         assert result == []
 
     def test_find_all_records_missing_file_returns_empty(self):
         """Verify find all records missing file returns empty."""
         from sp5lib.dbf_writer import find_all_records
+
         result = find_all_records("/nonexistent/path/MISSING.DBF", fields=[])
         assert result == []
 
     def test_read_header_info_missing_file_raises(self):
         """Verify read header info missing file raises."""
         from sp5lib.dbf_writer import _read_header_info
+
         with pytest.raises(FileNotFoundError) as exc_info:
             _read_header_info("/nonexistent/MISSING.DBF")
         assert "DBF-Datei nicht gefunden" in str(exc_info.value)
@@ -164,6 +173,7 @@ class TestDbfReaderEdgeCases:
 
 
 # ── Empty result handling ─────────────────────────────────────────────────────
+
 
 class TestEmptyResults:
     """Endpoints should return empty lists/dicts, never None."""
@@ -194,12 +204,15 @@ class TestEmptyResults:
         """Database with 0 employees returns empty list, not None."""
         import shutil
 
-        fixtures_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
+        fixtures_dir = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "fixtures"
+        )
         dst = tmp_path / "Daten"
         shutil.copytree(fixtures_dir, str(dst))
 
         import api.main as main_module
         from sp5lib.database import SP5Database
+
         old_db_path = main_module.DB_PATH
 
         try:
@@ -214,33 +227,41 @@ class TestEmptyResults:
 
 # ── Long string input ─────────────────────────────────────────────────────────
 
+
 class TestLongStringInput:
     """Verify very long string inputs don't cause server errors."""
 
     def test_employee_name_very_long_string(self, sync_client):
         """POST with very long name should return 4xx, not 500."""
         long_name = "A" * 10000
-        resp = sync_client.post("/api/employees", json={
-            "NAME": long_name,
-            "SHORTNAME": "X",
-        })
+        resp = sync_client.post(
+            "/api/employees",
+            json={
+                "NAME": long_name,
+                "SHORTNAME": "X",
+            },
+        )
         # Should not be 500 (either created with truncation or rejected with 4xx)
         assert resp.status_code != 500
 
     def test_absence_note_very_long_string(self, sync_client):
         """Very long note in absence should not cause 500."""
         long_note = "B" * 10000
-        resp = sync_client.post("/api/absences", json={
-            "EMPID": 1,
-            "STARTDATE": "2024-01-01",
-            "ENDDATE": "2024-01-01",
-            "REASON": "K",
-            "NOTE": long_note,
-        })
+        resp = sync_client.post(
+            "/api/absences",
+            json={
+                "EMPID": 1,
+                "STARTDATE": "2024-01-01",
+                "ENDDATE": "2024-01-01",
+                "REASON": "K",
+                "NOTE": long_note,
+            },
+        )
         assert resp.status_code != 500
 
 
 # ── HTTP method enforcement ───────────────────────────────────────────────────
+
 
 class TestHttpMethodEnforcement:
     """GET-only endpoints must reject DELETE/PUT/PATCH."""
@@ -267,6 +288,7 @@ class TestHttpMethodEnforcement:
 
 
 # ── Missing required parameters ───────────────────────────────────────────────
+
 
 class TestMissingParameters:
     """Endpoints with required params should return 422 if missing."""

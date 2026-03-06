@@ -43,26 +43,35 @@ class TestFrontendErrorEndpoint:
 
     def test_report_error_ok(self, sync_client):
         """Verify report error ok."""
-        resp = sync_client.post("/api/errors", json={
-            "error": "Test error",
-            "url": "http://localhost/",
-        })
+        resp = sync_client.post(
+            "/api/errors",
+            json={
+                "error": "Test error",
+                "url": "http://localhost/",
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
     def test_report_error_field_too_long(self, sync_client):
         """Error field must be capped at 2000 chars."""
-        resp = sync_client.post("/api/errors", json={
-            "error": "x" * 2001,
-        })
+        resp = sync_client.post(
+            "/api/errors",
+            json={
+                "error": "x" * 2001,
+            },
+        )
         assert resp.status_code == 422
 
     def test_report_error_component_stack_too_long(self, sync_client):
         """Verify report error component stack too long."""
-        resp = sync_client.post("/api/errors", json={
-            "error": "err",
-            "component_stack": "x" * 5001,
-        })
+        resp = sync_client.post(
+            "/api/errors",
+            json={
+                "error": "err",
+                "component_stack": "x" * 5001,
+            },
+        )
         assert resp.status_code == 422
 
     def test_admin_frontend_errors_accessible_as_admin(self, sync_client):
@@ -92,6 +101,7 @@ class TestUnauthenticated:
     def test_admin_frontend_errors_requires_auth(self, app):
         """GET /api/admin/frontend-errors must return 401 without token."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=True) as c:
             resp = c.get("/api/admin/frontend-errors")
         assert resp.status_code == 401
@@ -99,6 +109,7 @@ class TestUnauthenticated:
     def test_admin_cache_stats_requires_auth(self, app):
         """GET /api/admin/cache-stats must return 401 without token."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=True) as c:
             resp = c.get("/api/admin/cache-stats")
         assert resp.status_code == 401
@@ -106,6 +117,7 @@ class TestUnauthenticated:
     def test_sse_requires_auth(self, app):
         """GET /api/events must return 401 without token."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=True) as c:
             resp = c.get("/api/events", headers={"Accept": "text/event-stream"})
         assert resp.status_code == 401

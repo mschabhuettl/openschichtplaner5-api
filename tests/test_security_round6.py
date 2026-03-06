@@ -1,4 +1,5 @@
 """Security Audit Round 6 — XSS Prevention & HTML Injection Tests"""
+
 from fastapi.testclient import TestClient
 from api.main import app
 
@@ -60,7 +61,7 @@ class TestContentTypeValidation:
         r = client.post(
             "/api/auth/login",
             content='{"username":"admin","password":"Test1234"}',
-            headers={"Content-Type": "text/plain"}
+            headers={"Content-Type": "text/plain"},
         )
         assert r.status_code == 422
 
@@ -68,8 +69,7 @@ class TestContentTypeValidation:
         """Login endpoint accepts application/json."""
         client = TestClient(app)
         r = client.post(
-            "/api/auth/login",
-            json={"username": "admin", "password": "wrongpassword"}
+            "/api/auth/login", json={"username": "admin", "password": "wrongpassword"}
         )
         assert r.status_code in (200, 401, 403)
 
@@ -80,11 +80,14 @@ class TestErrorEndpointSafety:
     def test_error_endpoint_accepts_script_tag(self):
         """Error endpoint stores but does not reflect XSS payloads."""
         client = TestClient(app)
-        r = client.post("/api/errors", json={
-            "error": "<script>alert(1)</script>",
-            "url": "/test",
-            "user_agent": "test"
-        })
+        r = client.post(
+            "/api/errors",
+            json={
+                "error": "<script>alert(1)</script>",
+                "url": "/test",
+                "user_agent": "test",
+            },
+        )
         assert r.status_code == 200
         # Response should be {"ok": true} — not echoing the script
         data = r.json()
@@ -94,8 +97,11 @@ class TestErrorEndpointSafety:
     def test_error_endpoint_enforces_max_length(self):
         """Error endpoint rejects oversized error strings."""
         client = TestClient(app)
-        r = client.post("/api/errors", json={
-            "error": "A" * 2001,  # Exceeds max_length=2000
-            "url": "/test"
-        })
+        r = client.post(
+            "/api/errors",
+            json={
+                "error": "A" * 2001,  # Exceeds max_length=2000
+                "url": "/test",
+            },
+        )
         assert r.status_code == 422

@@ -1,13 +1,18 @@
 """Master data router: shifts, leave-types, workplaces, holidays, extracharges, staffing-requirements, skills."""
+
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 from typing import Optional
 from ..dependencies import (
-    get_db, require_admin, require_planer, require_auth, _sanitize_500, _logger,
+    get_db,
+    require_admin,
+    require_planer,
+    require_auth,
+    _sanitize_500,
+    _logger,
 )
 
 router = APIRouter()
-
 
 
 @router.get("/api/shifts", tags=["Shifts"], summary="List shifts")
@@ -32,7 +37,12 @@ def get_holidays(year: Optional[int] = None):
 
 # ── Staffing Requirements ─────────────────────────────────────
 
-@router.get("/api/staffing-requirements", tags=["Schedule"], summary="List staffing requirements")
+
+@router.get(
+    "/api/staffing-requirements",
+    tags=["Schedule"],
+    summary="List staffing requirements",
+)
 def get_staffing_requirements(
     year: Optional[int] = Query(None),
     month: Optional[int] = Query(None),
@@ -40,14 +50,16 @@ def get_staffing_requirements(
 ):
     data = get_db().get_staffing_requirements(year=year, month=month)
     if group_id is not None:
-        data['shift_requirements'] = [
-            r for r in data['shift_requirements']
-            if r.get('group_id') is None or r.get('group_id') == group_id
+        data["shift_requirements"] = [
+            r
+            for r in data["shift_requirements"]
+            if r.get("group_id") is None or r.get("group_id") == group_id
         ]
     return data
 
 
 # ── Staffing Requirements Write ──────────────────────────────
+
 
 class StaffingRequirementSet(BaseModel):
     shift_id: int
@@ -57,10 +69,16 @@ class StaffingRequirementSet(BaseModel):
     group_id: int
 
 
-@router.post("/api/staffing-requirements", tags=["Schedule"], summary="Set staffing requirement")
-def set_staffing_requirement(body: StaffingRequirementSet, _cur_user: dict = Depends(require_planer)):
+@router.post(
+    "/api/staffing-requirements", tags=["Schedule"], summary="Set staffing requirement"
+)
+def set_staffing_requirement(
+    body: StaffingRequirementSet, _cur_user: dict = Depends(require_planer)
+):
     if not (0 <= body.weekday <= 6):
-        raise HTTPException(status_code=400, detail="weekday muss zwischen 0 (Mo) und 6 (So) liegen")
+        raise HTTPException(
+            status_code=400, detail="weekday muss zwischen 0 (Mo) und 6 (So) liegen"
+        )
     if body.min < 0:
         raise HTTPException(status_code=400, detail="min darf nicht negativ sein")
     if body.max < body.min:
@@ -80,9 +98,10 @@ def set_staffing_requirement(body: StaffingRequirementSet, _cur_user: dict = Dep
 
 # ── Write: Shifts ─────────────────────────────────────────────
 
+
 class ShiftCreate(BaseModel):
     NAME: str
-    SHORTNAME: str = ''
+    SHORTNAME: str = ""
     COLORBK: int = 16777215
     COLORTEXT: int = 0
     COLORBAR: int = 0
@@ -136,47 +155,69 @@ def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     if body.DURATION0 is not None and body.DURATION0 < 0:
-        raise HTTPException(status_code=400, detail="Feld 'DURATION0' darf nicht negativ sein")
+        raise HTTPException(
+            status_code=400, detail="Feld 'DURATION0' darf nicht negativ sein"
+        )
     try:
         result = get_db().create_shift(body.model_dump())
-        _logger.warning("AUDIT SHIFT_CREATE | user=%s name=%s id=%s", _cur_user.get('NAME'), body.NAME, result.get('ID'))
+        _logger.warning(
+            "AUDIT SHIFT_CREATE | user=%s name=%s id=%s",
+            _cur_user.get("NAME"),
+            body.NAME,
+            result.get("ID"),
+        )
         return {"ok": True, "record": result}
     except ValueError as e:
-        if str(e).startswith('DUPLICATE:SHIFTNAME:'):
-            raise HTTPException(status_code=409, detail=f"Schicht mit dem Namen '{body.NAME}' existiert bereits")
-        raise _sanitize_500(e, 'create_shift')
+        if str(e).startswith("DUPLICATE:SHIFTNAME:"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Schicht mit dem Namen '{body.NAME}' existiert bereits",
+            )
+        raise _sanitize_500(e, "create_shift")
     except Exception as e:
-        raise _sanitize_500(e, 'create_shift')
+        raise _sanitize_500(e, "create_shift")
 
 
 @router.put("/api/shifts/{shift_id}", tags=["Shifts"], summary="Update shift")
-def update_shift(shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(require_admin)):
+def update_shift(
+    shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(require_admin)
+):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_shift(shift_id, data)
-        _logger.warning("AUDIT SHIFT_UPDATE | user=%s shift_id=%d fields=%s", _cur_user.get('NAME'), shift_id, list(data.keys()))
+        _logger.warning(
+            "AUDIT SHIFT_UPDATE | user=%s shift_id=%d fields=%s",
+            _cur_user.get("NAME"),
+            shift_id,
+            list(data.keys()),
+        )
         return {"ok": True, "record": result}
     except ValueError:
-        raise HTTPException(status_code=404, detail=f"Schicht ID {shift_id} nicht gefunden")
+        raise HTTPException(
+            status_code=404, detail=f"Schicht ID {shift_id} nicht gefunden"
+        )
     except Exception as e:
-        raise _sanitize_500(e, f'update_shift/{shift_id}')
+        raise _sanitize_500(e, f"update_shift/{shift_id}")
 
 
 @router.delete("/api/shifts/{shift_id}", tags=["Shifts"], summary="Delete shift")
 def hide_shift(shift_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().hide_shift(shift_id)
-        _logger.warning("AUDIT SHIFT_DELETE | user=%s shift_id=%d", _cur_user.get('NAME'), shift_id)
+        _logger.warning(
+            "AUDIT SHIFT_DELETE | user=%s shift_id=%d", _cur_user.get("NAME"), shift_id
+        )
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise _sanitize_500(e, f'hide_shift/{shift_id}')
+        raise _sanitize_500(e, f"hide_shift/{shift_id}")
 
 
 # ── Write: Leave Types ────────────────────────────────────────
 
+
 class LeaveTypeCreate(BaseModel):
     NAME: str
-    SHORTNAME: str = ''
+    SHORTNAME: str = ""
     COLORBK: int = 16777215
     COLORTEXT: int = 0
     COLORBAR: int = 0
@@ -202,36 +243,45 @@ def create_leave_type(body: LeaveTypeCreate, _cur_user: dict = Depends(require_a
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     if body.STDENTIT is not None and body.STDENTIT < 0:
-        raise HTTPException(status_code=400, detail="Feld 'STDENTIT' darf nicht negativ sein")
+        raise HTTPException(
+            status_code=400, detail="Feld 'STDENTIT' darf nicht negativ sein"
+        )
     try:
         result = get_db().create_leave_type(body.model_dump())
         return {"ok": True, "record": result}
     except Exception as e:
-        raise _sanitize_500(e, 'create_leave_type')
+        raise _sanitize_500(e, "create_leave_type")
 
 
 @router.put("/api/leave-types/{lt_id}", tags=["Absences"], summary="Update leave type")
-def update_leave_type(lt_id: int, body: LeaveTypeUpdate, _cur_user: dict = Depends(require_admin)):
+def update_leave_type(
+    lt_id: int, body: LeaveTypeUpdate, _cur_user: dict = Depends(require_admin)
+):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_leave_type(lt_id, data)
         return {"ok": True, "record": result}
     except ValueError:
-        raise HTTPException(status_code=404, detail=f"Abwesenheitstyp ID {lt_id} nicht gefunden")
+        raise HTTPException(
+            status_code=404, detail=f"Abwesenheitstyp ID {lt_id} nicht gefunden"
+        )
     except Exception as e:
-        raise _sanitize_500(e, f'update_leave_type/{lt_id}')
+        raise _sanitize_500(e, f"update_leave_type/{lt_id}")
 
 
-@router.delete("/api/leave-types/{lt_id}", tags=["Absences"], summary="Delete leave type")
+@router.delete(
+    "/api/leave-types/{lt_id}", tags=["Absences"], summary="Delete leave type"
+)
 def hide_leave_type(lt_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().hide_leave_type(lt_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
-        raise _sanitize_500(e, f'hide_leave_type/{lt_id}')
+        raise _sanitize_500(e, f"hide_leave_type/{lt_id}")
 
 
 # ── Write: Holidays ───────────────────────────────────────────
+
 
 class HolidayCreate(BaseModel):
     DATE: str
@@ -251,9 +301,12 @@ def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     try:
         from datetime import datetime as _dtt
-        _dtt.strptime(body.DATE, '%Y-%m-%d')
+
+        _dtt.strptime(body.DATE, "%Y-%m-%d")
     except ValueError:
-        raise HTTPException(status_code=400, detail="DATE muss im Format YYYY-MM-DD sein")
+        raise HTTPException(
+            status_code=400, detail="DATE muss im Format YYYY-MM-DD sein"
+        )
     try:
         result = get_db().create_holiday(body.model_dump())
         return {"ok": True, "record": result}
@@ -262,7 +315,9 @@ def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)
 
 
 @router.put("/api/holidays/{holiday_id}", tags=["Events"], summary="Update holiday")
-def update_holiday(holiday_id: int, body: HolidayUpdate, _cur_user: dict = Depends(require_admin)):
+def update_holiday(
+    holiday_id: int, body: HolidayUpdate, _cur_user: dict = Depends(require_admin)
+):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_holiday(holiday_id, data)
@@ -284,9 +339,10 @@ def delete_holiday(holiday_id: int, _cur_user: dict = Depends(require_admin)):
 
 # ── Write: Workplaces ─────────────────────────────────────────
 
+
 class WorkplaceCreate(BaseModel):
     NAME: str
-    SHORTNAME: str = ''
+    SHORTNAME: str = ""
     COLORBK: int = 16777215
     COLORTEXT: int = 0
     COLORBAR: int = 0
@@ -315,7 +371,9 @@ def create_workplace(body: WorkplaceCreate, _cur_user: dict = Depends(require_ad
 
 
 @router.put("/api/workplaces/{wp_id}", tags=["Employees"], summary="Update workplace")
-def update_workplace(wp_id: int, body: WorkplaceUpdate, _cur_user: dict = Depends(require_admin)):
+def update_workplace(
+    wp_id: int, body: WorkplaceUpdate, _cur_user: dict = Depends(require_admin)
+):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_workplace(wp_id, data)
@@ -326,7 +384,9 @@ def update_workplace(wp_id: int, body: WorkplaceUpdate, _cur_user: dict = Depend
         raise _sanitize_500(e)
 
 
-@router.delete("/api/workplaces/{wp_id}", tags=["Employees"], summary="Delete workplace")
+@router.delete(
+    "/api/workplaces/{wp_id}", tags=["Employees"], summary="Delete workplace"
+)
 def hide_workplace(wp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().hide_workplace(wp_id)
@@ -337,7 +397,12 @@ def hide_workplace(wp_id: int, _cur_user: dict = Depends(require_admin)):
 
 # ── Workplace ↔ Employee Assignments ──────────────────────────
 
-@router.get("/api/workplaces/{wp_id}/employees", tags=["Employees"], summary="List workplace employees")
+
+@router.get(
+    "/api/workplaces/{wp_id}/employees",
+    tags=["Employees"],
+    summary="List workplace employees",
+)
 def get_workplace_employees(wp_id: int):
     """Return employees assigned to a workplace."""
     try:
@@ -346,8 +411,14 @@ def get_workplace_employees(wp_id: int):
         raise _sanitize_500(e)
 
 
-@router.post("/api/workplaces/{wp_id}/employees/{employee_id}", tags=["Employees"], summary="Assign employee to workplace")
-def assign_employee_to_workplace(wp_id: int, employee_id: int, _cur_user: dict = Depends(require_admin)):
+@router.post(
+    "/api/workplaces/{wp_id}/employees/{employee_id}",
+    tags=["Employees"],
+    summary="Assign employee to workplace",
+)
+def assign_employee_to_workplace(
+    wp_id: int, employee_id: int, _cur_user: dict = Depends(require_admin)
+):
     """Assign an employee to a workplace."""
     try:
         added = get_db().assign_employee_to_workplace(employee_id, wp_id)
@@ -356,8 +427,14 @@ def assign_employee_to_workplace(wp_id: int, employee_id: int, _cur_user: dict =
         raise _sanitize_500(e)
 
 
-@router.delete("/api/workplaces/{wp_id}/employees/{employee_id}", tags=["Employees"], summary="Remove employee from workplace")
-def remove_employee_from_workplace(wp_id: int, employee_id: int, _cur_user: dict = Depends(require_admin)):
+@router.delete(
+    "/api/workplaces/{wp_id}/employees/{employee_id}",
+    tags=["Employees"],
+    summary="Remove employee from workplace",
+)
+def remove_employee_from_workplace(
+    wp_id: int, employee_id: int, _cur_user: dict = Depends(require_admin)
+):
     """Remove an employee from a workplace."""
     try:
         removed = get_db().remove_employee_from_workplace(employee_id, wp_id)
@@ -368,12 +445,13 @@ def remove_employee_from_workplace(wp_id: int, employee_id: int, _cur_user: dict
 
 # ── Extra Charges (Zeitzuschläge) ─────────────────────────────
 
+
 class ExtraChargeCreate(BaseModel):
     NAME: str
-    START: int = 0      # minutes from midnight
-    END: int = 0        # minutes from midnight
-    VALIDDAYS: str = '0000000'  # 7 chars: 0=inactive, 1=active per weekday (Mon-Sun)
-    HOLRULE: int = 0    # 0=no holiday rule, 1=holidays only, 2=not on holidays
+    START: int = 0  # minutes from midnight
+    END: int = 0  # minutes from midnight
+    VALIDDAYS: str = "0000000"  # 7 chars: 0=inactive, 1=active per weekday (Mon-Sun)
+    HOLRULE: int = 0  # 0=no holiday rule, 1=holidays only, 2=not on holidays
     VALIDITY: int = 0
     HIDE: bool = False
 
@@ -395,15 +473,24 @@ def get_extracharges(include_hidden: bool = False):
 
 
 @router.post("/api/extracharges", tags=["Statistics"], summary="Create extra charge")
-def create_extracharge(body: ExtraChargeCreate, _cur_user: dict = Depends(require_admin)):
+def create_extracharge(
+    body: ExtraChargeCreate, _cur_user: dict = Depends(require_admin)
+):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
-    if len(body.VALIDDAYS) != 7 or not all(c in '01' for c in body.VALIDDAYS):
-        raise HTTPException(status_code=400, detail="VALIDDAYS muss genau 7 Zeichen lang sein und nur '0' oder '1' enthalten (z.B. '1111100')")
+    if len(body.VALIDDAYS) != 7 or not all(c in "01" for c in body.VALIDDAYS):
+        raise HTTPException(
+            status_code=400,
+            detail="VALIDDAYS muss genau 7 Zeichen lang sein und nur '0' oder '1' enthalten (z.B. '1111100')",
+        )
     if body.START < 0 or body.START > 1440:
-        raise HTTPException(status_code=400, detail="START muss zwischen 0 und 1440 Minuten liegen")
+        raise HTTPException(
+            status_code=400, detail="START muss zwischen 0 und 1440 Minuten liegen"
+        )
     if body.END < 0 or body.END > 1440:
-        raise HTTPException(status_code=400, detail="END muss zwischen 0 und 1440 Minuten liegen")
+        raise HTTPException(
+            status_code=400, detail="END muss zwischen 0 und 1440 Minuten liegen"
+        )
     try:
         result = get_db().create_extracharge(body.model_dump())
         return {"ok": True, "record": result}
@@ -411,7 +498,9 @@ def create_extracharge(body: ExtraChargeCreate, _cur_user: dict = Depends(requir
         raise _sanitize_500(e)
 
 
-@router.get("/api/extracharges/summary", tags=["Statistics"], summary="Extra charges summary")
+@router.get(
+    "/api/extracharges/summary", tags=["Statistics"], summary="Extra charges summary"
+)
 def get_extracharges_summary(
     year: int = Query(...),
     month: int = Query(...),
@@ -425,8 +514,12 @@ def get_extracharges_summary(
         raise _sanitize_500(e)
 
 
-@router.put("/api/extracharges/{xc_id}", tags=["Statistics"], summary="Update extra charge")
-def update_extracharge(xc_id: int, body: ExtraChargeUpdate, _cur_user: dict = Depends(require_admin)):
+@router.put(
+    "/api/extracharges/{xc_id}", tags=["Statistics"], summary="Update extra charge"
+)
+def update_extracharge(
+    xc_id: int, body: ExtraChargeUpdate, _cur_user: dict = Depends(require_admin)
+):
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_extracharge(xc_id, data)
@@ -437,7 +530,9 @@ def update_extracharge(xc_id: int, body: ExtraChargeUpdate, _cur_user: dict = De
         raise _sanitize_500(e)
 
 
-@router.delete("/api/extracharges/{xc_id}", tags=["Statistics"], summary="Delete extra charge")
+@router.delete(
+    "/api/extracharges/{xc_id}", tags=["Statistics"], summary="Delete extra charge"
+)
 def delete_extracharge(xc_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_extracharge(xc_id)
@@ -448,7 +543,12 @@ def delete_extracharge(xc_id: int, _cur_user: dict = Depends(require_admin)):
 
 # ── Special Staffing Requirements (SPDEM) ────────────────────
 
-@router.get("/api/staffing-requirements/special", tags=["Schedule"], summary="List special staffing requirements")
+
+@router.get(
+    "/api/staffing-requirements/special",
+    tags=["Schedule"],
+    summary="List special staffing requirements",
+)
 def get_special_staffing(
     date: Optional[str] = Query(None, description="Date filter YYYY-MM-DD"),
     group_id: Optional[int] = Query(None, description="Group ID filter"),
@@ -478,14 +578,24 @@ class SpecialStaffingUpdate(BaseModel):
     max: Optional[int] = None
 
 
-@router.post("/api/staffing-requirements/special", tags=["Schedule"], summary="Create special staffing requirement")
-def create_special_staffing(body: SpecialStaffingCreate, _cur_user: dict = Depends(require_planer)):
+@router.post(
+    "/api/staffing-requirements/special",
+    tags=["Schedule"],
+    summary="Create special staffing requirement",
+)
+def create_special_staffing(
+    body: SpecialStaffingCreate, _cur_user: dict = Depends(require_planer)
+):
     """Create a date-specific staffing requirement."""
     try:
         from datetime import datetime
-        datetime.strptime(body.date, '%Y-%m-%d')
+
+        datetime.strptime(body.date, "%Y-%m-%d")
     except ValueError:
-        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden")
+        raise HTTPException(
+            status_code=400,
+            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+        )
     try:
         result = get_db().create_special_staffing(
             groupid=body.group_id,
@@ -500,12 +610,24 @@ def create_special_staffing(body: SpecialStaffingCreate, _cur_user: dict = Depen
         raise _sanitize_500(e)
 
 
-@router.put("/api/staffing-requirements/special/{record_id}", tags=["Schedule"], summary="Update special staffing requirement")
-def update_special_staffing(record_id: int, body: SpecialStaffingUpdate, _cur_user: dict = Depends(require_planer)):
+@router.put(
+    "/api/staffing-requirements/special/{record_id}",
+    tags=["Schedule"],
+    summary="Update special staffing requirement",
+)
+def update_special_staffing(
+    record_id: int,
+    body: SpecialStaffingUpdate,
+    _cur_user: dict = Depends(require_planer),
+):
     """Update a date-specific staffing requirement."""
     data = {k.upper(): v for k, v in body.model_dump().items() if v is not None}
     # Rename keys to match DBF field names
-    rename = {'GROUP_ID': 'GROUPID', 'SHIFT_ID': 'SHIFTID', 'WORKPLACE_ID': 'WORKPLACID'}
+    rename = {
+        "GROUP_ID": "GROUPID",
+        "SHIFT_ID": "SHIFTID",
+        "WORKPLACE_ID": "WORKPLACID",
+    }
     data = {rename.get(k, k): v for k, v in data.items()}
     try:
         result = get_db().update_special_staffing(record_id, data)
@@ -516,7 +638,11 @@ def update_special_staffing(record_id: int, body: SpecialStaffingUpdate, _cur_us
         raise _sanitize_500(e)
 
 
-@router.delete("/api/staffing-requirements/special/{record_id}", tags=["Schedule"], summary="Delete special staffing requirement")
+@router.delete(
+    "/api/staffing-requirements/special/{record_id}",
+    tags=["Schedule"],
+    summary="Delete special staffing requirement",
+)
 def delete_special_staffing(record_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a date-specific staffing requirement."""
     try:
@@ -536,24 +662,28 @@ import os  # noqa: E402
 import json as _json  # noqa: E402
 from datetime import datetime as _dt  # noqa: E402
 
+
 def _skills_path() -> str:
-    data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
+    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     os.makedirs(data_dir, exist_ok=True)
-    return os.path.join(data_dir, 'skills.json')
+    return os.path.join(data_dir, "skills.json")
+
 
 def _load_skills() -> dict:
     path = _skills_path()
     if not os.path.exists(path):
         return {"skills": [], "assignments": []}
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             return _json.load(f)
     except Exception:
         return {"skills": [], "assignments": []}
 
+
 def _save_skills(data: dict):
-    with open(_skills_path(), 'w', encoding='utf-8') as f:
+    with open(_skills_path(), "w", encoding="utf-8") as f:
         _json.dump(data, f, ensure_ascii=False, indent=2)
+
 
 class SkillCreate(BaseModel):
     name: str
@@ -562,12 +692,14 @@ class SkillCreate(BaseModel):
     icon: Optional[str] = "🎯"
     category: Optional[str] = ""
 
+
 class SkillUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     color: Optional[str] = None
     icon: Optional[str] = None
     category: Optional[str] = None
+
 
 class SkillAssignment(BaseModel):
     employee_id: int
@@ -576,10 +708,12 @@ class SkillAssignment(BaseModel):
     certified_until: Optional[str] = None  # ISO date
     notes: Optional[str] = ""
 
+
 @router.get("/api/skills", tags=["Employees"], summary="List employee skills")
 def get_skills():
     data = _load_skills()
     return data["skills"]
+
 
 @router.post("/api/skills", tags=["Employees"], summary="Create skill")
 def create_skill(body: SkillCreate, _cur_user: dict = Depends(require_admin)):
@@ -591,25 +725,34 @@ def create_skill(body: SkillCreate, _cur_user: dict = Depends(require_admin)):
         "color": body.color or "#3b82f6",
         "icon": body.icon or "🎯",
         "category": body.category or "",
-        "created_at": _dt.now().isoformat(timespec='seconds'),
+        "created_at": _dt.now().isoformat(timespec="seconds"),
     }
     data["skills"].append(skill)
     _save_skills(data)
     return skill
 
+
 @router.put("/api/skills/{skill_id}", tags=["Employees"], summary="Update skill")
-def update_skill(skill_id: str, body: SkillUpdate, _cur_user: dict = Depends(require_admin)):
+def update_skill(
+    skill_id: str, body: SkillUpdate, _cur_user: dict = Depends(require_admin)
+):
     data = _load_skills()
     for s in data["skills"]:
         if s["id"] == skill_id:
-            if body.name is not None: s["name"] = body.name  # noqa: E701
-            if body.description is not None: s["description"] = body.description  # noqa: E701
-            if body.color is not None: s["color"] = body.color  # noqa: E701
-            if body.icon is not None: s["icon"] = body.icon  # noqa: E701
-            if body.category is not None: s["category"] = body.category  # noqa: E701
+            if body.name is not None:
+                s["name"] = body.name  # noqa: E701
+            if body.description is not None:
+                s["description"] = body.description  # noqa: E701
+            if body.color is not None:
+                s["color"] = body.color  # noqa: E701
+            if body.icon is not None:
+                s["icon"] = body.icon  # noqa: E701
+            if body.category is not None:
+                s["category"] = body.category  # noqa: E701
             _save_skills(data)
             return s
     raise HTTPException(status_code=404, detail="Skill not found")
+
 
 @router.delete("/api/skills/{skill_id}", tags=["Employees"], summary="Delete skill")
 def delete_skill(skill_id: str, _cur_user: dict = Depends(require_admin)):
@@ -619,7 +762,10 @@ def delete_skill(skill_id: str, _cur_user: dict = Depends(require_admin)):
     _save_skills(data)
     return {"ok": True}
 
-@router.get("/api/skills/assignments", tags=["Employees"], summary="List skill assignments")
+
+@router.get(
+    "/api/skills/assignments", tags=["Employees"], summary="List skill assignments"
+)
 def get_assignments(employee_id: Optional[int] = Query(None)):
     data = _load_skills()
     assignments = data.get("assignments", [])
@@ -627,12 +773,16 @@ def get_assignments(employee_id: Optional[int] = Query(None)):
         assignments = [a for a in assignments if a.get("employee_id") == employee_id]
     return assignments
 
-@router.post("/api/skills/assignments", tags=["Employees"], summary="Assign skill to employee")
+
+@router.post(
+    "/api/skills/assignments", tags=["Employees"], summary="Assign skill to employee"
+)
 def add_assignment(body: SkillAssignment, _cur_user: dict = Depends(require_admin)):
     data = _load_skills()
     # Remove existing assignment for same employee+skill
     data["assignments"] = [
-        a for a in data.get("assignments", [])
+        a
+        for a in data.get("assignments", [])
         if not (a["employee_id"] == body.employee_id and a["skill_id"] == body.skill_id)
     ]
     assignment = {
@@ -642,21 +792,29 @@ def add_assignment(body: SkillAssignment, _cur_user: dict = Depends(require_admi
         "level": body.level or 1,
         "certified_until": body.certified_until or None,
         "notes": body.notes or "",
-        "assigned_at": _dt.now().isoformat(timespec='seconds'),
+        "assigned_at": _dt.now().isoformat(timespec="seconds"),
     }
     data["assignments"].append(assignment)
     _save_skills(data)
     return assignment
 
-@router.delete("/api/skills/assignments/{assignment_id}", tags=["Employees"], summary="Remove skill assignment")
+
+@router.delete(
+    "/api/skills/assignments/{assignment_id}",
+    tags=["Employees"],
+    summary="Remove skill assignment",
+)
 def delete_assignment(assignment_id: str, _cur_user: dict = Depends(require_admin)):
     data = _load_skills()
     before = len(data.get("assignments", []))
-    data["assignments"] = [a for a in data.get("assignments", []) if a.get("id") != assignment_id]
+    data["assignments"] = [
+        a for a in data.get("assignments", []) if a.get("id") != assignment_id
+    ]
     if len(data["assignments"]) == before:
         raise HTTPException(status_code=404, detail="Assignment not found")
     _save_skills(data)
     return {"ok": True}
+
 
 @router.get("/api/skills/matrix", tags=["Employees"], summary="Skills matrix overview")
 def get_skills_matrix(_cur_user: dict = Depends(require_auth)):
@@ -677,14 +835,16 @@ def get_skills_matrix(_cur_user: dict = Depends(require_auth)):
     result_employees = []
     for emp in employees:
         eid = emp["ID"]
-        result_employees.append({
-            "id": eid,
-            "name": f"{emp.get('NAME', '')} {emp.get('FIRSTNAME', '')}".strip(),
-            "short": emp.get("SHORTNAME", ""),
-            "group": emp.get("GROUP_NAME", ""),
-            "skills": emp_skills.get(eid, {}),
-            "skill_count": len(emp_skills.get(eid, {})),
-        })
+        result_employees.append(
+            {
+                "id": eid,
+                "name": f"{emp.get('NAME', '')} {emp.get('FIRSTNAME', '')}".strip(),
+                "short": emp.get("SHORTNAME", ""),
+                "group": emp.get("GROUP_NAME", ""),
+                "skills": emp_skills.get(eid, {}),
+                "skill_count": len(emp_skills.get(eid, {})),
+            }
+        )
 
     # Skill coverage stats
     skill_stats = []
@@ -694,21 +854,30 @@ def get_skills_matrix(_cur_user: dict = Depends(require_auth)):
         experts = [a for a in holders if a.get("level", 1) >= 3]
         expiring = []
         _dt.today().date().isoformat()
-        soon = _dt.today().date().replace(
-            year=_dt.today().date().year,
-            month=min(_dt.today().date().month + 3, 12)
-        ).isoformat()
+        soon = (
+            _dt.today()
+            .date()
+            .replace(
+                year=_dt.today().date().year,
+                month=min(_dt.today().date().month + 3, 12),
+            )
+            .isoformat()
+        )
         for a in holders:
             cu = a.get("certified_until")
             if cu and cu <= soon:
                 expiring.append(a)
-        skill_stats.append({
-            **skill,
-            "holder_count": len(holders),
-            "expert_count": len(experts),
-            "expiring_count": len(expiring),
-            "coverage_pct": round(len(holders) / len(employees) * 100) if employees else 0,
-        })
+        skill_stats.append(
+            {
+                **skill,
+                "holder_count": len(holders),
+                "expert_count": len(experts),
+                "expiring_count": len(expiring),
+                "coverage_pct": round(len(holders) / len(employees) * 100)
+                if employees
+                else 0,
+            }
+        )
 
     return {
         "skills": skill_stats,

@@ -1,5 +1,6 @@
 """Tests for new features: Warnings Center, Dashboard Stats, Security/Auth checks,
 Input validation, Schedule Conflicts API."""
+
 import pytest
 import secrets
 from starlette.testclient import TestClient
@@ -8,6 +9,7 @@ from starlette.testclient import TestClient
 # ─────────────────────────────────────────────────────────────
 # Warnings Center API
 # ─────────────────────────────────────────────────────────────
+
 
 class TestWarningsAPI:
     """Tests for /api/warnings endpoint (Warnings Center)."""
@@ -64,6 +66,7 @@ class TestWarningsAPI:
 # Dashboard Stats with year/month parameters
 # ─────────────────────────────────────────────────────────────
 
+
 class TestDashboardStatsParams:
     """Dashboard stats with explicit year/month parameters."""
 
@@ -98,6 +101,7 @@ class TestDashboardStatsParams:
 # Schedule Conflicts API
 # ─────────────────────────────────────────────────────────────
 
+
 class TestScheduleConflictsAPI:
     """Tests for /api/schedule/conflicts endpoint."""
 
@@ -129,6 +133,7 @@ class TestScheduleConflictsAPI:
 # Security: Admin-only Endpoints
 # ─────────────────────────────────────────────────────────────
 
+
 class TestAdminOnlyEndpoints:
     """Verify that admin-only endpoints reject non-admin users."""
 
@@ -136,16 +141,17 @@ class TestAdminOnlyEndpoints:
     def planer_client(self, app):
         """TestClient authenticated as Planer (non-admin)."""
         from api.main import _sessions
+
         tok = secrets.token_hex(20)
         _sessions[tok] = {
-            'ID': 800,
-            'NAME': 'test_planer',
-            'role': 'Planer',
-            'ADMIN': False,
-            'RIGHTS': 2,
+            "ID": 800,
+            "NAME": "test_planer",
+            "role": "Planer",
+            "ADMIN": False,
+            "RIGHTS": 2,
         }
         client = TestClient(app, raise_server_exceptions=False)
-        client.headers.update({'X-Auth-Token': tok})
+        client.headers.update({"X-Auth-Token": tok})
         yield client
         _sessions.pop(tok, None)
 
@@ -161,17 +167,21 @@ class TestAdminOnlyEndpoints:
 
     def test_user_management_admin_only(self, planer_client):
         """Creating users is admin-only."""
-        resp = planer_client.post("/api/users", json={
-            "USERNAME": "newuser",
-            "PASSWORD": "pass123",
-            "role": "Viewer",
-        })
+        resp = planer_client.post(
+            "/api/users",
+            json={
+                "USERNAME": "newuser",
+                "PASSWORD": "pass123",
+                "role": "Viewer",
+            },
+        )
         assert resp.status_code == 403
 
 
 # ─────────────────────────────────────────────────────────────
 # Security: Unauthenticated access rejected
 # ─────────────────────────────────────────────────────────────
+
 
 class TestUnauthenticatedAccess:
     """Core protected endpoints must return 401 without a token."""
@@ -193,12 +203,15 @@ class TestUnauthenticatedAccess:
     def test_endpoint_requires_auth(self, anon_client, path):
         """Verify endpoint requires auth."""
         resp = anon_client.get(path)
-        assert resp.status_code == 401, f"Expected 401 for {path}, got {resp.status_code}"
+        assert resp.status_code == 401, (
+            f"Expected 401 for {path}, got {resp.status_code}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────
 # Input Validation: 422 on invalid payloads
 # ─────────────────────────────────────────────────────────────
+
 
 class TestInputValidation:
     """Ensure the API returns 422 (or 400) for malformed payloads."""
@@ -232,9 +245,8 @@ class TestInputValidation:
 
     def test_schedule_invalid_employee_id(self, sync_client):
         """Non-integer employee_id should be rejected."""
-        resp = sync_client.post("/api/schedule", json={
-            "employee_id": "abc",
-            "date": "2024-06-01",
-            "shift_id": 1
-        })
+        resp = sync_client.post(
+            "/api/schedule",
+            json={"employee_id": "abc", "date": "2024-06-01", "shift_id": 1},
+        )
         assert resp.status_code in (400, 422)

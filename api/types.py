@@ -1,4 +1,5 @@
 """Common type aliases for the SP5 backend API."""
+
 from typing import Any
 
 # A single row from a DBF table (field_name -> value)

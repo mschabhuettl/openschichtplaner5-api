@@ -1,4 +1,5 @@
 """Server-Sent Events (SSE) router for real-time updates."""
+
 import asyncio
 import json
 import logging
@@ -40,7 +41,9 @@ def broadcast(event_type: str, data: dict | None = None) -> None:
         _logger.debug("SSE broadcast: %s → %d clients", event_type, len(_subscribers))
 
 
-async def _event_generator(request: Request, queue: asyncio.Queue) -> AsyncGenerator[str, None]:
+async def _event_generator(
+    request: Request, queue: asyncio.Queue
+) -> AsyncGenerator[str, None]:
     """Yield SSE-formatted strings from the queue until the client disconnects."""
     try:
         # Send initial "connected" event
@@ -66,10 +69,15 @@ async def _event_generator(request: Request, queue: asyncio.Queue) -> AsyncGener
         _logger.debug("SSE client disconnected. Remaining: %d", len(_subscribers))
 
 
-@router.get("", tags=["Events"], summary="SSE event stream", description=(
-    "Connect to receive real-time events.\n\n"
-    "Events: `connected`, `schedule_changed`, `conflict_updated`, `note_added`, `absence_changed`"
-))
+@router.get(
+    "",
+    tags=["Events"],
+    summary="SSE event stream",
+    description=(
+        "Connect to receive real-time events.\n\n"
+        "Events: `connected`, `schedule_changed`, `conflict_updated`, `note_added`, `absence_changed`"
+    ),
+)
 async def sse_stream(request: Request, _cur_user: dict = Depends(require_auth)):
     """SSE endpoint — stream real-time events to connected clients (auth required)."""
     loop = asyncio.get_event_loop()

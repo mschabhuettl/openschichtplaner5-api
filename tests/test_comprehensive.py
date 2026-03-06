@@ -3,13 +3,16 @@ Comprehensive tests for OpenSchichtplaner5 backend.
 Covers: database methods, API endpoints, business logic.
 Target: push coverage from 46% to >80%.
 """
+
 import os
 import sys
 import shutil
 import pytest
 
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_VENV_SITE_PACKAGES = os.path.join(_BACKEND_DIR, "venv", "lib", "python3.13", "site-packages")
+_VENV_SITE_PACKAGES = os.path.join(
+    _BACKEND_DIR, "venv", "lib", "python3.13", "site-packages"
+)
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 if os.path.isdir(_VENV_SITE_PACKAGES) and _VENV_SITE_PACKAGES not in sys.path:
@@ -24,9 +27,11 @@ _REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or (
 
 # ─── Fixtures ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture(scope="module")
 def real_db():
     from sp5lib.database import SP5Database
+
     return SP5Database(_REAL_DB_PATH)
 
 
@@ -35,30 +40,33 @@ def tmp_db(tmp_path):
     dst = tmp_path / "Daten"
     shutil.copytree(_REAL_DB_PATH, str(dst))
     from sp5lib.database import SP5Database
+
     return SP5Database(str(dst))
 
 
 # ─── Database: Settings (5USETT) ──────────────────────────────────────────────
+
 
 class TestSettings:
     def test_get_usett(self, real_db):
         """Verify get usett."""
         s = real_db.get_usett()
         assert isinstance(s, dict)
-        assert 'ANOANAME' in s
-        assert 'ANOASHORT' in s
+        assert "ANOANAME" in s
+        assert "ANOASHORT" in s
 
     def test_update_usett(self, tmp_db):
         """Verify update usett."""
         original = tmp_db.get_usett()
-        result = tmp_db.update_usett({'ANOANAME': 'TestAbwesenheit', 'BACKUPFR': 1})
-        assert result['ANOANAME'] == 'TestAbwesenheit'
-        assert result['BACKUPFR'] == 1
+        result = tmp_db.update_usett({"ANOANAME": "TestAbwesenheit", "BACKUPFR": 1})
+        assert result["ANOANAME"] == "TestAbwesenheit"
+        assert result["BACKUPFR"] == 1
         # Restore
-        tmp_db.update_usett({'ANOANAME': original.get('ANOANAME', 'Abwesend')})
+        tmp_db.update_usett({"ANOANAME": original.get("ANOANAME", "Abwesend")})
 
 
 # ─── Database: Shift Cycles ────────────────────────────────────────────────────
+
 
 class TestShiftCycles:
     def test_get_cycles(self, real_db):
@@ -73,13 +81,13 @@ class TestShiftCycles:
 
     def test_create_update_delete_shift_cycle(self, tmp_db):
         """Verify create update delete shift cycle."""
-        record = tmp_db.create_shift_cycle(name='TestZyklus', size_weeks=2)
-        assert record['name'] == 'TestZyklus'
-        assert record['weeks'] == 2
-        cid = record['ID']
+        record = tmp_db.create_shift_cycle(name="TestZyklus", size_weeks=2)
+        assert record["name"] == "TestZyklus"
+        assert record["weeks"] == 2
+        cid = record["ID"]
 
-        updated = tmp_db.update_shift_cycle(cid, name='UpdatedZyklus', size_weeks=4)
-        assert updated['name'] == 'UpdatedZyklus'
+        updated = tmp_db.update_shift_cycle(cid, name="UpdatedZyklus", size_weeks=4)
+        assert updated["name"] == "UpdatedZyklus"
 
         count = tmp_db.delete_shift_cycle(cid)
         assert count >= 1
@@ -94,9 +102,9 @@ class TestShiftCycles:
         shifts = tmp_db.get_shifts()
         if not shifts:
             pytest.skip("No shifts")
-        cycle = tmp_db.create_shift_cycle(name='CycleEntry', size_weeks=1)
-        cid = cycle['ID']
-        shift_id = shifts[0]['ID']
+        cycle = tmp_db.create_shift_cycle(name="CycleEntry", size_weeks=1)
+        cid = cycle["ID"]
+        shift_id = shifts[0]["ID"]
         tmp_db.set_cycle_entry(cid, 0, shift_id)
         tmp_db.set_cycle_entry(cid, 1, None)  # clear a slot
         count = tmp_db.clear_cycle_entries(cid)
@@ -118,11 +126,11 @@ class TestShiftCycles:
         emps = tmp_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        cycle = tmp_db.create_shift_cycle(name='AssignTest', size_weeks=1)
-        cid = cycle['ID']
-        emp_id = emps[0]['ID']
-        result = tmp_db.assign_cycle(emp_id, cid, '2025-01-01')
-        assert result['employee_id'] == emp_id
+        cycle = tmp_db.create_shift_cycle(name="AssignTest", size_weeks=1)
+        cid = cycle["ID"]
+        emp_id = emps[0]["ID"]
+        result = tmp_db.assign_cycle(emp_id, cid, "2025-01-01")
+        assert result["employee_id"] == emp_id
         count = tmp_db.remove_cycle_assignment(emp_id)
         assert count >= 1
 
@@ -132,22 +140,23 @@ class TestShiftCycles:
         shifts = tmp_db.get_shifts()
         if not emps or not shifts:
             pytest.skip("No data")
-        cycle = tmp_db.create_shift_cycle(name='GenCycle', size_weeks=1)
-        cid = cycle['ID']
-        emp_id = emps[0]['ID']
-        shift_id = shifts[0]['ID']
+        cycle = tmp_db.create_shift_cycle(name="GenCycle", size_weeks=1)
+        cid = cycle["ID"]
+        emp_id = emps[0]["ID"]
+        shift_id = shifts[0]["ID"]
         tmp_db.set_cycle_entry(cid, 0, shift_id)
-        tmp_db.assign_cycle(emp_id, cid, '2025-01-01')
+        tmp_db.assign_cycle(emp_id, cid, "2025-01-01")
         result = tmp_db.generate_schedule_from_cycle(2025, 7)
-        assert 'created' in result
+        assert "created" in result
 
 
 # ─── Database: SPSHI Entries (Einsatzplan) ────────────────────────────────────
 
+
 class TestSpshiEntries:
     def test_get_spshi_entries_for_day(self, real_db):
         """Verify get spshi entries for day."""
-        result = real_db.get_spshi_entries_for_day('2024-06-01')
+        result = real_db.get_spshi_entries_for_day("2024-06-01")
         assert isinstance(result, list)
 
     def test_add_update_delete_spshi_entry(self, tmp_db):
@@ -156,20 +165,20 @@ class TestSpshiEntries:
         shifts = tmp_db.get_shifts()
         if not emps or not shifts:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
-        shift_id = shifts[0]['ID']
+        emp_id = emps[0]["ID"]
+        shift_id = shifts[0]["ID"]
         s = shifts[0]
         record = tmp_db.add_spshi_entry(
             employee_id=emp_id,
-            date_str='2025-07-01',
+            date_str="2025-07-01",
             shift_id=shift_id,
-            name=s.get('NAME', 'TestShift'),
-            shortname=s.get('SHORTNAME', 'TS'),
+            name=s.get("NAME", "TestShift"),
+            shortname=s.get("SHORTNAME", "TS"),
         )
-        entry_id = record.get('id') or record.get('ID')
+        entry_id = record.get("id") or record.get("ID")
         assert entry_id
 
-        updated = tmp_db.update_spshi_entry(entry_id, {'NAME': 'Updated'})
+        updated = tmp_db.update_spshi_entry(entry_id, {"NAME": "Updated"})
         assert updated is not None
 
         count = tmp_db.delete_spshi_entry_by_id(entry_id)
@@ -183,29 +192,30 @@ class TestSpshiEntries:
     def test_update_spshi_nonexistent(self, tmp_db):
         """Verify update spshi nonexistent."""
         with pytest.raises(ValueError):
-            tmp_db.update_spshi_entry(999999, {'NAME': 'X'})
+            tmp_db.update_spshi_entry(999999, {"NAME": "X"})
 
 
 # ─── Database: Schedule Day/Week ──────────────────────────────────────────────
 
+
 class TestScheduleDayWeek:
     def test_get_schedule_day(self, real_db):
         """Verify get schedule day."""
-        result = real_db.get_schedule_day('2024-06-03')
+        result = real_db.get_schedule_day("2024-06-03")
         assert isinstance(result, list)
 
     def test_get_schedule_day_with_group(self, real_db):
         """Verify get schedule day with group."""
         groups = real_db.get_groups()
         if not groups:
-            result = real_db.get_schedule_day('2024-06-03', group_id=None)
+            result = real_db.get_schedule_day("2024-06-03", group_id=None)
         else:
-            result = real_db.get_schedule_day('2024-06-03', group_id=groups[0]['ID'])
+            result = real_db.get_schedule_day("2024-06-03", group_id=groups[0]["ID"])
         assert isinstance(result, list)
 
     def test_get_schedule_week(self, real_db):
         """Verify get schedule week."""
-        result = real_db.get_schedule_week('2024-06-03')
+        result = real_db.get_schedule_week("2024-06-03")
         assert isinstance(result, dict)
 
     def test_get_schedule_year(self, real_db):
@@ -213,11 +223,12 @@ class TestScheduleDayWeek:
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        result = real_db.get_schedule_year(2024, emps[0]['ID'])
+        result = real_db.get_schedule_year(2024, emps[0]["ID"])
         assert isinstance(result, list)
 
 
 # ─── Database: Add/Delete Schedule Entries ────────────────────────────────────
+
 
 class TestScheduleEntries:
     def test_add_and_delete_schedule_entry(self, tmp_db):
@@ -226,11 +237,11 @@ class TestScheduleEntries:
         shifts = tmp_db.get_shifts()
         if not emps or not shifts:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
-        shift_id = shifts[0]['ID']
-        result = tmp_db.add_schedule_entry(emp_id, '2025-08-01', shift_id)
+        emp_id = emps[0]["ID"]
+        shift_id = shifts[0]["ID"]
+        result = tmp_db.add_schedule_entry(emp_id, "2025-08-01", shift_id)
         assert result is not None
-        count = tmp_db.delete_schedule_entry(emp_id, '2025-08-01')
+        count = tmp_db.delete_schedule_entry(emp_id, "2025-08-01")
         assert count >= 0
 
     def test_add_schedule_entry_duplicate_raises(self, tmp_db):
@@ -239,11 +250,11 @@ class TestScheduleEntries:
         shifts = tmp_db.get_shifts()
         if not emps or not shifts:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
-        shift_id = shifts[0]['ID']
-        tmp_db.add_schedule_entry(emp_id, '2025-08-02', shift_id)
+        emp_id = emps[0]["ID"]
+        shift_id = shifts[0]["ID"]
+        tmp_db.add_schedule_entry(emp_id, "2025-08-02", shift_id)
         with pytest.raises((ValueError, Exception)):
-            tmp_db.add_schedule_entry(emp_id, '2025-08-02', shift_id)
+            tmp_db.add_schedule_entry(emp_id, "2025-08-02", shift_id)
 
     def test_delete_shift_only(self, tmp_db):
         """Verify delete shift only."""
@@ -251,10 +262,10 @@ class TestScheduleEntries:
         shifts = tmp_db.get_shifts()
         if not emps or not shifts:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
-        shift_id = shifts[0]['ID']
-        tmp_db.add_schedule_entry(emp_id, '2025-08-03', shift_id)
-        count = tmp_db.delete_shift_only(emp_id, '2025-08-03')
+        emp_id = emps[0]["ID"]
+        shift_id = shifts[0]["ID"]
+        tmp_db.add_schedule_entry(emp_id, "2025-08-03", shift_id)
+        count = tmp_db.delete_shift_only(emp_id, "2025-08-03")
         assert count >= 0
 
     def test_delete_absence_only(self, tmp_db):
@@ -263,13 +274,13 @@ class TestScheduleEntries:
         lt_list = tmp_db.get_leave_types()
         if not emps or not lt_list:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
-        lt_id = lt_list[0]['ID']
+        emp_id = emps[0]["ID"]
+        lt_id = lt_list[0]["ID"]
         try:
-            tmp_db.add_absence(emp_id, '2025-08-04', lt_id)
+            tmp_db.add_absence(emp_id, "2025-08-04", lt_id)
         except Exception:
             pass
-        count = tmp_db.delete_absence_only(emp_id, '2025-08-04')
+        count = tmp_db.delete_absence_only(emp_id, "2025-08-04")
         assert count >= 0
 
     def test_add_absence(self, tmp_db):
@@ -278,13 +289,14 @@ class TestScheduleEntries:
         lt_list = tmp_db.get_leave_types()
         if not emps or not lt_list:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
-        lt_id = lt_list[0]['ID']
-        result = tmp_db.add_absence(emp_id, '2025-09-01', lt_id)
+        emp_id = emps[0]["ID"]
+        lt_id = lt_list[0]["ID"]
+        result = tmp_db.add_absence(emp_id, "2025-09-01", lt_id)
         assert result is not None
 
 
 # ─── Database: Notes ─────────────────────────────────────────────────────────
+
 
 class TestNotes:
     def test_get_notes(self, real_db):
@@ -294,17 +306,17 @@ class TestNotes:
 
     def test_get_notes_filtered(self, real_db):
         """Verify get notes filtered."""
-        notes = real_db.get_notes(date='2024-06-01')
+        notes = real_db.get_notes(date="2024-06-01")
         assert isinstance(notes, list)
 
     def test_add_update_delete_note(self, tmp_db):
         """Verify add update delete note."""
-        result = tmp_db.add_note('2025-10-01', 'Test note', employee_id=0)
+        result = tmp_db.add_note("2025-10-01", "Test note", employee_id=0)
         assert result is not None
-        note_id = result.get('ID') or result.get('id')
+        note_id = result.get("ID") or result.get("id")
         assert note_id is not None
 
-        updated = tmp_db.update_note(note_id, text1='Updated note')
+        updated = tmp_db.update_note(note_id, text1="Updated note")
         assert updated is not None
 
         count = tmp_db.delete_note(note_id)
@@ -318,6 +330,7 @@ class TestNotes:
 
 # ─── Database: Periods ────────────────────────────────────────────────────────
 
+
 class TestPeriods:
     def test_get_periods(self, real_db):
         """Verify get periods."""
@@ -327,15 +340,17 @@ class TestPeriods:
     def test_create_delete_period(self, tmp_db):
         """Verify create delete period."""
         groups = tmp_db.get_groups()
-        group_id = groups[0]['ID'] if groups else 1
-        result = tmp_db.create_period({
-            'GROUPID': group_id,
-            'VALIDDAYS': '1111100',
-            'START': '2025-01-01',
-            'END': '2025-12-31',
-        })
+        group_id = groups[0]["ID"] if groups else 1
+        result = tmp_db.create_period(
+            {
+                "GROUPID": group_id,
+                "VALIDDAYS": "1111100",
+                "START": "2025-01-01",
+                "END": "2025-12-31",
+            }
+        )
         assert result is not None
-        period_id = result.get('ID') or result.get('id')
+        period_id = result.get("ID") or result.get("id")
         assert period_id is not None
         count = tmp_db.delete_period(period_id)
         assert count >= 1
@@ -343,20 +358,21 @@ class TestPeriods:
 
 # ─── Database: Groups CRUD ────────────────────────────────────────────────────
 
+
 class TestGroupCRUD:
     def test_update_group(self, tmp_db):
         """Verify update group."""
         groups = tmp_db.get_groups()
         if not groups:
             pytest.skip("No groups")
-        gid = groups[0]['ID']
-        result = tmp_db.update_group(gid, {'NAME': 'UpdatedGroup'})
-        assert result['NAME'] == 'UpdatedGroup'
+        gid = groups[0]["ID"]
+        result = tmp_db.update_group(gid, {"NAME": "UpdatedGroup"})
+        assert result["NAME"] == "UpdatedGroup"
 
     def test_delete_group(self, tmp_db):
         """Verify delete group."""
-        result = tmp_db.create_group({'NAME': 'DelGroup', 'SHORTNAME': 'DG'})
-        gid = result['ID']
+        result = tmp_db.create_group({"NAME": "DelGroup", "SHORTNAME": "DG"})
+        gid = result["ID"]
         count = tmp_db.delete_group(gid)
         assert count >= 1
 
@@ -366,8 +382,8 @@ class TestGroupCRUD:
         groups = tmp_db.get_groups()
         if not emps or not groups:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
-        gid = groups[0]['ID']
+        emp_id = emps[0]["ID"]
+        gid = groups[0]["ID"]
         try:
             tmp_db.add_group_member(gid, emp_id)
         except Exception:
@@ -378,20 +394,21 @@ class TestGroupCRUD:
 
 # ─── Database: Shifts CRUD ────────────────────────────────────────────────────
 
+
 class TestShiftCRUD:
     def test_update_shift(self, tmp_db):
         """Verify update shift."""
         shifts = tmp_db.get_shifts()
         if not shifts:
             pytest.skip("No shifts")
-        sid = shifts[0]['ID']
-        result = tmp_db.update_shift(sid, {'NAME': 'UpdatedShift'})
+        sid = shifts[0]["ID"]
+        result = tmp_db.update_shift(sid, {"NAME": "UpdatedShift"})
         assert result is not None
 
     def test_hide_shift(self, tmp_db):
         """Verify hide shift."""
-        result = tmp_db.create_shift({'NAME': 'ToHide', 'SHORTNAME': 'TH'})
-        sid = result['ID']
+        result = tmp_db.create_shift({"NAME": "ToHide", "SHORTNAME": "TH"})
+        sid = result["ID"]
         count = tmp_db.hide_shift(sid)
         assert count >= 1
 
@@ -403,13 +420,14 @@ class TestShiftCRUD:
 
 # ─── Database: Leave Types CRUD ───────────────────────────────────────────────
 
+
 class TestLeaveTypeCRUD:
     def test_get_leave_type(self, real_db):
         """Verify get leave type."""
         lt_list = real_db.get_leave_types()
         if not lt_list:
             pytest.skip("No leave types")
-        lt = real_db.get_leave_type(lt_list[0]['ID'])
+        lt = real_db.get_leave_type(lt_list[0]["ID"])
         assert lt is not None
 
     def test_get_leave_type_not_found(self, real_db):
@@ -422,19 +440,20 @@ class TestLeaveTypeCRUD:
         lt_list = tmp_db.get_leave_types()
         if not lt_list:
             pytest.skip("No leave types")
-        lt_id = lt_list[0]['ID']
-        result = tmp_db.update_leave_type(lt_id, {'NAME': 'UpdatedLT'})
+        lt_id = lt_list[0]["ID"]
+        result = tmp_db.update_leave_type(lt_id, {"NAME": "UpdatedLT"})
         assert result is not None
 
     def test_hide_leave_type(self, tmp_db):
         """Verify hide leave type."""
-        result = tmp_db.create_leave_type({'NAME': 'ToHide', 'SHORTNAME': 'TH'})
-        lt_id = result['ID']
+        result = tmp_db.create_leave_type({"NAME": "ToHide", "SHORTNAME": "TH"})
+        lt_id = result["ID"]
         count = tmp_db.hide_leave_type(lt_id)
         assert count >= 1
 
 
 # ─── Database: Holidays CRUD ─────────────────────────────────────────────────
+
 
 class TestHolidayCRUD:
     def test_update_holiday(self, tmp_db):
@@ -442,19 +461,22 @@ class TestHolidayCRUD:
         holidays = tmp_db.get_holidays()
         if not holidays:
             pytest.skip("No holidays")
-        hid = holidays[0]['ID']
-        result = tmp_db.update_holiday(hid, {'NAME': 'UpdatedHoliday'})
+        hid = holidays[0]["ID"]
+        result = tmp_db.update_holiday(hid, {"NAME": "UpdatedHoliday"})
         assert result is not None
 
     def test_delete_holiday(self, tmp_db):
         """Verify delete holiday."""
-        result = tmp_db.create_holiday({'DATE': '2025-12-28', 'NAME': 'ToDelete', 'INTERVAL': 0})
-        hid = result['ID']
+        result = tmp_db.create_holiday(
+            {"DATE": "2025-12-28", "NAME": "ToDelete", "INTERVAL": 0}
+        )
+        hid = result["ID"]
         count = tmp_db.delete_holiday(hid)
         assert count >= 1
 
 
 # ─── Database: Workplaces CRUD ────────────────────────────────────────────────
+
 
 class TestWorkplaceCRUD:
     def test_update_workplace(self, tmp_db):
@@ -462,14 +484,14 @@ class TestWorkplaceCRUD:
         wps = tmp_db.get_workplaces()
         if not wps:
             pytest.skip("No workplaces")
-        wp_id = wps[0]['ID']
-        result = tmp_db.update_workplace(wp_id, {'NAME': 'UpdatedWP'})
+        wp_id = wps[0]["ID"]
+        result = tmp_db.update_workplace(wp_id, {"NAME": "UpdatedWP"})
         assert result is not None
 
     def test_hide_workplace(self, tmp_db):
         """Verify hide workplace."""
-        result = tmp_db.create_workplace({'NAME': 'ToHide', 'SHORTNAME': 'TH'})
-        wp_id = result['ID']
+        result = tmp_db.create_workplace({"NAME": "ToHide", "SHORTNAME": "TH"})
+        wp_id = result["ID"]
         count = tmp_db.hide_workplace(wp_id)
         assert count >= 1
 
@@ -478,11 +500,11 @@ class TestWorkplaceCRUD:
         wps = tmp_db.get_workplaces()
         emps = tmp_db.get_employees()
         if not wps or not emps:
-            wp = tmp_db.create_workplace({'NAME': 'TestWP', 'SHORTNAME': 'TW'})
-            wp_id = wp['ID']
+            wp = tmp_db.create_workplace({"NAME": "TestWP", "SHORTNAME": "TW"})
+            wp_id = wp["ID"]
         else:
-            wp_id = wps[0]['ID']
-        emp_id = emps[0]['ID'] if emps else 1
+            wp_id = wps[0]["ID"]
+        emp_id = emps[0]["ID"] if emps else 1
         tmp_db.assign_employee_to_workplace(emp_id, wp_id)
         workers = tmp_db.get_workplace_employees(wp_id)
         assert isinstance(workers, list)
@@ -490,6 +512,7 @@ class TestWorkplaceCRUD:
 
 
 # ─── Database: Extracharges ───────────────────────────────────────────────────
+
 
 class TestExtracharges:
     def test_get_extracharges(self, real_db):
@@ -504,13 +527,15 @@ class TestExtracharges:
 
     def test_create_update_delete_extracharge(self, tmp_db):
         """Verify create update delete extracharge."""
-        result = tmp_db.create_extracharge({
-            'NAME': 'TestZulage',
-            'SHORTNAME': 'TZ',
-            'VALIDDAYS': '1111100',
-        })
-        xc_id = result['ID']
-        updated = tmp_db.update_extracharge(xc_id, {'NAME': 'UpdatedZulage'})
+        result = tmp_db.create_extracharge(
+            {
+                "NAME": "TestZulage",
+                "SHORTNAME": "TZ",
+                "VALIDDAYS": "1111100",
+            }
+        )
+        xc_id = result["ID"]
+        updated = tmp_db.update_extracharge(xc_id, {"NAME": "UpdatedZulage"})
         assert updated is not None
         count = tmp_db.delete_extracharge(xc_id)
         assert count >= 1
@@ -523,35 +548,42 @@ class TestExtracharges:
     def test_decode_startend(self):
         """Verify decode startend."""
         from sp5lib.database import SP5Database
+
         # _decode_startend handles UTF-16LE encoded strings from DBF
-        assert SP5Database._decode_startend('') == ''
-        result = SP5Database._decode_startend('0800')
-        assert isinstance(result, str)  # Should return a string, format depends on encoding
+        assert SP5Database._decode_startend("") == ""
+        result = SP5Database._decode_startend("0800")
+        assert isinstance(
+            result, str
+        )  # Should return a string, format depends on encoding
 
     def test_time_str_to_minutes(self):
         """Verify time str to minutes."""
         from sp5lib.database import SP5Database
-        assert SP5Database._time_str_to_minutes('08:00') == 480
-        assert SP5Database._time_str_to_minutes('00:30') == 30
-        assert SP5Database._time_str_to_minutes('invalid') is None
+
+        assert SP5Database._time_str_to_minutes("08:00") == 480
+        assert SP5Database._time_str_to_minutes("00:30") == 30
+        assert SP5Database._time_str_to_minutes("invalid") is None
 
     def test_is_validday_active(self):
         """Verify is validday active."""
         from sp5lib.database import SP5Database
+
         SP5Database.__new__(SP5Database)
         # '1111100' = Mon-Fri active, Sat-Sun not
-        assert SP5Database._is_validday_active('1111100', 0) is True  # Monday
-        assert SP5Database._is_validday_active('1111100', 5) is False  # Saturday
-        assert SP5Database._is_validday_active('', 0) is True  # empty = all days
+        assert SP5Database._is_validday_active("1111100", 0) is True  # Monday
+        assert SP5Database._is_validday_active("1111100", 5) is False  # Saturday
+        assert SP5Database._is_validday_active("", 0) is True  # empty = all days
 
     def test_interval_overlap_minutes(self):
         """Verify interval overlap minutes."""
         from sp5lib.database import SP5Database
+
         # 08:00-16:00 overlaps with 12:00-20:00 for 4h
         assert SP5Database._interval_overlap_minutes(480, 960, 720, 1200) == 240
 
 
 # ─── Database: Leave Entitlements & Balance ───────────────────────────────────
+
 
 class TestLeaveEntitlements:
     def test_get_leave_entitlements(self, real_db):
@@ -564,7 +596,7 @@ class TestLeaveEntitlements:
         emps = tmp_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        emp_id = emps[0]['ID']
+        emp_id = emps[0]["ID"]
         result = tmp_db.set_leave_entitlement(emp_id, 2025, 25.0, leave_type_id=1)
         assert result is not None
 
@@ -573,7 +605,7 @@ class TestLeaveEntitlements:
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        result = real_db.get_leave_balance(emps[0]['ID'], 2024)
+        result = real_db.get_leave_balance(emps[0]["ID"], 2024)
         assert isinstance(result, dict)
 
     def test_get_leave_balance_group(self, real_db):
@@ -581,7 +613,7 @@ class TestLeaveEntitlements:
         groups = real_db.get_groups()
         if not groups:
             pytest.skip("No groups")
-        result = real_db.get_leave_balance_group(2024, groups[0]['ID'])
+        result = real_db.get_leave_balance_group(2024, groups[0]["ID"])
         assert isinstance(result, list)
 
     def test_get_default_entitlement(self, real_db):
@@ -591,6 +623,7 @@ class TestLeaveEntitlements:
 
 
 # ─── Database: Holiday Bans ───────────────────────────────────────────────────
+
 
 class TestHolidayBans:
     def test_get_holiday_bans(self, real_db):
@@ -603,15 +636,16 @@ class TestHolidayBans:
         groups = tmp_db.get_groups()
         if not groups:
             pytest.skip("No groups")
-        gid = groups[0]['ID']
-        result = tmp_db.create_holiday_ban(gid, '2025-07-01', '2025-07-31')
+        gid = groups[0]["ID"]
+        result = tmp_db.create_holiday_ban(gid, "2025-07-01", "2025-07-31")
         assert result is not None
-        ban_id = result.get('ID') or result.get('id')
+        ban_id = result.get("ID") or result.get("id")
         count = tmp_db.delete_holiday_ban(ban_id)
         assert count >= 1
 
 
 # ─── Database: Annual Close ───────────────────────────────────────────────────
+
 
 class TestAnnualClose:
     def test_get_annual_close_preview(self, real_db):
@@ -626,6 +660,7 @@ class TestAnnualClose:
 
 
 # ─── Database: Bookings ───────────────────────────────────────────────────────
+
 
 class TestBookings:
     def test_get_bookings(self, real_db):
@@ -643,10 +678,10 @@ class TestBookings:
         emps = tmp_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        emp_id = emps[0]['ID']
-        result = tmp_db.create_booking(emp_id, '2025-06-15', 0, 8.0, 'Test booking')
+        emp_id = emps[0]["ID"]
+        result = tmp_db.create_booking(emp_id, "2025-06-15", 0, 8.0, "Test booking")
         assert result is not None
-        booking_id = result.get('id') or result.get('ID')
+        booking_id = result.get("id") or result.get("ID")
         count = tmp_db.delete_booking(booking_id)
         assert count >= 1
 
@@ -660,7 +695,7 @@ class TestBookings:
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        result = real_db.get_carry_forward(emps[0]['ID'], 2024)
+        result = real_db.get_carry_forward(emps[0]["ID"], 2024)
         assert isinstance(result, dict)
 
     def test_set_carry_forward(self, tmp_db):
@@ -668,7 +703,7 @@ class TestBookings:
         emps = tmp_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        emp_id = emps[0]['ID']
+        emp_id = emps[0]["ID"]
         result = tmp_db.set_carry_forward(emp_id, 2025, 10.5)
         assert result is not None
 
@@ -677,7 +712,7 @@ class TestBookings:
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        result = real_db.calculate_annual_statement(emps[0]['ID'], 2024)
+        result = real_db.calculate_annual_statement(emps[0]["ID"], 2024)
         assert isinstance(result, dict)
 
     def test_calculate_time_balance(self, real_db):
@@ -685,11 +720,12 @@ class TestBookings:
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        result = real_db.calculate_time_balance(emps[0]['ID'], 2024)
+        result = real_db.calculate_time_balance(emps[0]["ID"], 2024)
         assert isinstance(result, dict)
 
 
 # ─── Database: Zeitkonto ─────────────────────────────────────────────────────
+
 
 class TestZeitkonto:
     def test_get_zeitkonto_detail(self, real_db):
@@ -697,7 +733,7 @@ class TestZeitkonto:
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        result = real_db.get_zeitkonto(year=2024, employee_id=emps[0]['ID'])
+        result = real_db.get_zeitkonto(year=2024, employee_id=emps[0]["ID"])
         assert isinstance(result, list)
 
     def test_get_zeitkonto_all(self, real_db):
@@ -707,6 +743,7 @@ class TestZeitkonto:
 
 
 # ─── Database: Restrictions ───────────────────────────────────────────────────
+
 
 class TestRestrictions:
     def test_get_restrictions(self, real_db):
@@ -720,15 +757,18 @@ class TestRestrictions:
         shifts = tmp_db.get_shifts()
         if not emps or not shifts:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
-        shift_id = shifts[0]['ID']
-        result = tmp_db.set_restriction(emp_id, shift_id, reason='TestReason', weekday=0)
+        emp_id = emps[0]["ID"]
+        shift_id = shifts[0]["ID"]
+        result = tmp_db.set_restriction(
+            emp_id, shift_id, reason="TestReason", weekday=0
+        )
         assert result is not None
         count = tmp_db.remove_restriction(emp_id, shift_id, weekday=0)
         assert count >= 1
 
 
 # ─── Database: Staffing Requirements ─────────────────────────────────────────
+
 
 class TestStaffingRequirements:
     def test_get_staffing_requirements(self, real_db):
@@ -742,19 +782,16 @@ class TestStaffingRequirements:
         shifts = tmp_db.get_shifts()
         if not groups or not shifts:
             pytest.skip("No data")
-        gid = groups[0]['ID']
-        shift_id = shifts[0]['ID']
+        gid = groups[0]["ID"]
+        shift_id = shifts[0]["ID"]
         result = tmp_db.set_staffing_requirement(
-            group_id=gid,
-            shift_id=shift_id,
-            weekday=0,
-            min_staff=1,
-            max_staff=5
+            group_id=gid, shift_id=shift_id, weekday=0, min_staff=1, max_staff=5
         )
         assert result is not None
 
 
 # ─── Database: Special Staffing Requirements ──────────────────────────────────
+
 
 class TestSpecialStaffing:
     def test_get_special_staffing(self, real_db):
@@ -768,16 +805,20 @@ class TestSpecialStaffing:
         shifts = tmp_db.get_shifts()
         if not groups or not shifts:
             pytest.skip("No data")
-        gid = groups[0]['ID']
-        sid = shifts[0]['ID']
+        gid = groups[0]["ID"]
+        sid = shifts[0]["ID"]
         result = tmp_db.create_special_staffing(
-            groupid=gid, date='2025-07-15', shiftid=sid,
-            workplacid=0, min_staff=1, max_staff=3
+            groupid=gid,
+            date="2025-07-15",
+            shiftid=sid,
+            workplacid=0,
+            min_staff=1,
+            max_staff=3,
         )
-        record_id = result.get('ID') or result.get('id')
+        record_id = result.get("ID") or result.get("id")
         assert record_id is not None
 
-        updated = tmp_db.update_special_staffing(record_id, {'MIN': 2})
+        updated = tmp_db.update_special_staffing(record_id, {"MIN": 2})
         assert updated is not None
 
         count = tmp_db.delete_special_staffing(record_id)
@@ -790,6 +831,7 @@ class TestSpecialStaffing:
 
 
 # ─── Database: Overtime Records ───────────────────────────────────────────────
+
 
 class TestOvertimeRecords:
     def test_get_overtime_records(self, real_db):
@@ -805,6 +847,7 @@ class TestOvertimeRecords:
 
 # ─── Database: Cycle Exceptions ───────────────────────────────────────────────
 
+
 class TestCycleExceptions:
     def test_get_cycle_exceptions(self, real_db):
         """Verify get cycle exceptions."""
@@ -816,20 +859,18 @@ class TestCycleExceptions:
         emps = tmp_db.get_employees()
         if not emps:
             pytest.skip("No data")
-        emp_id = emps[0]['ID']
+        emp_id = emps[0]["ID"]
         result = tmp_db.set_cycle_exception(
-            employee_id=emp_id,
-            cycle_assignment_id=1,
-            date_str='2025-07-07',
-            exc_type=1
+            employee_id=emp_id, cycle_assignment_id=1, date_str="2025-07-07", exc_type=1
         )
         assert result is not None
-        exc_id = result.get('id') or result.get('ID')
+        exc_id = result.get("id") or result.get("ID")
         count = tmp_db.delete_cycle_exception(exc_id)
         assert count >= 1
 
 
 # ─── Database: Employee/Group Access ─────────────────────────────────────────
+
 
 class TestAccess:
     def test_get_employee_access(self, real_db):
@@ -842,10 +883,10 @@ class TestAccess:
         emps = tmp_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        emp_id = emps[0]['ID']
+        emp_id = emps[0]["ID"]
         result = tmp_db.set_employee_access(user_id=1, employee_id=emp_id, rights=1)
         assert result is not None
-        access_id = result.get('id') or result.get('ID')
+        access_id = result.get("id") or result.get("ID")
         count = tmp_db.delete_employee_access(access_id)
         assert count >= 1
 
@@ -864,10 +905,10 @@ class TestAccess:
         groups = tmp_db.get_groups()
         if not groups:
             pytest.skip("No groups")
-        gid = groups[0]['ID']
+        gid = groups[0]["ID"]
         result = tmp_db.set_group_access(user_id=1, group_id=gid, rights=1)
         assert result is not None
-        access_id = result.get('id') or result.get('ID')
+        access_id = result.get("id") or result.get("ID")
         count = tmp_db.delete_group_access(access_id)
         assert count >= 1
 
@@ -879,6 +920,7 @@ class TestAccess:
 
 # ─── Database: Changelog ─────────────────────────────────────────────────────
 
+
 class TestChangelog:
     def test_get_changelog(self, tmp_db):
         """Verify get changelog."""
@@ -887,9 +929,9 @@ class TestChangelog:
 
     def test_log_action(self, tmp_db):
         """Verify log action."""
-        entry = tmp_db.log_action('test_user', 'CREATE', 'employee', 1, 'Test entry')
-        assert entry['user'] == 'test_user'
-        assert entry['action'] == 'CREATE'
+        entry = tmp_db.log_action("test_user", "CREATE", "employee", 1, "Test entry")
+        assert entry["user"] == "test_user"
+        assert entry["action"] == "CREATE"
         # Verify it appears in changelog
         log = tmp_db.get_changelog(limit=10)
         assert len(log) >= 1
@@ -897,10 +939,11 @@ class TestChangelog:
     def test_changelog_path(self, tmp_db):
         """Verify changelog path."""
         path = tmp_db._changelog_path()
-        assert path.endswith('changelog.json')
+        assert path.endswith("changelog.json")
 
 
 # ─── Database: Overtime Summary ───────────────────────────────────────────────
+
 
 class TestOvertimeSummary:
     def test_get_overtime_summary(self, real_db):
@@ -913,11 +956,12 @@ class TestOvertimeSummary:
         groups = real_db.get_groups()
         if not groups:
             pytest.skip("No groups")
-        result = real_db.get_overtime_summary(2024, group_id=groups[0]['ID'])
+        result = real_db.get_overtime_summary(2024, group_id=groups[0]["ID"])
         assert isinstance(result, list)
 
 
 # ─── Database: Employee Stats ─────────────────────────────────────────────────
+
 
 class TestEmployeeStats:
     def test_get_employee_stats_year(self, real_db):
@@ -925,7 +969,7 @@ class TestEmployeeStats:
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        result = real_db.get_employee_stats_year(emps[0]['ID'], 2024)
+        result = real_db.get_employee_stats_year(emps[0]["ID"], 2024)
         assert isinstance(result, dict)
 
     def test_get_employee_stats_month(self, real_db):
@@ -933,18 +977,19 @@ class TestEmployeeStats:
         emps = real_db.get_employees()
         if not emps:
             pytest.skip("No employees")
-        result = real_db.get_employee_stats_month(emps[0]['ID'], 2024, 6)
+        result = real_db.get_employee_stats_month(emps[0]["ID"], 2024, 6)
         assert isinstance(result, dict)
 
     def test_get_stats(self, real_db):
         """Verify get stats."""
         result = real_db.get_stats()
         assert isinstance(result, dict)
-        assert 'employees' in result
-        assert 'shifts' in result
+        assert "employees" in result
+        assert "shifts" in result
 
 
 # ─── Database: User Management ────────────────────────────────────────────────
+
 
 class TestUserManagement:
     def test_get_users(self, real_db):
@@ -954,16 +999,18 @@ class TestUserManagement:
 
     def test_create_update_delete_user(self, tmp_db):
         """Verify create update delete user."""
-        result = tmp_db.create_user({
-            'NAME': 'testuser',
-            'role': 'Leser',
-            'PASSWORD': 'test123',
-        })
+        result = tmp_db.create_user(
+            {
+                "NAME": "testuser",
+                "role": "Leser",
+                "PASSWORD": "test123",
+            }
+        )
         assert result is not None
-        uid = result.get('ID') or result.get('id')
+        uid = result.get("ID") or result.get("id")
         assert uid is not None
 
-        updated = tmp_db.update_user(uid, {'DESCRIP': 'Updated user'})
+        updated = tmp_db.update_user(uid, {"DESCRIP": "Updated user"})
         assert updated is not None
 
         count = tmp_db.delete_user(uid)
@@ -976,46 +1023,52 @@ class TestUserManagement:
 
     def test_verify_user_password(self, tmp_db):
         """Verify verify user password."""
-        tmp_db.create_user({
-            'NAME': 'authtest',
-            'role': 'Leser',
-            'PASSWORD': 'mypassword',
-        })
+        tmp_db.create_user(
+            {
+                "NAME": "authtest",
+                "role": "Leser",
+                "PASSWORD": "mypassword",
+            }
+        )
         # Note: verify_user_password result depends on DBF binary storage details
-        result = tmp_db.verify_user_password('authtest', 'mypassword')
+        result = tmp_db.verify_user_password("authtest", "mypassword")
         # Accept None or dict (implementation may have binary encoding issues)
         assert result is None or isinstance(result, dict)
 
     def test_verify_user_password_wrong(self, tmp_db):
         """Verify verify user password wrong."""
-        tmp_db.create_user({
-            'NAME': 'wrongpwtest',
-            'role': 'Leser',
-            'PASSWORD': 'correct123',
-        })
-        result = tmp_db.verify_user_password('wrongpwtest', 'definitelywrongpassword')
+        tmp_db.create_user(
+            {
+                "NAME": "wrongpwtest",
+                "role": "Leser",
+                "PASSWORD": "correct123",
+            }
+        )
+        result = tmp_db.verify_user_password("wrongpwtest", "definitelywrongpassword")
         # Wrong password should return None
         assert result is None
 
     def test_verify_user_password_nonexistent(self, tmp_db):
         """Verify verify user password nonexistent."""
-        result = tmp_db.verify_user_password('nonexistent_user_xyz_abc', 'password')
+        result = tmp_db.verify_user_password("nonexistent_user_xyz_abc", "password")
         assert result is None
 
     def test_change_password(self, tmp_db):
         """Verify change password."""
-        user = tmp_db.create_user({
-            'NAME': 'changepwtest',
-            'role': 'Leser',
-            'PASSWORD': 'initial',
-        })
-        uid = user.get('ID') or user.get('id')
-        result = tmp_db.change_password(uid, 'newpassword')
+        user = tmp_db.create_user(
+            {
+                "NAME": "changepwtest",
+                "role": "Leser",
+                "PASSWORD": "initial",
+            }
+        )
+        uid = user.get("ID") or user.get("id")
+        result = tmp_db.change_password(uid, "newpassword")
         assert result is True
 
     def test_check_user_permission(self, real_db):
         """Verify check user permission."""
-        result = real_db.check_user_permission(999999, 'read')
+        result = real_db.check_user_permission(999999, "read")
         # Should return False for nonexistent user
         assert result is False or result is True  # just verify no crash
 
@@ -1031,6 +1084,7 @@ class TestUserManagement:
 
 
 # ─── API: Additional GET Endpoints ────────────────────────────────────────────
+
 
 class TestAPIGetEndpoints:
     def test_overtime_records(self, sync_client):
@@ -1049,7 +1103,7 @@ class TestAPIGetEndpoints:
         resp = sync_client.get("/api/settings")
         assert resp.status_code == 200
         data = resp.json()
-        assert 'ANOANAME' in data
+        assert "ANOANAME" in data
 
     def test_staffing_requirements_special(self, sync_client):
         """Verify staffing requirements special."""
@@ -1160,7 +1214,9 @@ class TestAPIGetEndpoints:
         """Verify bookings carry forward."""
         emps = sync_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
-        resp = sync_client.get(f"/api/bookings/carry-forward?employee_id={emp_id}&year=2024")
+        resp = sync_client.get(
+            f"/api/bookings/carry-forward?employee_id={emp_id}&year=2024"
+        )
         assert resp.status_code == 200
 
     def test_statistics_employee(self, sync_client):
@@ -1178,6 +1234,7 @@ class TestAPIGetEndpoints:
 
 # ─── API: Write Endpoints ─────────────────────────────────────────────────────
 
+
 class TestAPIWriteEndpoints:
     def test_settings_put(self, write_client):
         """Verify settings put."""
@@ -1193,16 +1250,21 @@ class TestAPIWriteEndpoints:
             pytest.skip("No data")
         emp_id = emps[0]["ID"]
         shift_id = shifts[0]["ID"]
-        resp = write_client.post("/api/restrictions", json={
-            "employee_id": emp_id,
-            "shift_id": shift_id,
-            "reason": "Test",
-            "weekday": 0
-        })
+        resp = write_client.post(
+            "/api/restrictions",
+            json={
+                "employee_id": emp_id,
+                "shift_id": shift_id,
+                "reason": "Test",
+                "weekday": 0,
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
-        del_resp = write_client.delete(f"/api/restrictions/{emp_id}/{shift_id}?weekday=0")
+        del_resp = write_client.delete(
+            f"/api/restrictions/{emp_id}/{shift_id}?weekday=0"
+        )
         assert del_resp.status_code in (200, 404)
 
     def test_special_staffing_crud(self, write_client):
@@ -1211,28 +1273,36 @@ class TestAPIWriteEndpoints:
         shifts = write_client.get("/api/shifts").json()
         if not groups or not shifts:
             pytest.skip("No data")
-        resp = write_client.post("/api/staffing-requirements/special", json={
-            "group_id": groups[0]["ID"],
-            "date": "2025-07-15",
-            "shift_id": shifts[0]["ID"],
-            "min": 1,
-            "max": 3,
-        })
+        resp = write_client.post(
+            "/api/staffing-requirements/special",
+            json={
+                "group_id": groups[0]["ID"],
+                "date": "2025-07-15",
+                "shift_id": shifts[0]["ID"],
+                "min": 1,
+                "max": 3,
+            },
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
         record_id = resp.json()["record"].get("ID") or resp.json()["record"].get("id")
 
-        put_resp = write_client.put(f"/api/staffing-requirements/special/{record_id}", json={"min": 2})
+        put_resp = write_client.put(
+            f"/api/staffing-requirements/special/{record_id}", json={"min": 2}
+        )
         assert put_resp.status_code == 200
 
-        del_resp = write_client.delete(f"/api/staffing-requirements/special/{record_id}")
+        del_resp = write_client.delete(
+            f"/api/staffing-requirements/special/{record_id}"
+        )
         assert del_resp.status_code == 200
 
     def test_special_staffing_invalid_date(self, write_client):
         """Verify special staffing invalid date."""
-        resp = write_client.post("/api/staffing-requirements/special", json={
-            "group_id": 1, "date": "not-a-date", "shift_id": 1
-        })
+        resp = write_client.post(
+            "/api/staffing-requirements/special",
+            json={"group_id": 1, "date": "not-a-date", "shift_id": 1},
+        )
         assert resp.status_code == 400
 
     def test_special_staffing_not_found(self, write_client):
@@ -1246,10 +1316,16 @@ class TestAPIWriteEndpoints:
         if not emps:
             pytest.skip("No employees")
         emp_id = emps[0]["ID"]
-        create_resp = write_client.post("/api/bookings", json={
-            "employee_id": emp_id, "date": "2025-06-20",
-            "type": 0, "value": 4.0, "note": "test"
-        })
+        create_resp = write_client.post(
+            "/api/bookings",
+            json={
+                "employee_id": emp_id,
+                "date": "2025-06-20",
+                "type": 0,
+                "value": 4.0,
+                "note": "test",
+            },
+        )
         assert create_resp.status_code == 200
         booking_id = create_resp.json()["record"]["id"]
         del_resp = write_client.delete(f"/api/bookings/{booking_id}")
@@ -1261,9 +1337,10 @@ class TestAPIWriteEndpoints:
         if not emps:
             pytest.skip("No employees")
         emp_id = emps[0]["ID"]
-        resp = write_client.post("/api/bookings/carry-forward", json={
-            "employee_id": emp_id, "year": 2025, "hours": 10.0
-        })
+        resp = write_client.post(
+            "/api/bookings/carry-forward",
+            json={"employee_id": emp_id, "year": 2025, "hours": 10.0},
+        )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
@@ -1273,24 +1350,26 @@ class TestAPIWriteEndpoints:
         if not emps:
             pytest.skip("No employees")
         emp_id = emps[0]["ID"]
-        resp = write_client.post("/api/bookings/annual-statement", json={
-            "employee_id": emp_id, "year": 2024
-        })
+        resp = write_client.post(
+            "/api/bookings/annual-statement", json={"employee_id": emp_id, "year": 2024}
+        )
         assert resp.status_code == 200
 
     def test_booking_invalid_type(self, write_client):
         """Verify booking invalid type."""
         emps = write_client.get("/api/employees").json()
         emp_id = emps[0]["ID"]
-        resp = write_client.post("/api/bookings", json={
-            "employee_id": emp_id, "date": "2025-06-01",
-            "type": 9, "value": 1.0
-        })
+        resp = write_client.post(
+            "/api/bookings",
+            json={"employee_id": emp_id, "date": "2025-06-01", "type": 9, "value": 1.0},
+        )
         assert resp.status_code in (400, 422)
 
     def test_shift_update_delete(self, write_client):
         """Verify shift update delete."""
-        create = write_client.post("/api/shifts", json={"NAME": "UpdateDelShift", "SHORTNAME": "UDS"})
+        create = write_client.post(
+            "/api/shifts", json={"NAME": "UpdateDelShift", "SHORTNAME": "UDS"}
+        )
         assert create.status_code == 200
         shift_id = create.json()["record"]["ID"]
 
@@ -1302,11 +1381,15 @@ class TestAPIWriteEndpoints:
 
     def test_leave_type_update_delete(self, write_client):
         """Verify leave type update delete."""
-        create = write_client.post("/api/leave-types", json={"NAME": "UpdDelLT", "SHORTNAME": "UL"})
+        create = write_client.post(
+            "/api/leave-types", json={"NAME": "UpdDelLT", "SHORTNAME": "UL"}
+        )
         assert create.status_code == 200
         lt_id = create.json()["record"]["ID"]
 
-        put_resp = write_client.put(f"/api/leave-types/{lt_id}", json={"NAME": "Updated"})
+        put_resp = write_client.put(
+            f"/api/leave-types/{lt_id}", json={"NAME": "Updated"}
+        )
         assert put_resp.status_code == 200
 
         del_resp = write_client.delete(f"/api/leave-types/{lt_id}")
@@ -1314,9 +1397,10 @@ class TestAPIWriteEndpoints:
 
     def test_holiday_update_delete(self, write_client):
         """Verify holiday update delete."""
-        create = write_client.post("/api/holidays", json={
-            "DATE": "2025-12-29", "NAME": "UpdDelHoliday", "INTERVAL": 0
-        })
+        create = write_client.post(
+            "/api/holidays",
+            json={"DATE": "2025-12-29", "NAME": "UpdDelHoliday", "INTERVAL": 0},
+        )
         assert create.status_code == 200
         h_id = create.json()["record"]["ID"]
 
@@ -1328,11 +1412,15 @@ class TestAPIWriteEndpoints:
 
     def test_workplace_update_delete(self, write_client):
         """Verify workplace update delete."""
-        create = write_client.post("/api/workplaces", json={"NAME": "UpdDelWP", "SHORTNAME": "UW"})
+        create = write_client.post(
+            "/api/workplaces", json={"NAME": "UpdDelWP", "SHORTNAME": "UW"}
+        )
         assert create.status_code == 200
         wp_id = create.json()["record"]["ID"]
 
-        put_resp = write_client.put(f"/api/workplaces/{wp_id}", json={"NAME": "Updated"})
+        put_resp = write_client.put(
+            f"/api/workplaces/{wp_id}", json={"NAME": "Updated"}
+        )
         assert put_resp.status_code == 200
 
         del_resp = write_client.delete(f"/api/workplaces/{wp_id}")
@@ -1353,13 +1441,16 @@ class TestAPIWriteEndpoints:
 
     def test_extracharge_crud(self, write_client):
         """Verify extracharge crud."""
-        create = write_client.post("/api/extracharges", json={
-            "NAME": "TestZulage", "SHORTNAME": "TZ", "VALIDDAYS": "1111100"
-        })
+        create = write_client.post(
+            "/api/extracharges",
+            json={"NAME": "TestZulage", "SHORTNAME": "TZ", "VALIDDAYS": "1111100"},
+        )
         assert create.status_code == 200
         xc_id = create.json()["record"]["ID"]
 
-        put_resp = write_client.put(f"/api/extracharges/{xc_id}", json={"NAME": "Updated"})
+        put_resp = write_client.put(
+            f"/api/extracharges/{xc_id}", json={"NAME": "Updated"}
+        )
         assert put_resp.status_code == 200
 
         del_resp = write_client.delete(f"/api/extracharges/{xc_id}")
@@ -1371,9 +1462,10 @@ class TestAPIWriteEndpoints:
         if not emps:
             pytest.skip("No employees")
         emp_id = emps[0]["ID"]
-        resp = write_client.post("/api/leave-entitlements", json={
-            "employee_id": emp_id, "year": 2025, "days": 25.0
-        })
+        resp = write_client.post(
+            "/api/leave-entitlements",
+            json={"employee_id": emp_id, "year": 2025, "days": 25.0},
+        )
         assert resp.status_code == 200
 
     def test_holiday_ban_crud(self, write_client):
@@ -1382,11 +1474,14 @@ class TestAPIWriteEndpoints:
         if not groups:
             pytest.skip("No groups")
         gid = groups[0]["ID"]
-        resp = write_client.post("/api/holiday-bans", json={
-            "group_id": gid,
-            "start_date": "2025-07-01",
-            "end_date": "2025-07-31",
-        })
+        resp = write_client.post(
+            "/api/holiday-bans",
+            json={
+                "group_id": gid,
+                "start_date": "2025-07-01",
+                "end_date": "2025-07-31",
+            },
+        )
         assert resp.status_code == 200
         ban_id = resp.json()["record"].get("ID") or resp.json()["record"].get("id")
         del_resp = write_client.delete(f"/api/holiday-bans/{ban_id}")
@@ -1400,7 +1495,9 @@ class TestAPIWriteEndpoints:
             pytest.skip("No data")
         emp_id = emps[0]["ID"]
         gid = groups[0]["ID"]
-        resp = write_client.post(f"/api/groups/{gid}/members", json={"employee_id": emp_id})
+        resp = write_client.post(
+            f"/api/groups/{gid}/members", json={"employee_id": emp_id}
+        )
         assert resp.status_code in (200, 409)
         del_resp = write_client.delete(f"/api/groups/{gid}/members/{emp_id}")
         assert del_resp.status_code in (200, 404)
@@ -1419,7 +1516,9 @@ class TestAPIWriteEndpoints:
 
     def test_note_update_delete(self, write_client):
         """Verify note update delete."""
-        create = write_client.post("/api/notes", json={"date": "2025-10-10", "text": "Test"})
+        create = write_client.post(
+            "/api/notes", json={"date": "2025-10-10", "text": "Test"}
+        )
         assert create.status_code == 200
         note_id = create.json()["record"].get("ID") or create.json()["record"].get("id")
 
@@ -1433,12 +1532,15 @@ class TestAPIWriteEndpoints:
         """Verify period create delete."""
         groups = write_client.get("/api/groups").json()
         group_id = groups[0]["ID"] if groups else 1
-        resp = write_client.post("/api/periods", json={
-            "group_id": group_id,
-            "validdays": "1111100",
-            "start": "2025-01-01",
-            "end": "2025-12-31",
-        })
+        resp = write_client.post(
+            "/api/periods",
+            json={
+                "group_id": group_id,
+                "validdays": "1111100",
+                "start": "2025-01-01",
+                "end": "2025-12-31",
+            },
+        )
         assert resp.status_code == 200
         period_id = resp.json()["record"].get("ID") or resp.json()["record"].get("id")
         del_resp = write_client.delete(f"/api/periods/{period_id}")
@@ -1450,13 +1552,16 @@ class TestAPIWriteEndpoints:
         shifts = write_client.get("/api/shifts").json()
         if not groups or not shifts:
             pytest.skip("No data")
-        resp = write_client.post("/api/staffing-requirements", json={
-            "group_id": groups[0]["ID"],
-            "shift_id": shifts[0]["ID"],
-            "weekday": 0,
-            "min": 1,
-            "max": 5,
-        })
+        resp = write_client.post(
+            "/api/staffing-requirements",
+            json={
+                "group_id": groups[0]["ID"],
+                "shift_id": shifts[0]["ID"],
+                "weekday": 0,
+                "min": 1,
+                "max": 5,
+            },
+        )
         assert resp.status_code == 200
 
     def test_shift_cycle_assign_remove(self, write_client):
@@ -1466,14 +1571,17 @@ class TestAPIWriteEndpoints:
             pytest.skip("No employees")
         emp_id = emps[0]["ID"]
         # First create a cycle
-        create = write_client.post("/api/shift-cycles", json={"name": "TestAPIZyklus", "size_weeks": 1})
+        create = write_client.post(
+            "/api/shift-cycles", json={"name": "TestAPIZyklus", "size_weeks": 1}
+        )
         assert create.status_code == 200
         cid = create.json()["cycle"]["ID"]
 
         # Assign
-        assign_resp = write_client.post("/api/shift-cycles/assign", json={
-            "employee_id": emp_id, "cycle_id": cid, "start_date": "2025-01-01"
-        })
+        assign_resp = write_client.post(
+            "/api/shift-cycles/assign",
+            json={"employee_id": emp_id, "cycle_id": cid, "start_date": "2025-01-01"},
+        )
         assert assign_resp.status_code == 200
 
         # Un-assign
@@ -1485,12 +1593,15 @@ class TestAPIWriteEndpoints:
 
     def test_shift_cycle_update(self, write_client):
         """Verify shift cycle update."""
-        create = write_client.post("/api/shift-cycles", json={"name": "UpdCycle", "size_weeks": 1})
+        create = write_client.post(
+            "/api/shift-cycles", json={"name": "UpdCycle", "size_weeks": 1}
+        )
         assert create.status_code == 200
         cid = create.json()["cycle"]["ID"]
-        put_resp = write_client.put(f"/api/shift-cycles/{cid}", json={
-            "name": "Updated", "size_weeks": 2, "entries": []
-        })
+        put_resp = write_client.put(
+            f"/api/shift-cycles/{cid}",
+            json={"name": "Updated", "size_weeks": 2, "entries": []},
+        )
         assert put_resp.status_code == 200
         write_client.delete(f"/api/shift-cycles/{cid}")
 
@@ -1502,17 +1613,22 @@ class TestAPIWriteEndpoints:
             pytest.skip("No data")
         emp_id = emps[0]["ID"]
         s = shifts[0]
-        resp = write_client.post("/api/einsatzplan", json={
-            "employee_id": emp_id,
-            "date": "2025-07-10",
-            "shift_id": s["ID"],
-            "name": s.get("NAME", "Test"),
-            "shortname": s.get("SHORTNAME", "T"),
-        })
+        resp = write_client.post(
+            "/api/einsatzplan",
+            json={
+                "employee_id": emp_id,
+                "date": "2025-07-10",
+                "shift_id": s["ID"],
+                "name": s.get("NAME", "Test"),
+                "shortname": s.get("SHORTNAME", "T"),
+            },
+        )
         assert resp.status_code == 200
         entry_id = resp.json()["record"].get("id")
         if entry_id:
-            put_resp = write_client.put(f"/api/einsatzplan/{entry_id}", json={"name": "Updated"})
+            put_resp = write_client.put(
+                f"/api/einsatzplan/{entry_id}", json={"name": "Updated"}
+            )
             assert put_resp.status_code == 200
             del_resp = write_client.delete(f"/api/einsatzplan/{entry_id}")
             assert del_resp.status_code == 200
@@ -1524,12 +1640,15 @@ class TestAPIWriteEndpoints:
         if not emps or not shifts:
             pytest.skip("No data")
         emp_id = emps[0]["ID"]
-        resp = write_client.post("/api/cycle-exceptions", json={
-            "employee_id": emp_id,
-            "cycle_assignment_id": 1,
-            "date": "2025-07-07",
-            "shift_id": shifts[0]["ID"],
-        })
+        resp = write_client.post(
+            "/api/cycle-exceptions",
+            json={
+                "employee_id": emp_id,
+                "cycle_assignment_id": 1,
+                "date": "2025-07-07",
+                "shift_id": shifts[0]["ID"],
+            },
+        )
         assert resp.status_code == 200
         exc_id = resp.json()["record"].get("id") or resp.json()["record"].get("ID")
         if exc_id:
@@ -1542,9 +1661,10 @@ class TestAPIWriteEndpoints:
         if not emps:
             pytest.skip("No employees")
         emp_id = emps[0]["ID"]
-        resp = write_client.post("/api/employee-access", json={
-            "user_id": 1, "employee_id": emp_id, "rights": 1
-        })
+        resp = write_client.post(
+            "/api/employee-access",
+            json={"user_id": 1, "employee_id": emp_id, "rights": 1},
+        )
         assert resp.status_code == 200
         access_id = resp.json()["record"].get("id")
         if access_id:
@@ -1557,9 +1677,9 @@ class TestAPIWriteEndpoints:
         if not groups:
             pytest.skip("No groups")
         gid = groups[0]["ID"]
-        resp = write_client.post("/api/group-access", json={
-            "user_id": 1, "group_id": gid, "rights": 1
-        })
+        resp = write_client.post(
+            "/api/group-access", json={"user_id": 1, "group_id": gid, "rights": 1}
+        )
         assert resp.status_code == 200
         access_id = resp.json()["record"].get("id")
         if access_id:
@@ -1568,18 +1688,23 @@ class TestAPIWriteEndpoints:
 
     def test_changelog_post(self, write_client):
         """Verify changelog post."""
-        resp = write_client.post("/api/changelog", json={
-            "user": "testuser",
-            "action": "CREATE",
-            "entity": "employee",
-            "entity_id": 1,
-            "details": "Test entry"
-        })
+        resp = write_client.post(
+            "/api/changelog",
+            json={
+                "user": "testuser",
+                "action": "CREATE",
+                "entity": "employee",
+                "entity_id": 1,
+                "details": "Test entry",
+            },
+        )
         assert resp.status_code == 200
 
     def test_annual_close_post(self, write_client):
         """Verify annual close post."""
-        resp = write_client.post("/api/annual-close", json={"year": 2024, "dry_run": True})
+        resp = write_client.post(
+            "/api/annual-close", json={"year": 2024, "dry_run": True}
+        )
         assert resp.status_code == 200
 
     def test_admin_compact(self, write_client):
@@ -1595,11 +1720,14 @@ class TestAPIWriteEndpoints:
         absence_id = absences[0].get("id") or absences[0].get("ID")
         if absence_id is None:
             pytest.skip("No absence ID")
-        resp = write_client.patch(f"/api/absences/{absence_id}/status", json={"status": "approved"})
+        resp = write_client.patch(
+            f"/api/absences/{absence_id}/status", json={"status": "approved"}
+        )
         assert resp.status_code in (200, 404)
 
 
 # ─── API: Auth Endpoints ──────────────────────────────────────────────────────
+
 
 class TestAuthEndpoints:
     def test_login_missing_creds(self, sync_client):
@@ -1609,9 +1737,9 @@ class TestAuthEndpoints:
 
     def test_login_wrong_creds(self, sync_client):
         """Verify login wrong creds."""
-        resp = sync_client.post("/api/auth/login", json={
-            "username": "nobody", "password": "wrong"
-        })
+        resp = sync_client.post(
+            "/api/auth/login", json={"username": "nobody", "password": "wrong"}
+        )
         assert resp.status_code in (401, 400)
 
     def test_logout(self, sync_client):
@@ -1622,13 +1750,14 @@ class TestAuthEndpoints:
     def test_admin_endpoints_require_auth(self, sync_client):
         # Without auth header, should return 401
         """Verify admin endpoints require auth."""
-        resp = sync_client.post("/api/users", json={
-            "name": "x", "password": "x", "role": "Leser"
-        })
+        resp = sync_client.post(
+            "/api/users", json={"name": "x", "password": "x", "role": "Leser"}
+        )
         assert resp.status_code in (401, 403, 422)
 
 
 # ─── API: Stats ───────────────────────────────────────────────────────────────
+
 
 class TestAPIStats:
     def test_stats_endpoint(self, sync_client):
@@ -1636,7 +1765,7 @@ class TestAPIStats:
         resp = sync_client.get("/api/stats")
         assert resp.status_code == 200
         data = resp.json()
-        assert 'employees' in data
+        assert "employees" in data
 
     def test_shift_cycle_by_id(self, sync_client):
         """Verify shift cycle by id."""
@@ -1649,14 +1778,18 @@ class TestAPIStats:
 
 # ─── API: Schedule Generate ───────────────────────────────────────────────────
 
+
 class TestScheduleGenerate:
     def test_schedule_generate(self, write_client):
         """Verify schedule generate."""
-        resp = write_client.post("/api/schedule/generate", json={
-            "year": 2025,
-            "month": 8,
-            "dry_run": True,
-        })
+        resp = write_client.post(
+            "/api/schedule/generate",
+            json={
+                "year": 2025,
+                "month": 8,
+                "dry_run": True,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "created" in data or "ok" in data
@@ -1664,13 +1797,14 @@ class TestScheduleGenerate:
 
 # ─── API: Import Endpoints ────────────────────────────────────────────────────
 
+
 class TestImportEndpoints:
     def test_import_employees_csv(self, write_client):
         """Verify import employees csv."""
         csv_content = b"NAME,FIRSTNAME,SHORTNAME\nTestImport,Hans,THa\n"
         resp = write_client.post(
             "/api/import/employees",
-            files={"file": ("employees.csv", csv_content, "text/csv")}
+            files={"file": ("employees.csv", csv_content, "text/csv")},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -1681,7 +1815,7 @@ class TestImportEndpoints:
         csv_content = b"NAME,SHORTNAME\nTestSchicht,TS\n"
         resp = write_client.post(
             "/api/import/shifts",
-            files={"file": ("shifts.csv", csv_content, "text/csv")}
+            files={"file": ("shifts.csv", csv_content, "text/csv")},
         )
         assert resp.status_code == 200
 
@@ -1690,12 +1824,13 @@ class TestImportEndpoints:
         csv_content = b"DATE,NAME\n2025-12-30,Testtag\n"
         resp = write_client.post(
             "/api/import/holidays",
-            files={"file": ("holidays.csv", csv_content, "text/csv")}
+            files={"file": ("holidays.csv", csv_content, "text/csv")},
         )
         assert resp.status_code == 200
 
 
 # ─── DBF Writer: _get_shift_time_range ────────────────────────────────────────
+
 
 class TestShiftTimeRange:
     def test_get_shift_time_range_basic(self, real_db):

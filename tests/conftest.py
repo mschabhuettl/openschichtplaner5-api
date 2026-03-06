@@ -1,6 +1,7 @@
 """
 Shared test fixtures for OpenSchichtplaner5 backend tests.
 """
+
 import os
 import sys
 import secrets
@@ -9,7 +10,9 @@ import pytest
 
 # ── Python path setup ──────────────────────────────────────────────────────────
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_VENV_SITE_PACKAGES = os.path.join(_BACKEND_DIR, "venv", "lib", "python3.13", "site-packages")
+_VENV_SITE_PACKAGES = os.path.join(
+    _BACKEND_DIR, "venv", "lib", "python3.13", "site-packages"
+)
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 if os.path.isdir(_VENV_SITE_PACKAGES) and _VENV_SITE_PACKAGES not in sys.path:
@@ -26,30 +29,34 @@ _REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or (
 
 # ── Session token helpers ──────────────────────────────────────────────────────
 
+
 def _inject_token(role: str, name: str = None) -> str:
     """Inject a session token with the given role. Returns the token."""
     from api.main import _sessions
+
     tok = secrets.token_hex(20)
     _sessions[tok] = {
-        'ID': 900 + hash(role) % 10,
-        'NAME': name or f'test_{role.lower()}',
-        'role': role,
-        'ADMIN': role == 'Admin',
-        'RIGHTS': 255 if role == 'Admin' else (2 if role == 'Planer' else 1),
+        "ID": 900 + hash(role) % 10,
+        "NAME": name or f"test_{role.lower()}",
+        "role": role,
+        "ADMIN": role == "Admin",
+        "RIGHTS": 255 if role == "Admin" else (2 if role == "Planer" else 1),
     }
     return tok
 
 
 def _remove_token(tok: str) -> None:
     from api.main import _sessions
+
     _sessions.pop(tok, None)
 
 
 def _auth_headers(tok: str) -> dict:
-    return {'X-Auth-Token': tok}
+    return {"X-Auth-Token": tok}
 
 
 # ── DB fixtures ────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def test_db_path(tmp_path_factory):
@@ -65,6 +72,7 @@ def patched_db(test_db_path):
     """Session-scoped: sets SP5_DB_PATH and patches api.main.DB_PATH."""
     os.environ["SP5_DB_PATH"] = test_db_path
     import api.main as main_module
+
     original = main_module.DB_PATH
     main_module.DB_PATH = test_db_path
     yield test_db_path
@@ -75,6 +83,7 @@ def patched_db(test_db_path):
 def app(patched_db):
     """Return the FastAPI app pointed at the test database."""
     from api.main import app as _app
+
     return _app
 
 
@@ -83,6 +92,7 @@ def reset_rate_limiter():
     """Reset slowapi rate limiter storage before each test to avoid cross-test pollution."""
     try:
         from api.main import limiter
+
         limiter.reset()
     except Exception:
         pass
@@ -90,6 +100,7 @@ def reset_rate_limiter():
 
 
 # ── Client fixtures ────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def sync_client(app):
@@ -100,31 +111,32 @@ def sync_client(app):
     from starlette.testclient import TestClient
     from api.main import _sessions
 
-    tok = 'SYNC_CLIENT_PERSISTENT_ADMIN_TOKEN'
+    tok = "SYNC_CLIENT_PERSISTENT_ADMIN_TOKEN"
     _sessions[tok] = {
-        'ID': 999,
-        'NAME': 'sync_admin',
-        'role': 'Admin',
-        'ADMIN': True,
-        'RIGHTS': 255,
+        "ID": 999,
+        "NAME": "sync_admin",
+        "role": "Admin",
+        "ADMIN": True,
+        "RIGHTS": 255,
     }
 
     class PersistentTokenClient(TestClient):
         """TestClient that re-injects the token before each request."""
+
         def request(self, method, url, **kwargs):
             # Re-inject token in case a logout test removed it
             if tok not in _sessions:
                 _sessions[tok] = {
-                    'ID': 999,
-                    'NAME': 'sync_admin',
-                    'role': 'Admin',
-                    'ADMIN': True,
-                    'RIGHTS': 255,
+                    "ID": 999,
+                    "NAME": "sync_admin",
+                    "role": "Admin",
+                    "ADMIN": True,
+                    "RIGHTS": 255,
                 }
             return super().request(method, url, **kwargs)
 
     with PersistentTokenClient(app, raise_server_exceptions=True) as c:
-        c.headers['X-Auth-Token'] = tok
+        c.headers["X-Auth-Token"] = tok
         yield c
 
     _sessions.pop(tok, None)
@@ -138,6 +150,7 @@ def write_db_path(tmp_path):
     db_path = str(dst)
 
     import api.main as main_module
+
     original = main_module.DB_PATH
     main_module.DB_PATH = db_path
     os.environ["SP5_DB_PATH"] = db_path
@@ -149,10 +162,11 @@ def write_db_path(tmp_path):
 def write_client(write_db_path, app):
     """Function-scoped TestClient with admin token and fresh DB copy."""
     from starlette.testclient import TestClient
-    tok = _inject_token('Admin', 'write_admin')
+
+    tok = _inject_token("Admin", "write_admin")
     try:
         with TestClient(app, raise_server_exceptions=True) as c:
-            c.headers['X-Auth-Token'] = tok
+            c.headers["X-Auth-Token"] = tok
             yield c
     finally:
         _remove_token(tok)
@@ -162,10 +176,11 @@ def write_client(write_db_path, app):
 def admin_client(write_db_path, app):
     """Function-scoped TestClient with Admin role and fresh DB copy."""
     from starlette.testclient import TestClient
-    tok = _inject_token('Admin', 'fixture_admin')
+
+    tok = _inject_token("Admin", "fixture_admin")
     try:
         with TestClient(app, raise_server_exceptions=True) as c:
-            c.headers['X-Auth-Token'] = tok
+            c.headers["X-Auth-Token"] = tok
             yield c
     finally:
         _remove_token(tok)
@@ -175,10 +190,11 @@ def admin_client(write_db_path, app):
 def planer_client(write_db_path, app):
     """Function-scoped TestClient with Planer role."""
     from starlette.testclient import TestClient
-    tok = _inject_token('Planer', 'fixture_planer')
+
+    tok = _inject_token("Planer", "fixture_planer")
     try:
         with TestClient(app, raise_server_exceptions=False) as c:
-            c.headers['X-Auth-Token'] = tok
+            c.headers["X-Auth-Token"] = tok
             yield c
     finally:
         _remove_token(tok)
@@ -188,10 +204,11 @@ def planer_client(write_db_path, app):
 def leser_client(write_db_path, app):
     """Function-scoped TestClient with Leser role."""
     from starlette.testclient import TestClient
-    tok = _inject_token('Leser', 'fixture_leser')
+
+    tok = _inject_token("Leser", "fixture_leser")
     try:
         with TestClient(app, raise_server_exceptions=False) as c:
-            c.headers['X-Auth-Token'] = tok
+            c.headers["X-Auth-Token"] = tok
             yield c
     finally:
         _remove_token(tok)

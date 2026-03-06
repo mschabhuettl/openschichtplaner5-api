@@ -843,5 +843,83 @@
     "resolved_at": "2026-03-01T03:47:47",
     "resolved_by": "test_planer",
     "reject_reason": ""
+  },
+  {
+    "id": 66,
+    "requester_id": 41,
+    "requester_date": "2025-04-01",
+    "partner_id": 42,
+    "partner_date": "2025-04-02",
+    "note": "Test swap",
+    "status": "pending",
+    "created_at": "2026-03-06T04:50:43",
+    "resolved_at": null,
+    "resolved_by": null,
+    "reject_reason": ""
+  },
+  {
+    "id": 67,
+    "requester_id": 41,
+    "requester_date": "2025-05-01",
+    "partner_id": 42,
+    "partner_date": "2025-05-02",
+    "note": "",
+    "status": "rejected",
+    "created_at": "2026-03-06T04:50:43",
+    "resolved_at": "2026-03-06T04:50:43",
+    "resolved_by": "planner",
+    "reject_reason": "Test rejection"
+  },
+  {
+    "id": 68,
+    "requester_id": 41,
+    "requester_date": "2025-06-01",
+    "partner_id": 42,
+    "partner_date": "2025-06-01",
+    "note": "Approve me",
+    "status": "approved",
+    "created_at": "2026-03-06T04:50:43",
+    "resolved_at": "2026-03-06T04:50:43",
+    "resolved_by": "test_planer",
+    "reject_reason": ""
+  },
+  {
+    "id": 69,
+    "requester_id": 41,
+    "requester_date": "2025-04-01",
+    "partner_id": 42,
+    "partner_date": "2025-04-02",
+    "note": "Test swap",
+    "status": "pending",
+    "created_at": "2026-03-06T04:52:34",
+    "resolved_at": null,
+    "resolved_by": null,
+    "reject_reason": ""
+  },
+  {
+    "id": 70,
+    "requester_id": 41,
+    "requester_date": "2025-05-01",
+    "partner_id": 42,
+    "partner_date": "2025-05-02",
+    "note": "",
+    "status": "rejected",
+    "created_at": "2026-03-06T04:52:34",
+    "resolved_at": "2026-03-06T04:52:34",
+    "resolved_by": "planner",
+    "reject_reason": "Test rejection"
+  },
+  {
+    "id": 71,
+    "requester_id": 41,
+    "requester_date": "2025-06-01",
+    "partner_id": 42,
+    "partner_date": "2025-06-01",
+    "note": "Approve me",
+    "status": "approved",
+    "created_at": "2026-03-06T04:52:34",
+    "resolved_at": "2026-03-06T04:52:34",
+    "resolved_by": "test_planer",
+    "reject_reason": ""
   }
 ]

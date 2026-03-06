@@ -3,6 +3,7 @@ Business-logic unit tests for OpenSchichtplaner5.
 
 These tests exercise sp5lib modules directly (without the HTTP layer).
 """
+
 import os
 import sys
 import shutil
@@ -10,7 +11,9 @@ import pytest
 
 # Ensure backend is importable
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_VENV_SITE_PACKAGES = os.path.join(_BACKEND_DIR, "venv", "lib", "python3.13", "site-packages")
+_VENV_SITE_PACKAGES = os.path.join(
+    _BACKEND_DIR, "venv", "lib", "python3.13", "site-packages"
+)
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 if os.path.isdir(_VENV_SITE_PACKAGES) and _VENV_SITE_PACKAGES not in sys.path:
@@ -28,10 +31,12 @@ _REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or (
 # Fixtures
 # ─────────────────────────────────────────────────────────────
 
+
 @pytest.fixture(scope="module")
 def real_db():
     """Load the real database (read-only)."""
     from sp5lib.database import SP5Database
+
     return SP5Database(_REAL_DB_PATH)
 
 
@@ -41,6 +46,7 @@ def tmp_db(tmp_path):
     dst = tmp_path / "Daten"
     shutil.copytree(_REAL_DB_PATH, str(dst))
     from sp5lib.database import SP5Database
+
     return SP5Database(str(dst))
 
 
@@ -48,47 +54,56 @@ def tmp_db(tmp_path):
 # Color Utils
 # ─────────────────────────────────────────────────────────────
 
+
 class TestColorUtils:
     def test_bgr_to_hex_white(self):
         """Verify bgr to hex white."""
         from sp5lib.color_utils import bgr_to_hex
+
         assert bgr_to_hex(16777215) == "#FFFFFF"
 
     def test_bgr_to_hex_black(self):
         """Verify bgr to hex black."""
         from sp5lib.color_utils import bgr_to_hex
+
         assert bgr_to_hex(0) == "#000000"
 
     def test_bgr_to_hex_red(self):
         """Verify bgr to hex red."""
         from sp5lib.color_utils import bgr_to_hex
+
         # Red in BGR: R=255, G=0, B=0 → int = 0x0000FF = 255
         assert bgr_to_hex(255) == "#FF0000"
 
     def test_bgr_to_hex_blue(self):
         """Verify bgr to hex blue."""
         from sp5lib.color_utils import bgr_to_hex
+
         # Blue in BGR: R=0, G=0, B=255 → int = 0xFF0000 = 16711680
         assert bgr_to_hex(16711680) == "#0000FF"
 
     def test_bgr_to_hex_invalid(self):
         """Verify bgr to hex invalid."""
         from sp5lib.color_utils import bgr_to_hex
+
         assert bgr_to_hex(-1) == "#FFFFFF"
 
     def test_is_light_color_white(self):
         """Verify is light color white."""
         from sp5lib.color_utils import is_light_color
+
         assert is_light_color(16777215) is True
 
     def test_is_light_color_black(self):
         """Verify is light color black."""
         from sp5lib.color_utils import is_light_color
+
         assert is_light_color(0) is False
 
     def test_bgr_to_rgb(self):
         """Verify bgr to rgb."""
         from sp5lib.color_utils import bgr_to_rgb
+
         # BGR int where R=100, G=150, B=200 → (100 + 150*256 + 200*65536)
         bgr_int = 100 + (150 << 8) + (200 << 16)
         r, g, b = bgr_to_rgb(bgr_int)
@@ -101,10 +116,12 @@ class TestColorUtils:
 # DBF Reader
 # ─────────────────────────────────────────────────────────────
 
+
 class TestDBFReader:
     def test_read_employees_table(self):
         """Verify read employees table."""
         from sp5lib.dbf_reader import read_dbf
+
         path = os.path.join(_REAL_DB_PATH, "5EMPL.DBF")
         rows = read_dbf(path)
         assert isinstance(rows, list)
@@ -113,6 +130,7 @@ class TestDBFReader:
     def test_employee_record_has_id(self):
         """Verify employee record has id."""
         from sp5lib.dbf_reader import read_dbf
+
         path = os.path.join(_REAL_DB_PATH, "5EMPL.DBF")
         rows = read_dbf(path)
         for row in rows:
@@ -121,6 +139,7 @@ class TestDBFReader:
     def test_read_shifts_table(self):
         """Verify read shifts table."""
         from sp5lib.dbf_reader import read_dbf
+
         path = os.path.join(_REAL_DB_PATH, "5SHIFT.DBF")
         rows = read_dbf(path)
         assert isinstance(rows, list)
@@ -129,6 +148,7 @@ class TestDBFReader:
     def test_read_nonexistent_table(self):
         """Verify read nonexistent table."""
         from sp5lib.dbf_reader import read_dbf
+
         # Should return empty list or raise, not crash badly
         try:
             rows = read_dbf("/nonexistent/path/FAKE.DBF")
@@ -139,6 +159,7 @@ class TestDBFReader:
     def test_decode_string_utf16(self):
         """Verify decode string utf16."""
         from sp5lib.dbf_reader import _decode_string, _is_utf16_le
+
         # "Test" in UTF-16 LE
         raw = "Test".encode("utf-16-le") + b"\x00\x00"
         assert _is_utf16_le(raw) is True
@@ -148,6 +169,7 @@ class TestDBFReader:
     def test_decode_string_ascii(self):
         """Verify decode string ascii."""
         from sp5lib.dbf_reader import _decode_string, _is_utf16_le
+
         raw = b"WORKDAYS   "
         assert _is_utf16_le(raw) is False
         result = _decode_string(raw)
@@ -156,6 +178,7 @@ class TestDBFReader:
     def test_parse_date(self):
         """Verify parse date."""
         from sp5lib.dbf_reader import _parse_date
+
         assert _parse_date("20240615") == "2024-06-15"
         assert _parse_date("19991231") == "1999-12-31"
         assert _parse_date("") is None
@@ -166,6 +189,7 @@ class TestDBFReader:
 # ─────────────────────────────────────────────────────────────
 # SHORTNAME generation (auto-kürzel logic)
 # ─────────────────────────────────────────────────────────────
+
 
 class TestShortNameGeneration:
     """
@@ -211,6 +235,7 @@ class TestShortNameGeneration:
 # ─────────────────────────────────────────────────────────────
 # Database: Employee read/write
 # ─────────────────────────────────────────────────────────────
+
 
 class TestDatabaseEmployees:
     def test_get_employees_returns_list(self, real_db):
@@ -272,6 +297,7 @@ class TestDatabaseEmployees:
 # Database: Shifts
 # ─────────────────────────────────────────────────────────────
 
+
 class TestDatabaseShifts:
     def test_get_shifts(self, real_db):
         """Verify get shifts."""
@@ -296,6 +322,7 @@ class TestDatabaseShifts:
 # ─────────────────────────────────────────────────────────────
 # Database: Schedule / Conflicts
 # ─────────────────────────────────────────────────────────────
+
 
 class TestScheduleConflicts:
     """
@@ -349,6 +376,7 @@ class TestScheduleConflicts:
 # Database: Statistics / Time Accounts
 # ─────────────────────────────────────────────────────────────
 
+
 class TestStatistics:
     def test_get_statistics_returns_list(self, real_db):
         """Verify get statistics returns list."""
@@ -381,12 +409,15 @@ class TestStatistics:
         """Verify target hours positive."""
         stats = real_db.get_statistics(2024, 6)
         for s in stats:
-            assert s["target_hours"] >= 0, f"Negative target_hours for {s.get('employee_name')}"
+            assert s["target_hours"] >= 0, (
+                f"Negative target_hours for {s.get('employee_name')}"
+            )
 
 
 # ─────────────────────────────────────────────────────────────
 # Database: Groups
 # ─────────────────────────────────────────────────────────────
+
 
 class TestDatabaseGroups:
     def test_get_groups(self, real_db):
@@ -414,6 +445,7 @@ class TestDatabaseGroups:
 # Database: Leave Types
 # ─────────────────────────────────────────────────────────────
 
+
 class TestLeaveTypes:
     def test_get_leave_types(self, real_db):
         """Verify get leave types."""
@@ -432,6 +464,7 @@ class TestLeaveTypes:
 # ─────────────────────────────────────────────────────────────
 # Database: Holidays
 # ─────────────────────────────────────────────────────────────
+
 
 class TestHolidays:
     def test_get_holidays(self, real_db):
@@ -463,6 +496,7 @@ class TestHolidays:
 # Database: Zeitkonto (time balance)
 # ─────────────────────────────────────────────────────────────
 
+
 class TestZeitkonto:
     def test_get_zeitkonto(self, real_db):
         """Verify get zeitkonto."""
@@ -493,6 +527,7 @@ class TestZeitkonto:
 # ─────────────────────────────────────────────────────────────
 # DBF Writer / Low-level
 # ─────────────────────────────────────────────────────────────
+
 
 class TestDBFWriter:
     """Low-level writer tests using minimal synthetic DBF files."""
@@ -529,6 +564,7 @@ class TestDBFWriter:
     def test_find_all_records(self, tmp_db):
         """find_all_records via the DB can locate specific employees."""
         from sp5lib.dbf_writer import find_all_records
+
         table_path = tmp_db._table("EMPL")
         # find_all_records returns (record_number, dict) pairs; no predicate = all records
         all_recs = find_all_records(table_path)

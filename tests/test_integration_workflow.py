@@ -23,13 +23,18 @@ class TestFullWorkflow:
         emp_id = emps[0]["ID"]
         shift_id = shifts[0]["ID"]
 
-        resp = planer_client.post("/api/schedule/bulk", json={
-            "entries": [
-                {"employee_id": emp_id, "date": "2025-07-01", "shift_id": shift_id},
-            ],
-            "overwrite": True
-        })
-        assert resp.status_code == 200, f"Schedule-Erstellung fehlgeschlagen: {resp.text}"
+        resp = planer_client.post(
+            "/api/schedule/bulk",
+            json={
+                "entries": [
+                    {"employee_id": emp_id, "date": "2025-07-01", "shift_id": shift_id},
+                ],
+                "overwrite": True,
+            },
+        )
+        assert resp.status_code == 200, (
+            f"Schedule-Erstellung fehlgeschlagen: {resp.text}"
+        )
         data = resp.json()
         assert "created" in data
 
@@ -44,20 +49,26 @@ class TestFullWorkflow:
         emp_id = emps[0]["ID"]
         lt_id = leave_types[0]["ID"]
 
-        resp = planer_client.post("/api/absences", json={
-            "employee_id": emp_id,
-            "date": "2025-07-10",
-            "leave_type_id": lt_id,
-        })
+        resp = planer_client.post(
+            "/api/absences",
+            json={
+                "employee_id": emp_id,
+                "date": "2025-07-10",
+                "leave_type_id": lt_id,
+            },
+        )
         assert resp.status_code == 200, f"Abwesenheit fehlgeschlagen: {resp.text}"
         assert resp.json().get("ok") is True
 
     def test_planer_create_note(self, planer_client):
         """Planer kann Notizen erstellen."""
-        resp = planer_client.post("/api/notes", json={
-            "date": "2025-07-15",
-            "text": "Integration-Test Notiz",
-        })
+        resp = planer_client.post(
+            "/api/notes",
+            json={
+                "date": "2025-07-15",
+                "text": "Integration-Test Notiz",
+            },
+        )
         assert resp.status_code == 200, f"Notiz erstellen fehlgeschlagen: {resp.text}"
         assert resp.json().get("ok") is True
 
@@ -85,13 +96,18 @@ class TestFullWorkflow:
         emp_id = emps[0]["ID"]
         shift_id = shifts[0]["ID"]
 
-        resp = leser_client.post("/api/schedule/bulk", json={
-            "entries": [
-                {"employee_id": emp_id, "date": "2025-07-02", "shift_id": shift_id},
-            ],
-            "overwrite": True
-        })
-        assert resp.status_code == 403, f"Leser sollte 403 bekommen, hat aber: {resp.status_code}"
+        resp = leser_client.post(
+            "/api/schedule/bulk",
+            json={
+                "entries": [
+                    {"employee_id": emp_id, "date": "2025-07-02", "shift_id": shift_id},
+                ],
+                "overwrite": True,
+            },
+        )
+        assert resp.status_code == 403, (
+            f"Leser sollte 403 bekommen, hat aber: {resp.status_code}"
+        )
 
     def test_leser_cannot_create_absence(self, leser_client):
         """Leser darf KEINE Abwesenheiten eintragen → 403."""
@@ -100,27 +116,40 @@ class TestFullWorkflow:
         emp_id = emps[0]["ID"]
         lt_id = leave_types[0]["ID"]
 
-        resp = leser_client.post("/api/absences", json={
-            "employee_id": emp_id,
-            "date": "2025-07-11",
-            "leave_type_id": lt_id,
-        })
-        assert resp.status_code == 403, f"Leser sollte 403 bekommen, hat aber: {resp.status_code}"
+        resp = leser_client.post(
+            "/api/absences",
+            json={
+                "employee_id": emp_id,
+                "date": "2025-07-11",
+                "leave_type_id": lt_id,
+            },
+        )
+        assert resp.status_code == 403, (
+            f"Leser sollte 403 bekommen, hat aber: {resp.status_code}"
+        )
 
     def test_leser_cannot_create_note(self, leser_client):
         """Leser darf KEINE Notizen erstellen → 403."""
-        resp = leser_client.post("/api/notes", json={
-            "date": "2025-07-16",
-            "text": "Nicht erlaubt",
-        })
-        assert resp.status_code == 403, f"Leser sollte 403 bekommen, hat aber: {resp.status_code}"
+        resp = leser_client.post(
+            "/api/notes",
+            json={
+                "date": "2025-07-16",
+                "text": "Nicht erlaubt",
+            },
+        )
+        assert resp.status_code == 403, (
+            f"Leser sollte 403 bekommen, hat aber: {resp.status_code}"
+        )
 
     def test_leser_cannot_create_employee(self, leser_client):
         """Leser darf KEINE Mitarbeiter anlegen → 403."""
-        resp = leser_client.post("/api/employees", json={
-            "FIRSTNAME": "Max",
-            "LASTNAME": "Mustermann",
-        })
+        resp = leser_client.post(
+            "/api/employees",
+            json={
+                "FIRSTNAME": "Max",
+                "LASTNAME": "Mustermann",
+            },
+        )
         assert resp.status_code == 403
 
 
@@ -140,10 +169,13 @@ class TestMasterDataCRUD:
 
     def test_create_shift(self, write_client):
         """Verify create shift."""
-        resp = write_client.post("/api/shifts", json={
-            "SHORTNAME": "IT",
-            "NAME": "Integration Test Shift",
-        })
+        resp = write_client.post(
+            "/api/shifts",
+            json={
+                "SHORTNAME": "IT",
+                "NAME": "Integration Test Shift",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data.get("ok") is True
@@ -183,10 +215,13 @@ class TestNotesCRUD:
     def test_create_and_read_note(self, write_client):
         # Create
         """Verify create and read note."""
-        resp = write_client.post("/api/notes", json={
-            "date": "2025-08-01",
-            "text": "Notiz für CRUD-Test",
-        })
+        resp = write_client.post(
+            "/api/notes",
+            json={
+                "date": "2025-08-01",
+                "text": "Notiz für CRUD-Test",
+            },
+        )
         assert resp.status_code == 200
         created = resp.json()
         assert created.get("ok") is True
@@ -199,10 +234,13 @@ class TestNotesCRUD:
     def test_update_note(self, write_client):
         # Create
         """Verify update note."""
-        resp = write_client.post("/api/notes", json={
-            "date": "2025-08-02",
-            "text": "Original",
-        })
+        resp = write_client.post(
+            "/api/notes",
+            json={
+                "date": "2025-08-02",
+                "text": "Original",
+            },
+        )
         assert resp.status_code == 200
         note_id = resp.json()["record"]["id"]
 
@@ -214,10 +252,13 @@ class TestNotesCRUD:
     def test_delete_note(self, write_client):
         # Create
         """Verify delete note."""
-        resp = write_client.post("/api/notes", json={
-            "date": "2025-08-03",
-            "text": "Zu löschen",
-        })
+        resp = write_client.post(
+            "/api/notes",
+            json={
+                "date": "2025-08-03",
+                "text": "Zu löschen",
+            },
+        )
         assert resp.status_code == 200
         note_id = resp.json()["record"]["id"]
 
@@ -229,10 +270,13 @@ class TestNotesCRUD:
     def test_update_note_invalid_date(self, write_client):
         # Create
         """Verify update note invalid date."""
-        resp = write_client.post("/api/notes", json={
-            "date": "2025-08-04",
-            "text": "Datum-Test",
-        })
+        resp = write_client.post(
+            "/api/notes",
+            json={
+                "date": "2025-08-04",
+                "text": "Datum-Test",
+            },
+        )
         assert resp.status_code == 200
         note_id = resp.json()["record"]["id"]
 

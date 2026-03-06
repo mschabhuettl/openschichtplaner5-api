@@ -5,6 +5,7 @@ Tests for data-integrity and backend robustness:
 - TOCTOU protection in reader/writer
 - Cache behaviour for missing files
 """
+
 import os
 import tempfile
 from sp5lib.dbf_reader import read_dbf, get_table_fields
@@ -13,8 +14,8 @@ from sp5lib.dbf_writer import find_all_records
 
 # ─── read_dbf ─────────────────────────────────────────────────────────────────
 
-class TestReadDbfRobustness:
 
+class TestReadDbfRobustness:
     def test_missing_file_returns_empty_list(self):
         """Verify missing file returns empty list."""
         result = read_dbf("/tmp/nonexistent_sp5_test_12345.DBF")
@@ -33,7 +34,7 @@ class TestReadDbfRobustness:
     def test_truncated_header_returns_empty_list(self):
         """Verify truncated header returns empty list."""
         with tempfile.NamedTemporaryFile(suffix=".DBF", delete=False) as f:
-            f.write(b'\x03\x00\x00\x00')  # Only 4 bytes — incomplete header
+            f.write(b"\x03\x00\x00\x00")  # Only 4 bytes — incomplete header
             path = f.name
         try:
             result = read_dbf(path)
@@ -46,16 +47,17 @@ class TestReadDbfRobustness:
         with tempfile.NamedTemporaryFile(suffix=".DBF", delete=False) as f:
             # 32-byte header: version=3, nrecs=2, header_size=65, record_size=10
             import struct
+
             header = bytearray(32)
             header[0] = 0x03
-            struct.pack_into('<I', header, 4, 2)    # 2 records
-            struct.pack_into('<H', header, 8, 65)   # header_size
-            struct.pack_into('<H', header, 10, 10)  # record_size
+            struct.pack_into("<I", header, 4, 2)  # 2 records
+            struct.pack_into("<H", header, 8, 65)  # header_size
+            struct.pack_into("<H", header, 10, 10)  # record_size
             f.write(bytes(header))
             # Terminator (0x0D) without any field descriptors
-            f.write(b'\x0d')
+            f.write(b"\x0d")
             # Garbage record data
-            f.write(b'\x00' * 5)  # too short
+            f.write(b"\x00" * 5)  # too short
             path = f.name
         try:
             result = read_dbf(path)
@@ -66,7 +68,7 @@ class TestReadDbfRobustness:
     def test_permission_error_returns_empty_list(self, tmp_path):
         """A file that exists but is unreadable returns []."""
         dbf = tmp_path / "locked.DBF"
-        dbf.write_bytes(b'\x00' * 64)
+        dbf.write_bytes(b"\x00" * 64)
         dbf.chmod(0o000)
         try:
             result = read_dbf(str(dbf))
@@ -77,8 +79,8 @@ class TestReadDbfRobustness:
 
 # ─── get_table_fields ─────────────────────────────────────────────────────────
 
-class TestGetTableFieldsRobustness:
 
+class TestGetTableFieldsRobustness:
     def test_missing_file_returns_empty_list(self):
         """Verify missing file returns empty list."""
         result = get_table_fields("/tmp/nonexistent_sp5_fields_12345.DBF")
@@ -87,7 +89,7 @@ class TestGetTableFieldsRobustness:
     def test_permission_error_returns_empty_list(self, tmp_path):
         """Verify permission error returns empty list."""
         dbf = tmp_path / "locked_fields.DBF"
-        dbf.write_bytes(b'\x00' * 64)
+        dbf.write_bytes(b"\x00" * 64)
         dbf.chmod(0o000)
         try:
             result = get_table_fields(str(dbf))
@@ -98,8 +100,8 @@ class TestGetTableFieldsRobustness:
 
 # ─── find_all_records ─────────────────────────────────────────────────────────
 
-class TestFindAllRecordsRobustness:
 
+class TestFindAllRecordsRobustness:
     def test_missing_file_returns_empty_list(self):
         """Verify missing file returns empty list."""
         result = find_all_records("/tmp/nonexistent_sp5_far_12345.DBF", [])
@@ -108,33 +110,38 @@ class TestFindAllRecordsRobustness:
 
 # ─── database._read via API ───────────────────────────────────────────────────
 
+
 class TestDatabaseReadRobustness:
     """Verify that SP5Database._read returns [] for missing tables without raising."""
 
     def test_read_missing_table_returns_empty_list(self, tmp_path):
         """Verify read missing table returns empty list."""
         from sp5lib.database import SP5Database
+
         db = SP5Database(str(tmp_path))  # empty dir — no DBF files
-        result = db._read('GROUP')
+        result = db._read("GROUP")
         assert result == []
 
     def test_read_missing_employee_table_returns_empty_list(self, tmp_path):
         """Verify read missing employee table returns empty list."""
         from sp5lib.database import SP5Database
+
         db = SP5Database(str(tmp_path))
-        result = db._read('EMPL')
+        result = db._read("EMPL")
         assert result == []
 
     def test_read_missing_grasg_returns_empty_list(self, tmp_path):
         """GRASG (group assignments) is optional — missing file must not crash."""
         from sp5lib.database import SP5Database
+
         db = SP5Database(str(tmp_path))
-        result = db._read('GRASG')
+        result = db._read("GRASG")
         assert result == []
 
     def test_get_groups_empty_db_returns_empty_list(self, tmp_path):
         """Verify get groups empty db returns empty list."""
         from sp5lib.database import SP5Database
+
         db = SP5Database(str(tmp_path))
         groups = db.get_groups()
         assert groups == []
@@ -142,6 +149,7 @@ class TestDatabaseReadRobustness:
     def test_get_employees_empty_db_returns_empty_list(self, tmp_path):
         """Verify get employees empty db returns empty list."""
         from sp5lib.database import SP5Database
+
         db = SP5Database(str(tmp_path))
         emps = db.get_employees()
         assert emps == []
@@ -149,6 +157,7 @@ class TestDatabaseReadRobustness:
     def test_get_shifts_empty_db_returns_empty_list(self, tmp_path):
         """Verify get shifts empty db returns empty list."""
         from sp5lib.database import SP5Database
+
         db = SP5Database(str(tmp_path))
         shifts = db.get_shifts()
         assert shifts == []
@@ -160,20 +169,20 @@ class TestDatabaseReadRobustness:
 
         db = SP5Database(str(tmp_path))
         # First read — file missing, should return []
-        result1 = db._read('SHIFT')
+        result1 = db._read("SHIFT")
         assert result1 == []
 
         # Create a minimal valid (but empty) DBF for SHIFT
         dbf_path = tmp_path / "5SHIFT.DBF"
         header = bytearray(32)
         header[0] = 0x03
-        struct.pack_into('<I', header, 4, 0)    # 0 records
-        struct.pack_into('<H', header, 8, 33)   # header_size (32 + terminator)
-        struct.pack_into('<H', header, 10, 1)   # record_size
-        dbf_path.write_bytes(bytes(header) + b'\x0d')
+        struct.pack_into("<I", header, 4, 0)  # 0 records
+        struct.pack_into("<H", header, 8, 33)  # header_size (32 + terminator)
+        struct.pack_into("<H", header, 10, 1)  # record_size
+        dbf_path.write_bytes(bytes(header) + b"\x0d")
 
         # Invalidate cache to simulate mtime change detection
-        _GLOBAL_DBF_CACHE.pop((str(tmp_path), 'SHIFT'), None)
+        _GLOBAL_DBF_CACHE.pop((str(tmp_path), "SHIFT"), None)
 
-        result2 = db._read('SHIFT')
+        result2 = db._read("SHIFT")
         assert isinstance(result2, list)  # [] is fine for an empty table
