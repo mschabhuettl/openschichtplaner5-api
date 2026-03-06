@@ -121,6 +121,7 @@ def update_note(
         )
         if result is None:
             raise HTTPException(status_code=404, detail="Note not found")
+        broadcast("note_updated", {"note_id": note_id})
         return {"ok": True, "record": result}
     except HTTPException:
         raise
@@ -132,6 +133,7 @@ def update_note(
 def delete_note(note_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_note(note_id)
+        broadcast("note_deleted", {"note_id": note_id})
         return {"ok": True, "deleted": count}
     except Exception as e:
         raise _sanitize_500(e)
