@@ -585,7 +585,6 @@ def health():
             "status": db_status,
             "dbf_ok": len(dbf_ok),
             "dbf_missing": dbf_missing,
-            "path": DB_PATH,
         },
         "sessions": {"active": active_sessions},
     }
