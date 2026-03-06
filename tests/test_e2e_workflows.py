@@ -358,7 +358,7 @@ class TestAutoplanerWorkflow:
             "/api/wishes",
             json={
                 "employee_id": emp_id,
-                "date": "2025-10-10",
+                "date": "2099-11-04",
                 "shift_id": shift_id,
                 "wish_type": "WUNSCH",
             },

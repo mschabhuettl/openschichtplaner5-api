@@ -246,10 +246,10 @@ class TestRestrictionCRUD:
             json={
                 "employee_id": emp_id,
                 "shift_id": shift_id,
-                "weekday": 7,  # invalid
+                "weekday": 8,  # invalid (valid range is 0=all,1=Mon..7=Sun)
             },
         )
-        assert res.status_code in (400, 422)  # pydantic validates ge=0, le=6
+        assert res.status_code in (400, 422)  # pydantic validates ge=0, le=7
 
     def test_remove_restriction_success(
         self, admin_client: TestClient, admin_emp_and_shift

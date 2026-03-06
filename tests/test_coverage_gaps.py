@@ -262,9 +262,9 @@ class TestWishes:
         """Verify create wish valid."""
         resp = write_client.post(
             "/api/wishes",
-            json={"employee_id": 1, "date": "2024-03-15", "wish_type": "WUNSCH"},
+            json={"employee_id": 1, "date": "2099-11-03", "wish_type": "WUNSCH"},
         )
-        assert resp.status_code in (200, 400, 500)
+        assert resp.status_code in (200, 400, 409, 500)
 
     def test_delete_wish(self, write_client):
         """Verify delete wish."""

@@ -190,7 +190,7 @@ class TestWishes:
             "/api/wishes",
             json={
                 "employee_id": emps[0]["ID"],
-                "date": "2024-07-15",
+                "date": "2099-11-01",
                 "wish_type": "WUNSCH",
             },
         )

@@ -228,7 +228,7 @@ class TestWishWrongType:
             "/api/wishes",
             json={
                 "employee_id": emps[0]["ID"],
-                "date": "2025-08-15",
+                "date": "2099-11-02",
                 "wish_type": "wunsch",  # lowercase → should be uppercased internally
             },
         )
