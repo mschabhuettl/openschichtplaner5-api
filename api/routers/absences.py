@@ -102,12 +102,34 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
             status_code=404,
             detail=f"Abwesenheitstyp {body.leave_type_id} nicht gefunden",
         )
+
+    # ── Conflict & holiday warnings ──────────────────────────────
+    warnings: List[str] = []
+    try:
+        from datetime import datetime as _dt
+        year = int(body.date[:4])
+        # Check for existing shift assignment on this date
+        day_entries = db.get_schedule_day(body.date)
+        emp_entry = next(
+            (e for e in day_entries if e.get("employee_id") == body.employee_id and e.get("kind") in ("shift", "special_shift")),
+            None,
+        )
+        if emp_entry:
+            shift_name = emp_entry.get("shift_name") or emp_entry.get("custom_name") or "Schicht"
+            warnings.append(f"Mitarbeiter hat an diesem Tag bereits eine Schicht ({shift_name}).")
+        # Check if date is a public holiday
+        holiday_dates = db.get_holiday_dates(year)
+        if body.date in holiday_dates:
+            warnings.append("Dieses Datum ist ein Feiertag – der Urlaub wird trotzdem vom Kontingent abgezogen.")
+    except Exception:
+        pass  # Never block creation due to warning check errors
+
     try:
         result = db.add_absence(body.employee_id, body.date, body.leave_type_id)
         broadcast(
             "absence_changed", {"employee_id": body.employee_id, "date": body.date}
         )
-        return {"ok": True, "record": result}
+        return {"ok": True, "record": result, "warnings": warnings}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
@@ -418,16 +440,36 @@ def patch_absence_status(
     data[str(absence_id)] = entry
     _save_absence_status(data)
 
-    # ── Notification trigger: inform employee about status change ──
-    if body.status in ("approved", "rejected"):
+    # ── Look up absence record BEFORE potential deletion ──────────────────────
+    # get_absences_list returns lowercase keys: id, employee_id, date
+    _absence_rec: dict = {}
+    try:
+        all_absences = get_db().get_absences_list()
+        found = next((a for a in all_absences if a.get("id") == absence_id), None)
+        if found:
+            _absence_rec = found
+    except Exception:
+        pass
+
+    # ── When rejected: remove from ABSEN table so employee is no longer marked absent ──
+    rejected_removed = False
+    if body.status == "rejected" and _absence_rec:
         try:
-            # Look up the absence to find the employee
-            all_absences = get_db().get_absences_list()
-            absence = next((a for a in all_absences if a.get("ID") == absence_id), None)
-            if absence:
-                emp_id = absence.get("MitarbeiterID") or absence.get("employee_id")
-                _emp_name = absence.get("MitarbeiterName", f"MA #{emp_id}")
-                date_str = absence.get("Datum") or absence.get("date", "")
+            emp_id_del = _absence_rec.get("employee_id")
+            date_del = _absence_rec.get("date", "")
+            if emp_id_del and date_del:
+                get_db().delete_absence_only(emp_id_del, date_del)
+                broadcast("absence_changed", {"employee_id": emp_id_del, "date": date_del})
+                rejected_removed = True
+        except Exception:
+            pass  # Never fail the main request due to cleanup errors
+
+    # ── Notification trigger: inform employee about status change ──
+    if body.status in ("approved", "rejected") and _absence_rec:
+        try:
+            emp_id = _absence_rec.get("employee_id")
+            date_str = _absence_rec.get("date", "")
+            if emp_id:
                 if body.status == "approved":
                     title = "✅ Urlaubsantrag genehmigt"
                     message = f"Dein Urlaubsantrag für {date_str} wurde genehmigt."
@@ -447,4 +489,4 @@ def patch_absence_status(
         except Exception:
             pass  # Never fail the main request due to notification issues
 
-    return {"ok": True, "id": absence_id, **entry}
+    return {"ok": True, "id": absence_id, "rejected_removed": rejected_removed, **entry}

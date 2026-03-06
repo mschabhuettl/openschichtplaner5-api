@@ -1118,5 +1118,215 @@
     "link": "/tauschboerse",
     "read": false,
     "created_at": "2026-03-06T07:33:43Z"
+  },
+  {
+    "id": 113,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-04-01 mit dir tauschen (dein Datum: 2025-04-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:41:02Z"
+  },
+  {
+    "id": 114,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-05-01 mit dir tauschen (dein Datum: 2025-05-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:41:03Z"
+  },
+  {
+    "id": 115,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-06-01 mit dir tauschen (dein Datum: 2025-06-01).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:41:03Z"
+  },
+  {
+    "id": 116,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-07-01 mit dir tauschen (dein Datum: 2025-07-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:41:03Z"
+  },
+  {
+    "id": 117,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-04-01 mit dir tauschen (dein Datum: 2025-04-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:42:03Z"
+  },
+  {
+    "id": 118,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-05-01 mit dir tauschen (dein Datum: 2025-05-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:42:03Z"
+  },
+  {
+    "id": 119,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-06-01 mit dir tauschen (dein Datum: 2025-06-01).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:42:04Z"
+  },
+  {
+    "id": 120,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-07-01 mit dir tauschen (dein Datum: 2025-07-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:42:04Z"
+  },
+  {
+    "id": 121,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-04-01 mit dir tauschen (dein Datum: 2025-04-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:42:58Z"
+  },
+  {
+    "id": 122,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-05-01 mit dir tauschen (dein Datum: 2025-05-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:42:58Z"
+  },
+  {
+    "id": 123,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-06-01 mit dir tauschen (dein Datum: 2025-06-01).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:42:58Z"
+  },
+  {
+    "id": 124,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-07-01 mit dir tauschen (dein Datum: 2025-07-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T07:42:59Z"
+  },
+  {
+    "id": 125,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-04-01 mit dir tauschen (dein Datum: 2025-04-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T08:22:11Z"
+  },
+  {
+    "id": 126,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-05-01 mit dir tauschen (dein Datum: 2025-05-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T08:22:12Z"
+  },
+  {
+    "id": 127,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-06-01 mit dir tauschen (dein Datum: 2025-06-01).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T08:22:12Z"
+  },
+  {
+    "id": 128,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-07-01 mit dir tauschen (dein Datum: 2025-07-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T08:22:12Z"
+  },
+  {
+    "id": 129,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T08:33:42Z"
+  },
+  {
+    "id": 130,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-04-01 mit dir tauschen (dein Datum: 2025-04-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T08:33:46Z"
+  },
+  {
+    "id": 131,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-05-01 mit dir tauschen (dein Datum: 2025-05-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T08:33:46Z"
+  },
+  {
+    "id": 132,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-06-01 mit dir tauschen (dein Datum: 2025-06-01).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T08:33:46Z"
+  },
+  {
+    "id": 133,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-07-01 mit dir tauschen (dein Datum: 2025-07-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T08:33:46Z"
   }
 ]

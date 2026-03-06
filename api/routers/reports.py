@@ -1963,29 +1963,72 @@ async def import_employees(
     file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import employees from CSV. Required columns: NAME or NACHNAME.
-    Accepted column aliases: VORNAME/FIRSTNAME, NACHNAME/NAME, KURZZEICHEN/SHORTNAME,
-    NUMBER/PERSONALNUMMER, HRSDAY, HRSWEEK, HRSMONTH, SEX."""
+    Accepted column aliases: VORNAME/FIRSTNAME, NACHNAME/NAME, KURZZEICHEN/SHORTNAME/KÜRZEL,
+    NUMBER/PERSONALNUMMER, HRSDAY/STD/TAG, HRSWEEK/STD/WOCHE, HRSMONTH/STD/MONAT,
+    WORKDAYS/ARBEITSTAGE, SEX.
+    Returns: {"imported": N, "skipped": N, "errors": [{"row": N, "reason": "..."}]}
+    Duplicate check: employees with same NAME+FIRSTNAME are skipped."""
     content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
 
+    # Build duplicate index from existing employees (NAME+FIRSTNAME, uppercased)
+    existing_employees = db.get_employees(include_hidden=True)
+    existing_keys = {
+        (
+            (e.get("NAME") or "").strip().upper(),
+            (e.get("FIRSTNAME") or "").strip().upper(),
+        )
+        for e in existing_employees
+    }
+
     for i, row in enumerate(reader, start=2):  # row 1 = header
-        # Normalize keys
+        # Normalize keys — strip and uppercase
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
 
-        # Alias mapping
+        # Alias mapping — support both internal and export (German) column names
         name = row.get("NAME") or row.get("NACHNAME") or ""
-        firstname = row.get("FIRSTNAME") or row.get("VORNAME") or ""
-        shortname = row.get("SHORTNAME") or row.get("KURZZEICHEN") or ""
+        firstname = (
+            row.get("FIRSTNAME") or row.get("VORNAME") or ""
+        )
+        shortname = (
+            row.get("SHORTNAME") or row.get("KURZZEICHEN")
+            or row.get("KÜRZEL") or row.get("KURZEL") or ""
+        )
         number = row.get("NUMBER") or row.get("PERSONALNUMMER") or ""
+        # Support export column aliases (STD/TAG etc.)
+        hrsday_raw = (
+            row.get("HRSDAY") or row.get("STD/TAG") or row.get("STD_TAG") or ""
+        )
+        hrsweek_raw = (
+            row.get("HRSWEEK") or row.get("STD/WOCHE") or row.get("STD_WOCHE") or ""
+        )
+        hrsmonth_raw = (
+            row.get("HRSMONTH") or row.get("STD/MONAT") or row.get("STD_MONAT") or ""
+        )
+        workdays_raw = (
+            row.get("WORKDAYS") or row.get("ARBEITSTAGE") or ""
+        )
 
         if not name:
-            errors.append(f"Zeile {i}: NAME/NACHNAME fehlt — übersprungen")
+            errors.append({"row": i, "reason": "NAME/NACHNAME fehlt — übersprungen"})
+            skipped += 1
+            continue
+
+        # Duplicate detection
+        dup_key = (name.strip().upper(), firstname.strip().upper())
+        if dup_key in existing_keys:
+            errors.append(
+                {
+                    "row": i,
+                    "reason": f"Duplikat: Mitarbeiter '{firstname} {name}' existiert bereits — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
@@ -1996,21 +2039,22 @@ async def import_employees(
                 "SHORTNAME": shortname,
                 "NUMBER": number,
                 "SEX": int(row.get("SEX") or 0),
-                "HRSDAY": float(row.get("HRSDAY") or 0),
-                "HRSWEEK": float(row.get("HRSWEEK") or 0),
-                "HRSMONTH": float(row.get("HRSMONTH") or 0),
-                "WORKDAYS": row.get("WORKDAYS") or "1 1 1 1 1 0 0 0",
+                "HRSDAY": float(hrsday_raw or 0),
+                "HRSWEEK": float(hrsweek_raw or 0),
+                "HRSMONTH": float(hrsmonth_raw or 0),
+                "WORKDAYS": workdays_raw or "1 1 1 1 1 0 0 0",
                 "HIDE": False,
             }
             db.create_employee(data)
+            existing_keys.add(dup_key)  # prevent duplicate within the same file
             imported += 1
         except Exception as e:
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"{name}: Importfehler — {e}"})
 
-    return {"imported": imported, "errors": errors, "skipped": skipped}
+    return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
 @router.post(
@@ -2029,8 +2073,12 @@ async def import_shifts(
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
+
+    # Duplicate index by shift NAME (uppercased)
+    existing_shifts = db.get_shifts(include_hidden=True)
+    existing_shift_names = {(s.get("NAME") or "").strip().upper() for s in existing_shifts}
 
     def _parse_color(val: str) -> int:
         """Parse #RRGGBB hex to BGR int, or pass-through int."""
@@ -2055,7 +2103,15 @@ async def import_shifts(
 
         name = row.get("NAME") or ""
         if not name:
-            errors.append(f"Zeile {i}: NAME fehlt — übersprungen")
+            errors.append({"row": i, "reason": "NAME fehlt — übersprungen"})
+            skipped += 1
+            continue
+
+        # Duplicate detection
+        if name.strip().upper() in existing_shift_names:
+            errors.append(
+                {"row": i, "reason": f"Duplikat: Schicht '{name}' existiert bereits — übersprungen"}
+            )
             skipped += 1
             continue
 
@@ -2076,12 +2132,13 @@ async def import_shifts(
                 "HIDE": False,
             }
             db.create_shift(data)
+            existing_shift_names.add(name.strip().upper())
             imported += 1
         except Exception as e:
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"{name}: Importfehler — {e}"})
 
     return {"imported": imported, "errors": errors, "skipped": skipped}
 
@@ -2101,7 +2158,7 @@ async def import_absences(
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
 
     for i, row in enumerate(reader, start=2):
@@ -2113,7 +2170,7 @@ async def import_absences(
 
         if not emp_id_raw or not date_raw or not lt_id_raw:
             errors.append(
-                f"Zeile {i}: Pflichtfelder fehlen (EMPLOYEE_ID, DATE, LEAVE_TYPE_ID) — übersprungen"
+                {"row": i, "reason": "Pflichtfelder fehlen (EMPLOYEE_ID, DATE, LEAVE_TYPE_ID) — übersprungen"}
             )
             skipped += 1
             continue
@@ -2124,7 +2181,7 @@ async def import_absences(
             datetime.strptime(date_raw, "%Y-%m-%d")
         except ValueError:
             errors.append(
-                f"Zeile {i}: Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen"
+                {"row": i, "reason": f"Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen"}
             )
             skipped += 1
             continue
@@ -2138,9 +2195,9 @@ async def import_absences(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"Importfehler — {e}"})
 
-    return {"imported": imported, "errors": errors, "skipped": skipped}
+    return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
 @router.post(
@@ -2159,7 +2216,7 @@ async def import_holidays(
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
 
     for i, row in enumerate(reader, start=2):
@@ -2169,7 +2226,7 @@ async def import_holidays(
         name = row.get("NAME") or row.get("BEZEICHNUNG") or ""
 
         if not date_raw or not name:
-            errors.append(f"Zeile {i}: DATE und NAME sind Pflicht — übersprungen")
+            errors.append({"row": i, "reason": "DATE und NAME sind Pflicht — übersprungen"})
             skipped += 1
             continue
 
@@ -2179,7 +2236,7 @@ async def import_holidays(
             datetime.strptime(date_raw, "%Y-%m-%d")
         except ValueError:
             errors.append(
-                f"Zeile {i}: Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen"
+                {"row": i, "reason": f"Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen"}
             )
             skipped += 1
             continue
@@ -2197,9 +2254,9 @@ async def import_holidays(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"{name}: Importfehler — {e}"})
 
-    return {"imported": imported, "errors": errors, "skipped": skipped}
+    return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
 @router.post(
@@ -2218,7 +2275,7 @@ async def import_bookings_actual(
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
 
     emp_by_number = {
@@ -2234,17 +2291,13 @@ async def import_bookings_actual(
         notiz = row.get("NOTIZ") or row.get("NOTE") or ""
 
         if not nummer or not date_raw or not stunden_raw:
-            errors.append(
-                f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"})
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append(
-                f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen"})
             skipped += 1
             continue
 
@@ -2259,7 +2312,7 @@ async def import_bookings_actual(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"Importfehler (siehe Server-Log)"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2281,7 +2334,7 @@ async def import_bookings_nominal(
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
 
     emp_by_number = {
@@ -2297,17 +2350,13 @@ async def import_bookings_nominal(
         notiz = row.get("NOTIZ") or row.get("NOTE") or ""
 
         if not nummer or not date_raw or not stunden_raw:
-            errors.append(
-                f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"})
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append(
-                f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen"})
             skipped += 1
             continue
 
@@ -2322,7 +2371,7 @@ async def import_bookings_nominal(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"Importfehler (siehe Server-Log)"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2344,7 +2393,7 @@ async def import_entitlements(
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
 
     emp_by_number = {
@@ -2370,25 +2419,19 @@ async def import_entitlements(
         tage_raw = row.get("TAGE") or row.get("DAYS") or ""
 
         if not nummer or not year_raw or not kuerzel or not tage_raw:
-            errors.append(
-                f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage) — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Pflichtfelder fehlen (Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage) — übersprungen"})
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append(
-                f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen"})
             skipped += 1
             continue
 
         lt = lt_by_short.get(kuerzel)
         if not lt:
-            errors.append(
-                f"Zeile {i}: Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen"})
             skipped += 1
             continue
 
@@ -2401,7 +2444,7 @@ async def import_entitlements(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"Importfehler (siehe Server-Log)"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2423,7 +2466,7 @@ async def import_absences_csv(
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
 
     emp_by_number = {
@@ -2448,25 +2491,19 @@ async def import_absences_csv(
         ).upper()
 
         if not nummer or not date_raw or not kuerzel:
-            errors.append(
-                f"Zeile {i}: Pflichtfelder fehlen (Personalnummer,Datum,Abwesenheitsart-Kürzel) — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Pflichtfelder fehlen (Personalnummer,Datum,Abwesenheitsart-Kürzel) — übersprungen"})
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append(
-                f"Zeile {i}: Personalnummer '{nummer}' nicht gefunden — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen"})
             skipped += 1
             continue
 
         lt = lt_by_short.get(kuerzel)
         if not lt:
-            errors.append(
-                f"Zeile {i}: Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen"
-            )
+            errors.append({"row": i, "reason": f"Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen"})
             skipped += 1
             continue
 
@@ -2480,7 +2517,7 @@ async def import_absences_csv(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i}: Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"Importfehler (siehe Server-Log)"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2502,7 +2539,7 @@ async def import_groups(
 
     imported = 0
     skipped = 0
-    errors = []
+    errors: list[dict] = []
     db = get_db()
 
     existing_groups = db.get_groups(include_hidden=True)
@@ -2525,7 +2562,7 @@ async def import_groups(
         )
 
         if not name:
-            errors.append(f"Zeile {i}: NAME fehlt — übersprungen")
+            errors.append({"row": i, "reason": f"NAME fehlt — übersprungen"})
             skipped += 1
             continue
 
@@ -2533,9 +2570,7 @@ async def import_groups(
         if parent_name:
             parent_grp = group_by_name.get(parent_name)
             if not parent_grp:
-                errors.append(
-                    f"Zeile {i}: Übergeordnete Gruppe '{parent_name}' nicht gefunden — übersprungen"
-                )
+                errors.append({"row": i, "reason": f"Übergeordnete Gruppe '{parent_name}' nicht gefunden — übersprungen"})
                 skipped += 1
                 continue
             parent_id = parent_grp["ID"]
@@ -2555,7 +2590,7 @@ async def import_groups(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append(f"Zeile {i} ({name}): Importfehler (siehe Server-Log)")
+            errors.append({"row": i, "reason": f"{name}: Importfehler — {e}"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
