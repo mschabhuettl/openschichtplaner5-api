@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, HTTPException, Query, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
@@ -167,6 +168,8 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -174,6 +177,29 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Content-Type", "x-auth-token", "Authorization"],
 )
+
+
+@app.middleware("http")
+async def cache_control_middleware(request: Request, call_next):
+    """Set Cache-Control headers for static/rarely-changing GET endpoints."""
+    response = await call_next(request)
+    if request.method == "GET":
+        path = request.url.path
+        # Rarely-changing master data: cache for 60s client-side
+        _CACHEABLE_PREFIXES = (
+            "/api/shifts",
+            "/api/holidays",
+            "/api/leave-types",
+            "/api/workplaces",
+            "/api/groups",
+            "/api/extracharges",
+        )
+        if any(path.startswith(p) for p in _CACHEABLE_PREFIXES) and response.status_code == 200:
+            response.headers["Cache-Control"] = "private, max-age=60"
+        elif path.startswith("/api/"):
+            # All other API responses: no caching
+            response.headers.setdefault("Cache-Control", "no-cache, no-store, must-revalidate")
+    return response
 
 
 @app.middleware("http")
