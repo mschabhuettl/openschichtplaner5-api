@@ -1,7 +1,7 @@
 """Master data router: shifts, leave-types, workplaces, holidays, extracharges, staffing-requirements, skills."""
 
 from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from ..dependencies import (
     get_db,
@@ -100,8 +100,8 @@ def set_staffing_requirement(
 
 
 class ShiftCreate(BaseModel):
-    NAME: str
-    SHORTNAME: str = ""
+    NAME: str = Field(..., min_length=1, max_length=100)
+    SHORTNAME: str = Field("", max_length=20)
     COLORBK: int = 16777215
     COLORTEXT: int = 0
     COLORBAR: int = 0
@@ -201,11 +201,20 @@ def update_shift(
 
 
 @router.delete("/api/shifts/{shift_id}", tags=["Shifts"], summary="Delete shift")
-def hide_shift(shift_id: int, _cur_user: dict = Depends(require_admin)):
+def hide_shift(shift_id: int, force: bool = False, _cur_user: dict = Depends(require_admin)):
+    db = get_db()
+    if not force:
+        usage = db.shift_active_usage_count(shift_id)
+        if usage > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Schicht {shift_id} ist noch in {usage} Plantafel-Einträgen aktiv. "
+                       "Mit ?force=true trotzdem ausblenden.",
+            )
     try:
-        count = get_db().hide_shift(shift_id)
+        count = db.hide_shift(shift_id)
         _logger.warning(
-            "AUDIT SHIFT_DELETE | user=%s shift_id=%d", _cur_user.get("NAME"), shift_id
+            "AUDIT SHIFT_DELETE | user=%s shift_id=%d force=%s", _cur_user.get("NAME"), shift_id, force
         )
         return {"ok": True, "hidden": count}
     except Exception as e:
@@ -272,9 +281,18 @@ def update_leave_type(
 @router.delete(
     "/api/leave-types/{lt_id}", tags=["Absences"], summary="Delete leave type"
 )
-def hide_leave_type(lt_id: int, _cur_user: dict = Depends(require_admin)):
+def hide_leave_type(lt_id: int, force: bool = False, _cur_user: dict = Depends(require_admin)):
+    db = get_db()
+    if not force:
+        usage = db.leave_type_active_usage_count(lt_id)
+        if usage > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Abwesenheitstyp {lt_id} ist noch in {usage} Abwesenheits-Einträgen aktiv. "
+                       "Mit ?force=true trotzdem ausblenden.",
+            )
     try:
-        count = get_db().hide_leave_type(lt_id)
+        count = db.hide_leave_type(lt_id)
         return {"ok": True, "hidden": count}
     except Exception as e:
         raise _sanitize_500(e, f"hide_leave_type/{lt_id}")
@@ -284,9 +302,19 @@ def hide_leave_type(lt_id: int, _cur_user: dict = Depends(require_admin)):
 
 
 class HolidayCreate(BaseModel):
-    DATE: str
-    NAME: str
+    DATE: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    NAME: str = Field(..., min_length=1, max_length=200)
     INTERVAL: int = 0
+
+    @field_validator("DATE")
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        from datetime import datetime as _dtt
+        try:
+            _dtt.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("DATE muss ein gültiges Datum im Format YYYY-MM-DD sein")
+        return v
 
 
 class HolidayUpdate(BaseModel):
@@ -297,16 +325,7 @@ class HolidayUpdate(BaseModel):
 
 @router.post("/api/holidays", tags=["Events"], summary="Create holiday")
 def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)):
-    if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
-    try:
-        from datetime import datetime as _dtt
-
-        _dtt.strptime(body.DATE, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(
-            status_code=400, detail="DATE muss im Format YYYY-MM-DD sein"
-        )
+    # DATE and NAME validation handled by Pydantic model
     try:
         result = get_db().create_holiday(body.model_dump())
         return {"ok": True, "record": result}

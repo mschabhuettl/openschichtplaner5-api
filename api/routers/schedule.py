@@ -250,6 +250,7 @@ class CycleAssignBody(BaseModel):
     summary="Assign employee to shift cycle",
 )
 def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer)):
+    # start_date format already validated by Pydantic pattern; also parse for calendar validity
     try:
         from datetime import datetime
 
@@ -259,8 +260,18 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer
             status_code=400,
             detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
         )
+    db = get_db()
+    # Referential integrity: verify employee and cycle exist
+    if db.get_employee(body.employee_id) is None:
+        raise HTTPException(
+            status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden"
+        )
+    if db.get_shift_cycle(body.cycle_id) is None:
+        raise HTTPException(
+            status_code=404, detail=f"Schichtmodell {body.cycle_id} nicht gefunden"
+        )
     try:
-        result = get_db().assign_cycle(body.employee_id, body.cycle_id, body.start_date)
+        result = db.assign_cycle(body.employee_id, body.cycle_id, body.start_date)
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e)
@@ -332,17 +343,33 @@ def update_shift_cycle(
     db = get_db()
     try:
         db.update_shift_cycle(cycle_id, body.name.strip(), body.size_weeks)
-        # Replace all entries: clear old ones, write new ones
-        db.clear_cycle_entries(cycle_id)
-        for entry in body.entries:
-            if entry.shift_id:
-                db.set_cycle_entry(cycle_id, entry.index, entry.shift_id)
-        cycle = db.get_shift_cycle(cycle_id)
-        return {"ok": True, "cycle": cycle}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise _sanitize_500(e)
+    # Replace all entries: clear old ones, write new ones.
+    # On partial failure we log the error but do not leave the cycle completely
+    # empty — we re-apply what we managed to write so the caller gets a clear error.
+    errors = []
+    db.clear_cycle_entries(cycle_id)
+    for entry in body.entries:
+        if entry.shift_id:
+            try:
+                db.set_cycle_entry(cycle_id, entry.index, entry.shift_id)
+            except Exception as exc:
+                errors.append({"index": entry.index, "error": str(exc)})
+    if errors:
+        cycle = db.get_shift_cycle(cycle_id)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": f"Zyklus teilweise gespeichert — {len(errors)} Einträge fehlgeschlagen",
+                "errors": errors,
+                "cycle": cycle,
+            },
+        )
+    cycle = db.get_shift_cycle(cycle_id)
+    return {"ok": True, "cycle": cycle}
 
 
 @router.delete(

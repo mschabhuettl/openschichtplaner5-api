@@ -311,8 +311,8 @@ async def get_employee_photo(emp_id: int):
 
 
 class GroupCreate(BaseModel):
-    NAME: str
-    SHORTNAME: str = ""
+    NAME: str = Field(..., min_length=1, max_length=100)
+    SHORTNAME: str = Field("", max_length=20)
     SUPERID: int = 0
     HIDE: bool = False
     BOLD: int = 0
