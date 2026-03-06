@@ -4,7 +4,7 @@ import time as _time
 import secrets
 from fastapi import APIRouter, HTTPException, Header, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from ..dependencies import (
     get_db, require_admin, require_auth, _sanitize_500, _logger, _sessions, _failed_logins,
@@ -27,22 +27,22 @@ def get_users(_admin: dict = Depends(require_admin)):
 # ── User Management (CRUD) ───────────────────────────────────
 
 class UserCreate(BaseModel):
-    NAME: str
-    DESCRIP: Optional[str] = ''
-    PASSWORD: str
-    role: str = 'Leser'   # Admin | Planer | Leser
+    NAME: str = Field(..., min_length=1, max_length=100)
+    DESCRIP: Optional[str] = Field('', max_length=500)
+    PASSWORD: str = Field(..., min_length=6, max_length=200)
+    role: str = Field('Leser', pattern=r'^(Admin|Planer|Leser)$')
 
 
 class UserUpdate(BaseModel):
-    NAME: Optional[str] = None
-    DESCRIP: Optional[str] = None
-    PASSWORD: Optional[str] = None
-    role: Optional[str] = None   # Admin | Planer | Leser
+    NAME: Optional[str] = Field(None, min_length=1, max_length=100)
+    DESCRIP: Optional[str] = Field(None, max_length=500)
+    PASSWORD: Optional[str] = Field(None, min_length=6, max_length=200)
+    role: Optional[str] = Field(None, pattern=r'^(Admin|Planer|Leser)$')
 
 
 class LoginBody(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., min_length=1, max_length=200)
 
 
 @router.post("/api/users", tags=["Users"], summary="Create user", description="Create a new API user. Requires Admin role.")
@@ -105,7 +105,7 @@ def delete_user(user_id: int, _admin: dict = Depends(require_admin)):
 
 
 class ChangePasswordBody(BaseModel):
-    new_password: str
+    new_password: str = Field(..., min_length=6, max_length=200)
 
 
 @router.post("/api/users/{user_id}/change-password", tags=["Users"], summary="Change user password", description="Set a new password for an API user. Requires Admin role.")
