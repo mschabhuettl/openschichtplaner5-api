@@ -179,9 +179,9 @@ class TestShiftValidation:
 
 class TestLeaveTypeValidation:
     def test_create_leave_type_empty_name(self, write_client):
-        """Verify create leave type empty name."""
+        """Verify create leave type empty name — Pydantic rejects empty string (422)."""
         resp = write_client.post("/api/leave-types", json={"NAME": ""})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_update_leave_type_not_found(self, write_client):
         """Verify update leave type not found."""
@@ -212,9 +212,9 @@ class TestHolidayValidation:
 
 class TestWorkplaceValidation:
     def test_create_workplace_empty_name(self, write_client):
-        """Verify create workplace empty name."""
+        """Verify create workplace empty name — Pydantic rejects empty string (422)."""
         resp = write_client.post("/api/workplaces", json={"NAME": ""})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_update_workplace_not_found(self, write_client):
         """Verify update workplace not found."""

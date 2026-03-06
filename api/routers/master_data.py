@@ -69,11 +69,11 @@ def get_staffing_requirements(
 
 
 class StaffingRequirementSet(BaseModel):
-    shift_id: int
-    weekday: int
-    min: int
-    max: int
-    group_id: int
+    shift_id: int = Field(..., gt=0)
+    weekday: int = Field(..., ge=0, le=6)
+    min: int = Field(..., ge=0)
+    max: int = Field(..., ge=0)
+    group_id: int = Field(..., gt=0)
 
 
 @router.post(
@@ -109,10 +109,10 @@ def set_staffing_requirement(
 class ShiftCreate(BaseModel):
     NAME: str = Field(..., min_length=1, max_length=100)
     SHORTNAME: str = Field("", max_length=20)
-    COLORBK: int = 16777215
-    COLORTEXT: int = 0
-    COLORBAR: int = 0
-    DURATION0: float = 0.0
+    COLORBK: int = Field(16777215, ge=0, le=16777215)
+    COLORTEXT: int = Field(0, ge=0, le=16777215)
+    COLORBAR: int = Field(0, ge=0, le=16777215)
+    DURATION0: float = Field(0.0, ge=0.0, le=24.0)
     DURATION1: Optional[float] = None
     DURATION2: Optional[float] = None
     DURATION3: Optional[float] = None
@@ -252,19 +252,19 @@ def hide_shift(
 
 
 class LeaveTypeCreate(BaseModel):
-    NAME: str
-    SHORTNAME: str = ""
-    COLORBK: int = 16777215
-    COLORTEXT: int = 0
-    COLORBAR: int = 0
+    NAME: str = Field(..., min_length=1, max_length=100)
+    SHORTNAME: str = Field("", max_length=20)
+    COLORBK: int = Field(16777215, ge=0, le=16777215)
+    COLORTEXT: int = Field(0, ge=0, le=16777215)
+    COLORBAR: int = Field(0, ge=0, le=16777215)
     ENTITLED: bool = False
-    STDENTIT: float = 0.0
+    STDENTIT: float = Field(0.0, ge=0.0, le=366.0)
     HIDE: bool = False
 
 
 class LeaveTypeUpdate(BaseModel):
-    NAME: Optional[str] = None
-    SHORTNAME: Optional[str] = None
+    NAME: Optional[str] = Field(None, min_length=1, max_length=100)
+    SHORTNAME: Optional[str] = Field(None, max_length=20)
     COLORBK: Optional[int] = None
     COLORTEXT: Optional[int] = None
     COLORBAR: Optional[int] = None
@@ -390,17 +390,17 @@ def delete_holiday(holiday_id: int, _cur_user: dict = Depends(require_admin)):
 
 
 class WorkplaceCreate(BaseModel):
-    NAME: str
-    SHORTNAME: str = ""
-    COLORBK: int = 16777215
-    COLORTEXT: int = 0
-    COLORBAR: int = 0
+    NAME: str = Field(..., min_length=1, max_length=100)
+    SHORTNAME: str = Field("", max_length=20)
+    COLORBK: int = Field(16777215, ge=0, le=16777215)
+    COLORTEXT: int = Field(0, ge=0, le=16777215)
+    COLORBAR: int = Field(0, ge=0, le=16777215)
     HIDE: bool = False
 
 
 class WorkplaceUpdate(BaseModel):
-    NAME: Optional[str] = None
-    SHORTNAME: Optional[str] = None
+    NAME: Optional[str] = Field(None, min_length=1, max_length=100)
+    SHORTNAME: Optional[str] = Field(None, max_length=20)
     COLORBK: Optional[int] = None
     COLORTEXT: Optional[int] = None
     COLORBAR: Optional[int] = None

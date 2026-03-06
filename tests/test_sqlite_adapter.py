@@ -35,6 +35,7 @@ class TestInitDb:
 
     def test_creates_tables(self, tmp_db):
         import sqlite3
+
         with sqlite3.connect(tmp_db.sqlite_path) as conn:
             tables = {
                 row[0]
@@ -175,6 +176,7 @@ class TestSyncFromDbf:
 
     def test_sync_dbf_read_error_returns_empty(self, tmp_db):
         """If a DBF file is missing/corrupt, the table gets empty list, no crash."""
+
         def _fail_dbf(path):
             raise FileNotFoundError(f"not found: {path}")
 
@@ -188,7 +190,9 @@ class TestSyncFromDbf:
     def test_date_normalisation_8digit(self, tmp_db):
         """8-digit date strings like '20240115' must become '2024-01-15'."""
         empl = [dict(FAKE_EMPLOYEES[0], BIRTHDAY="19850322", EMPSTART="20050601")]
-        with patch("sp5lib.dbf_reader.read_dbf", side_effect=_make_read_dbf(employees=empl)):
+        with patch(
+            "sp5lib.dbf_reader.read_dbf", side_effect=_make_read_dbf(employees=empl)
+        ):
             tmp_db.sync_from_dbf("/fake/path")
         rows = tmp_db.get_employees()
         assert rows[0]["birthday"] == "1985-03-22"
@@ -196,12 +200,16 @@ class TestSyncFromDbf:
     def test_date_normalisation_iso_passthrough(self, tmp_db):
         """Dates already in ISO format should pass through unchanged."""
         empl = [dict(FAKE_EMPLOYEES[0], EMPSTART="2020-06-01", EMPEND=None)]
-        with patch("sp5lib.dbf_reader.read_dbf", side_effect=_make_read_dbf(employees=empl)):
+        with patch(
+            "sp5lib.dbf_reader.read_dbf", side_effect=_make_read_dbf(employees=empl)
+        ):
             tmp_db.sync_from_dbf("/fake/path")
 
     def test_date_normalisation_none(self, tmp_db):
         empl = [dict(FAKE_EMPLOYEES[0], BIRTHDAY=None, EMPEND=None)]
-        with patch("sp5lib.dbf_reader.read_dbf", side_effect=_make_read_dbf(employees=empl)):
+        with patch(
+            "sp5lib.dbf_reader.read_dbf", side_effect=_make_read_dbf(employees=empl)
+        ):
             tmp_db.sync_from_dbf("/fake/path")
         rows = tmp_db.get_employees()
         assert rows[0]["birthday"] is None

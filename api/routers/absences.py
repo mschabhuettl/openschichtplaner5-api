@@ -361,9 +361,9 @@ def annual_close_preview(
 
 
 class AnnualCloseBody(BaseModel):
-    year: int
-    group_id: Optional[int] = None
-    max_carry_forward_days: Optional[float] = 10
+    year: int = Field(..., ge=2000, le=2100)
+    group_id: Optional[int] = Field(None, gt=0)
+    max_carry_forward_days: Optional[float] = Field(10, ge=0, le=366)
 
 
 @router.post("/api/annual-close", tags=["Absences"], summary="Execute annual close")
@@ -422,7 +422,7 @@ def get_all_absence_statuses():
 
 
 class AbsenceStatusPatch(BaseModel):
-    status: str  # 'pending' | 'approved' | 'rejected'
+    status: str = Field(..., pattern=r"^(pending|approved|rejected)$")
     reject_reason: Optional[str] = Field(None, max_length=500)
 
 

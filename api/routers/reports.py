@@ -236,7 +236,9 @@ def get_employee_statistics(
     db = get_db()
     emp = db.get_employee(emp_id)
     if emp is None:
-        raise HTTPException(status_code=404, detail=f"Mitarbeiter {emp_id} nicht gefunden")
+        raise HTTPException(
+            status_code=404, detail=f"Mitarbeiter {emp_id} nicht gefunden"
+        )
     if month is not None:
         if not (1 <= month <= 12):
             raise HTTPException(

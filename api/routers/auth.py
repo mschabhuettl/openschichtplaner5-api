@@ -363,7 +363,9 @@ def logout(request: Request, x_auth_token: Optional[str] = Header(None)):
         username = user_info.get("NAME", "?")
         user_id = user_info.get("ID", "?")
         del _sessions[token]
-        _logger.info("AUTH LOGOUT | ip=%s username=%s user_id=%s", client_ip, username, user_id)
+        _logger.info(
+            "AUTH LOGOUT | ip=%s username=%s user_id=%s", client_ip, username, user_id
+        )
     else:
         _logger.info("AUTH LOGOUT_NO_SESSION | ip=%s", client_ip)
     response = JSONResponse(content={"ok": True})

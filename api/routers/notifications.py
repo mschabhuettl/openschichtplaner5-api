@@ -223,7 +223,9 @@ def delete_notification(notif_id: int, cur_user: dict = Depends(require_planer))
         data = _load()
         target = next((n for n in data if n["id"] == notif_id), None)
         if target is None:
-            raise HTTPException(status_code=404, detail="Benachrichtigung nicht gefunden")
+            raise HTTPException(
+                status_code=404, detail="Benachrichtigung nicht gefunden"
+            )
         # Ownership check
         recipient = target.get("recipient_employee_id")
         if not is_admin and recipient is not None and recipient != cur_user.get("ID"):

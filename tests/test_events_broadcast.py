@@ -14,12 +14,14 @@ class TestBroadcast:
     def setup_method(self):
         """Clear all SSE subscribers before each test."""
         from api.routers import events as ev
+
         with ev._lock:
             ev._subscribers.clear()
 
     def test_broadcast_no_subscribers_no_error(self):
         """broadcast() with zero subscribers must not raise."""
         from api.routers.events import broadcast
+
         broadcast("schedule_changed", {"month": "2024-01"})
 
     def test_broadcast_delivers_to_queue(self):
