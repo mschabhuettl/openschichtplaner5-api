@@ -8,7 +8,7 @@ from datetime import datetime as _dt, date
 from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFile, File
 from fastapi.responses import Response as _Response
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Any
 from ..dependencies import (
     get_db,
     require_planer,
@@ -1429,7 +1429,7 @@ def get_monthly_report(
     ]
     # Dynamic surcharge cols (max 3 displayed to fit page)
     xc_cols = [(f"ZZ: {cn[:8]}", 16) for cn in all_charge_names[:3]]
-    all_cols: List[tuple[str, float]] = fixed_cols + xc_cols
+    all_cols: List[tuple[str, Any]] = list(fixed_cols + xc_cols)
 
     # Scale if too wide
     total_w = sum(w for _, w in all_cols)

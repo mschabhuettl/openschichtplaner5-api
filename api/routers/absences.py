@@ -162,7 +162,7 @@ def bulk_create_absence(
     else:
         employees = db.get_employees(include_hidden=False)
 
-    results: dict = {"ok": True, "created": 0, "skipped": 0, "errors": []}
+    results: Dict[str, Any] = {"ok": True, "created": 0, "skipped": 0, "errors": []}
     for emp in employees:
         try:
             db.add_absence(emp["ID"], body.date, body.leave_type_id)

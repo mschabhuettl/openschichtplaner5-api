@@ -540,7 +540,7 @@ def compact_database(_cur_user: dict = Depends(require_admin)):
 
                     if deleted_count == 0:
                         results.append(
-                            {"file": fname, "removed": 0, "active": len(active_records)}
+                            {"file": fname, "removed": 0, "active": len(active_records)}  # type: ignore[dict-item]
                         )
                         continue
 
@@ -564,7 +564,7 @@ def compact_database(_cur_user: dict = Depends(require_admin)):
 
             total_removed += deleted_count
             results.append(
-                {"file": fname, "removed": deleted_count, "active": len(active_records)}
+                {"file": fname, "removed": deleted_count, "active": len(active_records)}  # type: ignore[dict-item]
             )
 
         except Exception as e:
