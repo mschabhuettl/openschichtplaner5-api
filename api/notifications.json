@@ -3348,5 +3348,335 @@
     "link": "/tauschboerse",
     "read": false,
     "created_at": "2026-03-06T20:14:53Z"
+  },
+  {
+    "id": 336,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:15:29Z"
+  },
+  {
+    "id": 337,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt. Grund: Urlaubssperre",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:15:29Z"
+  },
+  {
+    "id": 338,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt. Grund: Urlaubssperre aktiv",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:15:29Z"
+  },
+  {
+    "id": 339,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:15:29Z"
+  },
+  {
+    "id": 340,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:15:29Z"
+  },
+  {
+    "id": 341,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:15:29Z"
+  },
+  {
+    "id": 342,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:15:35Z"
+  },
+  {
+    "id": 343,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-04-01 mit dir tauschen (dein Datum: 2025-04-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:15:41Z"
+  },
+  {
+    "id": 344,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-05-01 mit dir tauschen (dein Datum: 2025-05-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:15:41Z"
+  },
+  {
+    "id": 345,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-06-01 mit dir tauschen (dein Datum: 2025-06-01).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:15:41Z"
+  },
+  {
+    "id": 346,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-07-01 mit dir tauschen (dein Datum: 2025-07-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:15:41Z"
+  },
+  {
+    "id": 347,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:16:08Z"
+  },
+  {
+    "id": 348,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt. Grund: Urlaubssperre",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:16:08Z"
+  },
+  {
+    "id": 349,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt. Grund: Urlaubssperre aktiv",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:16:08Z"
+  },
+  {
+    "id": 350,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:16:08Z"
+  },
+  {
+    "id": 351,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:16:08Z"
+  },
+  {
+    "id": 352,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:16:08Z"
+  },
+  {
+    "id": 353,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:16:21Z"
+  },
+  {
+    "id": 354,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-04-01 mit dir tauschen (dein Datum: 2025-04-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:16:32Z"
+  },
+  {
+    "id": 355,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-05-01 mit dir tauschen (dein Datum: 2025-05-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:16:32Z"
+  },
+  {
+    "id": 356,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-06-01 mit dir tauschen (dein Datum: 2025-06-01).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:16:32Z"
+  },
+  {
+    "id": 357,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-07-01 mit dir tauschen (dein Datum: 2025-07-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:16:32Z"
+  },
+  {
+    "id": 358,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:18:21Z"
+  },
+  {
+    "id": 359,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt. Grund: Urlaubssperre",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:18:21Z"
+  },
+  {
+    "id": 360,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt. Grund: Urlaubssperre aktiv",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:18:21Z"
+  },
+  {
+    "id": 361,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:18:21Z"
+  },
+  {
+    "id": 362,
+    "type": "absence_status",
+    "title": "❌ Urlaubsantrag abgelehnt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde abgelehnt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:18:21Z"
+  },
+  {
+    "id": 363,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:18:21Z"
+  },
+  {
+    "id": 364,
+    "type": "absence_status",
+    "title": "✅ Urlaubsantrag genehmigt",
+    "message": "Dein Urlaubsantrag für 2024-01-01 wurde genehmigt.",
+    "recipient_employee_id": -1,
+    "link": "/urlaub",
+    "read": false,
+    "created_at": "2026-03-06T20:18:27Z"
+  },
+  {
+    "id": 365,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-04-01 mit dir tauschen (dein Datum: 2025-04-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:18:33Z"
+  },
+  {
+    "id": 366,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-05-01 mit dir tauschen (dein Datum: 2025-05-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:18:33Z"
+  },
+  {
+    "id": 367,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-06-01 mit dir tauschen (dein Datum: 2025-06-01).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:18:33Z"
+  },
+  {
+    "id": 368,
+    "type": "swap_request",
+    "title": "🔄 Neue Tauschanfrage",
+    "message": " möchte den Dienst am 2025-07-01 mit dir tauschen (dein Datum: 2025-07-02).",
+    "recipient_employee_id": 42,
+    "link": "/tauschboerse",
+    "read": false,
+    "created_at": "2026-03-06T20:18:33Z"
   }
 ]
