@@ -27,17 +27,17 @@ class TestAdminUserCRUD:
         assert uid is not None
 
     def test_create_user_invalid_role(self, admin_client):
-        """Verify create user invalid role."""
+        """Verify create user invalid role — Pydantic rejects it with 422."""
         resp = admin_client.post("/api/users", json={
             "NAME": "baduser", "PASSWORD": "pass123", "role": "InvalidRole"
         })
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_update_user(self, admin_client):
         # First create a user
         """Verify update user."""
         create = admin_client.post("/api/users", json={
-            "NAME": "updateme", "PASSWORD": "pass", "role": "Planer"
+            "NAME": "updateme", "PASSWORD": "pass12", "role": "Planer"
         })
         assert create.status_code == 200
         uid = create.json()["record"]["ID"]
@@ -47,13 +47,13 @@ class TestAdminUserCRUD:
         assert resp.json()["ok"] is True
 
     def test_update_user_invalid_role(self, admin_client):
-        """Verify update user invalid role."""
+        """Verify update user invalid role — Pydantic rejects it with 422."""
         create = admin_client.post("/api/users", json={
-            "NAME": "roltest", "PASSWORD": "pass", "role": "Leser"
+            "NAME": "roltest", "PASSWORD": "pass12", "role": "Leser"
         })
         uid = create.json()["record"]["ID"]
         resp = admin_client.put(f"/api/users/{uid}", json={"role": "BadRole"})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_update_user_not_found(self, admin_client):
         """Verify update user not found."""
@@ -63,7 +63,7 @@ class TestAdminUserCRUD:
     def test_delete_user(self, admin_client):
         """Verify delete user."""
         create = admin_client.post("/api/users", json={
-            "NAME": "deleteme", "PASSWORD": "pass", "role": "Leser"
+            "NAME": "deleteme", "PASSWORD": "pass12", "role": "Leser"
         })
         uid = create.json()["record"]["ID"]
         resp = admin_client.delete(f"/api/users/{uid}")
@@ -78,21 +78,21 @@ class TestAdminUserCRUD:
     def test_change_user_password(self, admin_client):
         """Verify change user password."""
         create = admin_client.post("/api/users", json={
-            "NAME": "pwtest", "PASSWORD": "old", "role": "Leser"
+            "NAME": "pwtest", "PASSWORD": "oldpass", "role": "Leser"
         })
         uid = create.json()["record"]["ID"]
-        resp = admin_client.post(f"/api/users/{uid}/change-password", json={"new_password": "newpass"})
+        resp = admin_client.post(f"/api/users/{uid}/change-password", json={"new_password": "newpass123"})
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
 
     def test_change_user_password_empty(self, admin_client):
-        """Verify change user password empty."""
+        """Verify change user password empty — Pydantic rejects short/empty with 422."""
         resp = admin_client.post("/api/users/1/change-password", json={"new_password": ""})
-        assert resp.status_code == 400
+        assert resp.status_code in (400, 422)
 
     def test_change_user_password_not_found(self, admin_client):
-        """Verify change user password not found."""
-        resp = admin_client.post("/api/users/999999/change-password", json={"new_password": "x"})
+        """Verify change user password not found — valid pw length but nonexistent user."""
+        resp = admin_client.post("/api/users/999999/change-password", json={"new_password": "validpass"})
         assert resp.status_code in (404, 500)
 
     def test_admin_compact(self, admin_client):

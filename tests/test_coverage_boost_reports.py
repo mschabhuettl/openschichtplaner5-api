@@ -397,6 +397,8 @@ class TestAnalyticsEndpoints:
         assert res.status_code == 200
 
     def test_run_simulation(self, sync_client: TestClient):
-        """GET /api/simulation → 200."""
-        res = sync_client.get('/api/simulation')
+        """POST /api/simulation → 200."""
+        res = sync_client.post('/api/simulation', json={
+            "year": 2024, "month": 6, "absences": []
+        })
         assert res.status_code == 200
