@@ -106,7 +106,6 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
     # ── Conflict & holiday warnings ──────────────────────────────
     warnings: List[str] = []
     try:
-        from datetime import datetime as _dt
         year = int(body.date[:4])
         # Check for existing shift assignment on this date
         day_entries = db.get_schedule_day(body.date)

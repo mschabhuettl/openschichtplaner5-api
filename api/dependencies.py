@@ -216,8 +216,8 @@ def purge_stale_failed_logins() -> int:
 
 
 # ── Audit Log (JSON file) ────────────────────────────────────────
-import json as _audit_json
-import threading as _audit_threading
+import json as _audit_json  # noqa: E402
+import threading as _audit_threading  # noqa: E402
 
 _AUDIT_LOG_FILE = os.environ.get("SP5_AUDIT_LOG", "/tmp/sp5-audit.json")
 _audit_lock = _audit_threading.Lock()

@@ -23,9 +23,9 @@ _backend = os.path.dirname(_here)
 if _backend not in sys.path:
     sys.path.insert(0, _backend)
 
-import pytest
+import pytest  # noqa: E402
 
-from sp5lib.dbf_writer import (
+from sp5lib.dbf_writer import (  # noqa: E402
     _encode_string,
     _encode_field,
     _read_header_info,
@@ -65,7 +65,7 @@ def _make_dbf(fields_spec) -> bytes:
     struct.pack_into("<H", hdr, 10, record_size)
 
     fields_bytes = b"".join(
-        _make_field_descriptor(n, t, l, d) for n, t, l, d in fields_spec
+        _make_field_descriptor(n, t, length, d) for n, t, length, d in fields_spec  # noqa: E741
     )
     return bytes(hdr) + fields_bytes + b"\x0d" + b"\x1a"
 
@@ -386,9 +386,7 @@ def test_update_then_find():
 def test_api_types_importable():
     """api.types can be imported and type aliases are defined."""
     from api.types import (
-        DBFRow, EmployeeRecord, ShiftRecord, GroupRecord,
-        ScheduleEntry, AbsenceRecord, BookingRecord,
-        EmployeeList, ShiftList, ScheduleList, DBFRowList,
+        DBFRow, EmployeeList,
     )
     # They're just type aliases — check they exist and are dict/list based
     row: DBFRow = {"key": "value"}

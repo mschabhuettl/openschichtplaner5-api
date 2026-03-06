@@ -1,6 +1,5 @@
 """Tests for api/routers/notifications.py — coverage boost."""
 import json
-import os
 import pytest
 from starlette.testclient import TestClient
 

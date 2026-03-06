@@ -6,7 +6,7 @@ They use extra='allow' so additional DBF fields pass through without error.
 
 from __future__ import annotations
 
-from typing import Any, Optional, List
+from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 

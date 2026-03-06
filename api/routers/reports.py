@@ -2291,7 +2291,7 @@ async def import_bookings_actual(
         notiz = row.get("NOTIZ") or row.get("NOTE") or ""
 
         if not nummer or not date_raw or not stunden_raw:
-            errors.append({"row": i, "reason": f"Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"})
+            errors.append({"row": i, "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"})
             skipped += 1
             continue
 
@@ -2312,7 +2312,7 @@ async def import_bookings_actual(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append({"row": i, "reason": f"Importfehler (siehe Server-Log)"})
+            errors.append({"row": i, "reason": "Importfehler (siehe Server-Log)"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2350,7 +2350,7 @@ async def import_bookings_nominal(
         notiz = row.get("NOTIZ") or row.get("NOTE") or ""
 
         if not nummer or not date_raw or not stunden_raw:
-            errors.append({"row": i, "reason": f"Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"})
+            errors.append({"row": i, "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"})
             skipped += 1
             continue
 
@@ -2371,7 +2371,7 @@ async def import_bookings_nominal(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append({"row": i, "reason": f"Importfehler (siehe Server-Log)"})
+            errors.append({"row": i, "reason": "Importfehler (siehe Server-Log)"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2419,7 +2419,7 @@ async def import_entitlements(
         tage_raw = row.get("TAGE") or row.get("DAYS") or ""
 
         if not nummer or not year_raw or not kuerzel or not tage_raw:
-            errors.append({"row": i, "reason": f"Pflichtfelder fehlen (Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage) — übersprungen"})
+            errors.append({"row": i, "reason": "Pflichtfelder fehlen (Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage) — übersprungen"})
             skipped += 1
             continue
 
@@ -2444,7 +2444,7 @@ async def import_entitlements(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append({"row": i, "reason": f"Importfehler (siehe Server-Log)"})
+            errors.append({"row": i, "reason": "Importfehler (siehe Server-Log)"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2491,7 +2491,7 @@ async def import_absences_csv(
         ).upper()
 
         if not nummer or not date_raw or not kuerzel:
-            errors.append({"row": i, "reason": f"Pflichtfelder fehlen (Personalnummer,Datum,Abwesenheitsart-Kürzel) — übersprungen"})
+            errors.append({"row": i, "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Abwesenheitsart-Kürzel) — übersprungen"})
             skipped += 1
             continue
 
@@ -2517,7 +2517,7 @@ async def import_absences_csv(
             import logging as _log_mod
 
             _log_mod.getLogger("sp5api").error("import row %s error: %s", i, e)
-            errors.append({"row": i, "reason": f"Importfehler (siehe Server-Log)"})
+            errors.append({"row": i, "reason": "Importfehler (siehe Server-Log)"})
             skipped += 1
 
     return {"imported": imported, "skipped": skipped, "errors": errors}
@@ -2562,7 +2562,7 @@ async def import_groups(
         )
 
         if not name:
-            errors.append({"row": i, "reason": f"NAME fehlt — übersprungen"})
+            errors.append({"row": i, "reason": "NAME fehlt — übersprungen"})
             skipped += 1
             continue
 
