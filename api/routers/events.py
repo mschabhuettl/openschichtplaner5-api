@@ -42,7 +42,7 @@ def broadcast(event_type: str, data: dict | None = None) -> None:
 
 
 async def _event_generator(
-    request: Request, queue: asyncio.Queue
+    request: Request, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop
 ) -> AsyncGenerator[str, None]:
     """Yield SSE-formatted strings from the queue until the client disconnects."""
     try:
@@ -60,7 +60,7 @@ async def _event_generator(
                 # Send keepalive comment every 25s
                 yield ": keepalive\n\n"
     finally:
-        loop = asyncio.get_event_loop()
+        # Use the same loop object that was registered to ensure correct removal
         with _lock:
             try:
                 _subscribers.remove((loop, queue))
@@ -80,14 +80,14 @@ async def _event_generator(
 )
 async def sse_stream(request: Request, _cur_user: dict = Depends(require_auth)):
     """SSE endpoint — stream real-time events to connected clients (auth required)."""
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()  # get_event_loop() is deprecated in async context (Python 3.10+)
     queue: asyncio.Queue = asyncio.Queue(maxsize=50)
     with _lock:
         _subscribers.append((loop, queue))
     _logger.debug("SSE client connected. Total: %d", len(_subscribers))
 
     return StreamingResponse(
-        _event_generator(request, queue),
+        _event_generator(request, queue, loop),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
