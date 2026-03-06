@@ -90,9 +90,30 @@ async def _periodic_cleanup():
             _logger.warning("Periodic cleanup error: %s", _exc)
 
 
+def _check_db_files_on_startup(db_path: str) -> None:
+    """Check that critical DBF files are readable on startup. Logs warnings for missing/unreadable files."""
+    CRITICAL_TABLES = ['EMPL', 'USER', 'SHIFT', 'MASHI', 'ABSEN']
+    missing = []
+    for table in CRITICAL_TABLES:
+        path = os.path.join(db_path, f"5{table}.DBF")
+        if not os.path.exists(path):
+            missing.append(f"5{table}.DBF (not found)")
+        elif not os.access(path, os.R_OK):
+            missing.append(f"5{table}.DBF (not readable)")
+    if missing:
+        _logger.error(
+            "STARTUP DB CHECK FAILED — %d critical table(s) missing/unreadable: %s",
+            len(missing), ", ".join(missing),
+        )
+    else:
+        _logger.info("Startup DB check OK — all %d critical tables accessible at %s", len(CRITICAL_TABLES), db_path)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import asyncio
+    # Startup DB accessibility check
+    _check_db_files_on_startup(DB_PATH)
     # Auto-backup on startup (only if last backup > 24h old)
     try:
         from .routers.admin import create_auto_backup
@@ -925,6 +946,9 @@ if os.path.isdir(_FRONTEND_DIST):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
+        # Unknown /api/* paths must return 404, not the SPA — avoids silent 200 on typos/missing endpoints
+        if full_path.startswith("api/") or full_path == "api":
+            raise HTTPException(status_code=404, detail=f"Endpoint nicht gefunden: /{full_path}")
         index = os.path.join(_FRONTEND_DIST, "index.html")
         return FileResponse(index)
 
