@@ -3573,5 +3573,44 @@
     "resolved_at": "2026-03-06T21:59:15",
     "resolved_by": "test_planer",
     "reject_reason": ""
+  },
+  {
+    "id": 276,
+    "requester_id": 41,
+    "requester_date": "2025-04-01",
+    "partner_id": 42,
+    "partner_date": "2025-04-02",
+    "note": "Test swap",
+    "status": "pending",
+    "created_at": "2026-03-06T22:28:57",
+    "resolved_at": null,
+    "resolved_by": null,
+    "reject_reason": ""
+  },
+  {
+    "id": 277,
+    "requester_id": 41,
+    "requester_date": "2025-05-01",
+    "partner_id": 42,
+    "partner_date": "2025-05-02",
+    "note": "",
+    "status": "rejected",
+    "created_at": "2026-03-06T22:28:57",
+    "resolved_at": "2026-03-06T22:28:57",
+    "resolved_by": "planner",
+    "reject_reason": "Test rejection"
+  },
+  {
+    "id": 278,
+    "requester_id": 41,
+    "requester_date": "2025-06-01",
+    "partner_id": 42,
+    "partner_date": "2025-06-01",
+    "note": "Approve me",
+    "status": "approved",
+    "created_at": "2026-03-06T22:28:57",
+    "resolved_at": "2026-03-06T22:28:58",
+    "resolved_by": "test_planer",
+    "reject_reason": ""
   }
 ]
