@@ -382,7 +382,8 @@ class TestEventsBroadcastWithSubscriber:
                 async def is_disconnected(self):
                     return True
 
-            gen = _event_generator(MockRequest(), queue)
+            loop = asyncio.get_event_loop()
+            gen = _event_generator(MockRequest(), queue, loop)
             first = await gen.__anext__()
             assert "connected" in first
             # Close generator
