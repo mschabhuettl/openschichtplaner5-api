@@ -2943,6 +2943,17 @@ def get_fairness_score(
         entries = db.get_schedule(year=year, month=month, group_id=group_id)
         all_entries.extend(entries)
 
+    # Build per-employee absence date sets to exclude absence days from shift counts
+    # (planned shifts on sick/absence days must not count as worked shifts for fairness)
+    emp_absence_dates: dict[int, set] = {}
+    for entry in all_entries:
+        if entry.get("kind") == "absence":
+            eid = entry.get("employee_id")
+            if eid is not None:
+                emp_absence_dates.setdefault(eid, set()).add(
+                    str(entry.get("date", ""))[:10]
+                )
+
     # Count per employee
     stats: dict[int, dict] = {}
     for emp in employees:
@@ -2962,6 +2973,10 @@ def get_fairness_score(
         if eid not in stats:
             continue
         if entry.get("kind") != "shift":
+            continue
+        # Skip: employee is absent on this day — don't count planned shift
+        date_str_check = str(entry.get("date", ""))[:10]
+        if date_str_check in emp_absence_dates.get(eid, set()):
             continue
         date_str = str(entry.get("date", ""))[:10]
         try:
@@ -3114,6 +3129,19 @@ def get_capacity_forecast(
     day_scheduled: dict = defaultdict(set)  # day -> set of emp_ids
     day_absent: dict = defaultdict(list)  # day -> [{id, name, type}]
 
+    # Build absence set per employee-day first (to exclude from scheduled count)
+    absent_emp_days: set = set()  # (employee_id, day)
+    for r in all_absences:
+        d = r.get("DATE", "")
+        if d.startswith(prefix):
+            try:
+                day = int(d[8:10])
+                eid = r.get("EMPLOYEEID")
+                if eid:
+                    absent_emp_days.add((eid, day))
+            except (ValueError, IndexError):
+                pass
+
     for r in all_mashi:
         d = r.get("DATE", "")
         if d.startswith(prefix):
@@ -3121,7 +3149,9 @@ def get_capacity_forecast(
                 day = int(d[8:10])
                 eid = r.get("EMPLOYEEID")
                 if eid and eid in emp_by_id:
-                    day_scheduled[day].add(eid)
+                    # Don't count as scheduled if employee is absent on this day
+                    if (eid, day) not in absent_emp_days:
+                        day_scheduled[day].add(eid)
             except (ValueError, IndexError):
                 pass
 
@@ -3132,7 +3162,9 @@ def get_capacity_forecast(
                 day = int(d[8:10])
                 eid = r.get("EMPLOYEEID")
                 if eid and eid in emp_by_id:
-                    day_scheduled[day].add(eid)
+                    # Don't count as scheduled if employee is absent on this day
+                    if (eid, day) not in absent_emp_days:
+                        day_scheduled[day].add(eid)
             except (ValueError, IndexError):
                 pass
 
