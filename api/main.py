@@ -263,6 +263,7 @@ async def cache_control_middleware(request: Request, call_next):
 async def security_headers_middleware(request: Request, call_next):
     """Add security headers to all responses."""
     response = await call_next(request)
+    response.headers["X-API-Version"] = _API_VERSION
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -619,11 +620,22 @@ def get_metrics(request: Request):
     "/api/version",
     tags=["Health"],
     summary="API version",
-    description="Returns the current API version string.",
+    description=(
+        "Returns the current API version, build date, Python version, and service name. "
+        "No authentication required."
+    ),
 )
 def version():
     """Return current API version — public, no auth required."""
-    return {"version": _API_VERSION, "service": "OpenSchichtplaner5 API"}
+    import platform
+    from datetime import datetime as _dt, timezone as _tz
+    return {
+        "version": _API_VERSION,
+        "service": "OpenSchichtplaner5 API",
+        "python_version": platform.python_version(),
+        "build_date": _dt.now(_tz.utc).strftime("%Y-%m-%d"),
+        "min_compatible_frontend": "0.4.0",
+    }
 
 
 @app.get(
