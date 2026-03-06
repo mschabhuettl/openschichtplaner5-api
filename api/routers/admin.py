@@ -123,6 +123,16 @@ def update_settings(body: SettingsUpdate, _cur_user: dict = Depends(require_admi
 _BACKUP_ALLOWED_EXT = {".DBF", ".FPT", ".CDX"}
 _BACKUP_MAX_COUNT = 7
 
+# Critical DBF files that must be present for a valid backup
+_BACKUP_REQUIRED_FILES = {
+    "5EMPL.DBF",   # Employees (core)
+    "5USER.DBF",   # Users / logins
+    "5GROUP.DBF",  # Groups
+    "5USETT.DBF",  # Settings
+    "5SHIFT.DBF",  # Shifts
+    "5BOOK.DBF",   # Bookings
+}
+
 
 def _get_db_path() -> str:
     return os.environ.get("SP5_DB_PATH", "")
@@ -138,15 +148,33 @@ def _get_backup_dir() -> str:
 
 
 def _create_zip_bytes(db_path: str) -> bytes:
-    """Create a ZIP of all DBF/FPT/CDX files and return as bytes."""
+    """Create a ZIP of all DBF/FPT/CDX files and return as bytes.
+
+    Raises HTTPException 500 if critical DBF files are missing.
+    """
+    all_files = {
+        fname
+        for fname in os.listdir(db_path)
+        if os.path.isfile(os.path.join(db_path, fname))
+        and os.path.splitext(fname)[1].upper() in _BACKUP_ALLOWED_EXT
+    }
+
+    # Integrity check: critical files must all be present
+    missing = _BACKUP_REQUIRED_FILES - {f.upper() for f in all_files}
+    if missing:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Backup abgebrochen: Kritische Datenbankdateien fehlen: "
+                f"{', '.join(sorted(missing))}. Bitte Datenbankverzeichnis prüfen."
+            ),
+        )
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for fname in sorted(os.listdir(db_path)):
-            ext = os.path.splitext(fname)[1].upper()
-            if ext in _BACKUP_ALLOWED_EXT:
-                full_path = os.path.join(db_path, fname)
-                if os.path.isfile(full_path):
-                    zf.write(full_path, arcname=fname)
+        for fname in sorted(all_files):
+            full_path = os.path.join(db_path, fname)
+            zf.write(full_path, arcname=fname)
     return buf.getvalue()
 
 
@@ -395,6 +423,17 @@ async def backup_restore(
         raise HTTPException(status_code=400, detail="Ungültige ZIP-Datei")
 
     names_in_zip = zf.namelist()
+
+    # Security: reject any entry with path traversal components (Zip Slip prevention)
+    for entry in names_in_zip:
+        # Normalize separators; reject anything that escapes the target directory
+        norm = entry.replace("\\", "/")
+        if ".." in norm.split("/") or norm.startswith("/"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sicherheitsfehler: ZIP-Eintrag mit ungültigem Pfad abgelehnt: {entry!r}",
+            )
+
     dbf_files = [n for n in names_in_zip if os.path.splitext(n)[1].upper() == ".DBF"]
     if not dbf_files:
         raise HTTPException(status_code=400, detail="ZIP enthält keine .DBF Dateien")
