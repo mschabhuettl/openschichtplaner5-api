@@ -298,7 +298,8 @@ def list_backups(_admin: dict = Depends(require_admin)):
     tags=["Backup"],
     summary="Download database backup",
 )
-def download_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
+@limiter.limit("5/minute")
+def download_saved_backup(request: Request, filename: str, _admin: dict = Depends(require_admin)):
     """Download a specific saved backup by filename. Admin only."""
     # Security: only allow safe filenames
     if (
@@ -359,7 +360,8 @@ def delete_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
 @router.get(
     "/api/backup/download", tags=["Backup"], summary="Download current database backup"
 )
-def backup_download(_admin: dict = Depends(require_admin)):
+@limiter.limit("3/minute")
+def backup_download(request: Request, _admin: dict = Depends(require_admin)):
     """Create a ZIP of all .DBF / .FPT / .CDX files and return as download. Also saves to backup dir."""
     db_path = _get_db_path()
     if not db_path or not os.path.isdir(db_path):
@@ -394,8 +396,9 @@ def backup_download(_admin: dict = Depends(require_admin)):
 @router.post(
     "/api/backup/restore", tags=["Backup"], summary="Restore database from backup"
 )
+@limiter.limit("3/minute")
 async def backup_restore(
-    file: UploadFile = File(...), _admin: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _admin: dict = Depends(require_admin)
 ):
     """Restore .DBF / .FPT / .CDX files from an uploaded ZIP.
 
