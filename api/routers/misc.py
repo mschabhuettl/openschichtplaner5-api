@@ -417,13 +417,16 @@ def create_wish(body: WishCreate, _cur_user: dict = Depends(require_planer)):
         raise HTTPException(
             status_code=400, detail="wish_type must be WUNSCH or SPERRUNG"
         )
-    return get_db().add_wish(
-        employee_id=body.employee_id,
-        date=body.date,
-        wish_type=wish_type,
-        shift_id=body.shift_id,
-        note=body.note or "",
-    )
+    try:
+        return get_db().add_wish(
+            employee_id=body.employee_id,
+            date=body.date,
+            wish_type=wish_type,
+            shift_id=body.shift_id,
+            note=body.note or "",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.delete(
@@ -813,13 +816,16 @@ def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth
         raise HTTPException(
             status_code=400, detail="wish_type must be WUNSCH or SPERRUNG"
         )
-    result = db.add_wish(
-        employee_id=employee["ID"],
-        date=body.date,
-        wish_type=wish_type,
-        shift_id=body.shift_id,
-        note=body.note or "",
-    )
+    try:
+        result = db.add_wish(
+            employee_id=employee["ID"],
+            date=body.date,
+            wish_type=wish_type,
+            shift_id=body.shift_id,
+            note=body.note or "",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     return result
 
 
