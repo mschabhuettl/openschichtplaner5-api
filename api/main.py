@@ -19,6 +19,7 @@ class _Metrics:
         self._lock = threading.Lock()
         self.request_count = 0
         self.error_count = 0  # 5xx responses
+        self.not_found_count = 0  # 404 responses
         self.cache_hit_count = 0  # responses with Cache-Control max-age (hits)
         self.cache_total_count = 0  # cacheable requests total
         # Circular buffer of recent DB-read latencies (ms)
@@ -31,6 +32,8 @@ class _Metrics:
             self.request_count += 1
             if status >= 500:
                 self.error_count += 1
+            elif status == 404:
+                self.not_found_count += 1
             # Cache tracking: count cacheable API paths
             _CACHEABLE_PREFIXES = (
                 "/api/shifts",
@@ -61,6 +64,7 @@ class _Metrics:
         return {
             "request_count": self.request_count,
             "error_count": self.error_count,
+            "not_found_count": self.not_found_count,
             "error_rate": err_rate,
             "cache_hit_count": self.cache_hit_count,
             "cache_total_count": self.cache_total_count,
@@ -339,13 +343,21 @@ async def global_exception_handler(request: Request, exc: Exception):
     """Catch unhandled exceptions, log with details, return sanitized 500."""
     import traceback
 
+    token = (
+        request.headers.get("x-auth-token")
+        or request.cookies.get("sp5_token")
+        or request.query_params.get("token")
+    )
+    user = _sessions.get(token, {}).get("NAME", "-") if token else "-"
     _logger.error(
-        "Unhandled exception: %s %s | %s\n%s",
+        "Unhandled exception: %s %s | user=%s | %s\n%s",
         request.method,
         request.url.path,
+        user,
         type(exc).__name__,
         traceback.format_exc(),
     )
+
     return JSONResponse(
         status_code=500,
         content={"detail": "Interner Serverfehler. Bitte versuche es erneut."},
