@@ -188,8 +188,12 @@ def bulk_create_absence(
         )
 
     if body.employee_ids:
+        # Build a map once instead of calling get_employee() per ID (O(N) vs O(N*M))
+        all_emp_map: dict[int, dict] = {
+            e["ID"]: e for e in db.get_employees(include_hidden=True)
+        }
         employees: list[dict] = [
-            e for eid in body.employee_ids if (e := db.get_employee(eid)) is not None
+            all_emp_map[eid] for eid in body.employee_ids if eid in all_emp_map
         ]
     else:
         employees = db.get_employees(include_hidden=False)
