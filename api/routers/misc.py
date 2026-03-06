@@ -94,7 +94,7 @@ class NoteUpdate(BaseModel):
     category: Optional[str] = Field(None, max_length=100)
 
 
-@router.put("/api/notes/{note_id}", tags=["Notes"], summary="Update note")
+@router.put("/api/notes/{note_id}", tags=["Notes"], summary="Update note", description="Update the text or date of an existing shift note. Requires Planer role.")
 def update_note(
     note_id: int, body: NoteUpdate, _cur_user: dict = Depends(require_planer)
 ):
@@ -128,7 +128,7 @@ def update_note(
         raise _sanitize_500(e)
 
 
-@router.delete("/api/notes/{note_id}", tags=["Notes"], summary="Delete note")
+@router.delete("/api/notes/{note_id}", tags=["Notes"], summary="Delete note", description="Permanently delete a shift note by ID. Requires Planer role.")
 def delete_note(note_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_note(note_id)

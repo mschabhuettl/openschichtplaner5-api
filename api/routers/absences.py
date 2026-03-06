@@ -20,6 +20,7 @@ router = APIRouter()
     "/api/absences/{employee_id}/{date}",
     tags=["Absences"],
     summary="Delete absence entry",
+    description="Remove the absence record for an employee on a specific date. Shifts on that day are preserved. Requires Planer role.",
 )
 def delete_absence_only(
     employee_id: int, date: str, _cur_user: dict = Depends(require_planer)
@@ -141,6 +142,7 @@ class BulkAbsenceCreate(BaseModel):
     "/api/absences/bulk",
     tags=["Absences"],
     summary="Bulk absence: add absence for multiple employees",
+    description="Add the same absence type for multiple (or all active) employees on one date in a single request. Requires Planer role.",
 )
 def bulk_create_absence(
     body: BulkAbsenceCreate, _cur_user: dict = Depends(require_planer)
@@ -396,6 +398,7 @@ class AbsenceStatusPatch(BaseModel):
     "/api/absences/{absence_id}/status",
     tags=["Absences"],
     summary="Update absence approval status",
+    description="Approve or reject an absence request. Status must be one of: `pending`, `approved`, `rejected`. Rejection reason is required when rejecting. Requires Planer role.",
 )
 def patch_absence_status(
     absence_id: int, body: AbsenceStatusPatch, _cur_user: dict = Depends(require_planer)

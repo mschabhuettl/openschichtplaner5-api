@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, List
 from ..dependencies import (
     get_db,
     require_admin,
@@ -11,11 +11,18 @@ from ..dependencies import (
     _sanitize_500,
     _logger,
 )
+from ..schemas import ShiftResponse
 
 router = APIRouter()
 
 
-@router.get("/api/shifts", tags=["Shifts"], summary="List shifts")
+@router.get(
+    "/api/shifts",
+    tags=["Shifts"],
+    summary="List shifts",
+    description="Return all shift definitions. Set include_hidden=true to include archived shifts.",
+    response_model=List[ShiftResponse],
+)
 def get_shifts(include_hidden: bool = False):
     return get_db().get_shifts(include_hidden=include_hidden)
 
@@ -150,7 +157,7 @@ class ShiftUpdate(BaseModel):
     HIDE: Optional[bool] = None
 
 
-@router.post("/api/shifts", tags=["Shifts"], summary="Create shift")
+@router.post("/api/shifts", tags=["Shifts"], summary="Create shift", description="Create a new shift definition with name, shortname, colors, and time slots per weekday. Requires Admin role.")
 def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
@@ -178,7 +185,7 @@ def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
         raise _sanitize_500(e, "create_shift")
 
 
-@router.put("/api/shifts/{shift_id}", tags=["Shifts"], summary="Update shift")
+@router.put("/api/shifts/{shift_id}", tags=["Shifts"], summary="Update shift", description="Update an existing shift definition. Only provided fields are changed. Requires Admin role.")
 def update_shift(
     shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(require_admin)
 ):
@@ -200,7 +207,7 @@ def update_shift(
         raise _sanitize_500(e, f"update_shift/{shift_id}")
 
 
-@router.delete("/api/shifts/{shift_id}", tags=["Shifts"], summary="Delete shift")
+@router.delete("/api/shifts/{shift_id}", tags=["Shifts"], summary="Delete shift", description="Soft-delete (hide) a shift. Use `force=true` to delete even if the shift is still in use. Requires Admin role.")
 def hide_shift(shift_id: int, force: bool = False, _cur_user: dict = Depends(require_admin)):
     db = get_db()
     if not force:

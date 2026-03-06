@@ -577,6 +577,7 @@ def create_schedule_entry(
     "/api/schedule/{employee_id}/{date}",
     tags=["Schedule"],
     summary="Delete schedule entry",
+    description="Remove a scheduled shift for an employee on a specific date (YYYY-MM-DD). Requires Planer role.",
 )
 def delete_schedule_entry(
     employee_id: int, date: str, _cur_user: dict = Depends(require_planer)
@@ -608,6 +609,7 @@ def delete_schedule_entry(
     "/api/schedule-shift/{employee_id}/{date}",
     tags=["Schedule"],
     summary="Delete shift override",
+    description="Remove only the shift entry for an employee on a given date, leaving absences intact. Requires Planer role.",
 )
 def delete_shift_only(
     employee_id: int, date: str, _cur_user: dict = Depends(require_planer)
@@ -643,6 +645,7 @@ class ScheduleGenerateRequest(BaseModel):
     "/api/schedule/generate",
     tags=["Schedule"],
     summary="Auto-generate schedule from cycles",
+    description="Auto-generate schedule entries for a month from shift-cycle assignments. Use `dry_run=true` for preview without writing. Requires Planer role.",
 )
 def generate_schedule(
     body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_planer)
@@ -766,7 +769,10 @@ class BulkScheduleBody(BaseModel):
 
 
 @router.post(
-    "/api/schedule/bulk", tags=["Schedule"], summary="Bulk schedule operations"
+    "/api/schedule/bulk",
+    tags=["Schedule"],
+    summary="Bulk schedule operations",
+    description="Create, update, or delete multiple schedule entries in a single request. If `shift_id` is null the entry is deleted. Requires Planer role.",
 )
 def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_planer)):
     """Bulk create/update/delete schedule entries in a single request.
@@ -1064,7 +1070,10 @@ class SwapShiftsRequest(BaseModel):
 
 
 @router.post(
-    "/api/schedule/swap", tags=["Schedule"], summary="Swap shifts between employees"
+    "/api/schedule/swap",
+    tags=["Schedule"],
+    summary="Swap shifts between employees",
+    description="Exchange schedule entries (shifts and absences) between two employees for the specified dates. Requires Planer role.",
 )
 def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_planer)):
     """Swap schedule entries (shifts + absences) between two employees for the given dates."""
@@ -1169,7 +1178,12 @@ class CopyWeekRequest(BaseModel):
     skip_existing: bool = True  # True = don't overwrite existing entries
 
 
-@router.post("/api/schedule/copy-week", tags=["Schedule"], summary="Copy week schedule")
+@router.post(
+    "/api/schedule/copy-week",
+    tags=["Schedule"],
+    summary="Copy week schedule",
+    description="Copy a source employee's schedule entries for given dates to one or more target employees. Use `skip_existing=false` to overwrite. Requires Planer role.",
+)
 def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
     """Copy one employee's schedule entries (shifts + absences) for given dates to one or more target employees."""
     db = get_db()
