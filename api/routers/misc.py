@@ -445,6 +445,64 @@ def delete_wish(wish_id: int, _cur_user: dict = Depends(require_planer)):
     return {"deleted": wish_id}
 
 
+class WishApprove(BaseModel):
+    action: str = Field(..., pattern=r"^(approve|reject)$")  # 'approve' | 'reject'
+    note: Optional[str] = Field(None, max_length=500)
+
+
+@router.patch(
+    "/api/wishes/{wish_id}/approve",
+    tags=["Self-Service"],
+    summary="Approve or reject a shift wish",
+)
+def approve_wish(
+    wish_id: int, body: WishApprove, _cur_user: dict = Depends(require_planer)
+):
+    """Approve or reject a wish. On approval of WUNSCH with shift_id, the shift is
+    written into the schedule."""
+    db = get_db()
+    # Load the wish
+    wishes = db.get_wishes()
+    wish = next((w for w in wishes if w.get("id") == wish_id), None)
+    if wish is None:
+        raise HTTPException(status_code=404, detail="Wish not found")
+
+    new_status = "approved" if body.action == "approve" else "rejected"
+
+    # If approving a WUNSCH that has a shift_id, write to schedule
+    if body.action == "approve" and wish.get("wish_type") == "WUNSCH" and wish.get("shift_id"):
+        try:
+            db.add_schedule_entry(
+                employee_id=wish["employee_id"],
+                date_str=wish["date"],
+                shift_id=wish["shift_id"],
+            )
+        except ValueError:
+            # Entry already exists — update instead
+            db.delete_shift_only(employee_id=wish["employee_id"], date_str=wish["date"])
+            db.add_schedule_entry(
+                employee_id=wish["employee_id"],
+                date_str=wish["date"],
+                shift_id=wish["shift_id"],
+            )
+
+    # Update wish status
+    updated = db.update_wish_status(wish_id, new_status)
+
+    # Notify the employee
+    action_label = "genehmigt" if body.action == "approve" else "abgelehnt"
+    note_suffix = f" Hinweis: {body.note}" if body.note else ""
+    create_notification(
+        type="wish_decision",
+        title=f"Schichtwunsch {action_label}",
+        message=f"Dein Wunsch für den {wish['date']} wurde {action_label}.{note_suffix}",
+        recipient_employee_id=wish.get("employee_id"),
+        link="/self/wishes",
+    )
+
+    return updated
+
+
 # ── Übergabe-Protokoll ────────────────────────────────────────────────────────
 # In-memory store (reset on restart – kann später auf DB umgestellt werden)
 import uuid as _uuid  # noqa: E402

@@ -42,7 +42,7 @@ def broadcast(event_type: str, data: dict | None = None) -> None:
 
 
 async def _event_generator(
-    request: Request, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop
+    request: Request, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop | None = None
 ) -> AsyncGenerator[str, None]:
     """Yield SSE-formatted strings from the queue until the client disconnects."""
     try:
