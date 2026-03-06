@@ -171,7 +171,7 @@ class TestAdminOnlyEndpoints:
             "/api/users",
             json={
                 "USERNAME": "newuser",
-                "PASSWORD": "pass123",
+                "PASSWORD": "Pass1234",
                 "role": "Viewer",
             },
         )

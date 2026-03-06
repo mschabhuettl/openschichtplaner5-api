@@ -215,6 +215,35 @@ def purge_stale_failed_logins() -> int:
     return len(stale)
 
 
+# ── Audit Log (JSON file) ────────────────────────────────────────
+import json as _audit_json
+import threading as _audit_threading
+
+_AUDIT_LOG_FILE = os.environ.get("SP5_AUDIT_LOG", "/tmp/sp5-audit.json")
+_audit_lock = _audit_threading.Lock()
+
+
+def write_audit_log(action: str, actor: str, details: dict) -> None:
+    """Append a structured audit event to the audit JSON-lines file.
+
+    Each line is a self-contained JSON object with timestamp, action, actor and details.
+    """
+    from datetime import datetime as _adt, timezone as _atz
+
+    entry = {
+        "timestamp": _adt.now(_atz.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+        "action": action,
+        "actor": actor,
+        **details,
+    }
+    try:
+        with _audit_lock:
+            with open(_AUDIT_LOG_FILE, "a", encoding="utf-8") as _f:
+                _f.write(_audit_json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as _ae:
+        _logger.warning("Audit log write failed: %s", _ae)
+
+
 def _sanitize_500(e: Exception, context: str = "") -> HTTPException:
     """Log full exception, return sanitized 500."""
     _logger.error(

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Header, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional
+import re as _re
 from ..dependencies import (
     get_db,
     require_admin,
@@ -21,7 +22,32 @@ from ..dependencies import (
     _MAX_SESSIONS_PER_USER,
     limiter,
     invalidate_sessions_for_user,
+    write_audit_log,
 )
+
+# ── Password strength config (env-configurable) ──────────────────
+_PW_MIN_LENGTH = int(os.environ.get("SP5_PW_MIN_LENGTH", "8"))
+_PW_REQUIRE_UPPER = os.environ.get("SP5_PW_REQUIRE_UPPER", "true").lower() not in ("0", "false", "no")
+_PW_REQUIRE_DIGIT = os.environ.get("SP5_PW_REQUIRE_DIGIT", "true").lower() not in ("0", "false", "no")
+
+
+def _validate_password_strength(password: str) -> None:
+    """Raise HTTPException 400 if the password does not meet strength requirements."""
+    if len(password) < _PW_MIN_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Passwort muss mindestens {_PW_MIN_LENGTH} Zeichen lang sein.",
+        )
+    if _PW_REQUIRE_UPPER and not _re.search(r"[A-Z]", password):
+        raise HTTPException(
+            status_code=400,
+            detail="Passwort muss mindestens einen Großbuchstaben enthalten.",
+        )
+    if _PW_REQUIRE_DIGIT and not _re.search(r"[0-9]", password):
+        raise HTTPException(
+            status_code=400,
+            detail="Passwort muss mindestens eine Ziffer enthalten.",
+        )
 
 _IS_DEV = os.environ.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes")
 _COOKIE_NAME = "sp5_token"
@@ -78,6 +104,7 @@ def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
         raise HTTPException(
             status_code=400, detail="role muss Admin, Planer oder Leser sein"
         )
+    _validate_password_strength(body.PASSWORD)
     try:
         result = get_db().create_user(body.model_dump())
         _logger.warning(
@@ -86,6 +113,9 @@ def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
             body.NAME,
             body.role,
         )
+        write_audit_log("USER_CREATE", _admin.get("NAME", "?"), {
+            "new_user": body.NAME, "role": body.role,
+        })
         return {"ok": True, "record": result}
     except ValueError as e:
         if str(e).startswith("DUPLICATE:USERNAME:"):
@@ -109,6 +139,8 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
         raise HTTPException(
             status_code=400, detail="role muss Admin, Planer oder Leser sein"
         )
+    if "PASSWORD" in data:
+        _validate_password_strength(data["PASSWORD"])
     try:
         result = get_db().update_user(user_id, data)
         _logger.warning(
@@ -117,6 +149,9 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
             user_id,
             list(data.keys()),
         )
+        write_audit_log("USER_UPDATE", _admin.get("NAME", "?"), {
+            "target_id": user_id, "fields": list(data.keys()),
+        })
         return {"ok": True, "record": result}
     except ValueError:
         raise HTTPException(
@@ -146,6 +181,9 @@ def delete_user(user_id: int, _admin: dict = Depends(require_admin)):
             user_id,
             removed,
         )
+        write_audit_log("USER_DELETE", _admin.get("NAME", "?"), {
+            "target_id": user_id, "sessions_revoked": removed,
+        })
         return {"ok": True, "hidden": count}
     except HTTPException:
         raise
@@ -168,6 +206,7 @@ def change_user_password(
 ):
     if not body.new_password or len(body.new_password.strip()) < 1:
         raise HTTPException(status_code=400, detail="Passwort darf nicht leer sein")
+    _validate_password_strength(body.new_password)
     try:
         ok = get_db().change_password(user_id, body.new_password)
         if not ok:
@@ -180,6 +219,9 @@ def change_user_password(
             user_id,
             removed,
         )
+        write_audit_log("PASSWORD_CHANGE", _admin.get("NAME", "?"), {
+            "target_id": user_id, "sessions_revoked": removed,
+        })
         return {"ok": True, "sessions_revoked": removed}
     except HTTPException:
         raise
@@ -227,6 +269,7 @@ def login(request: Request, body: LoginBody):
     # Successful login: clear failed attempts
     _failed_logins.pop(username, None)
     _logger.info("AUTH LOGIN_OK | ip=%s username=%s", client_ip, username)
+    write_audit_log("LOGIN_OK", username, {"ip": client_ip})
 
     # Enforce max concurrent sessions per user (evict oldest if over limit)
     user_id = user.get("ID")

@@ -1003,7 +1003,7 @@ class TestUserManagement:
             {
                 "NAME": "testuser",
                 "role": "Leser",
-                "PASSWORD": "test123",
+                "PASSWORD": "Test1234",
             }
         )
         assert result is not None
@@ -1027,7 +1027,7 @@ class TestUserManagement:
             {
                 "NAME": "authtest",
                 "role": "Leser",
-                "PASSWORD": "mypassword",
+                "PASSWORD": "MyPassword1",
             }
         )
         # Note: verify_user_password result depends on DBF binary storage details
@@ -1041,7 +1041,7 @@ class TestUserManagement:
             {
                 "NAME": "wrongpwtest",
                 "role": "Leser",
-                "PASSWORD": "correct123",
+                "PASSWORD": "Correct123",
             }
         )
         result = tmp_db.verify_user_password("wrongpwtest", "definitelywrongpassword")
@@ -1059,7 +1059,7 @@ class TestUserManagement:
             {
                 "NAME": "changepwtest",
                 "role": "Leser",
-                "PASSWORD": "initial",
+                "PASSWORD": "Initial1",
             }
         )
         uid = user.get("ID") or user.get("id")

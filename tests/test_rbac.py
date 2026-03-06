@@ -128,7 +128,7 @@ class TestLeserPermissions:
         """POST /api/users requires Admin."""
         res = sync_client.post(
             "/api/users",
-            json={"NAME": "newuser", "PASSWORD": "pass123", "role": "Leser"},
+            json={"NAME": "newuser", "PASSWORD": "Pass1234", "role": "Leser"},
             headers=_h(leser_token),
         )
         assert res.status_code in (401, 403), f"Expected 401/403, got {res.status_code}"
@@ -163,7 +163,7 @@ class TestPlanerPermissions:
         """POST /api/users requires Admin."""
         res = sync_client.post(
             "/api/users",
-            json={"NAME": "newplaner", "PASSWORD": "pass123", "role": "Planer"},
+            json={"NAME": "newplaner", "PASSWORD": "Pass1234", "role": "Planer"},
             headers=_h(planer_token),
         )
         assert res.status_code in (401, 403), f"Expected 401/403, got {res.status_code}"

@@ -22,7 +22,7 @@ class TestAdminUserCRUD:
         """Verify create user."""
         resp = admin_client.post(
             "/api/users",
-            json={"NAME": "newuser", "PASSWORD": "pass123", "role": "Leser"},
+            json={"NAME": "newuser", "PASSWORD": "Pass1234", "role": "Leser"},
         )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
@@ -33,7 +33,7 @@ class TestAdminUserCRUD:
         """Verify create user invalid role — Pydantic rejects it with 422."""
         resp = admin_client.post(
             "/api/users",
-            json={"NAME": "baduser", "PASSWORD": "pass123", "role": "InvalidRole"},
+            json={"NAME": "baduser", "PASSWORD": "Pass1234", "role": "InvalidRole"},
         )
         assert resp.status_code in (400, 422)
 
@@ -42,7 +42,7 @@ class TestAdminUserCRUD:
         """Verify update user."""
         create = admin_client.post(
             "/api/users",
-            json={"NAME": "updateme", "PASSWORD": "pass12", "role": "Planer"},
+            json={"NAME": "updateme", "PASSWORD": "Pass1234", "role": "Planer"},
         )
         assert create.status_code == 200
         uid = create.json()["record"]["ID"]
@@ -57,7 +57,7 @@ class TestAdminUserCRUD:
         """Verify update user invalid role — Pydantic rejects it with 422."""
         create = admin_client.post(
             "/api/users",
-            json={"NAME": "roltest", "PASSWORD": "pass12", "role": "Leser"},
+            json={"NAME": "roltest", "PASSWORD": "Pass1234", "role": "Leser"},
         )
         uid = create.json()["record"]["ID"]
         resp = admin_client.put(f"/api/users/{uid}", json={"role": "BadRole"})
@@ -72,7 +72,7 @@ class TestAdminUserCRUD:
         """Verify delete user."""
         create = admin_client.post(
             "/api/users",
-            json={"NAME": "deleteme", "PASSWORD": "pass12", "role": "Leser"},
+            json={"NAME": "deleteme", "PASSWORD": "Pass1234", "role": "Leser"},
         )
         uid = create.json()["record"]["ID"]
         resp = admin_client.delete(f"/api/users/{uid}")
@@ -88,11 +88,11 @@ class TestAdminUserCRUD:
         """Verify change user password."""
         create = admin_client.post(
             "/api/users",
-            json={"NAME": "pwtest", "PASSWORD": "oldpass", "role": "Leser"},
+            json={"NAME": "pwtest", "PASSWORD": "OldPass1", "role": "Leser"},
         )
         uid = create.json()["record"]["ID"]
         resp = admin_client.post(
-            f"/api/users/{uid}/change-password", json={"new_password": "newpass123"}
+            f"/api/users/{uid}/change-password", json={"new_password": "NewPass123"}
         )
         assert resp.status_code == 200
         assert resp.json()["ok"] is True
@@ -107,7 +107,7 @@ class TestAdminUserCRUD:
     def test_change_user_password_not_found(self, admin_client):
         """Verify change user password not found — valid pw length but nonexistent user."""
         resp = admin_client.post(
-            "/api/users/999999/change-password", json={"new_password": "validpass"}
+            "/api/users/999999/change-password", json={"new_password": "ValidPass1"}
         )
         assert resp.status_code in (404, 500)
 
