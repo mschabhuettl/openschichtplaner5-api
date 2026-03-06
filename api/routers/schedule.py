@@ -1094,7 +1094,7 @@ def delete_cycle_exception(
     """Delete a cycle exception by ID."""
     count = get_db().delete_cycle_exception(exception_id)
     if count == 0:
-        raise HTTPException(status_code=404, detail="Cycle exception not found")
+        raise HTTPException(status_code=404, detail="Ausnahme nicht gefunden")
     return {"ok": True, "deleted": exception_id}
 
 

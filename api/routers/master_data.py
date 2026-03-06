@@ -697,7 +697,7 @@ def delete_special_staffing(record_id: int, _cur_user: dict = Depends(require_pl
     try:
         count = get_db().delete_special_staffing(record_id)
         if count == 0:
-            raise HTTPException(status_code=404, detail="Record not found")
+            raise HTTPException(status_code=404, detail="Datensatz nicht gefunden")
         return {"ok": True, "deleted": count}
     except HTTPException:
         raise
@@ -800,7 +800,7 @@ def update_skill(
                 s["category"] = body.category  # noqa: E701
             _save_skills(data)
             return s
-    raise HTTPException(status_code=404, detail="Skill not found")
+    raise HTTPException(status_code=404, detail="Qualifikation nicht gefunden")
 
 
 @router.delete("/api/skills/{skill_id}", tags=["Employees"], summary="Delete skill")
@@ -860,7 +860,7 @@ def delete_assignment(assignment_id: str, _cur_user: dict = Depends(require_admi
         a for a in data.get("assignments", []) if a.get("id") != assignment_id
     ]
     if len(data["assignments"]) == before:
-        raise HTTPException(status_code=404, detail="Assignment not found")
+        raise HTTPException(status_code=404, detail="Zuweisung nicht gefunden")
     _save_skills(data)
     return {"ok": True}
 

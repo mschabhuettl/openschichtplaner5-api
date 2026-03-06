@@ -232,7 +232,7 @@ def get_employee_statistics(
     db = get_db()
     emp = db.get_employee(emp_id)
     if emp is None:
-        raise HTTPException(status_code=404, detail=f"Employee {emp_id} not found")
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter {emp_id} nicht gefunden")
     if month is not None:
         if not (1 <= month <= 12):
             raise HTTPException(
@@ -1759,7 +1759,7 @@ def get_zeitkonto_detail(
     db = get_db()
     result = db.calculate_time_balance(employee_id=employee_id, year=year)
     if not result:
-        raise HTTPException(status_code=404, detail="Employee not found")
+        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
     return result
 
 
@@ -1876,7 +1876,7 @@ def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_booking(booking_id)
         if count == 0:
-            raise HTTPException(status_code=404, detail="Booking not found")
+            raise HTTPException(status_code=404, detail="Buchung nicht gefunden")
         return {"ok": True, "deleted": booking_id}
     except HTTPException:
         raise

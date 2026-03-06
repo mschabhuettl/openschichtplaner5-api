@@ -129,7 +129,7 @@ def update_note(
             category=body.category,
         )
         if result is None:
-            raise HTTPException(status_code=404, detail="Note not found")
+            raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
         broadcast("note_updated", {"note_id": note_id})
         return {"ok": True, "record": result}
     except HTTPException:
@@ -336,7 +336,7 @@ def delete_employee_access(access_id: int, _cur_user: dict = Depends(require_adm
     """Remove an employee access entry."""
     count = get_db().delete_employee_access(access_id)
     if count == 0:
-        raise HTTPException(status_code=404, detail="Access record not found")
+        raise HTTPException(status_code=404, detail="Zugriffseintrag nicht gefunden")
     return {"ok": True, "deleted": access_id}
 
 
@@ -365,7 +365,7 @@ def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)
     """Remove a group access entry."""
     count = get_db().delete_group_access(access_id)
     if count == 0:
-        raise HTTPException(status_code=404, detail="Access record not found")
+        raise HTTPException(status_code=404, detail="Zugriffseintrag nicht gefunden")
     return {"ok": True, "deleted": access_id}
 
 
@@ -451,7 +451,7 @@ def create_wish(body: WishCreate, _cur_user: dict = Depends(require_planer)):
 def delete_wish(wish_id: int, _cur_user: dict = Depends(require_planer)):
     deleted = get_db().delete_wish(wish_id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Wish not found")
+        raise HTTPException(status_code=404, detail="Wunsch nicht gefunden")
     return {"deleted": wish_id}
 
 
@@ -475,7 +475,7 @@ def approve_wish(
     wishes = db.get_wishes()
     wish = next((w for w in wishes if w.get("id") == wish_id), None)
     if wish is None:
-        raise HTTPException(status_code=404, detail="Wish not found")
+        raise HTTPException(status_code=404, detail="Wunsch nicht gefunden")
 
     new_status = "approved" if body.action == "approve" else "rejected"
 
