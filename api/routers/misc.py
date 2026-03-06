@@ -48,10 +48,12 @@ def get_notes(
 
 class NoteCreate(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    text: str = Field(..., min_length=1, max_length=2000)
+    # TEXT1/TEXT2: DBF field C len=252, UTF-16-LE → max 125 chars
+    text: str = Field(..., min_length=1, max_length=125)
     employee_id: Optional[int] = Field(0, ge=0)
-    text2: Optional[str] = Field("", max_length=2000)
-    category: Optional[str] = Field("", max_length=100)
+    text2: Optional[str] = Field("", max_length=125)
+    # RESERVED (category): DBF field C len=20, UTF-16-LE → max 9 chars
+    category: Optional[str] = Field("", max_length=9)
 
 
 @router.post(
@@ -87,11 +89,13 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
 
 
 class NoteUpdate(BaseModel):
-    text: Optional[str] = Field(None, min_length=1, max_length=2000)
-    text2: Optional[str] = Field(None, max_length=2000)
+    # TEXT1/TEXT2: DBF field C len=252, UTF-16-LE → max 125 chars
+    text: Optional[str] = Field(None, min_length=1, max_length=125)
+    text2: Optional[str] = Field(None, max_length=125)
     employee_id: Optional[int] = Field(None, ge=0)
     date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
-    category: Optional[str] = Field(None, max_length=100)
+    # RESERVED (category): DBF field C len=20, UTF-16-LE → max 9 chars
+    category: Optional[str] = Field(None, max_length=9)
 
 
 @router.put("/api/notes/{note_id}", tags=["Notes"], summary="Update note", description="Update the text or date of an existing shift note. Requires Planer role.")
