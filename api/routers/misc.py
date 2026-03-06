@@ -98,7 +98,12 @@ class NoteUpdate(BaseModel):
     category: Optional[str] = Field(None, max_length=9)
 
 
-@router.put("/api/notes/{note_id}", tags=["Notes"], summary="Update note", description="Update the text or date of an existing shift note. Requires Planer role.")
+@router.put(
+    "/api/notes/{note_id}",
+    tags=["Notes"],
+    summary="Update note",
+    description="Update the text or date of an existing shift note. Requires Planer role.",
+)
 def update_note(
     note_id: int, body: NoteUpdate, _cur_user: dict = Depends(require_planer)
 ):
@@ -133,7 +138,12 @@ def update_note(
         raise _sanitize_500(e)
 
 
-@router.delete("/api/notes/{note_id}", tags=["Notes"], summary="Delete note", description="Permanently delete a shift note by ID. Requires Planer role.")
+@router.delete(
+    "/api/notes/{note_id}",
+    tags=["Notes"],
+    summary="Delete note",
+    description="Permanently delete a shift note by ID. Requires Planer role.",
+)
 def delete_note(note_id: int, _cur_user: dict = Depends(require_planer)):
     try:
         count = get_db().delete_note(note_id)
@@ -470,7 +480,11 @@ def approve_wish(
     new_status = "approved" if body.action == "approve" else "rejected"
 
     # If approving a WUNSCH that has a shift_id, write to schedule
-    if body.action == "approve" and wish.get("wish_type") == "WUNSCH" and wish.get("shift_id"):
+    if (
+        body.action == "approve"
+        and wish.get("wish_type") == "WUNSCH"
+        and wish.get("shift_id")
+    ):
         try:
             db.add_schedule_entry(
                 employee_id=wish["employee_id"],
@@ -763,12 +777,25 @@ def resolve_swap_request(
                 for table, kind in [("MASHI", "shift"), ("ABSEN", "absence")]:
                     filepath = db._table(table)
                     fields = get_table_fields(filepath)
-                    matches = find_all_records(filepath, fields, EMPLOYEEID=emp_id, DATE=date_str)
+                    matches = find_all_records(
+                        filepath, fields, EMPLOYEEID=emp_id, DATE=date_str
+                    )
                     for _, rec in matches:
                         if kind == "shift":
-                            result.append({"kind": "shift", "shift_id": rec.get("SHIFTID"), "workplace_id": rec.get("WORKPLACID", 0)})
+                            result.append(
+                                {
+                                    "kind": "shift",
+                                    "shift_id": rec.get("SHIFTID"),
+                                    "workplace_id": rec.get("WORKPLACID", 0),
+                                }
+                            )
                         else:
-                            result.append({"kind": "absence", "leave_type_id": rec.get("LEAVETYPID")})
+                            result.append(
+                                {
+                                    "kind": "absence",
+                                    "leave_type_id": rec.get("LEAVETYPID"),
+                                }
+                            )
                 return result
 
             def _write(emp_id: int, date_str: str, entries):
@@ -781,8 +808,10 @@ def resolve_swap_request(
                     except Exception as exc:
                         errors.append(f"MA {emp_id} / {date_str}: {exc}")
 
-            entries_a_on_req = _collect(requester_id, req_date)  # A's shift on their date
-            entries_b_on_par = _collect(partner_id, par_date)    # B's shift on their date
+            entries_a_on_req = _collect(
+                requester_id, req_date
+            )  # A's shift on their date
+            entries_b_on_par = _collect(partner_id, par_date)  # B's shift on their date
 
             # Delete originals
             db.delete_schedule_entry(requester_id, req_date)

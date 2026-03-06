@@ -197,7 +197,10 @@ class TestSimulationAbsences:
         # Days outside the absence are unaffected
         for day in data["days"]:
             if day["date"] not in ("2024-01-10", "2024-01-11"):
-                assert day["lost_shifts"] == 0 or day["date"] not in ("2024-01-10", "2024-01-11")
+                assert day["lost_shifts"] == 0 or day["date"] not in (
+                    "2024-01-10",
+                    "2024-01-11",
+                )
 
     def test_simulation_multiple_employees(self, sync_client: TestClient):
         """Multiple employees absent → affected_employees count correct."""

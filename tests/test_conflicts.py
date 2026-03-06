@@ -42,12 +42,14 @@ def tmp_db(tmp_path):
     dst = tmp_path / "Daten"
     shutil.copytree(_REAL_DB_PATH, str(dst))
     from sp5lib.database import SP5Database
+
     return SP5Database(str(dst))
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _first_employee_and_shift(db):
     """Return (emp_id, shift_id) or skip if DB has no employees/shifts."""
@@ -69,8 +71,8 @@ def _first_leave_type(db):
 # Test 1: shift_and_absence conflict is detected
 # ---------------------------------------------------------------------------
 
-class TestShiftAndAbsenceConflict:
 
+class TestShiftAndAbsenceConflict:
     def test_conflict_detected_when_shift_and_absence_on_same_day(self, tmp_db):
         """An employee with a shift AND an absence on the same day → conflict."""
         emp_id, shift_id = _first_employee_and_shift(tmp_db)
@@ -87,7 +89,11 @@ class TestShiftAndAbsenceConflict:
             pass
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 7)
-        types = [c["type"] for c in conflicts if c["employee_id"] == emp_id and c["date"] == test_date]
+        types = [
+            c["type"]
+            for c in conflicts
+            if c["employee_id"] == emp_id and c["date"] == test_date
+        ]
         assert "shift_and_absence" in types, (
             "Expected shift_and_absence conflict but none was returned"
         )
@@ -104,11 +110,15 @@ class TestShiftAndAbsenceConflict:
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 8)
         sa_conflicts = [
-            c for c in conflicts
-            if c["employee_id"] == emp_id and c["date"] == test_date
+            c
+            for c in conflicts
+            if c["employee_id"] == emp_id
+            and c["date"] == test_date
             and c["type"] == "shift_and_absence"
         ]
-        assert sa_conflicts == [], "Unexpected shift_and_absence conflict for shift-only day"
+        assert sa_conflicts == [], (
+            "Unexpected shift_and_absence conflict for shift-only day"
+        )
 
     def test_no_conflict_when_only_absence(self, tmp_db):
         """An employee with only an absence (no shift) → no shift_and_absence conflict."""
@@ -126,24 +136,28 @@ class TestShiftAndAbsenceConflict:
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 9)
         sa_conflicts = [
-            c for c in conflicts
-            if c["employee_id"] == emp_id and c["date"] == test_date
+            c
+            for c in conflicts
+            if c["employee_id"] == emp_id
+            and c["date"] == test_date
             and c["type"] == "shift_and_absence"
         ]
-        assert sa_conflicts == [], "Unexpected shift_and_absence conflict for absence-only day"
+        assert sa_conflicts == [], (
+            "Unexpected shift_and_absence conflict for absence-only day"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Test 2: holiday_ban conflict is detected
 # ---------------------------------------------------------------------------
 
-class TestHolidayBanConflict:
 
+class TestHolidayBanConflict:
     def test_absence_in_holiday_ban_period_is_conflict(self, tmp_db):
         """Absence during a holiday-ban period → holiday_ban conflict."""
         lt_id = _first_leave_type(tmp_db)
         ban_start = "2025-10-01"
-        ban_end   = "2025-10-31"
+        ban_end = "2025-10-31"
         test_date = "2025-10-15"
 
         # Find a non-hidden employee that belongs to a group
@@ -164,7 +178,9 @@ class TestHolidayBanConflict:
             pytest.skip("No non-hidden employee in any group found in test DB")
 
         try:
-            tmp_db.create_holiday_ban(group_id_for_ban, ban_start, ban_end, reason="Testsperre")
+            tmp_db.create_holiday_ban(
+                group_id_for_ban, ban_start, ban_end, reason="Testsperre"
+            )
         except (AttributeError, TypeError) as exc:
             pytest.skip(f"create_holiday_ban not available: {exc}")
 
@@ -175,8 +191,10 @@ class TestHolidayBanConflict:
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 10)
         hb_conflicts = [
-            c for c in conflicts
-            if c["employee_id"] == emp_id and c["date"] == test_date
+            c
+            for c in conflicts
+            if c["employee_id"] == emp_id
+            and c["date"] == test_date
             and c["type"] == "holiday_ban"
         ]
         assert hb_conflicts, "Expected holiday_ban conflict but none was returned"
@@ -186,8 +204,8 @@ class TestHolidayBanConflict:
 # Test 3: Sorting contract
 # ---------------------------------------------------------------------------
 
-class TestSortingContract:
 
+class TestSortingContract:
     def test_conflicts_sorted_by_date_then_employee_id(self, tmp_db):
         """get_schedule_conflicts must return list sorted by (date, employee_id)."""
         emps = tmp_db.get_employees()
@@ -219,8 +237,8 @@ class TestSortingContract:
 # Test 4: group_id filter
 # ---------------------------------------------------------------------------
 
-class TestGroupIdFilter:
 
+class TestGroupIdFilter:
     def test_group_filter_excludes_other_employees(self, tmp_db):
         """With group_id filter, only members of that group appear in conflicts."""
         groups = tmp_db.get_groups() if hasattr(tmp_db, "get_groups") else []
@@ -244,8 +262,8 @@ class TestGroupIdFilter:
 # Test 5: Return structure
 # ---------------------------------------------------------------------------
 
-class TestReturnStructure:
 
+class TestReturnStructure:
     def test_result_is_list(self, tmp_db):
         """get_schedule_conflicts always returns a list."""
         result = tmp_db.get_schedule_conflicts(2024, 6)
@@ -276,15 +294,17 @@ class TestReturnStructure:
 # Test 8: holiday_shift — shift on a public holiday
 # ---------------------------------------------------------------------------
 
-class TestHolidayShiftConflict:
 
+class TestHolidayShiftConflict:
     def test_holiday_shift_detected(self, tmp_db):
         """Employee with a shift on a public holiday → holiday_shift warning."""
         emp_id, shift_id = _first_employee_and_shift(tmp_db)
         test_date = "2025-09-15"
 
         # Create a public holiday on that date
-        tmp_db.create_holiday({"DATE": test_date, "NAME": "Testheiertag", "INTERVAL": 0})
+        tmp_db.create_holiday(
+            {"DATE": test_date, "NAME": "Testheiertag", "INTERVAL": 0}
+        )
 
         # Add a shift on that date
         try:
@@ -293,9 +313,14 @@ class TestHolidayShiftConflict:
             pass
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 9)
-        types = [c["type"] for c in conflicts if c["employee_id"] == emp_id and c["date"] == test_date]
+        types = [
+            c["type"]
+            for c in conflicts
+            if c["employee_id"] == emp_id and c["date"] == test_date
+        ]
         assert "holiday_shift" in types, (
-            "Expected holiday_shift conflict for shift on public holiday, got: " + str(types)
+            "Expected holiday_shift conflict for shift on public holiday, got: "
+            + str(types)
         )
 
     def test_holiday_shift_has_warning_severity(self, tmp_db):
@@ -303,7 +328,9 @@ class TestHolidayShiftConflict:
         emp_id, shift_id = _first_employee_and_shift(tmp_db)
         test_date = "2025-09-16"
 
-        tmp_db.create_holiday({"DATE": test_date, "NAME": "Testheiertag2", "INTERVAL": 0})
+        tmp_db.create_holiday(
+            {"DATE": test_date, "NAME": "Testheiertag2", "INTERVAL": 0}
+        )
         try:
             tmp_db.add_schedule_entry(emp_id, test_date, shift_id)
         except ValueError:
@@ -311,8 +338,11 @@ class TestHolidayShiftConflict:
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 9)
         holiday_conflicts = [
-            c for c in conflicts
-            if c["type"] == "holiday_shift" and c["employee_id"] == emp_id and c["date"] == test_date
+            c
+            for c in conflicts
+            if c["type"] == "holiday_shift"
+            and c["employee_id"] == emp_id
+            and c["date"] == test_date
         ]
         assert holiday_conflicts, "No holiday_shift conflict found"
         assert holiday_conflicts[0].get("severity") == "warning", (
@@ -331,18 +361,23 @@ class TestHolidayShiftConflict:
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 9)
         holiday_conflicts = [
-            c for c in conflicts
-            if c["type"] == "holiday_shift" and c["employee_id"] == emp_id and c["date"] == test_date
+            c
+            for c in conflicts
+            if c["type"] == "holiday_shift"
+            and c["employee_id"] == emp_id
+            and c["date"] == test_date
         ]
-        assert not holiday_conflicts, "False-positive holiday_shift conflict on non-holiday day"
+        assert not holiday_conflicts, (
+            "False-positive holiday_shift conflict on non-holiday day"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Test 9: long_shift — shift duration > 10 hours
 # ---------------------------------------------------------------------------
 
-class TestLongShiftConflict:
 
+class TestLongShiftConflict:
     def test_long_shift_detected(self, tmp_db):
         """Shift with duration > 10h → long_shift warning."""
         emps = tmp_db.get_employees()
@@ -363,7 +398,11 @@ class TestLongShiftConflict:
             pass
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 10)
-        types = [c["type"] for c in conflicts if c["employee_id"] == emp_id and c["date"] == test_date]
+        types = [
+            c["type"]
+            for c in conflicts
+            if c["employee_id"] == emp_id and c["date"] == test_date
+        ]
         assert "long_shift" in types, (
             "Expected long_shift conflict for >10h shift, got: " + str(types)
         )
@@ -386,13 +425,18 @@ class TestLongShiftConflict:
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 10)
         long_conflicts = [
-            c for c in conflicts
-            if c["type"] == "long_shift" and c["employee_id"] == emp_id and c["date"] == test_date
+            c
+            for c in conflicts
+            if c["type"] == "long_shift"
+            and c["employee_id"] == emp_id
+            and c["date"] == test_date
         ]
         assert long_conflicts, "No long_shift conflict found"
         c = long_conflicts[0]
         assert c.get("severity") == "warning", "long_shift must have severity='warning'"
-        assert "duration_hours" in c, "long_shift conflict must include 'duration_hours'"
+        assert "duration_hours" in c, (
+            "long_shift conflict must include 'duration_hours'"
+        )
         assert c["duration_hours"] > 10.0
 
     def test_no_long_shift_for_normal_duration(self, tmp_db):
@@ -413,7 +457,10 @@ class TestLongShiftConflict:
 
         conflicts = tmp_db.get_schedule_conflicts(2025, 10)
         long_conflicts = [
-            c for c in conflicts
-            if c["type"] == "long_shift" and c["employee_id"] == emp_id and c["date"] == test_date
+            c
+            for c in conflicts
+            if c["type"] == "long_shift"
+            and c["employee_id"] == emp_id
+            and c["date"] == test_date
         ]
         assert not long_conflicts, "False-positive long_shift for 8h shift"

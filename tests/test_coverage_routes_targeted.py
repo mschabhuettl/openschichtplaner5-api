@@ -22,7 +22,9 @@ class TestImportBookingsNominal:
         csv_content = "Personalnummer,Datum,Stunden\n,,\n"
         res = admin_client.post(
             "/api/import/bookings-nominal",
-            files={"file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         data = res.json()
@@ -30,10 +32,14 @@ class TestImportBookingsNominal:
 
     def test_import_bookings_nominal_unknown_employee(self, admin_client: TestClient):
         """CSV with unknown Personalnummer → skipped with error."""
-        csv_content = "Personalnummer,Datum,Stunden\nXXXXXX_NONEXISTENT,2024-01-15,8.0\n"
+        csv_content = (
+            "Personalnummer,Datum,Stunden\nXXXXXX_NONEXISTENT,2024-01-15,8.0\n"
+        )
         res = admin_client.post(
             "/api/import/bookings-nominal",
-            files={"file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         data = res.json()
@@ -44,7 +50,9 @@ class TestImportBookingsNominal:
         csv_content = "Personalnummer,Datum,Stunden\n001,not-a-date,8.0\n"
         res = admin_client.post(
             "/api/import/bookings-nominal",
-            files={"file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         data = res.json()
@@ -56,7 +64,9 @@ class TestImportBookingsNominal:
         csv_content = "Personalnummer,Datum,Stunden\n"
         res = admin_client.post(
             "/api/import/bookings-nominal",
-            files={"file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         data = res.json()
@@ -71,7 +81,9 @@ class TestImportAbsencesCSV:
         csv_content = "Personalnummer,Datum,Abwesenheitsart\n,,\n"
         res = admin_client.post(
             "/api/import/absences-csv",
-            files={"file": ("absences.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("absences.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         data = res.json()
@@ -79,10 +91,14 @@ class TestImportAbsencesCSV:
 
     def test_import_absences_csv_unknown_employee(self, admin_client: TestClient):
         """Unknown employee → skipped with error."""
-        csv_content = "Personalnummer,Datum,Abwesenheitsart\nXXXXXX_NOTFOUND,2024-01-15,U\n"
+        csv_content = (
+            "Personalnummer,Datum,Abwesenheitsart\nXXXXXX_NOTFOUND,2024-01-15,U\n"
+        )
         res = admin_client.post(
             "/api/import/absences-csv",
-            files={"file": ("absences.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("absences.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         data = res.json()
@@ -93,7 +109,9 @@ class TestImportAbsencesCSV:
         csv_content = "Personalnummer,Datum,Abwesenheitsart\n"
         res = admin_client.post(
             "/api/import/absences-csv",
-            files={"file": ("absences.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("absences.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         assert res.json().get("imported", 0) == 0
@@ -104,7 +122,9 @@ class TestImportEntitlementsErrorPaths:
 
     def test_import_entitlements_unknown_employee(self, admin_client: TestClient):
         """Unknown Personalnummer → skipped."""
-        csv_content = "Personalnummer,Jahr,Abwesenheitsart,Tage\nXXXXXX_NOTFOUND,2024,U,25\n"
+        csv_content = (
+            "Personalnummer,Jahr,Abwesenheitsart,Tage\nXXXXXX_NOTFOUND,2024,U,25\n"
+        )
         res = admin_client.post(
             "/api/import/entitlements",
             files={"file": ("ent.csv", io.BytesIO(csv_content.encode()), "text/csv")},
@@ -122,7 +142,9 @@ class TestImportEntitlementsErrorPaths:
         emp = employees_res.json()[0]
         number = str(emp.get("NUMBER") or emp.get("number") or "001")
 
-        csv_content = f"Personalnummer,Jahr,Abwesenheitsart,Tage\n{number},2024,ZZZZNOTEXIST,25\n"
+        csv_content = (
+            f"Personalnummer,Jahr,Abwesenheitsart,Tage\n{number},2024,ZZZZNOTEXIST,25\n"
+        )
         res = admin_client.post(
             "/api/import/entitlements",
             files={"file": ("ent.csv", io.BytesIO(csv_content.encode()), "text/csv")},
@@ -140,7 +162,9 @@ class TestImportBookingsActualErrorPaths:
         csv_content = "Personalnummer,Datum,Stunden\nXXXXXX_NOTFOUND,2024-01-15,8.0\n"
         res = admin_client.post(
             "/api/import/bookings-actual",
-            files={"file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("bookings.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         data = res.json()
@@ -155,7 +179,9 @@ class TestImportGroupsErrorPaths:
         csv_content = "Name,Kürzel,Parent\nTestGroup99,TG99,XXXX_NONEXISTENT_PARENT\n"
         res = admin_client.post(
             "/api/import/groups",
-            files={"file": ("groups.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("groups.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         data = res.json()
@@ -166,7 +192,9 @@ class TestImportGroupsErrorPaths:
         csv_content = "Name,Kürzel\n"
         res = admin_client.post(
             "/api/import/groups",
-            files={"file": ("groups.csv", io.BytesIO(csv_content.encode()), "text/csv")},
+            files={
+                "file": ("groups.csv", io.BytesIO(csv_content.encode()), "text/csv")
+            },
         )
         assert res.status_code == 200
         assert res.json().get("imported", 0) == 0

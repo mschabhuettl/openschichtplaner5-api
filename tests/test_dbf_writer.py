@@ -13,6 +13,7 @@ Targets coverage gaps not yet reached by test_write_paths.py:
 Run:
     python3 -m pytest tests/test_dbf_writer.py -v --cov=sp5lib.dbf_writer --cov-report=term-missing
 """
+
 import os
 import struct
 import sys
@@ -65,7 +66,8 @@ def _make_dbf(fields_spec) -> bytes:
     struct.pack_into("<H", hdr, 10, record_size)
 
     fields_bytes = b"".join(
-        _make_field_descriptor(n, t, length, d) for n, t, length, d in fields_spec  # noqa: E741
+        _make_field_descriptor(n, t, length, d)
+        for n, t, length, d in fields_spec  # noqa: E741
     )
     return bytes(hdr) + fields_bytes + b"\x0d" + b"\x1a"
 
@@ -96,7 +98,7 @@ def test_encode_string_safety_padding():
     # starts with UTF-16-LE 'A' (0x41 0x00)
     assert result[:2] == b"\x41\x00"
     assert result[2:4] == b"\x00\x00"  # null terminator
-    assert result[4:] == b"\x20" * 6   # padding
+    assert result[4:] == b"\x20" * 6  # padding
 
 
 # ─── _encode_field edge cases ─────────────────────────────────────────────────
@@ -304,6 +306,7 @@ def test_roundtrip_date_field():
         dat = results[0][1]["DAT"]
         # _parse_date may return a date object or 'YYYY-MM-DD' string
         from datetime import date
+
         if isinstance(dat, date):
             assert dat == date(2024, 6, 15)
         else:
@@ -383,11 +386,14 @@ def test_update_then_find():
 
 # ─── api/types.py ─────────────────────────────────────────────────────────────
 
+
 def test_api_types_importable():
     """api.types can be imported and type aliases are defined."""
     from api.types import (
-        DBFRow, EmployeeList,
+        DBFRow,
+        EmployeeList,
     )
+
     # They're just type aliases — check they exist and are dict/list based
     row: DBFRow = {"key": "value"}
     assert row["key"] == "value"

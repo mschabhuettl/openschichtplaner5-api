@@ -88,7 +88,7 @@ def test_add_note_within_limits_succeeds(tmp_db):
     """add_note() must succeed for values within DBF field limits."""
     result = tmp_db.add_note(
         date="2026-03-06",
-        text="Ü" * 125,    # exactly 125 chars → 250 bytes UTF-16-LE
+        text="Ü" * 125,  # exactly 125 chars → 250 bytes UTF-16-LE
         text2="ok",
         category="Schicht",  # 7 chars → ok
     )

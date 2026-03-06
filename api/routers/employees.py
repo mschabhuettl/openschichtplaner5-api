@@ -344,7 +344,12 @@ class GroupMemberBody(BaseModel):
     employee_id: int
 
 
-@router.post("/api/groups", tags=["Groups"], summary="Create group", description="Create a new employee group. Requires Admin role.")
+@router.post(
+    "/api/groups",
+    tags=["Groups"],
+    summary="Create group",
+    description="Create a new employee group. Requires Admin role.",
+)
 def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
@@ -361,7 +366,12 @@ def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
         raise _sanitize_500(e, "create_group")
 
 
-@router.put("/api/groups/{group_id}", tags=["Groups"], summary="Update group", description="Update name, shortname, or color of an existing group. Requires Admin role.")
+@router.put(
+    "/api/groups/{group_id}",
+    tags=["Groups"],
+    summary="Update group",
+    description="Update name, shortname, or color of an existing group. Requires Admin role.",
+)
 def update_group(
     group_id: int, body: GroupUpdate, _cur_user: dict = Depends(require_admin)
 ):
@@ -383,7 +393,12 @@ def update_group(
         raise _sanitize_500(e, f"update_group/{group_id}")
 
 
-@router.delete("/api/groups/{group_id}", tags=["Groups"], summary="Delete group", description="Soft-delete (hide) a group. Members are not removed. Requires Admin role.")
+@router.delete(
+    "/api/groups/{group_id}",
+    tags=["Groups"],
+    summary="Delete group",
+    description="Soft-delete (hide) a group. Members are not removed. Requires Admin role.",
+)
 def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_group(group_id)
@@ -396,8 +411,10 @@ def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
 
 
 @router.post(
-    "/api/groups/{group_id}/members", tags=["Groups"], summary="Add group member",
-    description="Add an employee to a group. Body: `{\"employee_id\": <int>}`. Requires Admin role.",
+    "/api/groups/{group_id}/members",
+    tags=["Groups"],
+    summary="Add group member",
+    description='Add an employee to a group. Body: `{"employee_id": <int>}`. Requires Admin role.',
 )
 def add_group_member(
     group_id: int, body: GroupMemberBody, _cur_user: dict = Depends(require_admin)

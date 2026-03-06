@@ -518,7 +518,9 @@ def export_schedule(
         entries = db.get_schedule(year=year, month=mon, group_id=group_id)
         employees = db.get_employees(include_hidden=False)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Export: {exc}")
+        raise HTTPException(
+            status_code=500, detail=f"Datenbankfehler beim Export: {exc}"
+        )
     if group_id is not None:
         member_ids = set(db.get_group_members(group_id))
         employees = [e for e in employees if e["ID"] in member_ids]
@@ -812,7 +814,9 @@ def export_statistics(
                     }
                 )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Export: {exc}")
+        raise HTTPException(
+            status_code=500, detail=f"Datenbankfehler beim Export: {exc}"
+        )
 
     # Also build a summary per employee (sum over year)
     from collections import defaultdict
@@ -987,8 +991,11 @@ def export_employees(
         db = get_db()
         employees = db.get_employees(include_hidden=False)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Export: {exc}")
+        raise HTTPException(
+            status_code=500, detail=f"Datenbankfehler beim Export: {exc}"
+        )
     from datetime import date as _date_today
+
     _today_str = _date_today.today().strftime("%Y-%m-%d")
     rows = []
     for emp in employees:
@@ -1042,7 +1049,9 @@ def export_employees(
         return _Response(
             content=html,
             media_type="text/html; charset=utf-8",
-            headers={"Content-Disposition": f'attachment; filename="mitarbeiter_{_today_str}.html"'},
+            headers={
+                "Content-Disposition": f'attachment; filename="mitarbeiter_{_today_str}.html"'
+            },
         )
     if format == "xlsx":
         try:
@@ -1114,7 +1123,9 @@ def export_absences(
         year_str = str(year)
         raw_absences = db._read("ABSEN")
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Export: {exc}")
+        raise HTTPException(
+            status_code=500, detail=f"Datenbankfehler beim Export: {exc}"
+        )
 
     rows = []
     for r in raw_absences:
@@ -1993,27 +2004,24 @@ async def import_employees(
 
         # Alias mapping — support both internal and export (German) column names
         name = row.get("NAME") or row.get("NACHNAME") or ""
-        firstname = (
-            row.get("FIRSTNAME") or row.get("VORNAME") or ""
-        )
+        firstname = row.get("FIRSTNAME") or row.get("VORNAME") or ""
         shortname = (
-            row.get("SHORTNAME") or row.get("KURZZEICHEN")
-            or row.get("KÜRZEL") or row.get("KURZEL") or ""
+            row.get("SHORTNAME")
+            or row.get("KURZZEICHEN")
+            or row.get("KÜRZEL")
+            or row.get("KURZEL")
+            or ""
         )
         number = row.get("NUMBER") or row.get("PERSONALNUMMER") or ""
         # Support export column aliases (STD/TAG etc.)
-        hrsday_raw = (
-            row.get("HRSDAY") or row.get("STD/TAG") or row.get("STD_TAG") or ""
-        )
+        hrsday_raw = row.get("HRSDAY") or row.get("STD/TAG") or row.get("STD_TAG") or ""
         hrsweek_raw = (
             row.get("HRSWEEK") or row.get("STD/WOCHE") or row.get("STD_WOCHE") or ""
         )
         hrsmonth_raw = (
             row.get("HRSMONTH") or row.get("STD/MONAT") or row.get("STD_MONAT") or ""
         )
-        workdays_raw = (
-            row.get("WORKDAYS") or row.get("ARBEITSTAGE") or ""
-        )
+        workdays_raw = row.get("WORKDAYS") or row.get("ARBEITSTAGE") or ""
 
         if not name:
             errors.append({"row": i, "reason": "NAME/NACHNAME fehlt — übersprungen"})
@@ -2078,7 +2086,9 @@ async def import_shifts(
 
     # Duplicate index by shift NAME (uppercased)
     existing_shifts = db.get_shifts(include_hidden=True)
-    existing_shift_names = {(s.get("NAME") or "").strip().upper() for s in existing_shifts}
+    existing_shift_names = {
+        (s.get("NAME") or "").strip().upper() for s in existing_shifts
+    }
 
     def _parse_color(val: str) -> int:
         """Parse #RRGGBB hex to BGR int, or pass-through int."""
@@ -2110,7 +2120,10 @@ async def import_shifts(
         # Duplicate detection
         if name.strip().upper() in existing_shift_names:
             errors.append(
-                {"row": i, "reason": f"Duplikat: Schicht '{name}' existiert bereits — übersprungen"}
+                {
+                    "row": i,
+                    "reason": f"Duplikat: Schicht '{name}' existiert bereits — übersprungen",
+                }
             )
             skipped += 1
             continue
@@ -2170,7 +2183,10 @@ async def import_absences(
 
         if not emp_id_raw or not date_raw or not lt_id_raw:
             errors.append(
-                {"row": i, "reason": "Pflichtfelder fehlen (EMPLOYEE_ID, DATE, LEAVE_TYPE_ID) — übersprungen"}
+                {
+                    "row": i,
+                    "reason": "Pflichtfelder fehlen (EMPLOYEE_ID, DATE, LEAVE_TYPE_ID) — übersprungen",
+                }
             )
             skipped += 1
             continue
@@ -2181,7 +2197,10 @@ async def import_absences(
             datetime.strptime(date_raw, "%Y-%m-%d")
         except ValueError:
             errors.append(
-                {"row": i, "reason": f"Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen"}
+                {
+                    "row": i,
+                    "reason": f"Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen",
+                }
             )
             skipped += 1
             continue
@@ -2226,7 +2245,9 @@ async def import_holidays(
         name = row.get("NAME") or row.get("BEZEICHNUNG") or ""
 
         if not date_raw or not name:
-            errors.append({"row": i, "reason": "DATE und NAME sind Pflicht — übersprungen"})
+            errors.append(
+                {"row": i, "reason": "DATE und NAME sind Pflicht — übersprungen"}
+            )
             skipped += 1
             continue
 
@@ -2236,7 +2257,10 @@ async def import_holidays(
             datetime.strptime(date_raw, "%Y-%m-%d")
         except ValueError:
             errors.append(
-                {"row": i, "reason": f"Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen"}
+                {
+                    "row": i,
+                    "reason": f"Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen",
+                }
             )
             skipped += 1
             continue
@@ -2291,13 +2315,23 @@ async def import_bookings_actual(
         notiz = row.get("NOTIZ") or row.get("NOTE") or ""
 
         if not nummer or not date_raw or not stunden_raw:
-            errors.append({"row": i, "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append({"row": i, "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
@@ -2350,13 +2384,23 @@ async def import_bookings_nominal(
         notiz = row.get("NOTIZ") or row.get("NOTE") or ""
 
         if not nummer or not date_raw or not stunden_raw:
-            errors.append({"row": i, "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Stunden) — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append({"row": i, "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
@@ -2419,19 +2463,34 @@ async def import_entitlements(
         tage_raw = row.get("TAGE") or row.get("DAYS") or ""
 
         if not nummer or not year_raw or not kuerzel or not tage_raw:
-            errors.append({"row": i, "reason": "Pflichtfelder fehlen (Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage) — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": "Pflichtfelder fehlen (Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage) — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append({"row": i, "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
         lt = lt_by_short.get(kuerzel)
         if not lt:
-            errors.append({"row": i, "reason": f"Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": f"Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
@@ -2491,19 +2550,34 @@ async def import_absences_csv(
         ).upper()
 
         if not nummer or not date_raw or not kuerzel:
-            errors.append({"row": i, "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Abwesenheitsart-Kürzel) — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": "Pflichtfelder fehlen (Personalnummer,Datum,Abwesenheitsart-Kürzel) — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
         emp = emp_by_number.get(nummer)
         if not emp:
-            errors.append({"row": i, "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": f"Personalnummer '{nummer}' nicht gefunden — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
         lt = lt_by_short.get(kuerzel)
         if not lt:
-            errors.append({"row": i, "reason": f"Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen"})
+            errors.append(
+                {
+                    "row": i,
+                    "reason": f"Abwesenheitsart-Kürzel '{kuerzel}' nicht gefunden — übersprungen",
+                }
+            )
             skipped += 1
             continue
 
@@ -2570,7 +2644,12 @@ async def import_groups(
         if parent_name:
             parent_grp = group_by_name.get(parent_name)
             if not parent_grp:
-                errors.append({"row": i, "reason": f"Übergeordnete Gruppe '{parent_name}' nicht gefunden — übersprungen"})
+                errors.append(
+                    {
+                        "row": i,
+                        "reason": f"Übergeordnete Gruppe '{parent_name}' nicht gefunden — übersprungen",
+                    }
+                )
                 skipped += 1
                 continue
             parent_id = parent_grp["ID"]

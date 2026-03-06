@@ -104,7 +104,6 @@ class TestSwapRequestFlow:
         assert res.status_code == 200
         data = res.json()
         assert "id" in data
-        return data["id"]
 
     def test_resolve_swap_reject(self, planer_client: TestClient):
         """Create then reject a swap request → 200."""

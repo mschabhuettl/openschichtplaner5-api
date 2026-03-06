@@ -27,8 +27,16 @@ from ..dependencies import (
 
 # ── Password strength config (env-configurable) ──────────────────
 _PW_MIN_LENGTH = int(os.environ.get("SP5_PW_MIN_LENGTH", "8"))
-_PW_REQUIRE_UPPER = os.environ.get("SP5_PW_REQUIRE_UPPER", "true").lower() not in ("0", "false", "no")
-_PW_REQUIRE_DIGIT = os.environ.get("SP5_PW_REQUIRE_DIGIT", "true").lower() not in ("0", "false", "no")
+_PW_REQUIRE_UPPER = os.environ.get("SP5_PW_REQUIRE_UPPER", "true").lower() not in (
+    "0",
+    "false",
+    "no",
+)
+_PW_REQUIRE_DIGIT = os.environ.get("SP5_PW_REQUIRE_DIGIT", "true").lower() not in (
+    "0",
+    "false",
+    "no",
+)
 
 
 def _validate_password_strength(password: str) -> None:
@@ -48,6 +56,7 @@ def _validate_password_strength(password: str) -> None:
             status_code=400,
             detail="Passwort muss mindestens eine Ziffer enthalten.",
         )
+
 
 _IS_DEV = os.environ.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes")
 _COOKIE_NAME = "sp5_token"
@@ -113,9 +122,14 @@ def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
             body.NAME,
             body.role,
         )
-        write_audit_log("USER_CREATE", _admin.get("NAME", "?"), {
-            "new_user": body.NAME, "role": body.role,
-        })
+        write_audit_log(
+            "USER_CREATE",
+            _admin.get("NAME", "?"),
+            {
+                "new_user": body.NAME,
+                "role": body.role,
+            },
+        )
         return {"ok": True, "record": result}
     except ValueError as e:
         if str(e).startswith("DUPLICATE:USERNAME:"):
@@ -149,9 +163,14 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
             user_id,
             list(data.keys()),
         )
-        write_audit_log("USER_UPDATE", _admin.get("NAME", "?"), {
-            "target_id": user_id, "fields": list(data.keys()),
-        })
+        write_audit_log(
+            "USER_UPDATE",
+            _admin.get("NAME", "?"),
+            {
+                "target_id": user_id,
+                "fields": list(data.keys()),
+            },
+        )
         return {"ok": True, "record": result}
     except ValueError:
         raise HTTPException(
@@ -181,9 +200,14 @@ def delete_user(user_id: int, _admin: dict = Depends(require_admin)):
             user_id,
             removed,
         )
-        write_audit_log("USER_DELETE", _admin.get("NAME", "?"), {
-            "target_id": user_id, "sessions_revoked": removed,
-        })
+        write_audit_log(
+            "USER_DELETE",
+            _admin.get("NAME", "?"),
+            {
+                "target_id": user_id,
+                "sessions_revoked": removed,
+            },
+        )
         return {"ok": True, "hidden": count}
     except HTTPException:
         raise
@@ -219,9 +243,14 @@ def change_user_password(
             user_id,
             removed,
         )
-        write_audit_log("PASSWORD_CHANGE", _admin.get("NAME", "?"), {
-            "target_id": user_id, "sessions_revoked": removed,
-        })
+        write_audit_log(
+            "PASSWORD_CHANGE",
+            _admin.get("NAME", "?"),
+            {
+                "target_id": user_id,
+                "sessions_revoked": removed,
+            },
+        )
         return {"ok": True, "sessions_revoked": removed}
     except HTTPException:
         raise

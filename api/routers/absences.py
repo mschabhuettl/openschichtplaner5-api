@@ -110,16 +110,27 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
         # Check for existing shift assignment on this date
         day_entries = db.get_schedule_day(body.date)
         emp_entry = next(
-            (e for e in day_entries if e.get("employee_id") == body.employee_id and e.get("kind") in ("shift", "special_shift")),
+            (
+                e
+                for e in day_entries
+                if e.get("employee_id") == body.employee_id
+                and e.get("kind") in ("shift", "special_shift")
+            ),
             None,
         )
         if emp_entry:
-            shift_name = emp_entry.get("shift_name") or emp_entry.get("custom_name") or "Schicht"
-            warnings.append(f"Mitarbeiter hat an diesem Tag bereits eine Schicht ({shift_name}).")
+            shift_name = (
+                emp_entry.get("shift_name") or emp_entry.get("custom_name") or "Schicht"
+            )
+            warnings.append(
+                f"Mitarbeiter hat an diesem Tag bereits eine Schicht ({shift_name})."
+            )
         # Check if date is a public holiday
         holiday_dates = db.get_holiday_dates(year)
         if body.date in holiday_dates:
-            warnings.append("Dieses Datum ist ein Feiertag – der Urlaub wird trotzdem vom Kontingent abgezogen.")
+            warnings.append(
+                "Dieses Datum ist ein Feiertag – der Urlaub wird trotzdem vom Kontingent abgezogen."
+            )
     except Exception:
         pass  # Never block creation due to warning check errors
 
@@ -458,7 +469,9 @@ def patch_absence_status(
             date_del = _absence_rec.get("date", "")
             if emp_id_del and date_del:
                 get_db().delete_absence_only(emp_id_del, date_del)
-                broadcast("absence_changed", {"employee_id": emp_id_del, "date": date_del})
+                broadcast(
+                    "absence_changed", {"employee_id": emp_id_del, "date": date_del}
+                )
                 rejected_removed = True
         except Exception:
             pass  # Never fail the main request due to cleanup errors

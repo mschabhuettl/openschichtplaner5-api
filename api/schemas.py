@@ -12,10 +12,12 @@ from pydantic import BaseModel, ConfigDict
 
 class _FlexModel(BaseModel):
     """Base model that allows extra fields (DBF tables may include additional columns)."""
+
     model_config = ConfigDict(extra="allow")
 
 
 # ── Employee ──────────────────────────────────────────────────────────────────
+
 
 class EmployeeResponse(_FlexModel):
     ID: int
@@ -32,6 +34,7 @@ class EmployeeResponse(_FlexModel):
 
 # ── Group ─────────────────────────────────────────────────────────────────────
 
+
 class GroupResponse(_FlexModel):
     ID: int
     NAME: str
@@ -41,6 +44,7 @@ class GroupResponse(_FlexModel):
 
 
 # ── Shift ─────────────────────────────────────────────────────────────────────
+
 
 class ShiftResponse(_FlexModel):
     ID: int
@@ -54,6 +58,7 @@ class ShiftResponse(_FlexModel):
 
 # ── Absence ──────────────────────────────────────────────────────────────────
 
+
 class AbsenceResponse(_FlexModel):
     ID: int
     EMPLOYEEID: int
@@ -64,6 +69,7 @@ class AbsenceResponse(_FlexModel):
 
 
 # ── Schedule entry ────────────────────────────────────────────────────────────
+
 
 class ScheduleEntryResponse(_FlexModel):
     employee_id: int

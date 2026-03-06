@@ -157,7 +157,12 @@ class ShiftUpdate(BaseModel):
     HIDE: Optional[bool] = None
 
 
-@router.post("/api/shifts", tags=["Shifts"], summary="Create shift", description="Create a new shift definition with name, shortname, colors, and time slots per weekday. Requires Admin role.")
+@router.post(
+    "/api/shifts",
+    tags=["Shifts"],
+    summary="Create shift",
+    description="Create a new shift definition with name, shortname, colors, and time slots per weekday. Requires Admin role.",
+)
 def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
     if not body.NAME or not body.NAME.strip():
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
@@ -185,7 +190,12 @@ def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
         raise _sanitize_500(e, "create_shift")
 
 
-@router.put("/api/shifts/{shift_id}", tags=["Shifts"], summary="Update shift", description="Update an existing shift definition. Only provided fields are changed. Requires Admin role.")
+@router.put(
+    "/api/shifts/{shift_id}",
+    tags=["Shifts"],
+    summary="Update shift",
+    description="Update an existing shift definition. Only provided fields are changed. Requires Admin role.",
+)
 def update_shift(
     shift_id: int, body: ShiftUpdate, _cur_user: dict = Depends(require_admin)
 ):
@@ -207,8 +217,15 @@ def update_shift(
         raise _sanitize_500(e, f"update_shift/{shift_id}")
 
 
-@router.delete("/api/shifts/{shift_id}", tags=["Shifts"], summary="Delete shift", description="Soft-delete (hide) a shift. Use `force=true` to delete even if the shift is still in use. Requires Admin role.")
-def hide_shift(shift_id: int, force: bool = False, _cur_user: dict = Depends(require_admin)):
+@router.delete(
+    "/api/shifts/{shift_id}",
+    tags=["Shifts"],
+    summary="Delete shift",
+    description="Soft-delete (hide) a shift. Use `force=true` to delete even if the shift is still in use. Requires Admin role.",
+)
+def hide_shift(
+    shift_id: int, force: bool = False, _cur_user: dict = Depends(require_admin)
+):
     db = get_db()
     if not force:
         usage = db.shift_active_usage_count(shift_id)
@@ -216,12 +233,15 @@ def hide_shift(shift_id: int, force: bool = False, _cur_user: dict = Depends(req
             raise HTTPException(
                 status_code=409,
                 detail=f"Schicht {shift_id} ist noch in {usage} Plantafel-Einträgen aktiv. "
-                       "Mit ?force=true trotzdem ausblenden.",
+                "Mit ?force=true trotzdem ausblenden.",
             )
     try:
         count = db.hide_shift(shift_id)
         _logger.warning(
-            "AUDIT SHIFT_DELETE | user=%s shift_id=%d force=%s", _cur_user.get("NAME"), shift_id, force
+            "AUDIT SHIFT_DELETE | user=%s shift_id=%d force=%s",
+            _cur_user.get("NAME"),
+            shift_id,
+            force,
         )
         return {"ok": True, "hidden": count}
     except Exception as e:
@@ -288,7 +308,9 @@ def update_leave_type(
 @router.delete(
     "/api/leave-types/{lt_id}", tags=["Absences"], summary="Delete leave type"
 )
-def hide_leave_type(lt_id: int, force: bool = False, _cur_user: dict = Depends(require_admin)):
+def hide_leave_type(
+    lt_id: int, force: bool = False, _cur_user: dict = Depends(require_admin)
+):
     db = get_db()
     if not force:
         usage = db.leave_type_active_usage_count(lt_id)
@@ -296,7 +318,7 @@ def hide_leave_type(lt_id: int, force: bool = False, _cur_user: dict = Depends(r
             raise HTTPException(
                 status_code=409,
                 detail=f"Abwesenheitstyp {lt_id} ist noch in {usage} Abwesenheits-Einträgen aktiv. "
-                       "Mit ?force=true trotzdem ausblenden.",
+                "Mit ?force=true trotzdem ausblenden.",
             )
     try:
         count = db.hide_leave_type(lt_id)
@@ -317,6 +339,7 @@ class HolidayCreate(BaseModel):
     @classmethod
     def validate_date(cls, v: str) -> str:
         from datetime import datetime as _dtt
+
         try:
             _dtt.strptime(v, "%Y-%m-%d")
         except ValueError:

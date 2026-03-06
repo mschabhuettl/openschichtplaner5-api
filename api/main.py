@@ -10,6 +10,7 @@ import threading
 
 _APP_START_TIME = _startup_time_module.time()
 
+
 # ── In-memory metrics collector ──────────────────────────────────
 class _Metrics:
     """Simple thread-safe in-memory metrics for observability."""
@@ -17,21 +18,27 @@ class _Metrics:
     def __init__(self, latency_window: int = 100):
         self._lock = threading.Lock()
         self.request_count = 0
-        self.error_count = 0        # 5xx responses
-        self.cache_hit_count = 0    # responses with Cache-Control max-age (hits)
+        self.error_count = 0  # 5xx responses
+        self.cache_hit_count = 0  # responses with Cache-Control max-age (hits)
         self.cache_total_count = 0  # cacheable requests total
         # Circular buffer of recent DB-read latencies (ms)
         self._latencies: deque = deque(maxlen=latency_window)
 
-    def record_request(self, status: int, duration_ms: float, path: str, response_headers: dict):
+    def record_request(
+        self, status: int, duration_ms: float, path: str, response_headers: dict
+    ):
         with self._lock:
             self.request_count += 1
             if status >= 500:
                 self.error_count += 1
             # Cache tracking: count cacheable API paths
             _CACHEABLE_PREFIXES = (
-                "/api/shifts", "/api/holidays", "/api/leave-types",
-                "/api/workplaces", "/api/groups", "/api/extracharges",
+                "/api/shifts",
+                "/api/holidays",
+                "/api/leave-types",
+                "/api/workplaces",
+                "/api/groups",
+                "/api/extracharges",
             )
             if any(path.startswith(p) for p in _CACHEABLE_PREFIXES):
                 self.cache_total_count += 1
@@ -251,11 +258,16 @@ async def cache_control_middleware(request: Request, call_next):
             "/api/groups",
             "/api/extracharges",
         )
-        if any(path.startswith(p) for p in _CACHEABLE_PREFIXES) and response.status_code == 200:
+        if (
+            any(path.startswith(p) for p in _CACHEABLE_PREFIXES)
+            and response.status_code == 200
+        ):
             response.headers["Cache-Control"] = "private, max-age=60"
         elif path.startswith("/api/"):
             # All other API responses: no caching
-            response.headers.setdefault("Cache-Control", "no-cache, no-store, must-revalidate")
+            response.headers.setdefault(
+                "Cache-Control", "no-cache, no-store, must-revalidate"
+            )
     return response
 
 
@@ -572,7 +584,8 @@ def health():
     # Active sessions (non-expired)
     now = _t.time()
     active_sessions = sum(
-        1 for s in _sessions.values()
+        1
+        for s in _sessions.values()
         if s.get("expires_at") is None or s.get("expires_at", 0) > now
     )
 
@@ -607,9 +620,11 @@ def get_metrics(request: Request):
     is_local = client_host in ("127.0.0.1", "::1", "localhost")
     snap = _metrics.snapshot()
     import time as _t
+
     snap["uptime_seconds"] = round(_t.time() - _APP_START_TIME, 1)
     snap["active_sessions"] = sum(
-        1 for s in _sessions.values()
+        1
+        for s in _sessions.values()
         if s.get("expires_at") is None or s.get("expires_at", 0) > _t.time()
     )
     snap["local_request"] = is_local
@@ -629,6 +644,7 @@ def version():
     """Return current API version — public, no auth required."""
     import platform
     from datetime import datetime as _dt, timezone as _tz
+
     return {
         "version": _API_VERSION,
         "service": "OpenSchichtplaner5 API",

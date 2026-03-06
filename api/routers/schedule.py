@@ -564,11 +564,15 @@ def create_schedule_entry(
     # Check RESTR restrictions: weekday 0=all days, 1=Mon...7=Sun (ISO weekday)
     try:
         from datetime import date as _date
+
         entry_date = _date.fromisoformat(body.date)
         iso_wd = entry_date.isoweekday()  # 1=Mon, 7=Sun
         restrictions = db._read("RESTR")
         for r in restrictions:
-            if r.get("EMPLOYEEID") == body.employee_id and r.get("SHIFTID") == body.shift_id:
+            if (
+                r.get("EMPLOYEEID") == body.employee_id
+                and r.get("SHIFTID") == body.shift_id
+            ):
                 wday = r.get("WEEKDAY", 0) or 0
                 if wday == 0 or wday == iso_wd:
                     reason = (r.get("RESERVED") or "").strip()
@@ -1195,7 +1199,9 @@ def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_plane
                 db.delete_schedule_entry(body.employee_id_2, date_str)
                 write_entries(body.employee_id_1, date_str, entries1)
                 write_entries(body.employee_id_2, date_str, entries2)
-                errors.append(f"{date_str}: Swap fehlgeschlagen, Original wiederhergestellt")
+                errors.append(
+                    f"{date_str}: Swap fehlgeschlagen, Original wiederhergestellt"
+                )
             else:
                 swapped += 1
         except Exception as exc:

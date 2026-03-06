@@ -40,7 +40,12 @@ class PeriodCreate(BaseModel):
     description: str = ""
 
 
-@router.post("/api/periods", tags=["Admin"], summary="Create accounting period", description="Create a new accounting/settlement period for a group. Dates must be in YYYY-MM-DD format. Requires Planer role.")
+@router.post(
+    "/api/periods",
+    tags=["Admin"],
+    summary="Create accounting period",
+    description="Create a new accounting/settlement period for a group. Dates must be in YYYY-MM-DD format. Requires Planer role.",
+)
 def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer)):
     try:
         from datetime import datetime
@@ -68,7 +73,9 @@ def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer))
 
 
 @router.delete(
-    "/api/periods/{period_id}", tags=["Admin"], summary="Delete accounting period",
+    "/api/periods/{period_id}",
+    tags=["Admin"],
+    summary="Delete accounting period",
     description="Delete an accounting period by ID. Requires Planer role.",
 )
 def delete_period(period_id: int, _cur_user: dict = Depends(require_planer)):
@@ -101,7 +108,12 @@ class SettingsUpdate(BaseModel):
     BACKUPFR: Optional[int] = None
 
 
-@router.put("/api/settings", tags=["Admin"], summary="Update application settings", description="Update global application settings (company name, work hours, etc.). Requires Admin role.")
+@router.put(
+    "/api/settings",
+    tags=["Admin"],
+    summary="Update application settings",
+    description="Update global application settings (company name, work hours, etc.). Requires Admin role.",
+)
 def update_settings(body: SettingsUpdate, _cur_user: dict = Depends(require_admin)):
     """Update global settings in 5USETT.DBF."""
     data = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -125,12 +137,12 @@ _BACKUP_MAX_COUNT = 7
 
 # Critical DBF files that must be present for a valid backup
 _BACKUP_REQUIRED_FILES = {
-    "5EMPL.DBF",   # Employees (core)
-    "5USER.DBF",   # Users / logins
+    "5EMPL.DBF",  # Employees (core)
+    "5USER.DBF",  # Users / logins
     "5GROUP.DBF",  # Groups
     "5USETT.DBF",  # Settings
     "5SHIFT.DBF",  # Shifts
-    "5BOOK.DBF",   # Bookings
+    "5BOOK.DBF",  # Bookings
 }
 
 
@@ -468,7 +480,12 @@ async def backup_restore(
 # ── Admin: Compact database ───────────────────────────────────────────────────
 
 
-@router.post("/api/admin/compact", tags=["Admin"], summary="Compact database (PACK)", description="Rewrite all .DBF files to remove physically deleted records (equivalent to dBASE PACK). Files are exclusively locked during the operation. Requires Admin role.")
+@router.post(
+    "/api/admin/compact",
+    tags=["Admin"],
+    summary="Compact database (PACK)",
+    description="Rewrite all .DBF files to remove physically deleted records (equivalent to dBASE PACK). Files are exclusively locked during the operation. Requires Admin role.",
+)
 def compact_database(_cur_user: dict = Depends(require_admin)):
     """
     Compact all .DBF files in SP5_DB_PATH by rewriting them without deleted records.
