@@ -5,8 +5,65 @@ import sys
 import time as _startup_time_module
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
+from collections import deque
+import threading
 
 _APP_START_TIME = _startup_time_module.time()
+
+# ── In-memory metrics collector ──────────────────────────────────
+class _Metrics:
+    """Simple thread-safe in-memory metrics for observability."""
+
+    def __init__(self, latency_window: int = 100):
+        self._lock = threading.Lock()
+        self.request_count = 0
+        self.error_count = 0        # 5xx responses
+        self.cache_hit_count = 0    # responses with Cache-Control max-age (hits)
+        self.cache_total_count = 0  # cacheable requests total
+        # Circular buffer of recent DB-read latencies (ms)
+        self._latencies: deque = deque(maxlen=latency_window)
+
+    def record_request(self, status: int, duration_ms: float, path: str, response_headers: dict):
+        with self._lock:
+            self.request_count += 1
+            if status >= 500:
+                self.error_count += 1
+            # Cache tracking: count cacheable API paths
+            _CACHEABLE_PREFIXES = (
+                "/api/shifts", "/api/holidays", "/api/leave-types",
+                "/api/workplaces", "/api/groups", "/api/extracharges",
+            )
+            if any(path.startswith(p) for p in _CACHEABLE_PREFIXES):
+                self.cache_total_count += 1
+                cc = response_headers.get("cache-control", "")
+                if "max-age" in cc and status == 200:
+                    self.cache_hit_count += 1
+
+    def record_db_latency(self, ms: float):
+        with self._lock:
+            self._latencies.append(ms)
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            total = self.request_count or 1
+            err_rate = round(self.error_count / total, 4)
+            cache_total = self.cache_total_count or 1
+            cache_hit_rate = round(self.cache_hit_count / cache_total, 4)
+            latencies = list(self._latencies)
+        avg_lat = round(sum(latencies) / len(latencies), 2) if latencies else None
+        return {
+            "request_count": self.request_count,
+            "error_count": self.error_count,
+            "error_rate": err_rate,
+            "cache_hit_count": self.cache_hit_count,
+            "cache_total_count": self.cache_total_count,
+            "cache_hit_rate": cache_hit_rate,
+            "db_read_latency_avg_ms": avg_lat,
+            "db_read_latency_samples": len(latencies),
+        }
+
+
+_metrics = _Metrics()
 
 # Load .env file if present
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
@@ -270,11 +327,11 @@ async def global_exception_handler(request: Request, exc: Exception):
     import traceback
 
     _logger.error(
-        "Unhandled exception: %s %s | %s | %s",
+        "Unhandled exception: %s %s | %s\n%s",
         request.method,
         request.url.path,
         type(exc).__name__,
-        traceback.format_exc().splitlines()[-1],
+        traceback.format_exc(),
     )
     return JSONResponse(
         status_code=500,
@@ -288,6 +345,7 @@ _PUBLIC_PATHS = {
     "/api/auth/logout",
     "/api",
     "/api/health",
+    "/api/metrics",
     "/api/version",
     "/",
     "/api/errors",
@@ -327,6 +385,13 @@ async def request_logging_middleware(request: Request, call_next):
     }
     _logger.info(_json_mod.dumps(entry, ensure_ascii=False))
     response.headers["X-Request-ID"] = req_id
+    # Record metrics (after response so headers are set)
+    _metrics.record_request(
+        status=response.status_code,
+        duration_ms=duration_ms,
+        path=request.url.path,
+        response_headers=dict(response.headers),
+    )
     return response
 
 
@@ -480,10 +545,11 @@ _API_VERSION = "0.4.8"
 )
 def health():
     """Health check endpoint — public, no auth required.
-    Returns minimal info only. Sensitive details (DB path, logs, cache) are admin-only.
+    Returns status, version, uptime, DB connectivity + DBF readability, and session count.
     """
     import time as _t
 
+    # DB connectivity check
     db_status = "connected"
     try:
         db = get_db()
@@ -491,12 +557,63 @@ def health():
     except Exception:
         db_status = "error"
 
+    # DBF file readability check
+    CRITICAL_TABLES = ["EMPL", "USER", "SHIFT", "MASHI", "ABSEN"]
+    dbf_ok = []
+    dbf_missing = []
+    for table in CRITICAL_TABLES:
+        path = os.path.join(DB_PATH, f"5{table}.DBF")
+        if os.path.exists(path) and os.access(path, os.R_OK):
+            dbf_ok.append(f"5{table}.DBF")
+        else:
+            dbf_missing.append(f"5{table}.DBF")
+
+    # Active sessions (non-expired)
+    now = _t.time()
+    active_sessions = sum(
+        1 for s in _sessions.values()
+        if s.get("expires_at") is None or s.get("expires_at", 0) > now
+    )
+
+    overall = "ok" if db_status == "connected" and not dbf_missing else "degraded"
+
     return {
-        "status": "ok",
+        "status": overall,
         "version": _API_VERSION,
-        "uptime_seconds": round(_t.time() - _APP_START_TIME, 1),
-        "db": {"status": db_status},
+        "uptime_seconds": round(now - _APP_START_TIME, 1),
+        "db": {
+            "status": db_status,
+            "dbf_ok": len(dbf_ok),
+            "dbf_missing": dbf_missing,
+            "path": DB_PATH,
+        },
+        "sessions": {"active": active_sessions},
     }
+
+
+@app.get(
+    "/api/metrics",
+    tags=["Health"],
+    summary="Runtime metrics",
+    description=(
+        "Returns in-process metrics: request count, error rate, cache hit rate, "
+        "and average DB-read latency (last 100 requests). "
+        "No authentication required when called from localhost."
+    ),
+)
+def get_metrics(request: Request):
+    """Runtime metrics endpoint — no auth required for localhost."""
+    client_host = request.client.host if request.client else ""
+    is_local = client_host in ("127.0.0.1", "::1", "localhost")
+    snap = _metrics.snapshot()
+    import time as _t
+    snap["uptime_seconds"] = round(_t.time() - _APP_START_TIME, 1)
+    snap["active_sessions"] = sum(
+        1 for s in _sessions.values()
+        if s.get("expires_at") is None or s.get("expires_at", 0) > _t.time()
+    )
+    snap["local_request"] = is_local
+    return snap
 
 
 @app.get(
