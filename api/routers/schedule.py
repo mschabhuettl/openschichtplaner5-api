@@ -561,6 +561,29 @@ def create_schedule_entry(
         raise HTTPException(
             status_code=404, detail=f"Schicht {body.shift_id} nicht gefunden"
         )
+    # Check RESTR restrictions: weekday 0=all days, 1=Mon...7=Sun (ISO weekday)
+    try:
+        from datetime import date as _date
+        entry_date = _date.fromisoformat(body.date)
+        iso_wd = entry_date.isoweekday()  # 1=Mon, 7=Sun
+        restrictions = db._read("RESTR")
+        for r in restrictions:
+            if r.get("EMPLOYEEID") == body.employee_id and r.get("SHIFTID") == body.shift_id:
+                wday = r.get("WEEKDAY", 0) or 0
+                if wday == 0 or wday == iso_wd:
+                    reason = (r.get("RESERVED") or "").strip()
+                    detail = (
+                        f"Mitarbeiter {body.employee_id} hat eine Einschränkung für "
+                        f"Schicht {body.shift_id}"
+                        + (f" an Wochentag {iso_wd}" if wday != 0 else "")
+                        + (f": {reason}" if reason else "")
+                    )
+                    raise HTTPException(status_code=409, detail=detail)
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # RESTR check is best-effort; don't block scheduling on unexpected errors
+
     try:
         result = db.add_schedule_entry(body.employee_id, body.date, body.shift_id)
         broadcast(
