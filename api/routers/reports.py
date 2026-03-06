@@ -471,10 +471,11 @@ def _csv_response(rows: list, filename: str) -> _Response:
         writer = csv.DictWriter(buf, fieldnames=rows[0].keys(), lineterminator="\r\n")
         writer.writeheader()
         writer.writerows(rows)
-    content = buf.getvalue()
+    # UTF-8 BOM (\ufeff) so Excel correctly detects encoding (handles ä, ö, ü, ß)
+    content = ("\ufeff" + buf.getvalue()).encode("utf-8")
     return _Response(
         content=content,
-        media_type="text/csv; charset=utf-8",
+        media_type="text/csv; charset=utf-8-sig",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
@@ -512,9 +513,12 @@ def export_schedule(
     except ValueError:
         raise HTTPException(status_code=400, detail="month must be YYYY-MM")
 
-    db = get_db()
-    entries = db.get_schedule(year=year, month=mon, group_id=group_id)
-    employees = db.get_employees(include_hidden=False)
+    try:
+        db = get_db()
+        entries = db.get_schedule(year=year, month=mon, group_id=group_id)
+        employees = db.get_employees(include_hidden=False)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Export: {exc}")
     if group_id is not None:
         member_ids = set(db.get_group_members(group_id))
         employees = [e for e in employees if e["ID"] in member_ids]
@@ -789,23 +793,26 @@ def export_statistics(
     format: str = Query("csv", description="csv or html"),
     _cur_user: dict = Depends(require_planer),
 ):
-    db = get_db()
-    rows_data = []
-    for mon in range(1, 13):
-        month_stats = db.get_statistics(year=year, month=mon, group_id=group_id)
-        for s in month_stats:
-            rows_data.append(
-                {
-                    "Monat": mon,
-                    "Mitarbeiter": s["employee_name"],
-                    "Kürzel": s["employee_short"],
-                    "Soll (h)": s["target_hours"],
-                    "Ist (h)": s["actual_hours"],
-                    "Überstunden (h)": s["overtime_hours"],
-                    "Abwesenheitstage": s["absence_days"],
-                    "Urlaubstage": s["vacation_used"],
-                }
-            )
+    try:
+        db = get_db()
+        rows_data = []
+        for mon in range(1, 13):
+            month_stats = db.get_statistics(year=year, month=mon, group_id=group_id)
+            for s in month_stats:
+                rows_data.append(
+                    {
+                        "Monat": mon,
+                        "Mitarbeiter": s["employee_name"],
+                        "Kürzel": s["employee_short"],
+                        "Soll (h)": s["target_hours"],
+                        "Ist (h)": s["actual_hours"],
+                        "Überstunden (h)": s["overtime_hours"],
+                        "Abwesenheitstage": s["absence_days"],
+                        "Urlaubstage": s["vacation_used"],
+                    }
+                )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Export: {exc}")
 
     # Also build a summary per employee (sum over year)
     from collections import defaultdict
@@ -976,8 +983,13 @@ def export_employees(
     format: str = Query("csv"),
     _cur_user: dict = Depends(require_planer),
 ):
-    db = get_db()
-    employees = db.get_employees(include_hidden=False)
+    try:
+        db = get_db()
+        employees = db.get_employees(include_hidden=False)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Export: {exc}")
+    from datetime import date as _date_today
+    _today_str = _date_today.today().strftime("%Y-%m-%d")
     rows = []
     for emp in employees:
         rows.append(
@@ -1030,7 +1042,7 @@ def export_employees(
         return _Response(
             content=html,
             media_type="text/html; charset=utf-8",
-            headers={"Content-Disposition": 'attachment; filename="mitarbeiter.html"'},
+            headers={"Content-Disposition": f'attachment; filename="mitarbeiter_{_today_str}.html"'},
         )
     if format == "xlsx":
         try:
@@ -1064,8 +1076,8 @@ def export_employees(
                     cell.border = border
         buf = io.BytesIO()
         wb.save(buf)
-        return _xlsx_response(buf.getvalue(), "mitarbeiter.xlsx")
-    return _csv_response(rows, "mitarbeiter.csv")
+        return _xlsx_response(buf.getvalue(), f"mitarbeiter_{_today_str}.xlsx")
+    return _csv_response(rows, f"mitarbeiter_{_today_str}.csv")
 
 
 @router.get(
@@ -1091,17 +1103,18 @@ def export_absences(
     format: str = Query("csv"),
     _cur_user: dict = Depends(require_planer),
 ):
-    db = get_db()
-    employees = db.get_employees(include_hidden=False)
-    emp_map = {e["ID"]: e for e in employees}
-    lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
-
-    if group_id is not None:
-        member_ids = set(db.get_group_members(group_id))
-        emp_map = {k: v for k, v in emp_map.items() if k in member_ids}
-
-    year_str = str(year)
-    raw_absences = db._read("ABSEN")
+    try:
+        db = get_db()
+        employees = db.get_employees(include_hidden=False)
+        emp_map = {e["ID"]: e for e in employees}
+        lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
+        if group_id is not None:
+            member_ids = set(db.get_group_members(group_id))
+            emp_map = {k: v for k, v in emp_map.items() if k in member_ids}
+        year_str = str(year)
+        raw_absences = db._read("ABSEN")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Datenbankfehler beim Export: {exc}")
 
     rows = []
     for r in raw_absences:
