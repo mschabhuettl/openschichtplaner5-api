@@ -323,16 +323,37 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         "bool_parsing": "Muss true oder false sein",
         "string_too_short": "Eingabe zu kurz",
         "string_too_long": "Eingabe zu lang",
-        "value_error": "Ungültiger Wert",
+        "string_pattern_mismatch": "Ungültiges Format",
+        "greater_than": "Muss größer als {gt} sein",
+        "greater_than_equal": "Muss mindestens {ge} sein",
+        "less_than_equal": "Muss höchstens {le} sein",
+        "less_than": "Muss kleiner als {lt} sein",
         "type_error": "Falscher Datentyp",
     }
+    # Types where we prefer the custom validator message over the generic mapping
+    _PASS_THROUGH_TYPES = {"value_error", "assertion_error"}
     errors = []
     for e in exc.errors():
         field = ".".join(
             str(loc) for loc in e.get("loc", []) if loc not in ("body", "query", "path")
         )
         etype = e.get("type", "")
-        msg = _TYPE_MSGS.get(etype, e.get("msg", "Ungültiger Wert"))
+        raw_msg = e.get("msg", "Ungültiger Wert")
+        # Strip pydantic's "Value error, " prefix from custom validators
+        if raw_msg.startswith("Value error, "):
+            raw_msg = raw_msg[len("Value error, "):]
+        if etype in _PASS_THROUGH_TYPES:
+            # Use the custom message from the validator directly
+            msg = raw_msg
+        elif etype in _TYPE_MSGS:
+            template = _TYPE_MSGS[etype]
+            ctx = e.get("ctx", {})
+            try:
+                msg = template.format(**ctx)
+            except (KeyError, IndexError):
+                msg = template
+        else:
+            msg = raw_msg
         if field:
             errors.append(f"{field}: {msg}")
         else:

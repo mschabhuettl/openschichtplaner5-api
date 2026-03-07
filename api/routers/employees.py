@@ -329,8 +329,8 @@ class GroupCreate(BaseModel):
 
 
 class GroupUpdate(BaseModel):
-    NAME: str | None = None
-    SHORTNAME: str | None = None
+    NAME: str | None = Field(None, min_length=1, max_length=100)
+    SHORTNAME: str | None = Field(None, max_length=20)
     SUPERID: int | None = None
     POSITION: int | None = None
     HIDE: bool | None = None
@@ -340,6 +340,13 @@ class GroupUpdate(BaseModel):
     CFGLABEL: int | None = None
     CBKLABEL: int | None = None
     CBKSCHED: int | None = None
+
+    @field_validator("NAME")
+    @classmethod
+    def name_not_blank(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("Gruppenname darf nicht leer sein")
+        return v.strip() if v is not None else v
 
 
 class GroupMemberBody(BaseModel):

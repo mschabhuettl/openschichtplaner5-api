@@ -7,7 +7,7 @@ import time as _time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..dependencies import (
     _LOCKOUT_MAX,
@@ -84,12 +84,26 @@ class UserCreate(BaseModel):
     PASSWORD: str = Field(..., min_length=6, max_length=200)
     role: str = Field("Leser", pattern=r"^(Admin|Planer|Leser)$")
 
+    @field_validator("NAME")
+    @classmethod
+    def name_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Benutzername darf nicht nur aus Leerzeichen bestehen")
+        return v.strip()
+
 
 class UserUpdate(BaseModel):
     NAME: str | None = Field(None, min_length=1, max_length=100)
     DESCRIP: str | None = Field(None, max_length=500)
     PASSWORD: str | None = Field(None, min_length=6, max_length=200)
     role: str | None = Field(None, pattern=r"^(Admin|Planer|Leser)$")
+
+    @field_validator("NAME")
+    @classmethod
+    def name_not_blank(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("Benutzername darf nicht nur aus Leerzeichen bestehen")
+        return v.strip() if v is not None else v
 
 
 class LoginBody(BaseModel):

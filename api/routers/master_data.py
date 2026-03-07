@@ -133,27 +133,27 @@ class ShiftCreate(BaseModel):
 
 
 class ShiftUpdate(BaseModel):
-    NAME: str | None = None
-    SHORTNAME: str | None = None
-    COLORBK: int | None = None
-    COLORTEXT: int | None = None
-    COLORBAR: int | None = None
-    DURATION0: float | None = None
-    DURATION1: float | None = None
-    DURATION2: float | None = None
-    DURATION3: float | None = None
-    DURATION4: float | None = None
-    DURATION5: float | None = None
-    DURATION6: float | None = None
-    DURATION7: float | None = None
-    STARTEND0: str | None = None
-    STARTEND1: str | None = None
-    STARTEND2: str | None = None
-    STARTEND3: str | None = None
-    STARTEND4: str | None = None
-    STARTEND5: str | None = None
-    STARTEND6: str | None = None
-    STARTEND7: str | None = None
+    NAME: str | None = Field(None, min_length=1, max_length=100)
+    SHORTNAME: str | None = Field(None, max_length=20)
+    COLORBK: int | None = Field(None, ge=0, le=16777215)
+    COLORTEXT: int | None = Field(None, ge=0, le=16777215)
+    COLORBAR: int | None = Field(None, ge=0, le=16777215)
+    DURATION0: float | None = Field(None, ge=0.0, le=24.0)
+    DURATION1: float | None = Field(None, ge=0.0, le=24.0)
+    DURATION2: float | None = Field(None, ge=0.0, le=24.0)
+    DURATION3: float | None = Field(None, ge=0.0, le=24.0)
+    DURATION4: float | None = Field(None, ge=0.0, le=24.0)
+    DURATION5: float | None = Field(None, ge=0.0, le=24.0)
+    DURATION6: float | None = Field(None, ge=0.0, le=24.0)
+    DURATION7: float | None = Field(None, ge=0.0, le=24.0)
+    STARTEND0: str | None = Field(None, max_length=20)
+    STARTEND1: str | None = Field(None, max_length=20)
+    STARTEND2: str | None = Field(None, max_length=20)
+    STARTEND3: str | None = Field(None, max_length=20)
+    STARTEND4: str | None = Field(None, max_length=20)
+    STARTEND5: str | None = Field(None, max_length=20)
+    STARTEND6: str | None = Field(None, max_length=20)
+    STARTEND7: str | None = Field(None, max_length=20)
     POSITION: int | None = None
     HIDE: bool | None = None
 

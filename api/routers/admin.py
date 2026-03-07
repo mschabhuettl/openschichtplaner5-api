@@ -8,7 +8,7 @@ from datetime import datetime as _backup_dt
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..dependencies import (
     _logger,
@@ -35,10 +35,27 @@ def get_periods(
 
 
 class PeriodCreate(BaseModel):
-    group_id: int
-    start: str  # YYYY-MM-DD
-    end: str  # YYYY-MM-DD
-    description: str = ""
+    group_id: int = Field(..., gt=0)
+    start: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    description: str = Field("", max_length=500)
+
+    @field_validator("start", "end")
+    @classmethod
+    def validate_date(cls, v: str) -> str:
+        from datetime import datetime
+
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Datumsformat muss JJJJ-MM-TT sein")
+        return v
+
+    @model_validator(mode="after")
+    def end_not_before_start(self) -> "PeriodCreate":
+        if self.start and self.end and self.end < self.start:
+            raise ValueError("end-Datum darf nicht vor start-Datum liegen")
+        return self
 
 
 @router.post(
@@ -48,17 +65,7 @@ class PeriodCreate(BaseModel):
     description="Create a new accounting/settlement period for a group. Dates must be in YYYY-MM-DD format. Requires Planer role.",
 )
 def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer)):
-    try:
-        from datetime import datetime
-
-        datetime.strptime(body.start, "%Y-%m-%d")
-        datetime.strptime(body.end, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(
-            status_code=400, detail="Ungültiges Datumsformat, erwartet YYYY-MM-DD"
-        )
-    if body.end < body.start:
-        raise HTTPException(status_code=400, detail="end muss >= start sein")
+    # Date format and order already validated by Pydantic model
     try:
         result = get_db().create_period(
             {

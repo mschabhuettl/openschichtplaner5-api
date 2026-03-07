@@ -17,7 +17,7 @@ class TestPeriods:
         assert isinstance(res.json(), list)
 
     def test_create_period_invalid_date(self, planer_client: TestClient):
-        """POST /api/periods with invalid date → 400."""
+        """POST /api/periods with invalid date → 422 (Pydantic validation)."""
         res = planer_client.post(
             "/api/periods",
             json={
@@ -26,10 +26,10 @@ class TestPeriods:
                 "end": "2024-12-31",
             },
         )
-        assert res.status_code == 400
+        assert res.status_code == 422
 
     def test_create_period_end_before_start(self, planer_client: TestClient):
-        """POST /api/periods with end < start → 400."""
+        """POST /api/periods with end < start → 422 (Pydantic model_validator)."""
         res = planer_client.post(
             "/api/periods",
             json={
@@ -38,7 +38,7 @@ class TestPeriods:
                 "end": "2024-01-01",
             },
         )
-        assert res.status_code == 400
+        assert res.status_code == 422
 
     def test_create_and_delete_period(self, planer_client: TestClient):
         """POST then DELETE /api/periods → both 200."""
