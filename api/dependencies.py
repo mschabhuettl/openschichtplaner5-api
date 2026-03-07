@@ -56,7 +56,7 @@ _logger.addHandler(_stderr_handler)
 SP5_LOG_FILE = _log_file
 
 # ── Rate Limiter ─────────────────────────────────────────────────
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
 
 # ── Session store ────────────────────────────────────────────────
 # NOTE: In-process dict — not safe for multi-worker deployments.
