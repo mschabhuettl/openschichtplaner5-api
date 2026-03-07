@@ -4,8 +4,8 @@ Covers: invalid month/year bounds, missing DB files, empty results, long strings
 """
 
 import os
-import pytest
 
+import pytest
 
 # ── Month/Year bounds validation ──────────────────────────────────────────────
 

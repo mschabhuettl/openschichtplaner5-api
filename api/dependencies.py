@@ -3,20 +3,19 @@ Shared dependencies for OpenSchichtplaner5 API.
 Extracted from main.py for modular router support.
 """
 
-import os
-import logging
-import logging.handlers
-import time as _time
-
-from fastapi import HTTPException, Header, Depends, Request
-from typing import Optional
-from sp5lib.database import SP5Database
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
 # ── Structured JSON Logging setup ───────────────────────────────
 import json as _json
-from datetime import datetime as _dt, timezone as _tz
+import logging
+import logging.handlers
+import os
+import time as _time
+from datetime import UTC
+from datetime import datetime as _dt
+
+from fastapi import Depends, Header, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from sp5lib.database import SP5Database
 
 
 class _JsonFormatter(logging.Formatter):
@@ -24,7 +23,7 @@ class _JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         entry = {
-            "timestamp": _dt.fromtimestamp(record.created, tz=_tz.utc).strftime(
+            "timestamp": _dt.fromtimestamp(record.created, tz=UTC).strftime(
                 "%Y-%m-%dT%H:%M:%S."
             )
             + f"{int(record.msecs):03d}Z",
@@ -105,8 +104,8 @@ def _is_token_valid(token: str) -> bool:
 
 def get_current_user(
     request: Request,
-    x_auth_token: Optional[str] = Header(None),
-) -> Optional[dict]:
+    x_auth_token: str | None = Header(None),
+) -> dict | None:
     """Return user dict for the given token, or None.
 
     Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
@@ -128,7 +127,7 @@ def get_current_user(
     return None
 
 
-def require_auth(user: Optional[dict] = Depends(get_current_user)) -> dict:
+def require_auth(user: dict | None = Depends(get_current_user)) -> dict:
     """Dependency: requires any authenticated user."""
     if user is None:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
@@ -138,7 +137,7 @@ def require_auth(user: Optional[dict] = Depends(get_current_user)) -> dict:
 def require_role(min_role: str):
     """Factory: returns a dependency that requires at least min_role."""
 
-    def _dep(user: Optional[dict] = Depends(get_current_user)) -> dict:
+    def _dep(user: dict | None = Depends(get_current_user)) -> dict:
         if user is None:
             raise HTTPException(status_code=401, detail="Nicht angemeldet")
         user_level = _ROLE_LEVEL.get(user.get("role", "Leser"), 1)
@@ -153,7 +152,7 @@ def require_role(min_role: str):
     return _dep
 
 
-def require_admin(user: Optional[dict] = Depends(get_current_user)) -> dict:
+def require_admin(user: dict | None = Depends(get_current_user)) -> dict:
     """Dependency: requires Admin role."""
     if user is None:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
@@ -162,7 +161,7 @@ def require_admin(user: Optional[dict] = Depends(get_current_user)) -> dict:
     return user
 
 
-def require_planer(user: Optional[dict] = Depends(get_current_user)) -> dict:
+def require_planer(user: dict | None = Depends(get_current_user)) -> dict:
     """Dependency: requires at least Planer role."""
     if user is None:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
@@ -227,10 +226,10 @@ def write_audit_log(action: str, actor: str, details: dict) -> None:
 
     Each line is a self-contained JSON object with timestamp, action, actor and details.
     """
-    from datetime import datetime as _adt, timezone as _atz
+    from datetime import datetime as _adt
 
     entry = {
-        "timestamp": _adt.now(_atz.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+        "timestamp": _adt.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
         "action": action,
         "actor": actor,
         **details,

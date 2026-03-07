@@ -3,9 +3,10 @@ Shared test fixtures for OpenSchichtplaner5 backend tests.
 """
 
 import os
-import sys
 import secrets
 import shutil
+import sys
+
 import pytest
 
 # ── Python path setup ──────────────────────────────────────────────────────────
@@ -108,8 +109,8 @@ def sync_client(app):
     The token is kept alive by re-injecting it into _sessions on each request
     to survive potential logout calls from other tests.
     """
-    from starlette.testclient import TestClient
     from api.main import _sessions
+    from starlette.testclient import TestClient
 
     tok = "SYNC_CLIENT_PERSISTENT_ADMIN_TOKEN"
     _sessions[tok] = {

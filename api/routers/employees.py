@@ -1,14 +1,15 @@
 """Employees and groups router."""
 
 import os
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, List
+
 from ..dependencies import (
+    _logger,
+    _sanitize_500,
     get_db,
     require_admin,
-    _sanitize_500,
-    _logger,
 )
 from ..schemas import EmployeeResponse, GroupResponse
 
@@ -20,7 +21,7 @@ router = APIRouter()
     tags=["Employees"],
     summary="List employees",
     description="Return all active employees. Set include_hidden=true to include hidden/archived employees.",
-    response_model=List[EmployeeResponse],
+    response_model=list[EmployeeResponse],
 )
 def get_employees(include_hidden: bool = False):
     return get_db().get_employees(include_hidden=include_hidden)
@@ -41,7 +42,7 @@ def get_employee(emp_id: int):
     tags=["Groups"],
     summary="List groups",
     description="Return all groups. Set include_hidden=true to include hidden/archived groups.",
-    response_model=List[GroupResponse],
+    response_model=list[GroupResponse],
 )
 def get_groups(include_hidden: bool = False):
     db = get_db()
@@ -125,9 +126,9 @@ class EmployeeCreate(BaseModel):
     ARBITR2: str = Field("", max_length=200)
     ARBITR3: str = Field("", max_length=200)
     # Colors (BGR int: 0=black, 16777215=white)
-    CFGLABEL: Optional[int] = Field(None, ge=0, le=16777215)
-    CBKLABEL: Optional[int] = Field(None, ge=0, le=16777215)
-    CBKSCHED: Optional[int] = Field(None, ge=0, le=16777215)
+    CFGLABEL: int | None = Field(None, ge=0, le=16777215)
+    CBKLABEL: int | None = Field(None, ge=0, le=16777215)
+    CBKSCHED: int | None = Field(None, ge=0, le=16777215)
 
     @field_validator("NAME")
     @classmethod
@@ -151,49 +152,49 @@ class EmployeeCreate(BaseModel):
 
 
 class EmployeeUpdate(BaseModel):
-    NAME: Optional[str] = Field(None, min_length=1, max_length=100)
-    FIRSTNAME: Optional[str] = Field(None, max_length=100)
-    SHORTNAME: Optional[str] = Field(None, max_length=20)
-    NUMBER: Optional[str] = Field(None, max_length=20)
-    SEX: Optional[int] = Field(None, ge=0, le=2)
-    HRSDAY: Optional[float] = Field(None, ge=0.0, le=24.0)
-    HRSWEEK: Optional[float] = Field(None, ge=0.0, le=168.0)
-    HRSMONTH: Optional[float] = Field(None, ge=0.0, le=744.0)
-    HRSTOTAL: Optional[float] = Field(None, ge=0.0)
-    WORKDAYS: Optional[str] = Field(None, max_length=20)
-    HIDE: Optional[bool] = None
-    BOLD: Optional[int] = Field(None, ge=0, le=1)
-    POSITION: Optional[int] = None
+    NAME: str | None = Field(None, min_length=1, max_length=100)
+    FIRSTNAME: str | None = Field(None, max_length=100)
+    SHORTNAME: str | None = Field(None, max_length=20)
+    NUMBER: str | None = Field(None, max_length=20)
+    SEX: int | None = Field(None, ge=0, le=2)
+    HRSDAY: float | None = Field(None, ge=0.0, le=24.0)
+    HRSWEEK: float | None = Field(None, ge=0.0, le=168.0)
+    HRSMONTH: float | None = Field(None, ge=0.0, le=744.0)
+    HRSTOTAL: float | None = Field(None, ge=0.0)
+    WORKDAYS: str | None = Field(None, max_length=20)
+    HIDE: bool | None = None
+    BOLD: int | None = Field(None, ge=0, le=1)
+    POSITION: int | None = None
     # Personal data
-    SALUTATION: Optional[str] = Field(None, max_length=50)
-    STREET: Optional[str] = Field(None, max_length=200)
-    ZIP: Optional[str] = Field(None, max_length=20)
-    TOWN: Optional[str] = Field(None, max_length=100)
-    PHONE: Optional[str] = Field(None, max_length=50)
-    EMAIL: Optional[str] = Field(None, max_length=200)
-    FUNCTION: Optional[str] = Field(None, max_length=100)
-    BIRTHDAY: Optional[str] = Field(None, max_length=10)
-    EMPSTART: Optional[str] = Field(None, max_length=10)
-    EMPEND: Optional[str] = Field(None, max_length=10)
+    SALUTATION: str | None = Field(None, max_length=50)
+    STREET: str | None = Field(None, max_length=200)
+    ZIP: str | None = Field(None, max_length=20)
+    TOWN: str | None = Field(None, max_length=100)
+    PHONE: str | None = Field(None, max_length=50)
+    EMAIL: str | None = Field(None, max_length=200)
+    FUNCTION: str | None = Field(None, max_length=100)
+    BIRTHDAY: str | None = Field(None, max_length=10)
+    EMPSTART: str | None = Field(None, max_length=10)
+    EMPEND: str | None = Field(None, max_length=10)
     # Calculation settings
-    CALCBASE: Optional[int] = Field(None, ge=0)
-    DEDUCTHOL: Optional[int] = Field(None, ge=0, le=1)
+    CALCBASE: int | None = Field(None, ge=0)
+    DEDUCTHOL: int | None = Field(None, ge=0, le=1)
     # Free text fields
-    NOTE1: Optional[str] = Field(None, max_length=500)
-    NOTE2: Optional[str] = Field(None, max_length=500)
-    NOTE3: Optional[str] = Field(None, max_length=500)
-    NOTE4: Optional[str] = Field(None, max_length=500)
-    ARBITR1: Optional[str] = Field(None, max_length=200)
-    ARBITR2: Optional[str] = Field(None, max_length=200)
-    ARBITR3: Optional[str] = Field(None, max_length=200)
+    NOTE1: str | None = Field(None, max_length=500)
+    NOTE2: str | None = Field(None, max_length=500)
+    NOTE3: str | None = Field(None, max_length=500)
+    NOTE4: str | None = Field(None, max_length=500)
+    ARBITR1: str | None = Field(None, max_length=200)
+    ARBITR2: str | None = Field(None, max_length=200)
+    ARBITR3: str | None = Field(None, max_length=200)
     # Colors (BGR int)
-    CFGLABEL: Optional[int] = Field(None, ge=0, le=16777215)
-    CBKLABEL: Optional[int] = Field(None, ge=0, le=16777215)
-    CBKSCHED: Optional[int] = Field(None, ge=0, le=16777215)
+    CFGLABEL: int | None = Field(None, ge=0, le=16777215)
+    CBKLABEL: int | None = Field(None, ge=0, le=16777215)
+    CBKSCHED: int | None = Field(None, ge=0, le=16777215)
 
     @field_validator("NAME")
     @classmethod
-    def name_not_blank(cls, v: Optional[str]) -> Optional[str]:
+    def name_not_blank(cls, v: str | None) -> str | None:
         if v is not None and not v.strip():
             raise ValueError("NAME darf nicht leer sein")
         return v
@@ -299,8 +300,9 @@ _PHOTOS_DIR = os.path.join(
     "/api/employees/{emp_id}/photo", tags=["Employees"], summary="Get employee photo"
 )
 async def get_employee_photo(emp_id: int):
-    from fastapi.responses import FileResponse as _FileResponse
     import pathlib
+
+    from fastapi.responses import FileResponse as _FileResponse
 
     photos_dir = pathlib.Path(_PHOTOS_DIR)
     for ext in (".jpg", ".jpeg", ".png", ".gif"):
@@ -321,23 +323,23 @@ class GroupCreate(BaseModel):
     BOLD: int = 0
     DAILYDEM: int = 0
     ARBITR: str = ""
-    CFGLABEL: Optional[int] = None
-    CBKLABEL: Optional[int] = None
-    CBKSCHED: Optional[int] = None
+    CFGLABEL: int | None = None
+    CBKLABEL: int | None = None
+    CBKSCHED: int | None = None
 
 
 class GroupUpdate(BaseModel):
-    NAME: Optional[str] = None
-    SHORTNAME: Optional[str] = None
-    SUPERID: Optional[int] = None
-    POSITION: Optional[int] = None
-    HIDE: Optional[bool] = None
-    BOLD: Optional[int] = None
-    DAILYDEM: Optional[int] = None
-    ARBITR: Optional[str] = None
-    CFGLABEL: Optional[int] = None
-    CBKLABEL: Optional[int] = None
-    CBKSCHED: Optional[int] = None
+    NAME: str | None = None
+    SHORTNAME: str | None = None
+    SUPERID: int | None = None
+    POSITION: int | None = None
+    HIDE: bool | None = None
+    BOLD: int | None = None
+    DAILYDEM: int | None = None
+    ARBITR: str | None = None
+    CFGLABEL: int | None = None
+    CBKLABEL: int | None = None
+    CBKSCHED: int | None = None
 
 
 class GroupMemberBody(BaseModel):
@@ -502,13 +504,13 @@ async def upload_employee_photo(
 
 
 class BulkEmployeeAction(BaseModel):
-    employee_ids: List[int] = Field(
+    employee_ids: list[int] = Field(
         ..., min_length=1, description="Liste von Mitarbeiter-IDs"
     )
     action: str = Field(
         ..., description="'hide', 'show', 'assign_group', 'remove_group'"
     )
-    group_id: Optional[int] = Field(
+    group_id: int | None = Field(
         None, description="Ziel-Gruppe für assign_group/remove_group"
     )
 

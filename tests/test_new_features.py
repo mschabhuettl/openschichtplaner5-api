@@ -1,10 +1,10 @@
 """Tests for new features: Warnings Center, Dashboard Stats, Security/Auth checks,
 Input validation, Schedule Conflicts API."""
 
-import pytest
 import secrets
-from starlette.testclient import TestClient
 
+import pytest
+from starlette.testclient import TestClient
 
 # ─────────────────────────────────────────────────────────────
 # Warnings Center API

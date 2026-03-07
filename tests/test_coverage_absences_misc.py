@@ -5,7 +5,6 @@ Uses conftest fixtures: admin_client, write_db_path, app.
 """
 import pytest
 
-
 # ─── Absences: error paths ───────────────────────────────────────────────────
 
 class TestAbsenceErrorPaths:

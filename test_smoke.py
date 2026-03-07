@@ -6,15 +6,16 @@ by checking the API structure and response shapes.
 
 import os
 import sys
+
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 # Import the app
 from api.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

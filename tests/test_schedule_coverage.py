@@ -348,7 +348,8 @@ class TestEventsBroadcastWithSubscriber:
     def test_broadcast_with_live_subscriber(self):
         """broadcast() with a real subscriber should schedule put and log debug."""
         import asyncio
-        from api.routers.events import broadcast, _subscribers, _lock
+
+        from api.routers.events import _lock, _subscribers, broadcast
 
         async def run():
             queue = asyncio.Queue()
@@ -372,6 +373,7 @@ class TestEventsBroadcastWithSubscriber:
     def test_event_generator_connected_event(self):
         """_event_generator should yield connected event first."""
         import asyncio
+
         from api.routers.events import _event_generator
 
         async def run():

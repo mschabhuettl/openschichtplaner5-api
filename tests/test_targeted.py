@@ -4,10 +4,11 @@ Focuses on API endpoints that need 2026 data and specific execution paths.
 """
 
 import os
-import sys
 import shutil
-import pytest
+import sys
 from unittest.mock import patch
+
+import pytest
 
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BACKEND_DIR not in sys.path:

@@ -1,14 +1,16 @@
 """Absences, leave entitlements, holiday bans, annual close router."""
 
 import os
-from fastapi import APIRouter, HTTPException, Query, Depends
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, List, Dict, Any
+
 from ..dependencies import (
+    _sanitize_500,
     get_db,
     require_admin,
     require_planer,
-    _sanitize_500,
 )
 from .events import broadcast
 from .notifications import create_notification
@@ -68,9 +70,9 @@ class AbsenceCreate(BaseModel):
     description="Return absence entries, optionally filtered by year, employee, or leave type.",
 )
 def list_absences(
-    year: Optional[int] = Query(None),
-    employee_id: Optional[int] = Query(None),
-    leave_type_id: Optional[int] = Query(None),
+    year: int | None = Query(None),
+    employee_id: int | None = Query(None),
+    leave_type_id: int | None = Query(None),
 ):
     """List all absences with optional filters."""
     return get_db().get_absences_list(
@@ -104,7 +106,7 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
         )
 
     # ── Conflict & holiday warnings ──────────────────────────────
-    warnings: List[str] = []
+    warnings: list[str] = []
     try:
         year = int(body.date[:4])
         # Check for existing shift assignment on this date
@@ -154,7 +156,7 @@ class BulkAbsenceCreate(BaseModel):
         ..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Datum (YYYY-MM-DD)"
     )
     leave_type_id: int = Field(..., gt=0)
-    employee_ids: Optional[List[int]] = Field(
+    employee_ids: list[int] | None = Field(
         None, description="Bestimmte MA-IDs; None = alle aktiven MA"
     )
 
@@ -198,7 +200,7 @@ def bulk_create_absence(
     else:
         employees = db.get_employees(include_hidden=False)
 
-    results: Dict[str, Any] = {"ok": True, "created": 0, "skipped": 0, "errors": []}
+    results: dict[str, Any] = {"ok": True, "created": 0, "skipped": 0, "errors": []}
     for emp in employees:
         try:
             db.add_absence(emp["ID"], body.date, body.leave_type_id)
@@ -227,8 +229,8 @@ def bulk_create_absence(
     "/api/leave-entitlements", tags=["Absences"], summary="List vacation entitlements"
 )
 def get_leave_entitlements(
-    year: Optional[int] = Query(None),
-    employee_id: Optional[int] = Query(None),
+    year: int | None = Query(None),
+    employee_id: int | None = Query(None),
 ):
     return get_db().get_leave_entitlements(year=year, employee_id=employee_id)
 
@@ -237,8 +239,8 @@ class LeaveEntitlementCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     year: int = Field(..., ge=2000, le=2100, description="Urlaubsjahr")
     days: float = Field(..., ge=0, le=366, description="Urlaubsanspruch in Tagen")
-    carry_forward: Optional[float] = Field(0, ge=0, le=366)
-    leave_type_id: Optional[int] = Field(0, ge=0)
+    carry_forward: float | None = Field(0, ge=0, le=366)
+    leave_type_id: int | None = Field(0, ge=0)
 
 
 @router.post(
@@ -285,7 +287,7 @@ def get_leave_balance_group(
 
 @router.get("/api/holiday-bans", tags=["Absences"], summary="List holiday ban periods")
 def get_holiday_bans(
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
 ):
     return get_db().get_holiday_bans(group_id=group_id)
 
@@ -294,7 +296,7 @@ class HolidayBanCreate(BaseModel):
     group_id: int = Field(..., gt=0)
     start_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    reason: Optional[str] = Field("", max_length=500)
+    reason: str | None = Field("", max_length=500)
 
     @field_validator("start_date", "end_date")
     @classmethod
@@ -354,7 +356,7 @@ def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
 )
 def annual_close_preview(
     year: int = Query(...),
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
     max_carry_forward_days: float = Query(10),
 ):
     return get_db().get_annual_close_preview(
@@ -366,8 +368,8 @@ def annual_close_preview(
 
 class AnnualCloseBody(BaseModel):
     year: int = Field(..., ge=2000, le=2100)
-    group_id: Optional[int] = Field(None, gt=0)
-    max_carry_forward_days: Optional[float] = Field(10, ge=0, le=366)
+    group_id: int | None = Field(None, gt=0)
+    max_carry_forward_days: float | None = Field(10, ge=0, le=366)
 
 
 @router.post("/api/annual-close", tags=["Absences"], summary="Execute annual close")
@@ -393,7 +395,7 @@ _STATUS_FILE = os.path.join(os.path.dirname(__file__), "..", "absence_status.jso
 def _load_absence_status() -> dict:
     try:
         if os.path.exists(_STATUS_FILE):
-            with open(_STATUS_FILE, "r", encoding="utf-8") as f:
+            with open(_STATUS_FILE, encoding="utf-8") as f:
                 return _json.load(f)
     except Exception:
         pass
@@ -427,7 +429,7 @@ def get_all_absence_statuses():
 
 class AbsenceStatusPatch(BaseModel):
     status: str = Field(..., pattern=r"^(pending|approved|rejected)$")
-    reject_reason: Optional[str] = Field(None, max_length=500)
+    reject_reason: str | None = Field(None, max_length=500)
 
 
 @router.patch(

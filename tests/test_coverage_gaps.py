@@ -1,8 +1,8 @@
 """Tests targeting coverage gaps in events, misc, and reports routers."""
 
 import secrets
-from starlette.testclient import TestClient
 
+from starlette.testclient import TestClient
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers (copied from conftest pattern)
@@ -44,7 +44,8 @@ class TestEventsBroadcast:
     def test_broadcast_removes_dead_subscriber(self):
         """broadcast() should silently remove subscribers whose loop raises."""
         import asyncio
-        from api.routers.events import broadcast, _subscribers, _lock
+
+        from api.routers.events import _lock, _subscribers, broadcast
 
         class BadLoop:
             def call_soon_threadsafe(self, *args, **kwargs):

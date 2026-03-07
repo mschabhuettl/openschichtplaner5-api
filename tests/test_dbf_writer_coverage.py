@@ -30,16 +30,15 @@ if _backend not in sys.path:
     sys.path.insert(0, _backend)
 
 from sp5lib.dbf_writer import (  # noqa: E402
-    _encode_string,
     _encode_field,
+    _encode_string,
+    _parse_record,
     _read_header_info,
     append_record,
     delete_record,
-    update_record,
     find_all_records,
-    _parse_record,
+    update_record,
 )
-
 
 # ─── helpers (reused from test_write_paths) ───────────────────────────────────
 

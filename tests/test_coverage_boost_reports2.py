@@ -1,6 +1,7 @@
 """Additional tests to boost reports.py coverage - import error paths."""
 
 import io
+
 import pytest
 from starlette.testclient import TestClient
 

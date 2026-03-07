@@ -1,6 +1,7 @@
 """Tests targeting uncovered lines in employees.py to boost coverage."""
 
 import io
+
 import pytest
 from starlette.testclient import TestClient
 

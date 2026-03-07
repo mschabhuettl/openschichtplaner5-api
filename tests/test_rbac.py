@@ -1,9 +1,9 @@
 """Tests for RBAC: Leser/Planer/Admin permissions on protected endpoints."""
 
 import secrets
+
 import pytest
 from starlette.testclient import TestClient
-
 
 # ── Role injection helpers ─────────────────────────────────────────────────────
 

@@ -4,9 +4,11 @@ import asyncio
 import json
 import logging
 import threading
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+
 from ..dependencies import require_auth
 
 _logger = logging.getLogger(__name__)
@@ -56,7 +58,7 @@ async def _event_generator(
                 event_type = payload["type"]
                 data_str = json.dumps(payload["data"])
                 yield f"event: {event_type}\ndata: {data_str}\n\n"
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Send keepalive comment every 25s
                 yield ": keepalive\n\n"
     finally:

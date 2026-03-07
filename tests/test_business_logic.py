@@ -5,8 +5,9 @@ These tests exercise sp5lib modules directly (without the HTTP layer).
 """
 
 import os
-import sys
 import shutil
+import sys
+
 import pytest
 
 # Ensure backend is importable

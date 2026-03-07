@@ -1,17 +1,18 @@
 """Tests for api/routers/notifications.py — coverage boost."""
 
 import json
+
 import pytest
 from starlette.testclient import TestClient
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _make_clients(app, tmp_path, notif_file_path):
     """Return (admin_client, planer_client, employee_client) with fresh notif file."""
-    from api.main import _sessions
     import secrets
+
+    from api.main import _sessions
 
     # Clear notifications
     with open(notif_file_path, "w") as f:

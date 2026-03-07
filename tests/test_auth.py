@@ -7,9 +7,9 @@ Tests that need login calls share a session-scoped token to avoid rate limits.
 """
 
 import secrets
+
 import pytest
 from starlette.testclient import TestClient
-
 
 # ── Session-scoped login (only login once to avoid rate limit) ────────────────
 
@@ -30,8 +30,8 @@ class TestLogin:
     def test_login_success(self, sync_client: TestClient):
         """Fresh login returns ok=True with a token."""
         # Use a new client to bypass rate-limit tracking on shared client
-        from starlette.testclient import TestClient as TC
         from api.main import app
+        from starlette.testclient import TestClient as TC
 
         with TC(app, raise_server_exceptions=True) as c:
             res = c.post(

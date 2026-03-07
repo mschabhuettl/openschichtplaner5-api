@@ -6,13 +6,14 @@ other persistence files. Each notification has:
   message, read, created_at, link (optional).
 """
 
-import os
 import json
-import time
+import os
 import threading
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Query, Depends
-from ..dependencies import require_planer, require_admin
+import time
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from ..dependencies import require_admin, require_planer
 
 router = APIRouter()
 
@@ -26,7 +27,7 @@ _lock = threading.Lock()
 def _load() -> list:
     try:
         if os.path.exists(_NOTIF_FILE):
-            with open(_NOTIF_FILE, "r", encoding="utf-8") as f:
+            with open(_NOTIF_FILE, encoding="utf-8") as f:
                 return json.load(f)
     except Exception:
         pass
@@ -71,8 +72,8 @@ def create_notification(
     type: str,
     title: str,
     message: str,
-    recipient_employee_id: Optional[int] = None,
-    link: Optional[str] = None,
+    recipient_employee_id: int | None = None,
+    link: str | None = None,
 ) -> dict:
     """Create and persist a notification. Thread-safe."""
     with _lock:
@@ -97,7 +98,7 @@ def create_notification(
 
 @router.get("/api/notifications", tags=["Notifications"], summary="List notifications")
 def list_notifications(
-    employee_id: Optional[int] = Query(
+    employee_id: int | None = Query(
         None, description="Filter by recipient employee id (0 = planner-wide)"
     ),
     unread_only: bool = Query(False),
@@ -188,7 +189,7 @@ def mark_read(notif_id: int, cur_user: dict = Depends(require_planer)):
     summary="Mark all notifications as read",
 )
 def mark_all_read(
-    employee_id: Optional[int] = Query(None),
+    employee_id: int | None = Query(None),
     _cur_user: dict = Depends(require_planer),
 ):
     """Mark all (optionally filtered by recipient) notifications as read."""

@@ -5,8 +5,8 @@ Uses the shared sync_client fixture (admin role, real DBF data via mtime cache).
 """
 
 import time
-import pytest
 
+import pytest
 
 ENDPOINTS = [
     "/api/employees",

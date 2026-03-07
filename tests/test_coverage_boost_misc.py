@@ -333,6 +333,7 @@ class TestAuthErrorPaths:
         """POST /api/auth/logout → 200 or 204."""
         # Create a separate token to logout
         import secrets
+
         from api.main import _sessions
 
         tok = secrets.token_hex(16)
@@ -424,7 +425,8 @@ class TestEventsEndpoint:
     def test_broadcast_with_subscriber(self):
         """Test broadcast to a subscriber."""
         import asyncio
-        from api.routers.events import broadcast, _subscribers, _lock
+
+        from api.routers.events import _lock, _subscribers, broadcast
 
         loop = asyncio.new_event_loop()
         queue = asyncio.Queue(maxsize=10)

@@ -2,11 +2,12 @@
 
 import os
 import sys
-import time as _startup_time_module
-from contextlib import asynccontextmanager
-from dotenv import load_dotenv
-from collections import deque
 import threading
+import time as _startup_time_module
+from collections import deque
+from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
 
 _APP_START_TIME = _startup_time_module.time()
 
@@ -82,26 +83,28 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 # Add parent dir to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
+from datetime import UTC
+
 from fastapi import FastAPI, HTTPException, Query, Request  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
-from fastapi.staticfiles import StaticFiles  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
-from fastapi.exceptions import RequestValidationError  # noqa: E402
-from typing import Optional  # noqa: E402
+from fastapi.staticfiles import StaticFiles  # noqa: E402
 from slowapi import _rate_limit_exceeded_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
 
 # ── Import shared dependencies ──────────────────────────────────
 # These are re-exported here so tests can still do `from api.main import _sessions`
 from .dependencies import (  # noqa: E402
-    _sessions,
+    _DEV_MODE_ACTIVE,
     _DEV_TOKEN,
     _DEV_USER,
-    _DEV_MODE_ACTIVE,
     _is_token_valid,
-    get_db,
     _logger,
+    _sessions,
+    get_db,
     limiter,
     purge_expired_sessions,
     purge_stale_failed_logins,
@@ -381,10 +384,10 @@ _PUBLIC_PATHS = {
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
     """Log every request as structured JSON with timing info and request-ID."""
+    import json as _json_mod
     import time as _t
     import uuid as _uuid
-    import json as _json_mod
-    from datetime import datetime as _dt2, timezone as _tz2
+    from datetime import datetime as _dt2
 
     # Generate a short unique request ID for correlating log entries
     req_id = _uuid.uuid4().hex[:8]
@@ -397,7 +400,7 @@ async def request_logging_middleware(request: Request, call_next):
         or request.query_params.get("token")
     )
     user = _sessions.get(token, {}).get("NAME", "-") if token else "-"
-    now = _dt2.now(_tz2.utc)
+    now = _dt2.now(UTC)
     ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
     entry = {
         "timestamp": ts,
@@ -530,16 +533,16 @@ app.add_middleware(ChangelogMiddleware)
 
 # ── Include routers ─────────────────────────────────────────────
 from .routers import (  # noqa: E402
+    absences,
+    admin,
     auth,
     employees,
-    schedule,
-    absences,
-    master_data,
-    reports,
-    admin,
-    misc,
     events,
+    master_data,
+    misc,
     notifications,
+    reports,
+    schedule,
 )
 
 app.include_router(auth.router)
@@ -655,13 +658,13 @@ def get_metrics(request: Request):
 def version():
     """Return current API version — public, no auth required."""
     import platform
-    from datetime import datetime as _dt, timezone as _tz
+    from datetime import datetime as _dt
 
     return {
         "version": _API_VERSION,
         "service": "OpenSchichtplaner5 API",
         "python_version": platform.python_version(),
-        "build_date": _dt.now(_tz.utc).strftime("%Y-%m-%d"),
+        "build_date": _dt.now(UTC).strftime("%Y-%m-%d"),
         "min_compatible_frontend": "0.4.0",
     }
 
@@ -710,17 +713,19 @@ def get_stats():
 
 @app.get("/api/dashboard/summary", tags=["Health"], summary="Dashboard summary")
 def get_dashboard_summary(
-    year: Optional[int] = Query(
+    year: int | None = Query(
         None, description="Year (YYYY), defaults to current year"
     ),
-    month: Optional[int] = Query(
+    month: int | None = Query(
         None, description="Month (1-12), defaults to current month"
     ),
 ):
     """Return all KPIs needed for the Dashboard in one request."""
     import calendar as _cal
-    from datetime import date, timedelta, datetime as _dt
     from collections import defaultdict
+    from datetime import date, timedelta
+    from datetime import datetime as _dt
+
     from sp5lib.color_utils import bgr_to_hex
 
     _today = date.today()
@@ -1149,10 +1154,10 @@ def get_dashboard_upcoming():
 
 
 @app.get("/api/dashboard/stats", tags=["Health"], summary="Dashboard statistics")
-def get_dashboard_stats(year: Optional[int] = None, month: Optional[int] = None):
+def get_dashboard_stats(year: int | None = None, month: int | None = None):
     """Return key statistics: total employees, active shifts this month, vacation days used."""
-    from datetime import date
     import calendar as _cal
+    from datetime import date
     from datetime import datetime as _dt
 
     db = get_db()

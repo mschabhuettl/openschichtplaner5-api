@@ -1,27 +1,28 @@
 """Auth and user management router."""
 
 import os
-import time as _time
+import re as _re
 import secrets
-from fastapi import APIRouter, HTTPException, Header, Depends, Request
+import time as _time
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import Optional
-import re as _re
+
 from ..dependencies import (
+    _LOCKOUT_MAX,
+    _LOCKOUT_WINDOW,
+    _MAX_SESSIONS_PER_USER,
+    _TOKEN_EXPIRE_HOURS,
+    _failed_logins,
+    _logger,
+    _sanitize_500,
+    _sessions,
     get_db,
+    invalidate_sessions_for_user,
+    limiter,
     require_admin,
     require_auth,
-    _sanitize_500,
-    _logger,
-    _sessions,
-    _failed_logins,
-    _LOCKOUT_WINDOW,
-    _LOCKOUT_MAX,
-    _TOKEN_EXPIRE_HOURS,
-    _MAX_SESSIONS_PER_USER,
-    limiter,
-    invalidate_sessions_for_user,
     write_audit_log,
 )
 
@@ -79,16 +80,16 @@ def get_users(_admin: dict = Depends(require_admin)):
 
 class UserCreate(BaseModel):
     NAME: str = Field(..., min_length=1, max_length=100)
-    DESCRIP: Optional[str] = Field("", max_length=500)
+    DESCRIP: str | None = Field("", max_length=500)
     PASSWORD: str = Field(..., min_length=6, max_length=200)
     role: str = Field("Leser", pattern=r"^(Admin|Planer|Leser)$")
 
 
 class UserUpdate(BaseModel):
-    NAME: Optional[str] = Field(None, min_length=1, max_length=100)
-    DESCRIP: Optional[str] = Field(None, max_length=500)
-    PASSWORD: Optional[str] = Field(None, min_length=6, max_length=200)
-    role: Optional[str] = Field(None, pattern=r"^(Admin|Planer|Leser)$")
+    NAME: str | None = Field(None, min_length=1, max_length=100)
+    DESCRIP: str | None = Field(None, max_length=500)
+    PASSWORD: str | None = Field(None, min_length=6, max_length=200)
+    role: str | None = Field(None, pattern=r"^(Admin|Planer|Leser)$")
 
 
 class LoginBody(BaseModel):
@@ -353,7 +354,7 @@ def me(user: dict = Depends(require_auth)):
     summary="Logout",
     description="Invalidate the current session token.",
 )
-def logout(request: Request, x_auth_token: Optional[str] = Header(None)):
+def logout(request: Request, x_auth_token: str | None = Header(None)):
     """Invalidate the session token. Reads from cookie or X-Auth-Token header."""
     client_ip = request.client.host if request.client else "unknown"
     # Prefer cookie, fall back to header

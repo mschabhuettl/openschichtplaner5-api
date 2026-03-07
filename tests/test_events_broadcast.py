@@ -1,9 +1,9 @@
 """Tests for api/routers/events.py — broadcast() + _event_generator()."""
 
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # broadcast()
@@ -162,7 +162,7 @@ class TestEventGenerator:
         _ = await gen.__anext__()  # connected
 
         async def _fast_timeout(coro, timeout):
-            raise asyncio.TimeoutError()
+            raise TimeoutError()
 
         with patch("asyncio.wait_for", side_effect=_fast_timeout):
             keepalive = await gen.__anext__()

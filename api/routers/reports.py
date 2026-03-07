@@ -1,23 +1,25 @@
 """Reports, statistics, zeitkonto, export, import, analysis router."""
 
-import io
+import calendar as _calendar
 import csv
 import html as _html
-import calendar as _calendar
-from datetime import datetime as _dt, date
-from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFile, File
+import io
+import logging as _logging
+from datetime import date
+from datetime import datetime as _dt
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response as _Response
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any
-import logging as _logging
 
 from ..dependencies import (
-    get_db,
-    require_planer,
-    require_auth,
-    require_admin,
     _sanitize_500,
+    get_db,
     limiter,
+    require_admin,
+    require_auth,
+    require_planer,
 )
 
 _logger = _logging.getLogger("sp5api")
@@ -73,13 +75,13 @@ def _xlsx_response(content: bytes, filename: str) -> _Response:
     ),
 )
 def get_statistics(
-    year: Optional[int] = Query(
+    year: int | None = Query(
         None, description="Year (YYYY), defaults to current year"
     ),
-    month: Optional[int] = Query(
+    month: int | None = Query(
         None, description="Month (1-12), defaults to current month"
     ),
-    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
 ):
     from datetime import date as _date
 
@@ -107,10 +109,10 @@ def get_statistics(
     ),
 )
 def get_year_summary(
-    year: Optional[int] = Query(
+    year: int | None = Query(
         None, description="Year (YYYY), defaults to current year"
     ),
-    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
 ):
     """Return aggregated statistics for all 12 months of a year (Jahresrückblick)."""
     from datetime import date as _date
@@ -217,10 +219,10 @@ def get_year_summary(
 )
 def get_employee_statistics(
     emp_id: int,
-    year: Optional[int] = Query(
+    year: int | None = Query(
         None, description="Year (YYYY), defaults to current year"
     ),
-    month: Optional[int] = Query(
+    month: int | None = Query(
         None, description="Month (1-12); if omitted returns full year overview"
     ),
 ):
@@ -265,7 +267,7 @@ def get_employee_statistics(
     ),
 )
 def get_sickness_statistics(
-    year: Optional[int] = Query(
+    year: int | None = Query(
         None, description="Year (YYYY), defaults to current year"
     ),
 ):
@@ -302,7 +304,7 @@ def get_sickness_statistics(
 def get_shift_statistics(
     year: int = Query(..., description="Year (YYYY)"),
     months: int = Query(6, ge=1, le=24, description="Number of months for trend"),
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
 ):
     """
     Return shift-centric statistics:
@@ -311,8 +313,8 @@ def get_shift_statistics(
     - employee_distribution: per employee, counts by shift category
     - category_totals: global counts by category (Früh/Spät/Nacht/Sonstige)
     """
-    from datetime import date as _date
     from collections import defaultdict
+    from datetime import date as _date
 
     db = get_db()
     shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
@@ -509,7 +511,7 @@ def _csv_response(rows: list, filename: str) -> _Response:
 def export_schedule(
     request: Request,
     month: str = Query(..., description="Month in YYYY-MM format"),
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
     format: str = Query("csv", description="csv, html, or xlsx"),
     _cur_user: dict = Depends(require_planer),
 ):
@@ -544,7 +546,7 @@ def export_schedule(
     if format == "xlsx":
         try:
             import openpyxl
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side  # noqa: F401
+            from openpyxl.styles import Alignment, Border, Font, PatternFill, Side  # noqa: F401
             from openpyxl.utils import get_column_letter
         except ImportError:
             raise HTTPException(status_code=500, detail="openpyxl nicht installiert.")
@@ -797,7 +799,7 @@ def export_schedule(
 def export_statistics(
     request: Request,
     year: int = Query(...),
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
     format: str = Query("csv", description="csv or html"),
     _cur_user: dict = Depends(require_planer),
 ):
@@ -1062,7 +1064,7 @@ def export_employees(
     if format == "xlsx":
         try:
             import openpyxl
-            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
         except ImportError:
             raise HTTPException(status_code=500, detail="openpyxl nicht installiert.")
         wb = openpyxl.Workbook()
@@ -1114,7 +1116,7 @@ def export_employees(
 def export_absences(
     request: Request,
     year: int = Query(...),
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
     format: str = Query("csv"),
     _cur_user: dict = Depends(require_planer),
 ):
@@ -1225,7 +1227,7 @@ def get_monthly_report(
     year: int = Query(..., description="Year (YYYY)"),
     month: int = Query(..., description="Month (1-12)"),
     format: str = Query("csv", description="Output format: csv or pdf"),
-    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
 ):
     """Generate a monthly closing report (Monatsabschluss) for all employees.
 
@@ -1446,7 +1448,7 @@ def get_monthly_report(
     ]
     # Dynamic surcharge cols (max 3 displayed to fit page)
     xc_cols = [(f"ZZ: {cn[:8]}", 16) for cn in all_charge_names[:3]]
-    all_cols: List[tuple[str, Any]] = list(fixed_cols + xc_cols)
+    all_cols: list[tuple[str, Any]] = list(fixed_cols + xc_cols)
 
     # Scale if too wide
     total_w = sum(w for _, w in all_cols)
@@ -1739,8 +1741,8 @@ def get_monthly_report(
 )
 def get_zeitkonto(
     year: int = Query(..., description="Year"),
-    group_id: Optional[int] = Query(None, description="Filter by group ID"),
-    employee_id: Optional[int] = Query(None, description="Filter by employee ID"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
+    employee_id: int | None = Query(None, description="Filter by employee ID"),
 ):
     return get_db().get_zeitkonto(year=year, group_id=group_id, employee_id=employee_id)
 
@@ -1781,7 +1783,7 @@ def get_zeitkonto_detail(
 )
 def get_zeitkonto_summary(
     year: int = Query(..., description="Year"),
-    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
 ):
     rows = get_db().get_zeitkonto(year=year, group_id=group_id)
     total_target = sum(r["total_target_hours"] for r in rows)
@@ -1812,11 +1814,11 @@ def get_zeitkonto_summary(
     ),
 )
 def get_bookings(
-    year: Optional[int] = Query(None, description="Filter by year"),
-    month: Optional[int] = Query(
+    year: int | None = Query(None, description="Filter by year"),
+    month: int | None = Query(
         None, description="Filter by month (1-12), use with year"
     ),
-    employee_id: Optional[int] = Query(None, description="Filter by employee ID"),
+    employee_id: int | None = Query(None, description="Filter by employee ID"),
 ):
     return get_db().get_bookings(year=year, month=month, employee_id=employee_id)
 
@@ -1826,7 +1828,7 @@ class BookingCreate(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     type: int = Field(0, ge=0, le=1)  # 0 = Iststundenkonto, 1 = Sollstundenkonto
     value: float
-    note: Optional[str] = Field("", max_length=500)
+    note: str | None = Field("", max_length=500)
 
 
 @router.post(
@@ -1957,8 +1959,8 @@ def annual_statement(
     summary="List overtime records",
 )
 def get_overtime_records(
-    year: Optional[int] = Query(None, description="Filter by year"),
-    employee_id: Optional[int] = Query(None, description="Filter by employee ID"),
+    year: int | None = Query(None, description="Filter by year"),
+    employee_id: int | None = Query(None, description="Filter by employee ID"),
 ):
     return get_db().get_overtime_records(year=year, employee_id=employee_id)
 
@@ -2676,7 +2678,7 @@ def get_burnout_radar(
     month: int = Query(..., description="Month 1-12"),
     streak_threshold: int = Query(6, description="Min consecutive days to flag"),
     overtime_threshold_pct: float = Query(20.0, description="Min overtime % to flag"),
-    group_id: Optional[int] = Query(None, description="Filter by group"),
+    group_id: int | None = Query(None, description="Filter by group"),
 ):
     """Return list of at-risk employees (long streaks or significant overtime)."""
     if not (1 <= month <= 12):
@@ -2706,10 +2708,10 @@ def get_burnout_radar(
     summary="Overtime summary",
 )
 def get_overtime_summary(
-    year: Optional[int] = Query(
+    year: int | None = Query(
         None, description="Year (YYYY), defaults to current year"
     ),
-    group_id: Optional[int] = Query(None, description="Filter by group"),
+    group_id: int | None = Query(None, description="Filter by group"),
 ):
     """Return overtime summary (Überstunden) per employee for a given year."""
     from datetime import date as _date
@@ -2746,10 +2748,10 @@ def get_overtime_summary(
     summary="Schedule warnings and anomalies",
 )
 def get_warnings(
-    year: Optional[int] = Query(
+    year: int | None = Query(
         None, description="Year (YYYY), defaults to current year"
     ),
-    month: Optional[int] = Query(
+    month: int | None = Query(
         None, description="Month (1-12), defaults to current month"
     ),
     _cur_user: dict = Depends(require_auth),
@@ -2762,9 +2764,9 @@ def get_warnings(
     - understaffing: Staffing below minimum on a day
     - conflict: Shift + absence conflict for an employee
     """
-    from datetime import date as _date
     import calendar as _cal
     from collections import defaultdict
+    from datetime import date as _date
 
     today = _date.today()
     if year is None:
@@ -2967,7 +2969,7 @@ def get_warnings(
 )
 def get_fairness_score(
     year: int = Query(..., description="Year"),
-    group_id: Optional[int] = Query(None, description="Filter by group"),
+    group_id: int | None = Query(None, description="Filter by group"),
 ):
     """
     Berechnet den Fairness-Score: Wie gleichmäßig sind Wochenend-, Nacht-
@@ -3111,7 +3113,7 @@ def get_fairness_score(
 def get_capacity_forecast(
     year: int = Query(..., description="Year (YYYY)"),
     month: int = Query(..., description="Month (1-12)"),
-    group_id: Optional[int] = Query(None, description="Filter by group"),
+    group_id: int | None = Query(None, description="Filter by group"),
 ):
     """Return per-day capacity forecast for a month.
 
@@ -3334,7 +3336,7 @@ def get_capacity_forecast(
 )
 def get_capacity_year(
     year: int = Query(..., description="Year (YYYY)"),
-    group_id: Optional[int] = Query(None, description="Filter by group"),
+    group_id: int | None = Query(None, description="Filter by group"),
     _cur_user: dict = Depends(require_auth),
 ):
     """Return per-month capacity summary for a full year (for heatmap).
@@ -3800,7 +3802,7 @@ def get_quality_report(
     summary="Employee availability matrix",
 )
 def get_availability_matrix(
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
     year: int = Query(None),
     months: int = Query(12, ge=1, le=24),
 ):
@@ -4037,7 +4039,7 @@ class SimulationRequest(BaseModel):
     year: int = Field(..., ge=2000, le=2100)
     month: int = Field(..., ge=1, le=12)
     absences: list  # list of SimulationAbsence dicts
-    scenario_name: Optional[str] = Field("Simulation", max_length=100)
+    scenario_name: str | None = Field("Simulation", max_length=100)
 
 
 @router.post(

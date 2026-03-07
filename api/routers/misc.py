@@ -1,19 +1,20 @@
 """Misc router: notes, wishes, handover, swap-requests, changelog, search, access."""
 
-from fastapi import APIRouter, HTTPException, Query, Depends, Request
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from typing import Optional
+
 from ..dependencies import (
-    get_db,
-    require_admin,
-    require_planer,
-    require_auth,
     _sanitize_500,
+    get_db,
     limiter,
+    require_admin,
+    require_auth,
+    require_planer,
 )
 from .events import broadcast
-from .schedule import swap_shifts, SwapShiftsRequest
 from .notifications import create_notification
+from .schedule import SwapShiftsRequest, swap_shifts
 
 router = APIRouter()
 
@@ -28,10 +29,10 @@ router = APIRouter()
     description="Return shift notes, optionally filtered by date or employee.",
 )
 def get_notes(
-    date: Optional[str] = Query(None, description="Filter by date YYYY-MM-DD"),
-    employee_id: Optional[int] = Query(None),
-    year: Optional[int] = Query(None, description="Filter by year (use with month)"),
-    month: Optional[int] = Query(
+    date: str | None = Query(None, description="Filter by date YYYY-MM-DD"),
+    employee_id: int | None = Query(None),
+    year: int | None = Query(None, description="Filter by year (use with month)"),
+    month: int | None = Query(
         None, description="Filter by month 1-12 (use with year)"
     ),
 ):
@@ -50,10 +51,10 @@ class NoteCreate(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     # TEXT1/TEXT2: DBF field C len=252, UTF-16-LE → max 125 chars
     text: str = Field(..., min_length=1, max_length=125)
-    employee_id: Optional[int] = Field(0, ge=0)
-    text2: Optional[str] = Field("", max_length=125)
+    employee_id: int | None = Field(0, ge=0)
+    text2: str | None = Field("", max_length=125)
     # RESERVED (category): DBF field C len=20, UTF-16-LE → max 9 chars
-    category: Optional[str] = Field("", max_length=9)
+    category: str | None = Field("", max_length=9)
 
 
 @router.post(
@@ -90,12 +91,12 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
 
 class NoteUpdate(BaseModel):
     # TEXT1/TEXT2: DBF field C len=252, UTF-16-LE → max 125 chars
-    text: Optional[str] = Field(None, min_length=1, max_length=125)
-    text2: Optional[str] = Field(None, max_length=125)
-    employee_id: Optional[int] = Field(None, ge=0)
-    date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    text: str | None = Field(None, min_length=1, max_length=125)
+    text2: str | None = Field(None, max_length=125)
+    employee_id: int | None = Field(None, ge=0)
+    date: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     # RESERVED (category): DBF field C len=20, UTF-16-LE → max 9 chars
-    category: Optional[str] = Field(None, max_length=9)
+    category: str | None = Field(None, max_length=9)
 
 
 @router.put(
@@ -305,7 +306,7 @@ class GroupAccessSet(BaseModel):
     "/api/employee-access", tags=["Users"], summary="List employee access rules"
 )
 def get_employee_access(
-    user_id: Optional[int] = Query(None), _cur_user: dict = Depends(require_admin)
+    user_id: int | None = Query(None), _cur_user: dict = Depends(require_admin)
 ):
     """Get employee-level access restrictions."""
     return get_db().get_employee_access(user_id=user_id)
@@ -342,7 +343,7 @@ def delete_employee_access(access_id: int, _cur_user: dict = Depends(require_adm
 
 @router.get("/api/group-access", tags=["Users"], summary="List group access rules")
 def get_group_access(
-    user_id: Optional[int] = Query(None), _cur_user: dict = Depends(require_admin)
+    user_id: int | None = Query(None), _cur_user: dict = Depends(require_admin)
 ):
     """Get group-level access restrictions."""
     return get_db().get_group_access(user_id=user_id)
@@ -375,9 +376,9 @@ def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)
 @router.get("/api/changelog", tags=["Admin"], summary="List audit log entries")
 def get_changelog(
     limit: int = Query(100, description="Max entries to return"),
-    user: Optional[str] = Query(None, description="Filter by user"),
-    date_from: Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
-    date_to: Optional[str] = Query(None, description="ISO date YYYY-MM-DD"),
+    user: str | None = Query(None, description="Filter by user"),
+    date_from: str | None = Query(None, description="ISO date YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="ISO date YYYY-MM-DD"),
 ):
     """Return activity log entries from changelog.json."""
     return get_db().get_changelog(
@@ -390,7 +391,7 @@ class ChangelogEntry(BaseModel):
     action: str  # CREATE / UPDATE / DELETE
     entity: str  # employee / shift / schedule / ...
     entity_id: int
-    details: Optional[str] = ""
+    details: str | None = ""
 
 
 @router.post("/api/changelog", tags=["Admin"], summary="Add audit log entry")
@@ -411,9 +412,9 @@ def log_action(body: ChangelogEntry, _cur_user: dict = Depends(require_planer)):
 
 @router.get("/api/wishes", tags=["Self-Service"], summary="List shift wishes")
 def get_wishes(
-    employee_id: Optional[int] = None,
-    year: Optional[int] = None,
-    month: Optional[int] = None,
+    employee_id: int | None = None,
+    year: int | None = None,
+    month: int | None = None,
 ):
     return get_db().get_wishes(employee_id=employee_id, year=year, month=month)
 
@@ -422,8 +423,8 @@ class WishCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     wish_type: str  # WUNSCH | SPERRUNG (case-insensitive, validated in endpoint)
-    shift_id: Optional[int] = Field(None, gt=0)
-    note: Optional[str] = Field("", max_length=500)
+    shift_id: int | None = Field(None, gt=0)
+    note: str | None = Field("", max_length=500)
 
 
 @router.post("/api/wishes", tags=["Self-Service"], summary="Create shift wish")
@@ -457,7 +458,7 @@ def delete_wish(wish_id: int, _cur_user: dict = Depends(require_planer)):
 
 class WishApprove(BaseModel):
     action: str = Field(..., pattern=r"^(approve|reject)$")  # 'approve' | 'reject'
-    note: Optional[str] = Field(None, max_length=500)
+    note: str | None = Field(None, max_length=500)
 
 
 @router.patch(
@@ -596,21 +597,21 @@ class SwapRequestCreate(BaseModel):
     requester_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
     partner_id: int = Field(..., gt=0)
     partner_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
-    note: Optional[str] = Field("", max_length=500)
+    note: str | None = Field("", max_length=500)
 
 
 class SwapRequestResolve(BaseModel):
     action: str = Field(..., pattern=r"^(approve|reject)$")  # 'approve' | 'reject'
-    resolved_by: Optional[str] = Field("planner", max_length=100)
-    reject_reason: Optional[str] = Field("", max_length=500)
+    resolved_by: str | None = Field("planner", max_length=100)
+    reject_reason: str | None = Field("", max_length=500)
 
 
 @router.get(
     "/api/swap-requests", tags=["Self-Service"], summary="List shift swap requests"
 )
 def list_swap_requests(
-    status: Optional[str] = None,
-    employee_id: Optional[int] = None,
+    status: str | None = None,
+    employee_id: int | None = None,
     _cur_user: dict = Depends(require_auth),
 ):
     """List shift swap requests, optionally filtered by status or employee."""
@@ -885,8 +886,8 @@ def get_my_employee(cur_user: dict = Depends(require_auth)):
 class SelfWishCreate(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     wish_type: str  # WUNSCH | SPERRUNG (case-insensitive, validated in endpoint)
-    shift_id: Optional[int] = Field(None, gt=0)
-    note: Optional[str] = Field("", max_length=500)
+    shift_id: int | None = Field(None, gt=0)
+    note: str | None = Field("", max_length=500)
 
 
 @router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block")
@@ -955,7 +956,7 @@ def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
 class SelfAbsenceCreate(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     leave_type_id: int = Field(..., gt=0)
-    note: Optional[str] = Field("", max_length=500)
+    note: str | None = Field("", max_length=500)
 
 
 @router.post(

@@ -25,18 +25,16 @@ if _backend not in sys.path:
     sys.path.insert(0, _backend)
 
 import pytest  # noqa: E402
-
 from sp5lib.dbf_writer import (  # noqa: E402
-    _encode_string,
     _encode_field,
-    _read_header_info,
+    _encode_string,
     _parse_record,
+    _read_header_info,
     append_record,
     delete_record,
-    update_record,
     find_all_records,
+    update_record,
 )
-
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 

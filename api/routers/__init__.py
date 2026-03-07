@@ -1,6 +1,6 @@
 """API Routers package."""
 
-from . import auth, employees, schedule, absences, master_data, reports, admin, misc
+from . import absences, admin, auth, employees, master_data, misc, reports, schedule
 
 __all__ = [
     "auth",

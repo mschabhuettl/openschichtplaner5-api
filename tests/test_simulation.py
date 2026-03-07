@@ -240,8 +240,8 @@ class TestSimulationAuth:
 
     def test_simulation_requires_auth(self, sync_client: TestClient):
         """Without token, /api/simulation should return 401."""
-        from starlette.testclient import TestClient as TC
         from api.main import app
+        from starlette.testclient import TestClient as TC
 
         with TC(app, raise_server_exceptions=False) as bare:
             res = bare.post(

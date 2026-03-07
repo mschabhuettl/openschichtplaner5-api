@@ -1,13 +1,14 @@
 """Schedule, shift-cycles, staffing, einsatzplan, restrictions router."""
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+
 from ..dependencies import (
+    _sanitize_500,
     get_db,
     require_admin,
     require_planer,
-    _sanitize_500,
 )
 from .events import broadcast
 
@@ -23,7 +24,7 @@ router = APIRouter()
 def get_schedule(
     year: int = Query(..., description="Year"),
     month: int = Query(..., description="Month (1-12)"),
-    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
 ):
     if not (1 <= month <= 12):
         raise HTTPException(
@@ -143,7 +144,7 @@ def get_schedule_coverage(
 @router.get("/api/schedule/day", tags=["Schedule"], summary="Daily schedule view")
 def get_schedule_day(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
 ):
     try:
         from datetime import datetime
@@ -161,7 +162,7 @@ def get_schedule_day(
 @router.get("/api/schedule/week", tags=["Schedule"], summary="Weekly schedule view")
 def get_schedule_week(
     date: str = Query(..., description="Any date within the target week (YYYY-MM-DD)"),
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
 ):
     try:
         from datetime import datetime
@@ -195,7 +196,7 @@ def get_schedule_year(
 def get_schedule_conflicts(
     year: int = Query(..., description="Year (YYYY)"),
     month: int = Query(..., description="Month (1-12)"),
-    group_id: Optional[int] = Query(None, description="Group ID filter"),
+    group_id: int | None = Query(None, description="Group ID filter"),
 ):
     """Return all scheduling conflicts for a given month."""
     if not (1 <= month <= 12):
@@ -302,13 +303,13 @@ class ShiftCycleCreateBody(BaseModel):
 
 class CycleEntryItem(BaseModel):
     index: int = Field(..., ge=0)
-    shift_id: Optional[int] = Field(None, gt=0)
+    shift_id: int | None = Field(None, gt=0)
 
 
 class ShiftCycleUpdateBody(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     size_weeks: int = Field(..., ge=1, le=52)
-    entries: List[CycleEntryItem] = []
+    entries: list[CycleEntryItem] = []
 
 
 @router.post("/api/shift-cycles", tags=["Schedule"], summary="Create shift cycle")
@@ -397,14 +398,14 @@ class TemplateAssignment(BaseModel):
     employee_id: int = Field(..., gt=0)
     weekday_offset: int = Field(..., ge=0, le=6)  # 0=Mon … 6=Sun
     shift_id: int = Field(..., gt=0)
-    employee_name: Optional[str] = Field(None, max_length=200)
-    shift_name: Optional[str] = Field(None, max_length=100)
+    employee_name: str | None = Field(None, max_length=200)
+    shift_name: str | None = Field(None, max_length=100)
 
 
 class TemplateCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: str = Field("", max_length=500)
-    assignments: List[TemplateAssignment]
+    assignments: list[TemplateAssignment]
 
 
 class TemplateApplyRequest(BaseModel):
@@ -422,7 +423,7 @@ class TemplateCaptureRequest(BaseModel):
     week_start_day: int = Field(
         ..., ge=1, le=31
     )  # day-of-month (1-based) of the Monday to capture
-    group_id: Optional[int] = Field(None, gt=0)
+    group_id: int | None = Field(None, gt=0)
 
 
 @router.get(
@@ -662,7 +663,7 @@ def delete_shift_only(
 class ScheduleGenerateRequest(BaseModel):
     year: int = Field(..., ge=2000, le=2100)
     month: int = Field(..., ge=1, le=12)
-    employee_ids: Optional[List[int]] = None
+    employee_ids: list[int] | None = None
     force: bool = False
     dry_run: bool = False
     respect_restrictions: bool = True
@@ -728,7 +729,7 @@ def generate_schedule(
 @router.get(
     "/api/restrictions", tags=["Schedule"], summary="List employee shift restrictions"
 )
-def get_restrictions(employee_id: Optional[int] = Query(None)):
+def get_restrictions(employee_id: int | None = Query(None)):
     """Return all shift restrictions, optionally filtered by employee_id."""
     return get_db().get_restrictions(employee_id=employee_id)
 
@@ -736,8 +737,8 @@ def get_restrictions(employee_id: Optional[int] = Query(None)):
 class RestrictionCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     shift_id: int = Field(..., gt=0)
-    reason: Optional[str] = Field("", max_length=500)
-    weekday: Optional[int] = Field(0, ge=0, le=7)
+    reason: str | None = Field("", max_length=500)
+    weekday: int | None = Field(0, ge=0, le=7)
 
 
 @router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction")
@@ -787,11 +788,11 @@ def remove_restriction(
 class BulkEntry(BaseModel):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    shift_id: Optional[int] = Field(None, gt=0)
+    shift_id: int | None = Field(None, gt=0)
 
 
 class BulkScheduleBody(BaseModel):
-    entries: List[BulkEntry]
+    entries: list[BulkEntry]
     overwrite: bool = True
 
 
@@ -852,39 +853,39 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_plan
 class EinsatzplanCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    name: Optional[str] = Field("", max_length=100)
-    shortname: Optional[str] = Field("", max_length=20)
-    shift_id: Optional[int] = Field(0, ge=0)
-    workplace_id: Optional[int] = Field(0, ge=0)
-    startend: Optional[str] = Field("", max_length=20)
-    duration: Optional[float] = Field(0.0, ge=0.0)
-    colortext: Optional[int] = Field(0, ge=0, le=16777215)
-    colorbar: Optional[int] = Field(0, ge=0, le=16777215)
-    colorbk: Optional[int] = Field(16777215, ge=0, le=16777215)
+    name: str | None = Field("", max_length=100)
+    shortname: str | None = Field("", max_length=20)
+    shift_id: int | None = Field(0, ge=0)
+    workplace_id: int | None = Field(0, ge=0)
+    startend: str | None = Field("", max_length=20)
+    duration: float | None = Field(0.0, ge=0.0)
+    colortext: int | None = Field(0, ge=0, le=16777215)
+    colorbar: int | None = Field(0, ge=0, le=16777215)
+    colorbk: int | None = Field(16777215, ge=0, le=16777215)
 
 
 class EinsatzplanUpdate(BaseModel):
-    name: Optional[str] = Field(None, max_length=100)
-    shortname: Optional[str] = Field(None, max_length=20)
-    shift_id: Optional[int] = Field(None, ge=0)
-    workplace_id: Optional[int] = Field(None, ge=0)
-    startend: Optional[str] = Field(None, max_length=20)
-    duration: Optional[float] = Field(None, ge=0.0)
-    colortext: Optional[int] = Field(None, ge=0, le=16777215)
-    colorbar: Optional[int] = Field(None, ge=0, le=16777215)
-    colorbk: Optional[int] = Field(None, ge=0, le=16777215)
+    name: str | None = Field(None, max_length=100)
+    shortname: str | None = Field(None, max_length=20)
+    shift_id: int | None = Field(None, ge=0)
+    workplace_id: int | None = Field(None, ge=0)
+    startend: str | None = Field(None, max_length=20)
+    duration: float | None = Field(None, ge=0.0)
+    colortext: int | None = Field(None, ge=0, le=16777215)
+    colorbar: int | None = Field(None, ge=0, le=16777215)
+    colorbk: int | None = Field(None, ge=0, le=16777215)
 
 
 class DeviationCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
-    name: Optional[str] = Field("Arbeitszeitabweichung", max_length=100)
-    shortname: Optional[str] = Field("AZA", max_length=20)
-    startend: Optional[str] = Field("", max_length=20)  # e.g. "07:00-15:30"
-    duration: Optional[float] = Field(0.0, ge=0.0)  # minutes or hours (stores raw)
-    colortext: Optional[int] = Field(0, ge=0, le=16777215)
-    colorbar: Optional[int] = Field(0, ge=0, le=16777215)
-    colorbk: Optional[int] = Field(16744448, ge=0, le=16777215)  # orange-ish default
+    name: str | None = Field("Arbeitszeitabweichung", max_length=100)
+    shortname: str | None = Field("AZA", max_length=20)
+    startend: str | None = Field("", max_length=20)  # e.g. "07:00-15:30"
+    duration: float | None = Field(0.0, ge=0.0)  # minutes or hours (stores raw)
+    colortext: int | None = Field(0, ge=0, le=16777215)
+    colorbar: int | None = Field(0, ge=0, le=16777215)
+    colorbk: int | None = Field(16744448, ge=0, le=16777215)  # orange-ish default
 
 
 @router.post(
@@ -1028,7 +1029,7 @@ def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_pl
 )
 def get_einsatzplan(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
 ):
     """Return SPSHI entries for a specific date (Sonderdienste + Abweichungen)."""
     try:
@@ -1055,8 +1056,8 @@ class CycleExceptionSet(BaseModel):
 
 @router.get("/api/cycle-exceptions", tags=["Schedule"], summary="List cycle exceptions")
 def get_cycle_exceptions(
-    employee_id: Optional[int] = Query(None),
-    cycle_assignment_id: Optional[int] = Query(None),
+    employee_id: int | None = Query(None),
+    cycle_assignment_id: int | None = Query(None),
 ):
     """Get cycle exceptions (date overrides in assigned cycles)."""
     return get_db().get_cycle_exceptions(
@@ -1102,7 +1103,7 @@ def delete_cycle_exception(
 class SwapShiftsRequest(BaseModel):
     employee_id_1: int = Field(..., gt=0)
     employee_id_2: int = Field(..., gt=0)
-    dates: List[str] = Field(..., min_length=1, max_length=366)  # YYYY-MM-DD strings
+    dates: list[str] = Field(..., min_length=1, max_length=366)  # YYYY-MM-DD strings
 
 
 @router.post(
@@ -1113,9 +1114,10 @@ class SwapShiftsRequest(BaseModel):
 )
 def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_planer)):
     """Swap schedule entries (shifts + absences) between two employees for the given dates."""
+    from datetime import datetime as _dt3
+
     from sp5lib.dbf_reader import get_table_fields
     from sp5lib.dbf_writer import find_all_records
-    from datetime import datetime as _dt3
 
     if body.employee_id_1 == body.employee_id_2:
         raise HTTPException(
@@ -1218,10 +1220,10 @@ def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_plane
 
 class CopyWeekRequest(BaseModel):
     source_employee_id: int = Field(..., gt=0)
-    dates: List[str] = Field(
+    dates: list[str] = Field(
         ..., min_length=1, max_length=31
     )  # YYYY-MM-DD strings (up to 7)
-    target_employee_ids: List[int] = Field(..., min_length=1)
+    target_employee_ids: list[int] = Field(..., min_length=1)
     skip_existing: bool = True  # True = don't overwrite existing entries
 
 

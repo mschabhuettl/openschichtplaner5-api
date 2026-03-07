@@ -7,7 +7,6 @@ write tests each get a fresh copy via write_client fixture).
 
 import pytest
 
-
 # ─────────────────────────────────────────────────────────────
 # READ TESTS (session-scoped client, shared DB copy)
 # ─────────────────────────────────────────────────────────────

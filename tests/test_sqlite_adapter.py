@@ -1,11 +1,10 @@
 """Tests for sp5lib/sqlite_adapter.py — SQLite mirror layer."""
 
 import os
-import pytest
 from unittest.mock import patch
 
+import pytest
 from sp5lib.sqlite_adapter import SP5SQLiteAdapter
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

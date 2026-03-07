@@ -5,6 +5,7 @@ Complements test_comprehensive.py by covering exception branches.
 
 import os
 import sys
+
 import pytest
 
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

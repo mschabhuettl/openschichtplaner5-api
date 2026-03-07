@@ -7,11 +7,11 @@ Abdeckung:
 - Self-Service Endpoints (/api/me/employee, /api/self/wishes)
 """
 
-import pytest
 import secrets
 from unittest.mock import patch
-from starlette.testclient import TestClient
 
+import pytest
+from starlette.testclient import TestClient
 
 # ─────────────────────────────────────────────────────────────
 # Helpers

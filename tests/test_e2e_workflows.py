@@ -10,9 +10,8 @@ Szenarien:
 """
 
 import io
-import zipfile
 import secrets
-
+import zipfile
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper: inject a user into the session store and return a TestClient wrapper
@@ -21,8 +20,8 @@ import secrets
 
 def _make_client(app, role: str, user_id: int = None):
     """Return a (client, token) tuple with an injected session for the given role."""
-    from starlette.testclient import TestClient
     from api.main import _sessions
+    from starlette.testclient import TestClient
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -623,6 +622,7 @@ class TestAuthWorkflow:
     def test_token_expiry_check(self, app, patched_db):
         """Abgelaufener Token wird abgelehnt."""
         import time
+
         from api.main import _sessions
         from starlette.testclient import TestClient
 

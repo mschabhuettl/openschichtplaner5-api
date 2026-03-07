@@ -8,9 +8,9 @@ Tests for data-integrity and backend robustness:
 
 import os
 import tempfile
-from sp5lib.dbf_reader import read_dbf, get_table_fields
-from sp5lib.dbf_writer import find_all_records
 
+from sp5lib.dbf_reader import get_table_fields, read_dbf
+from sp5lib.dbf_writer import find_all_records
 
 # ─── read_dbf ─────────────────────────────────────────────────────────────────
 
@@ -165,7 +165,8 @@ class TestDatabaseReadRobustness:
     def test_cache_missing_file_does_not_persist_across_instances(self, tmp_path):
         """After a file is created, the next _read should return data, not []."""
         import struct
-        from sp5lib.database import SP5Database, _GLOBAL_DBF_CACHE
+
+        from sp5lib.database import _GLOBAL_DBF_CACHE, SP5Database
 
         db = SP5Database(str(tmp_path))
         # First read — file missing, should return []

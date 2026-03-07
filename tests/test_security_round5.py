@@ -1,18 +1,18 @@
 """Security audit round 5: token/session hardening tests."""
 
 import time as _time
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from api.main import app
 from api.dependencies import (
-    _sessions,
+    _LOCKOUT_WINDOW,
+    _MAX_SESSIONS_PER_USER,
     _failed_logins,
+    _sessions,
     purge_expired_sessions,
     purge_stale_failed_logins,
-    _MAX_SESSIONS_PER_USER,
-    _LOCKOUT_WINDOW,
 )
+from api.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app, raise_server_exceptions=False)
 

@@ -108,9 +108,9 @@ def test_update_note_too_long_raises(tmp_db):
 
 def test_pydantic_note_create_rejects_long_text():
     """NoteCreate must reject text longer than 125 chars with ValidationError."""
-    from pydantic import ValidationError
-
     import sys
+
+    from pydantic import ValidationError
 
     # Ensure api package is importable
     api_path = os.path.join(os.path.dirname(__file__), "..")
@@ -135,8 +135,9 @@ def test_pydantic_note_create_accepts_max_text():
 
 def test_pydantic_note_create_rejects_long_category():
     """NoteCreate must reject category longer than 9 chars."""
-    from pydantic import ValidationError
     import sys
+
+    from pydantic import ValidationError
 
     api_path = os.path.join(os.path.dirname(__file__), "..")
     sys.path.insert(0, api_path)

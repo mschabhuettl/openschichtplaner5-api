@@ -1,22 +1,23 @@
 """Admin router: users, settings, backup, periods, admin tasks."""
 
-import os
 import io
-import zipfile
 import json
+import os
+import zipfile
 from datetime import datetime as _backup_dt
-from fastapi import APIRouter, HTTPException, Query, Depends, Request, UploadFile, File
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional
+
 from ..dependencies import (
-    get_db,
-    require_admin,
-    require_planer,
-    require_auth,
-    _sanitize_500,
     _logger,
+    _sanitize_500,
+    get_db,
     limiter,
+    require_admin,
+    require_auth,
+    require_planer,
 )
 
 router = APIRouter()
@@ -27,7 +28,7 @@ router = APIRouter()
 
 @router.get("/api/periods", tags=["Admin"], summary="List accounting periods")
 def get_periods(
-    group_id: Optional[int] = Query(None),
+    group_id: int | None = Query(None),
     _cur_user: dict = Depends(require_auth),
 ):
     return get_db().get_periods(group_id=group_id)
@@ -99,13 +100,13 @@ def get_settings(_cur_user: dict = Depends(require_auth)):
 
 
 class SettingsUpdate(BaseModel):
-    ANOANAME: Optional[str] = None
-    ANOASHORT: Optional[str] = None
-    ANOACRTXT: Optional[int] = None
-    ANOACRBAR: Optional[int] = None
-    ANOACRBK: Optional[int] = None
-    ANOABOLD: Optional[int] = None
-    BACKUPFR: Optional[int] = None
+    ANOANAME: str | None = None
+    ANOASHORT: str | None = None
+    ANOACRTXT: int | None = None
+    ANOACRBAR: int | None = None
+    ANOACRBK: int | None = None
+    ANOABOLD: int | None = None
+    BACKUPFR: int | None = None
 
 
 @router.put(
@@ -496,8 +497,8 @@ def compact_database(_cur_user: dict = Depends(require_admin)):
     Each file is exclusively locked during the operation to prevent concurrent corruption.
     Returns a summary of files processed and records removed.
     """
-    import struct as _struct
     import fcntl as _fcntl
+    import struct as _struct
     from datetime import date as _date
 
     db_path = os.environ.get("SP5_DB_PATH", "")
@@ -609,7 +610,7 @@ def _load_frontend_errors() -> list:
     os.makedirs(os.path.dirname(_FRONTEND_ERRORS_FILE), exist_ok=True)
     if not os.path.exists(_FRONTEND_ERRORS_FILE):
         return []
-    with open(_FRONTEND_ERRORS_FILE, "r", encoding="utf-8") as f:
+    with open(_FRONTEND_ERRORS_FILE, encoding="utf-8") as f:
         try:
             return json.load(f)
         except Exception:
@@ -624,10 +625,10 @@ def _save_frontend_errors(errors: list):
 
 class FrontendErrorReport(BaseModel):
     error: str = Field(..., max_length=2000)
-    component_stack: Optional[str] = Field(None, max_length=5000)
-    url: Optional[str] = Field(None, max_length=500)
-    user_agent: Optional[str] = Field(None, max_length=300)
-    timestamp: Optional[str] = Field(None, max_length=50)
+    component_stack: str | None = Field(None, max_length=5000)
+    url: str | None = Field(None, max_length=500)
+    user_agent: str | None = Field(None, max_length=300)
+    timestamp: str | None = Field(None, max_length=50)
 
 
 @router.post("/api/errors", tags=["Health"], summary="Report frontend error")
@@ -679,7 +680,9 @@ def get_cache_stats(_cur_user: dict = Depends(require_admin)):
         stats = _get_cache_stats()
     except Exception:
         try:
-            from sp5lib.database import _GLOBAL_DBF_CACHE as _dbf_cache  # type: ignore[attr-defined]
+            from sp5lib.database import (
+                _GLOBAL_DBF_CACHE as _dbf_cache,  # type: ignore[attr-defined]
+            )
 
             stats = {
                 "entries": len(_dbf_cache) if hasattr(_dbf_cache, "__len__") else -1

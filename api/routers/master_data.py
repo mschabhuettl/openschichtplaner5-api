@@ -1,15 +1,16 @@
 """Master data router: shifts, leave-types, workplaces, holidays, extracharges, staffing-requirements, skills."""
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+
 from ..dependencies import (
+    _logger,
+    _sanitize_500,
     get_db,
     require_admin,
-    require_planer,
     require_auth,
-    _sanitize_500,
-    _logger,
+    require_planer,
 )
 from ..schemas import ShiftResponse
 
@@ -21,7 +22,7 @@ router = APIRouter()
     tags=["Shifts"],
     summary="List shifts",
     description="Return all shift definitions. Set include_hidden=true to include archived shifts.",
-    response_model=List[ShiftResponse],
+    response_model=list[ShiftResponse],
 )
 def get_shifts(include_hidden: bool = False):
     return get_db().get_shifts(include_hidden=include_hidden)
@@ -38,7 +39,7 @@ def get_workplaces(include_hidden: bool = False):
 
 
 @router.get("/api/holidays", tags=["Events"], summary="List holidays")
-def get_holidays(year: Optional[int] = None):
+def get_holidays(year: int | None = None):
     return get_db().get_holidays(year=year)
 
 
@@ -51,9 +52,9 @@ def get_holidays(year: Optional[int] = None):
     summary="List staffing requirements",
 )
 def get_staffing_requirements(
-    year: Optional[int] = Query(None),
-    month: Optional[int] = Query(None),
-    group_id: Optional[int] = Query(None, description="Filter by group ID"),
+    year: int | None = Query(None),
+    month: int | None = Query(None),
+    group_id: int | None = Query(None, description="Filter by group ID"),
 ):
     data = get_db().get_staffing_requirements(year=year, month=month)
     if group_id is not None:
@@ -113,48 +114,48 @@ class ShiftCreate(BaseModel):
     COLORTEXT: int = Field(0, ge=0, le=16777215)
     COLORBAR: int = Field(0, ge=0, le=16777215)
     DURATION0: float = Field(0.0, ge=0.0, le=24.0)
-    DURATION1: Optional[float] = None
-    DURATION2: Optional[float] = None
-    DURATION3: Optional[float] = None
-    DURATION4: Optional[float] = None
-    DURATION5: Optional[float] = None
-    DURATION6: Optional[float] = None
-    DURATION7: Optional[float] = None
-    STARTEND0: Optional[str] = None
-    STARTEND1: Optional[str] = None
-    STARTEND2: Optional[str] = None
-    STARTEND3: Optional[str] = None
-    STARTEND4: Optional[str] = None
-    STARTEND5: Optional[str] = None
-    STARTEND6: Optional[str] = None
-    STARTEND7: Optional[str] = None
+    DURATION1: float | None = None
+    DURATION2: float | None = None
+    DURATION3: float | None = None
+    DURATION4: float | None = None
+    DURATION5: float | None = None
+    DURATION6: float | None = None
+    DURATION7: float | None = None
+    STARTEND0: str | None = None
+    STARTEND1: str | None = None
+    STARTEND2: str | None = None
+    STARTEND3: str | None = None
+    STARTEND4: str | None = None
+    STARTEND5: str | None = None
+    STARTEND6: str | None = None
+    STARTEND7: str | None = None
     HIDE: bool = False
 
 
 class ShiftUpdate(BaseModel):
-    NAME: Optional[str] = None
-    SHORTNAME: Optional[str] = None
-    COLORBK: Optional[int] = None
-    COLORTEXT: Optional[int] = None
-    COLORBAR: Optional[int] = None
-    DURATION0: Optional[float] = None
-    DURATION1: Optional[float] = None
-    DURATION2: Optional[float] = None
-    DURATION3: Optional[float] = None
-    DURATION4: Optional[float] = None
-    DURATION5: Optional[float] = None
-    DURATION6: Optional[float] = None
-    DURATION7: Optional[float] = None
-    STARTEND0: Optional[str] = None
-    STARTEND1: Optional[str] = None
-    STARTEND2: Optional[str] = None
-    STARTEND3: Optional[str] = None
-    STARTEND4: Optional[str] = None
-    STARTEND5: Optional[str] = None
-    STARTEND6: Optional[str] = None
-    STARTEND7: Optional[str] = None
-    POSITION: Optional[int] = None
-    HIDE: Optional[bool] = None
+    NAME: str | None = None
+    SHORTNAME: str | None = None
+    COLORBK: int | None = None
+    COLORTEXT: int | None = None
+    COLORBAR: int | None = None
+    DURATION0: float | None = None
+    DURATION1: float | None = None
+    DURATION2: float | None = None
+    DURATION3: float | None = None
+    DURATION4: float | None = None
+    DURATION5: float | None = None
+    DURATION6: float | None = None
+    DURATION7: float | None = None
+    STARTEND0: str | None = None
+    STARTEND1: str | None = None
+    STARTEND2: str | None = None
+    STARTEND3: str | None = None
+    STARTEND4: str | None = None
+    STARTEND5: str | None = None
+    STARTEND6: str | None = None
+    STARTEND7: str | None = None
+    POSITION: int | None = None
+    HIDE: bool | None = None
 
 
 @router.post(
@@ -263,15 +264,15 @@ class LeaveTypeCreate(BaseModel):
 
 
 class LeaveTypeUpdate(BaseModel):
-    NAME: Optional[str] = Field(None, min_length=1, max_length=100)
-    SHORTNAME: Optional[str] = Field(None, max_length=20)
-    COLORBK: Optional[int] = None
-    COLORTEXT: Optional[int] = None
-    COLORBAR: Optional[int] = None
-    ENTITLED: Optional[bool] = None
-    STDENTIT: Optional[float] = None
-    POSITION: Optional[int] = None
-    HIDE: Optional[bool] = None
+    NAME: str | None = Field(None, min_length=1, max_length=100)
+    SHORTNAME: str | None = Field(None, max_length=20)
+    COLORBK: int | None = None
+    COLORTEXT: int | None = None
+    COLORBAR: int | None = None
+    ENTITLED: bool | None = None
+    STDENTIT: float | None = None
+    POSITION: int | None = None
+    HIDE: bool | None = None
 
 
 @router.post("/api/leave-types", tags=["Absences"], summary="Create leave type")
@@ -348,9 +349,9 @@ class HolidayCreate(BaseModel):
 
 
 class HolidayUpdate(BaseModel):
-    DATE: Optional[str] = None
-    NAME: Optional[str] = None
-    INTERVAL: Optional[int] = None
+    DATE: str | None = None
+    NAME: str | None = None
+    INTERVAL: int | None = None
 
 
 @router.post("/api/holidays", tags=["Events"], summary="Create holiday")
@@ -399,13 +400,13 @@ class WorkplaceCreate(BaseModel):
 
 
 class WorkplaceUpdate(BaseModel):
-    NAME: Optional[str] = Field(None, min_length=1, max_length=100)
-    SHORTNAME: Optional[str] = Field(None, max_length=20)
-    COLORBK: Optional[int] = None
-    COLORTEXT: Optional[int] = None
-    COLORBAR: Optional[int] = None
-    POSITION: Optional[int] = None
-    HIDE: Optional[bool] = None
+    NAME: str | None = Field(None, min_length=1, max_length=100)
+    SHORTNAME: str | None = Field(None, max_length=20)
+    COLORBK: int | None = None
+    COLORTEXT: int | None = None
+    COLORBAR: int | None = None
+    POSITION: int | None = None
+    HIDE: bool | None = None
 
 
 @router.post("/api/workplaces", tags=["Employees"], summary="Create workplace")
@@ -506,14 +507,14 @@ class ExtraChargeCreate(BaseModel):
 
 
 class ExtraChargeUpdate(BaseModel):
-    NAME: Optional[str] = None
-    START: Optional[int] = None
-    END: Optional[int] = None
-    VALIDDAYS: Optional[str] = None
-    HOLRULE: Optional[int] = None
-    VALIDITY: Optional[int] = None
-    POSITION: Optional[int] = None
-    HIDE: Optional[bool] = None
+    NAME: str | None = None
+    START: int | None = None
+    END: int | None = None
+    VALIDDAYS: str | None = None
+    HOLRULE: int | None = None
+    VALIDITY: int | None = None
+    POSITION: int | None = None
+    HIDE: bool | None = None
 
 
 @router.get("/api/extracharges", tags=["Statistics"], summary="List extra charges")
@@ -553,7 +554,7 @@ def create_extracharge(
 def get_extracharges_summary(
     year: int = Query(...),
     month: int = Query(...),
-    employee_id: Optional[int] = Query(None),
+    employee_id: int | None = Query(None),
 ):
     """Calculate surcharge hours per ExtraCharge rule for a given month."""
     try:
@@ -599,8 +600,8 @@ def delete_extracharge(xc_id: int, _cur_user: dict = Depends(require_admin)):
     summary="List special staffing requirements",
 )
 def get_special_staffing(
-    date: Optional[str] = Query(None, description="Date filter YYYY-MM-DD"),
-    group_id: Optional[int] = Query(None, description="Group ID filter"),
+    date: str | None = Query(None, description="Date filter YYYY-MM-DD"),
+    group_id: int | None = Query(None, description="Group ID filter"),
 ):
     """Return date-specific staffing requirements from 5SPDEM.DBF."""
     try:
@@ -619,12 +620,12 @@ class SpecialStaffingCreate(BaseModel):
 
 
 class SpecialStaffingUpdate(BaseModel):
-    group_id: Optional[int] = None
-    date: Optional[str] = None
-    shift_id: Optional[int] = None
-    workplace_id: Optional[int] = None
-    min: Optional[int] = None
-    max: Optional[int] = None
+    group_id: int | None = None
+    date: str | None = None
+    shift_id: int | None = None
+    workplace_id: int | None = None
+    min: int | None = None
+    max: int | None = None
 
 
 @router.post(
@@ -706,9 +707,9 @@ def delete_special_staffing(record_id: int, _cur_user: dict = Depends(require_pl
 
 
 # ── Kompetenz-Matrix / Skills ────────────────────────────────────
-import uuid as _uuid  # noqa: E402
-import os  # noqa: E402
 import json as _json  # noqa: E402
+import os  # noqa: E402
+import uuid as _uuid  # noqa: E402
 from datetime import datetime as _dt  # noqa: E402
 
 
@@ -723,7 +724,7 @@ def _load_skills() -> dict:
     if not os.path.exists(path):
         return {"skills": [], "assignments": []}
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return _json.load(f)
     except Exception:
         return {"skills": [], "assignments": []}
@@ -736,26 +737,26 @@ def _save_skills(data: dict):
 
 class SkillCreate(BaseModel):
     name: str
-    description: Optional[str] = ""
-    color: Optional[str] = "#3b82f6"
-    icon: Optional[str] = "🎯"
-    category: Optional[str] = ""
+    description: str | None = ""
+    color: str | None = "#3b82f6"
+    icon: str | None = "🎯"
+    category: str | None = ""
 
 
 class SkillUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    color: Optional[str] = None
-    icon: Optional[str] = None
-    category: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    color: str | None = None
+    icon: str | None = None
+    category: str | None = None
 
 
 class SkillAssignment(BaseModel):
     employee_id: int
     skill_id: str
-    level: Optional[int] = 1  # 1=basic, 2=advanced, 3=expert
-    certified_until: Optional[str] = None  # ISO date
-    notes: Optional[str] = ""
+    level: int | None = 1  # 1=basic, 2=advanced, 3=expert
+    certified_until: str | None = None  # ISO date
+    notes: str | None = ""
 
 
 @router.get("/api/skills", tags=["Employees"], summary="List employee skills")
@@ -815,7 +816,7 @@ def delete_skill(skill_id: str, _cur_user: dict = Depends(require_admin)):
 @router.get(
     "/api/skills/assignments", tags=["Employees"], summary="List skill assignments"
 )
-def get_assignments(employee_id: Optional[int] = Query(None)):
+def get_assignments(employee_id: int | None = Query(None)):
     data = _load_skills()
     assignments = data.get("assignments", [])
     if employee_id is not None:
