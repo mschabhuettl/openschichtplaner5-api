@@ -1,8 +1,13 @@
-"""Security audit round 5: token/session hardening tests."""
+"""Security audit round 5: token/session hardening tests.
+
+Uses save/restore helpers so that test-injected tokens from other fixtures
+(e.g. sync_client, write_client) are never lost.
+"""
 
 import time as _time
 from unittest.mock import MagicMock, patch
 
+import pytest
 from api.dependencies import (
     _LOCKOUT_WINDOW,
     _MAX_SESSIONS_PER_USER,
@@ -17,6 +22,18 @@ from fastapi.testclient import TestClient
 client = TestClient(app, raise_server_exceptions=False)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_sessions():
+    """Save and restore _sessions & _failed_logins around each test."""
+    saved_sessions = dict(_sessions)
+    saved_logins = {k: list(v) for k, v in _failed_logins.items()}
+    yield
+    _sessions.clear()
+    _sessions.update(saved_sessions)
+    _failed_logins.clear()
+    _failed_logins.update(saved_logins)
+
+
 # ── purge_expired_sessions ─────────────────────────────────────
 
 
@@ -29,7 +46,6 @@ def test_purge_expired_sessions_removes_expired():
     assert removed == 1
     assert "expired_tok" not in _sessions
     assert "valid_tok" in _sessions
-    _sessions.clear()
 
 
 def test_purge_expired_sessions_skips_no_expiry():
@@ -39,7 +55,6 @@ def test_purge_expired_sessions_skips_no_expiry():
     removed = purge_expired_sessions()
     assert removed == 0
     assert "dev_tok" in _sessions
-    _sessions.clear()
 
 
 def test_purge_expired_sessions_empty():
@@ -61,7 +76,6 @@ def test_purge_stale_failed_logins_removes_old():
     assert removed == 1
     assert "ghost_user" not in _failed_logins
     assert "active_user" in _failed_logins
-    _failed_logins.clear()
 
 
 def test_purge_stale_failed_logins_empty():
@@ -107,8 +121,6 @@ def test_max_sessions_per_user_evicts_oldest():
         # After login, total sessions for user 42 must be <= _MAX_SESSIONS_PER_USER
         user_sessions = [s for s in _sessions.values() if s.get("ID") == user_id]
         assert len(user_sessions) <= _MAX_SESSIONS_PER_USER
-    _sessions.clear()
-    _failed_logins.clear()
 
 
 def test_max_sessions_constant_is_positive():
@@ -126,7 +138,6 @@ def test_expired_token_is_rejected():
     _sessions["old_tok"] = {"ID": 1, "role": "Admin", "expires_at": _time.time() - 1}
     resp = client.get("/api/users", headers={"x-auth-token": "old_tok"})
     assert resp.status_code == 401
-    _sessions.clear()
 
 
 def test_valid_token_is_accepted():
@@ -143,7 +154,6 @@ def test_valid_token_is_accepted():
     resp = client.get("/api/users", headers={"x-auth-token": "good_tok"})
     # May succeed or fail based on DB, but must not be 401 for auth reason
     assert resp.status_code != 401
-    _sessions.clear()
 
 
 # ── Lockout still works ─────────────────────────────────────────
@@ -160,4 +170,3 @@ def test_lockout_triggers_after_5_failures():
         responses.append(r.status_code)
     # At least one response should be 429 (lockout or rate limit)
     assert 429 in responses
-    _failed_logins.clear()

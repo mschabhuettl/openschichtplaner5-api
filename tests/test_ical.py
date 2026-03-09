@@ -168,25 +168,39 @@ class TestIcalEndpoints:
 
     @pytest.fixture
     def client(self):
-        """Create a test client with dev mode enabled."""
+        """Create a test client with dev mode enabled (no reload)."""
         import os
-        os.environ["SP5_DEV_MODE"] = "true"
-        os.environ["DB_PATH"] = os.environ.get(
-            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
-        )
 
-        # Need to reimport to pick up dev mode
-        from importlib import reload
-
-        import api.dependencies
-        reload(api.dependencies)
-        import api.main
-        reload(api.main)
-
+        import api.dependencies as deps
         from api.main import app
         from fastapi.testclient import TestClient
 
-        return TestClient(app)
+        old_dev = os.environ.get("SP5_DEV_MODE")
+        os.environ["SP5_DEV_MODE"] = "true"
+        old_flag = deps._DEV_MODE_ACTIVE
+        deps._DEV_MODE_ACTIVE = True
+
+        # Ensure dev-mode token exists
+        had_dev_tok = "__dev_mode__" in deps._sessions
+        if not had_dev_tok:
+            deps._sessions["__dev_mode__"] = {
+                "ID": 0,
+                "NAME": "dev",
+                "role": "Admin",
+                "ADMIN": True,
+                "RIGHTS": 255,
+                "expires_at": None,
+            }
+
+        yield TestClient(app)
+
+        deps._DEV_MODE_ACTIVE = old_flag
+        if not had_dev_tok:
+            deps._sessions.pop("__dev_mode__", None)
+        if old_dev is None:
+            os.environ.pop("SP5_DEV_MODE", None)
+        else:
+            os.environ["SP5_DEV_MODE"] = old_dev
 
     def test_my_schedule_unauthenticated(self, client):
         """Unauthenticated request should return 401."""
@@ -337,23 +351,38 @@ class TestIcalFeedEndpoints:
 
     @pytest.fixture
     def client(self):
-        """Create a test client with dev mode enabled."""
+        """Create a test client with dev mode enabled (no reload)."""
         import os
-        os.environ["SP5_DEV_MODE"] = "true"
-        os.environ["DB_PATH"] = os.environ.get(
-            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
-        )
 
-        from importlib import reload
-
-        import api.dependencies
-        reload(api.dependencies)
-        import api.main
-        reload(api.main)
-
+        import api.dependencies as deps
         from api.main import app
         from fastapi.testclient import TestClient
-        return TestClient(app)
+
+        old_dev = os.environ.get("SP5_DEV_MODE")
+        os.environ["SP5_DEV_MODE"] = "true"
+        old_flag = deps._DEV_MODE_ACTIVE
+        deps._DEV_MODE_ACTIVE = True
+
+        had_dev_tok = "__dev_mode__" in deps._sessions
+        if not had_dev_tok:
+            deps._sessions["__dev_mode__"] = {
+                "ID": 0,
+                "NAME": "dev",
+                "role": "Admin",
+                "ADMIN": True,
+                "RIGHTS": 255,
+                "expires_at": None,
+            }
+
+        yield TestClient(app)
+
+        deps._DEV_MODE_ACTIVE = old_flag
+        if not had_dev_tok:
+            deps._sessions.pop("__dev_mode__", None)
+        if old_dev is None:
+            os.environ.pop("SP5_DEV_MODE", None)
+        else:
+            os.environ["SP5_DEV_MODE"] = old_dev
 
     def test_create_token_endpoint(self, client):
         """POST /api/ical/token should return token and URLs."""
@@ -470,18 +499,13 @@ class TestGenerateFeedIcal:
     def test_feed_returns_valid_ical(self):
         """Feed should return valid iCal with VCALENDAR wrapper."""
         import os
-        os.environ["SP5_DEV_MODE"] = "true"
-        os.environ["DB_PATH"] = os.environ.get(
-            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
-        )
-
-        from importlib import reload
-
-        import api.dependencies
-        reload(api.dependencies)
 
         from sp5lib.database import SP5Database
-        db = SP5Database(os.environ["DB_PATH"])
+        db_path = os.environ.get(
+            "SP5_DB_PATH",
+            os.environ.get("DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"),
+        )
+        db = SP5Database(db_path)
         employees = db.get_employees(include_hidden=False)
 
         if not employees:
@@ -495,25 +519,12 @@ class TestGenerateFeedIcal:
             assert "BEGIN:VCALENDAR" in result
             assert "END:VCALENDAR" in result
             assert "X-WR-CALNAME:" in result
-            # Should have CRLF line endings
             assert "\r\n" in result
         except Exception:
-            # Employee might not have schedule data — that's OK
             pass
 
     def test_feed_nonexistent_employee(self):
         """Feed for nonexistent employee should raise 404."""
-        import os
-        os.environ["SP5_DEV_MODE"] = "true"
-        os.environ["DB_PATH"] = os.environ.get(
-            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
-        )
-
-        from importlib import reload
-
-        import api.dependencies
-        reload(api.dependencies)
-
         from api.routers.ical import _generate_feed_ical
         from fastapi import HTTPException
         with pytest.raises(HTTPException):
