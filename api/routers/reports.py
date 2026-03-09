@@ -1102,7 +1102,7 @@ def export_employees(
     tags=["Export"],
     summary="Export absences",
     description=(
-        "Export absence entries for a given year as CSV or HTML.\n\n"
+        "Export absence entries for a given year as CSV, HTML, or XLSX.\n\n"
         "Optionally filter by `group_id`. Columns include employee name/short, leave type, date, and notes.\n\n"
         "**Required role:** Planer"
     ),
@@ -1200,6 +1200,39 @@ def export_absences(
                 "Content-Disposition": f'attachment; filename="abwesenheiten_{year}.html"'
             },
         )
+    if format == "xlsx":
+        try:
+            import openpyxl
+            from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        except ImportError:
+            raise HTTPException(status_code=500, detail="openpyxl nicht installiert.")
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"Abwesenheiten {year}"
+        thin = Side(border_style="thin", color="CBD5E1")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        if rows:
+            headers = list(rows[0].keys())
+            col_widths = [14, 28, 10, 24, 10]
+            for c, (h, w) in enumerate(zip(headers, col_widths), start=1):
+                cell = ws.cell(1, c, h)
+                cell.font = Font(bold=True, color="FFFFFF", size=9)
+                cell.fill = PatternFill(fill_type="solid", fgColor="1E293B")
+                cell.alignment = Alignment(horizontal="left")
+                cell.border = border
+                from openpyxl.utils import get_column_letter
+
+                ws.column_dimensions[get_column_letter(c)].width = w
+            for r_idx, row in enumerate(rows, start=2):
+                fill_color = "F8FAFC" if r_idx % 2 == 0 else "FFFFFF"
+                for c, val in enumerate(row.values(), start=1):
+                    cell = ws.cell(r_idx, c, val)
+                    cell.font = Font(size=9)
+                    cell.fill = PatternFill(fill_type="solid", fgColor=fill_color)
+                    cell.border = border
+        buf = io.BytesIO()
+        wb.save(buf)
+        return _xlsx_response(buf.getvalue(), f"abwesenheiten_{year}.xlsx")
     return _csv_response(rows, f"abwesenheiten_{year}.csv")
 
 
