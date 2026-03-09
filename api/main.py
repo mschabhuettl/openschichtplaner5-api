@@ -152,6 +152,7 @@ _OPENAPI_TAGS = [
     },
     {"name": "Events", "description": "Calendar events and holidays"},
     {"name": "Admin", "description": "Administrative operations (Admin only)"},
+    {"name": "iCal", "description": "iCal (.ics) export for calendar integration"},
 ]
 
 
@@ -559,6 +560,7 @@ from .routers import (  # noqa: E402
     auth,
     employees,
     events,
+    ical,
     master_data,
     misc,
     notifications,
@@ -576,6 +578,7 @@ app.include_router(admin.router)
 app.include_router(misc.router)
 app.include_router(events.router)
 app.include_router(notifications.router)
+app.include_router(ical.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────
