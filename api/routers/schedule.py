@@ -868,6 +868,101 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_plan
     return {"created": created, "updated": updated, "deleted": deleted}
 
 
+# ── Bulk Group Assignment ────────────────────────────────────
+
+
+class BulkGroupAssignBody(BaseModel):
+    """Assign a single shift to all members of a group (or explicit employee list) across a date range."""
+    group_id: int | None = Field(None, gt=0, description="Group whose members receive the shift")
+    employee_ids: list[int] | None = Field(None, description="Explicit employee IDs (alternative to group_id)")
+    shift_id: int = Field(..., gt=0, description="Shift to assign")
+    date_from: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Start date (inclusive)")
+    date_to: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="End date (inclusive)")
+    overwrite: bool = Field(True, description="Overwrite existing entries")
+
+
+@router.post(
+    "/api/schedule/bulk-group",
+    tags=["Schedule"],
+    summary="Bulk assign shift to group",
+    description="Assign a shift to all members of a group (or explicit employee list) for a date range. Requires Planer role.",
+)
+def bulk_group_assign(body: BulkGroupAssignBody, _cur_user: dict = Depends(require_planer)):
+    """Assign one shift to a group of employees across a date range."""
+    from datetime import datetime as _dt3
+    from datetime import timedelta
+
+    if not body.group_id and not body.employee_ids:
+        raise HTTPException(status_code=400, detail="group_id oder employee_ids muss angegeben werden")
+
+    db = get_db()
+
+    # Validate shift exists
+    shift = db.get_shift(body.shift_id)
+    if not shift:
+        raise HTTPException(status_code=404, detail=f"Schicht {body.shift_id} nicht gefunden")
+
+    # Resolve employee IDs
+    if body.employee_ids:
+        emp_ids = body.employee_ids
+    else:
+        emp_ids = db.get_group_members(body.group_id)
+        if not emp_ids:
+            raise HTTPException(status_code=404, detail=f"Gruppe {body.group_id} hat keine Mitglieder")
+
+    # Parse and validate dates
+    try:
+        d_from = _dt3.strptime(body.date_from, "%Y-%m-%d").date()
+        d_to = _dt3.strptime(body.date_to, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat")
+
+    if d_from > d_to:
+        raise HTTPException(status_code=400, detail="date_from muss vor date_to liegen")
+
+    if (d_to - d_from).days > 366:
+        raise HTTPException(status_code=400, detail="Maximaler Zeitraum: 366 Tage")
+
+    # Build date list
+    dates: list[str] = []
+    current = d_from
+    while current <= d_to:
+        dates.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=1)
+
+    created = 0
+    updated = 0
+    skipped = 0
+    for emp_id in emp_ids:
+        for date_str in dates:
+            try:
+                if body.overwrite:
+                    old_count = db.delete_schedule_entry(emp_id, date_str)
+                    db.add_schedule_entry(emp_id, date_str, body.shift_id)
+                    if old_count > 0:
+                        updated += 1
+                    else:
+                        created += 1
+                else:
+                    # Try to add; if it already exists, skip
+                    try:
+                        db.add_schedule_entry(emp_id, date_str, body.shift_id)
+                        created += 1
+                    except ValueError:
+                        skipped += 1
+            except Exception as e:
+                raise _sanitize_500(e)
+
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "employees": len(emp_ids),
+        "days": len(dates),
+        "total_assignments": created + updated,
+    }
+
+
 # ── Einsatzplan Write (SPSHI) ────────────────────────────────
 
 
