@@ -594,6 +594,16 @@ def create_schedule_entry(
         broadcast(
             "schedule_changed", {"employee_id": body.employee_id, "date": body.date}
         )
+        # Audit: schedule entry created
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="CREATE",
+            entity="schedule",
+            entity_id=body.employee_id,
+            details=f"Schicht {body.shift_id} für Mitarbeiter {body.employee_id} am {body.date}",
+            new_value={"employee_id": body.employee_id, "date": body.date, "shift_id": body.shift_id},
+            user_id=_cur_user.get("ID"),
+        )
         return {"ok": True, "record": result}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -620,12 +630,23 @@ def delete_schedule_entry(
             detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
         )
     try:
-        count = get_db().delete_schedule_entry(employee_id, date)
+        db = get_db()
+        count = db.delete_schedule_entry(employee_id, date)
         if count == 0:
             raise HTTPException(
                 status_code=404, detail="Plantafel-Eintrag nicht gefunden"
             )
         broadcast("schedule_changed", {"employee_id": employee_id, "date": date})
+        # Audit: schedule entry deleted
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="DELETE",
+            entity="schedule",
+            entity_id=employee_id,
+            details=f"Schichteintrag für Mitarbeiter {employee_id} am {date} gelöscht",
+            old_value={"employee_id": employee_id, "date": date},
+            user_id=_cur_user.get("ID"),
+        )
         return {"ok": True, "deleted": count}
     except HTTPException:
         raise

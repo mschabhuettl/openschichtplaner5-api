@@ -377,12 +377,14 @@ def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)
 def get_changelog(
     limit: int = Query(100, description="Max entries to return"),
     user: str | None = Query(None, description="Filter by user"),
+    entity_type: str | None = Query(None, description="Filter by entity type (employee, schedule, absence, …)"),
     date_from: str | None = Query(None, description="ISO date YYYY-MM-DD"),
     date_to: str | None = Query(None, description="ISO date YYYY-MM-DD"),
 ):
     """Return activity log entries from changelog.json."""
     return get_db().get_changelog(
-        limit=limit, user=user, date_from=date_from, date_to=date_to
+        limit=limit, user=user, entity_type=entity_type,
+        date_from=date_from, date_to=date_to,
     )
 
 

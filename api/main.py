@@ -538,13 +538,27 @@ class ChangelogMiddleware(BaseHTTPMiddleware):
             "DELETE": "DELETE",
         }
         action = action_map.get(method, method)
+        # Try to resolve actual user from session token
+        actor_name = "api"
+        actor_id = None
+        token = (
+            request.headers.get("x-auth-token")
+            or request.cookies.get("sp5_token")
+            or request.query_params.get("token")
+        )
+        if token:
+            session = _sessions.get(token)
+            if session:
+                actor_name = session.get("NAME", "api")
+                actor_id = session.get("ID")
         try:
             get_db().log_action(
-                user="api",
+                user=actor_name,
                 action=action,
                 entity=entity,
                 entity_id=entity_id,
                 details=f"{method} {path}",
+                user_id=actor_id,
             )
         except Exception:
             _logger.debug("Changelog middleware audit log failed", exc_info=True)

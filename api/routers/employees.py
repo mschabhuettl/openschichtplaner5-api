@@ -216,13 +216,24 @@ class EmployeeUpdate(BaseModel):
 def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admin)):
     # Validation handled by Pydantic Field constraints and validators
     try:
-        result = get_db().create_employee(body.model_dump())
+        db = get_db()
+        result = db.create_employee(body.model_dump())
         _logger.warning(
             "AUDIT EMPLOYEE_CREATE | user=%s name=%s shortname=%s id=%s",
             _cur_user.get("NAME"),
             body.NAME,
             body.SHORTNAME,
             result.get("ID"),
+        )
+        # Audit: employee created
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="CREATE",
+            entity="employee",
+            entity_id=result.get("ID", 0),
+            details=f"Mitarbeiter erstellt: {body.NAME} ({body.SHORTNAME})",
+            new_value={"NAME": body.NAME, "SHORTNAME": body.SHORTNAME},
+            user_id=_cur_user.get("ID"),
         )
         return {"ok": True, "record": result}
     except ValueError as e:
@@ -248,12 +259,29 @@ def update_employee(
     try:
         # Validation handled by Pydantic Field constraints and validators
         data = {k: v for k, v in body.model_dump().items() if v is not None}
-        result = get_db().update_employee(emp_id, data)
+        db = get_db()
+        # Capture old state for audit
+        old_emp = db.get_employee(emp_id)
+        old_snapshot = None
+        if old_emp:
+            old_snapshot = {k: old_emp.get(k) for k in data.keys() if k in (old_emp or {})}
+        result = db.update_employee(emp_id, data)
         _logger.warning(
             "AUDIT EMPLOYEE_UPDATE | user=%s emp_id=%d fields=%s",
             _cur_user.get("NAME"),
             emp_id,
             list(data.keys()),
+        )
+        # Audit: employee updated with old/new values
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="UPDATE",
+            entity="employee",
+            entity_id=emp_id,
+            details=f"Mitarbeiter {emp_id} aktualisiert: {', '.join(data.keys())}",
+            old_value=old_snapshot,
+            new_value=data,
+            user_id=_cur_user.get("ID"),
         )
         return {"ok": True, "record": result}
     except HTTPException:
@@ -274,13 +302,27 @@ def update_employee(
 )
 def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
-        count = get_db().delete_employee(emp_id)
+        db = get_db()
+        # Capture old name for audit
+        old_emp = db.get_employee(emp_id)
+        old_name = old_emp.get("NAME", "?") if old_emp else "?"
+        count = db.delete_employee(emp_id)
         if count == 0:
             raise HTTPException(
                 status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
             )
         _logger.warning(
             "AUDIT EMPLOYEE_DELETE | user=%s emp_id=%d", _cur_user.get("NAME"), emp_id
+        )
+        # Audit: employee hidden/deleted
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="DELETE",
+            entity="employee",
+            entity_id=emp_id,
+            details=f"Mitarbeiter {old_name} (ID {emp_id}) ausgeblendet",
+            old_value={"NAME": old_name},
+            user_id=_cur_user.get("ID"),
         )
         return {"ok": True, "hidden": count}
     except HTTPException:

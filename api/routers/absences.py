@@ -38,8 +38,19 @@ def delete_absence_only(
             detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
         )
     try:
-        count = get_db().delete_absence_only(employee_id, date)
+        db = get_db()
+        count = db.delete_absence_only(employee_id, date)
         broadcast("absence_changed", {"employee_id": employee_id, "date": date})
+        # Audit: absence deleted
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="DELETE",
+            entity="absence",
+            entity_id=employee_id,
+            details=f"Abwesenheit für MA {employee_id} am {date} gelöscht",
+            old_value={"employee_id": employee_id, "date": date},
+            user_id=_cur_user.get("ID"),
+        )
         return {"ok": True, "deleted": count}
     except Exception as e:
         raise _sanitize_500(e)
@@ -140,6 +151,16 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
         result = db.add_absence(body.employee_id, body.date, body.leave_type_id)
         broadcast(
             "absence_changed", {"employee_id": body.employee_id, "date": body.date}
+        )
+        # Audit: absence created
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="CREATE",
+            entity="absence",
+            entity_id=body.employee_id,
+            details=f"Abwesenheit Typ {body.leave_type_id} für MA {body.employee_id} am {body.date}",
+            new_value={"employee_id": body.employee_id, "date": body.date, "leave_type_id": body.leave_type_id},
+            user_id=_cur_user.get("ID"),
         )
         return {"ok": True, "record": result, "warnings": warnings}
     except ValueError as e:
