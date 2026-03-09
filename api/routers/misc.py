@@ -723,6 +723,7 @@ def create_swap_request(
     except Exception:
         pass
 
+    broadcast("swap_changed", {"action": "created", "swap_id": entry.get("id")})
     return entry
 
 
@@ -850,6 +851,7 @@ def resolve_swap_request(
                 )
         except Exception:
             pass
+        broadcast("swap_changed", {"action": "approved", "swap_id": swap_id})
         return {**entry, "swap_result": swap_result}
 
     get_db().log_action(
@@ -872,6 +874,7 @@ def resolve_swap_request(
             )
     except Exception:
         pass
+    broadcast("swap_changed", {"action": "rejected", "swap_id": swap_id})
     return entry
 
 
@@ -885,6 +888,7 @@ def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer))
     deleted = get_db().delete_swap_request(swap_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Nicht gefunden")
+    broadcast("swap_changed", {"action": "cancelled", "swap_id": swap_id})
     return {"ok": True}
 
 

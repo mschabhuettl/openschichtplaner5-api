@@ -77,7 +77,9 @@ async def _event_generator(
     summary="SSE event stream",
     description=(
         "Connect to receive real-time events.\n\n"
-        "Events: `connected`, `schedule_changed`, `conflict_updated`, `note_added`, `absence_changed`"
+        "Events: `connected`, `schedule_changed`, `conflict_updated`, `note_added`, "
+        "`note_updated`, `note_deleted`, `absence_changed`, `employee_changed`, "
+        "`notification_changed`, `swap_changed`, `settings_changed`"
     ),
 )
 async def sse_stream(request: Request, _cur_user: dict = Depends(require_auth)):

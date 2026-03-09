@@ -14,6 +14,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..dependencies import require_admin, require_planer
+from .events import broadcast
 
 router = APIRouter()
 
@@ -104,6 +105,13 @@ def create_notification(
         recipient_employee_id=recipient_employee_id,
         link=link,
     )
+
+    # ── Broadcast SSE event for real-time UI updates ──────────
+    broadcast("notification_changed", {
+        "action": "created",
+        "notification_id": entry["id"],
+        "recipient_employee_id": recipient_employee_id,
+    })
 
     return entry
 
@@ -235,6 +243,7 @@ def mark_read(notif_id: int, cur_user: dict = Depends(require_planer)):
                     )
                 n["read"] = True
                 _save(data)
+                broadcast("notification_changed", {"action": "read", "notification_id": notif_id})
                 return {"ok": True}
     raise HTTPException(status_code=404, detail="Benachrichtigung nicht gefunden")
 
@@ -262,6 +271,7 @@ def mark_all_read(
                     n["read"] = True
                     count += 1
         _save(data)
+    broadcast("notification_changed", {"action": "read_all", "marked": count})
     return {"ok": True, "marked": count}
 
 
@@ -292,4 +302,5 @@ def delete_notification(notif_id: int, cur_user: dict = Depends(require_planer))
             )
         new_data = [n for n in data if n["id"] != notif_id]
         _save(new_data)
+    broadcast("notification_changed", {"action": "deleted", "notification_id": notif_id})
     return {"ok": True}

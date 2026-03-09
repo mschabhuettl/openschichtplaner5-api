@@ -12,6 +12,7 @@ from ..dependencies import (
     require_admin,
 )
 from ..schemas import EmployeeResponse, GroupResponse
+from .events import broadcast
 
 router = APIRouter()
 
@@ -235,6 +236,7 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
             new_value={"NAME": body.NAME, "SHORTNAME": body.SHORTNAME},
             user_id=_cur_user.get("ID"),
         )
+        broadcast("employee_changed", {"action": "created", "employee_id": result.get("ID")})
         return {"ok": True, "record": result}
     except ValueError as e:
         if str(e).startswith("DUPLICATE:SHORTNAME:"):
@@ -283,6 +285,7 @@ def update_employee(
             new_value=data,
             user_id=_cur_user.get("ID"),
         )
+        broadcast("employee_changed", {"action": "updated", "employee_id": emp_id})
         return {"ok": True, "record": result}
     except HTTPException:
         raise
@@ -324,6 +327,7 @@ def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
             old_value={"NAME": old_name},
             user_id=_cur_user.get("ID"),
         )
+        broadcast("employee_changed", {"action": "deleted", "employee_id": emp_id})
         return {"ok": True, "hidden": count}
     except HTTPException:
         raise
