@@ -561,6 +561,7 @@ from .routers import (  # noqa: E402
     absences,
     admin,
     auth,
+    email,
     employees,
     events,
     ical,
@@ -582,6 +583,7 @@ app.include_router(misc.router)
 app.include_router(events.router)
 app.include_router(notifications.router)
 app.include_router(ical.router)
+app.include_router(email.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────

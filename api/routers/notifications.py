@@ -75,7 +75,12 @@ def create_notification(
     recipient_employee_id: int | None = None,
     link: str | None = None,
 ) -> dict:
-    """Create and persist a notification. Thread-safe."""
+    """Create and persist a notification. Thread-safe.
+
+    Also sends an email notification (async) if:
+    - SMTP is configured
+    - The recipient employee has an email address
+    """
     with _lock:
         data = _load()
         entry = {
@@ -90,7 +95,58 @@ def create_notification(
         }
         data.append(entry)
         _save(data)
-        return entry
+
+    # ── Send email notification (fire-and-forget) ─────────────
+    _try_send_email(
+        notification_type=type,
+        title=title,
+        message=message,
+        recipient_employee_id=recipient_employee_id,
+        link=link,
+    )
+
+    return entry
+
+
+def _try_send_email(
+    *,
+    notification_type: str,
+    title: str,
+    message: str,
+    recipient_employee_id: int | None,
+    link: str | None,
+) -> None:
+    """Look up recipient email and send notification email (non-blocking)."""
+    try:
+        from sp5lib.email_service import get_config, send_notification_email
+
+        cfg = get_config()
+        if not cfg.is_configured:
+            return
+
+        recipient_email: str | None = None
+        if recipient_employee_id is not None:
+            from .reports import get_db
+
+            emp = get_db().get_employee(recipient_employee_id)
+            if emp:
+                recipient_email = (emp.get("EMAIL") or "").strip() or None
+        # For planner-wide notifications (recipient_employee_id=None),
+        # we skip email — these are visible in-app for all planners.
+
+        if recipient_email:
+            send_notification_email(
+                notification_type=notification_type,
+                title=title,
+                message=message,
+                recipient_email=recipient_email,
+                link=link,
+            )
+    except Exception:
+        # Never let email failures break the notification system
+        import logging
+
+        logging.getLogger("sp5.email").exception("Email bridge error")
 
 
 # ── API endpoints ─────────────────────────────────────────────────────────────
