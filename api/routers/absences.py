@@ -152,6 +152,33 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
         broadcast(
             "absence_changed", {"employee_id": body.employee_id, "date": body.date}
         )
+
+        # ── Auto-set status to "pending" for approval workflow ────────────
+        absence_id = result.get("ID")
+        if absence_id:
+            try:
+                status_data = _load_absence_status()
+                status_data[str(absence_id)] = {"status": "pending", "reject_reason": ""}
+                _save_absence_status(status_data)
+            except Exception:
+                pass  # Never block creation due to status file errors
+
+            # ── Notify planners about the new request ─────────────────────
+            try:
+                emp = db.get_employee(body.employee_id)
+                emp_name = f"{emp.get('NAME', '')} {emp.get('FIRSTNAME', '')}".strip() if emp else f"MA #{body.employee_id}"
+                lt = db.get_leave_type(body.leave_type_id)
+                lt_name = lt.get("NAME", f"Typ #{body.leave_type_id}") if lt else f"Typ #{body.leave_type_id}"
+                create_notification(
+                    type="vacation_request",
+                    title="Neuer Urlaubsantrag",
+                    message=f"{emp_name}: {lt_name} am {body.date}",
+                    recipient_employee_id=None,  # None = planner-wide notification
+                    link="/urlaub",
+                )
+            except Exception:
+                pass  # Never block creation due to notification errors
+
         # Audit: absence created
         db.log_action(
             user=_cur_user.get("NAME", "?"),
@@ -222,11 +249,14 @@ def bulk_create_absence(
         employees = db.get_employees(include_hidden=False)
 
     results: dict[str, Any] = {"ok": True, "created": 0, "skipped": 0, "errors": []}
+    created_ids: list[int] = []
     for emp in employees:
         try:
-            db.add_absence(emp["ID"], body.date, body.leave_type_id)
+            rec = db.add_absence(emp["ID"], body.date, body.leave_type_id)
             broadcast("absence_changed", {"employee_id": emp["ID"], "date": body.date})
             results["created"] += 1
+            if rec and rec.get("ID"):
+                created_ids.append(rec["ID"])
         except ValueError:
             # Already exists – skip silently
             results["skipped"] += 1
@@ -239,6 +269,30 @@ def bulk_create_absence(
             results["errors"].append(
                 {"id": emp["ID"], "error": "Interner Fehler beim Speichern"}
             )
+
+    # ── Auto-set status to "pending" for all created absences ─────────────
+    if created_ids:
+        try:
+            status_data = _load_absence_status()
+            for aid in created_ids:
+                status_data[str(aid)] = {"status": "pending", "reject_reason": ""}
+            _save_absence_status(status_data)
+        except Exception:
+            pass
+
+        # ── Notify planners about bulk request ────────────────────────────
+        try:
+            lt = db.get_leave_type(body.leave_type_id)
+            lt_name = lt.get("NAME", f"Typ #{body.leave_type_id}") if lt else f"Typ #{body.leave_type_id}"
+            create_notification(
+                type="vacation_request",
+                title="Neue Urlaubsanträge (Sammel)",
+                message=f"{len(created_ids)} Anträge: {lt_name} am {body.date}",
+                recipient_employee_id=None,
+                link="/urlaub",
+            )
+        except Exception:
+            pass
 
     return results
 
