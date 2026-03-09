@@ -454,6 +454,9 @@ async def auth_middleware(request: Request, call_next):
 
     if path in _PUBLIC_PATHS or not path.startswith("/api/"):
         return await call_next(request)
+    # iCal feed uses token-in-URL authentication (for calendar app subscriptions)
+    if path.startswith("/api/ical/feed/"):
+        return await call_next(request)
     # SSE endpoint also accepts token as query param (EventSource doesn't support headers)
     # Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
     token = (

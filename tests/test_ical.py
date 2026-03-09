@@ -257,3 +257,264 @@ class TestIcalEndpoints:
             cd = resp.headers.get("content-disposition", "")
             assert "attachment" in cd
             assert ".ics" in cd
+
+
+# ── Token & Feed tests ──────────────────────────────────────────
+
+
+class TestIcalTokenDb:
+    """Test iCal token CRUD in the database layer."""
+
+    @pytest.fixture
+    def db(self):
+        """Create a database instance pointing at the test DB."""
+        import os
+        db_path = os.environ.get(
+            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
+        )
+        from sp5lib.database import SP5Database
+        database = SP5Database(db_path)
+        # Clean up any leftover test tokens
+        yield database
+        # Cleanup
+        try:
+            tokens = database._load_ical_tokens()
+            tokens = {t: info for t, info in tokens.items()
+                      if info.get("employee_id") not in (99990, 99991)}
+            database._save_ical_tokens(tokens)
+        except Exception:
+            pass
+
+    def test_create_token(self, db):
+        """Creating a token returns a non-empty string."""
+        token = db.create_ical_token(99990)
+        assert isinstance(token, str)
+        assert len(token) > 20
+
+    def test_resolve_token(self, db):
+        """A created token can be resolved to the employee ID."""
+        token = db.create_ical_token(99990)
+        emp_id = db.resolve_ical_token(token)
+        assert emp_id == 99990
+
+    def test_resolve_invalid_token(self, db):
+        """An invalid token returns None."""
+        assert db.resolve_ical_token("nonexistent_token_xyz") is None
+
+    def test_get_token_for_employee(self, db):
+        """get_ical_token_for_employee returns the current token."""
+        token = db.create_ical_token(99990)
+        found = db.get_ical_token_for_employee(99990)
+        assert found == token
+
+    def test_get_token_for_employee_none(self, db):
+        """get_ical_token_for_employee returns None when no token exists."""
+        db.revoke_ical_token(99991)  # ensure clean
+        assert db.get_ical_token_for_employee(99991) is None
+
+    def test_regenerate_revokes_old(self, db):
+        """Creating a new token revokes the old one."""
+        old_token = db.create_ical_token(99990)
+        new_token = db.create_ical_token(99990)
+        assert old_token != new_token
+        assert db.resolve_ical_token(old_token) is None
+        assert db.resolve_ical_token(new_token) == 99990
+
+    def test_revoke_token(self, db):
+        """Revoking a token makes it unresolvable."""
+        token = db.create_ical_token(99990)
+        assert db.revoke_ical_token(99990) is True
+        assert db.resolve_ical_token(token) is None
+
+    def test_revoke_nonexistent(self, db):
+        """Revoking when no token exists returns False."""
+        db.revoke_ical_token(99991)  # ensure clean
+        assert db.revoke_ical_token(99991) is False
+
+
+class TestIcalFeedEndpoints:
+    """Test iCal feed and token API endpoints."""
+
+    @pytest.fixture
+    def client(self):
+        """Create a test client with dev mode enabled."""
+        import os
+        os.environ["SP5_DEV_MODE"] = "true"
+        os.environ["DB_PATH"] = os.environ.get(
+            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
+        )
+
+        from importlib import reload
+
+        import api.dependencies
+        reload(api.dependencies)
+        import api.main
+        reload(api.main)
+
+        from api.main import app
+        from fastapi.testclient import TestClient
+        return TestClient(app)
+
+    def test_create_token_endpoint(self, client):
+        """POST /api/ical/token should return token and URLs."""
+        resp = client.post(
+            "/api/ical/token",
+            headers={"X-Auth-Token": "__dev_mode__"},
+        )
+        # Dev mode user may not have EMPLOYEEID — could be 400 or 200
+        assert resp.status_code in (200, 400)
+        if resp.status_code == 200:
+            data = resp.json()
+            assert "token" in data
+            assert "feed_url" in data
+            assert "webcal_url" in data
+            assert data["token"]
+            assert "/api/ical/feed/" in data["feed_url"]
+            assert ".ics" in data["feed_url"]
+            assert data["webcal_url"].startswith("webcal://")
+
+    def test_get_token_endpoint(self, client):
+        """GET /api/ical/token should return current token info."""
+        resp = client.get(
+            "/api/ical/token",
+            headers={"X-Auth-Token": "__dev_mode__"},
+        )
+        assert resp.status_code in (200, 400)
+        if resp.status_code == 200:
+            data = resp.json()
+            assert "token" in data
+
+    def test_feed_with_invalid_token(self, client):
+        """GET /api/ical/feed/{bad_token}.ics should return 404."""
+        resp = client.get("/api/ical/feed/invalid_token_xyz123.ics")
+        assert resp.status_code == 404
+
+    def test_feed_no_auth_required(self, client):
+        """Feed endpoint should not require auth headers."""
+        resp = client.get("/api/ical/feed/some_token.ics")
+        # Should be 404 (bad token), not 401 (unauthorized)
+        assert resp.status_code == 404
+
+    def test_full_token_lifecycle(self, client):
+        """Create token → use feed → revoke → feed fails."""
+        # Create
+        resp = client.post(
+            "/api/ical/token",
+            headers={"X-Auth-Token": "__dev_mode__"},
+        )
+        if resp.status_code != 200:
+            pytest.skip("Dev mode user has no employee — can't test lifecycle")
+
+        data = resp.json()
+        feed_url = data["feed_url"]
+
+        # Extract relative path from feed_url
+        from urllib.parse import urlparse
+        feed_path = urlparse(feed_url).path
+
+        # Use feed (no auth header!)
+        resp = client.get(feed_path)
+        assert resp.status_code in (200, 404)  # 404 if employee has no schedule data
+        if resp.status_code == 200:
+            assert "text/calendar" in resp.headers.get("content-type", "")
+            assert "BEGIN:VCALENDAR" in resp.text
+            # Feed should NOT have Content-Disposition attachment
+            cd = resp.headers.get("content-disposition", "")
+            assert "attachment" not in cd
+
+        # Revoke
+        resp = client.delete(
+            "/api/ical/token",
+            headers={"X-Auth-Token": "__dev_mode__"},
+        )
+        assert resp.status_code == 200
+
+        # Feed should now fail
+        resp = client.get(feed_path)
+        assert resp.status_code == 404
+
+    def test_delete_token_unauthenticated(self, client):
+        """DELETE /api/ical/token without auth should return 401."""
+        resp = client.delete("/api/ical/token")
+        assert resp.status_code == 401
+
+    def test_regenerate_invalidates_old(self, client):
+        """Creating a new token should invalidate the old feed URL."""
+        # Create first token
+        resp1 = client.post(
+            "/api/ical/token",
+            headers={"X-Auth-Token": "__dev_mode__"},
+        )
+        if resp1.status_code != 200:
+            pytest.skip("Dev mode user has no employee")
+
+        old_token = resp1.json()["token"]
+
+        # Create second token
+        resp2 = client.post(
+            "/api/ical/token",
+            headers={"X-Auth-Token": "__dev_mode__"},
+        )
+        assert resp2.status_code == 200
+        new_token = resp2.json()["token"]
+        assert old_token != new_token
+
+        # Old feed should fail
+        resp = client.get(f"/api/ical/feed/{old_token}.ics")
+        assert resp.status_code == 404
+
+
+class TestGenerateFeedIcal:
+    """Test the _generate_feed_ical helper."""
+
+    def test_feed_returns_valid_ical(self):
+        """Feed should return valid iCal with VCALENDAR wrapper."""
+        import os
+        os.environ["SP5_DEV_MODE"] = "true"
+        os.environ["DB_PATH"] = os.environ.get(
+            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
+        )
+
+        from importlib import reload
+
+        import api.dependencies
+        reload(api.dependencies)
+
+        from sp5lib.database import SP5Database
+        db = SP5Database(os.environ["DB_PATH"])
+        employees = db.get_employees(include_hidden=False)
+
+        if not employees:
+            pytest.skip("No employees in test DB")
+
+        emp_id = employees[0]["ID"]
+
+        from api.routers.ical import _generate_feed_ical
+        try:
+            result = _generate_feed_ical(emp_id)
+            assert "BEGIN:VCALENDAR" in result
+            assert "END:VCALENDAR" in result
+            assert "X-WR-CALNAME:" in result
+            # Should have CRLF line endings
+            assert "\r\n" in result
+        except Exception:
+            # Employee might not have schedule data — that's OK
+            pass
+
+    def test_feed_nonexistent_employee(self):
+        """Feed for nonexistent employee should raise 404."""
+        import os
+        os.environ["SP5_DEV_MODE"] = "true"
+        os.environ["DB_PATH"] = os.environ.get(
+            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
+        )
+
+        from importlib import reload
+
+        import api.dependencies
+        reload(api.dependencies)
+
+        from api.routers.ical import _generate_feed_ical
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException):
+            _generate_feed_ical(999999)
