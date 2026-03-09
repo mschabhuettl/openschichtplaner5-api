@@ -838,6 +838,18 @@ def resolve_swap_request(
             swap_id,
             f"Genehmigt: MA {entry['requester_id']} ↔ MA {entry['partner_id']}",
         )
+        # ── Notify both parties: approved ──
+        try:
+            for emp_id in [entry["requester_id"], entry["partner_id"]]:
+                create_notification(
+                    type="swap_status",
+                    title="✅ Schichttausch genehmigt",
+                    message=f"Der Tausch ({entry['requester_date']} ↔ {entry['partner_date']}) wurde genehmigt und im Schichtplan umgesetzt.",
+                    recipient_employee_id=emp_id,
+                    link="/tauschboerse",
+                )
+        except Exception:
+            pass
         return {**entry, "swap_result": swap_result}
 
     get_db().log_action(
@@ -847,6 +859,19 @@ def resolve_swap_request(
         swap_id,
         f"Abgelehnt: {body.reject_reason}",
     )
+    # ── Notify both parties: rejected ──
+    try:
+        reason_txt = f" Grund: {body.reject_reason}" if body.reject_reason else ""
+        for emp_id in [entry["requester_id"], entry["partner_id"]]:
+            create_notification(
+                type="swap_status",
+                title="❌ Schichttausch abgelehnt",
+                message=f"Der Tausch ({entry['requester_date']} ↔ {entry['partner_date']}) wurde abgelehnt.{reason_txt}",
+                recipient_employee_id=emp_id,
+                link="/tauschboerse",
+            )
+    except Exception:
+        pass
     return entry
 
 
@@ -860,6 +885,201 @@ def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer))
     deleted = get_db().delete_swap_request(swap_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Nicht gefunden")
+    return {"ok": True}
+
+
+# ─── Self-Service Swap Requests ─────────────────────────────
+
+
+def _resolve_employee_for_user(cur_user: dict):
+    """Find the employee record matching the logged-in user by name."""
+    user_name = cur_user.get("NAME", "").strip().lower()
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    employee = next(
+        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
+        None,
+    )
+    if employee is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden",
+        )
+    return employee
+
+
+class SelfSwapRequestCreate(BaseModel):
+    partner_id: int = Field(..., gt=0)
+    requester_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    partner_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    note: str | None = Field("", max_length=500)
+
+
+@router.post(
+    "/api/self/swap-requests",
+    tags=["Self-Service"],
+    summary="Employee creates own swap request",
+)
+@limiter.limit("5/minute")
+def create_self_swap_request(
+    request: Request, body: SelfSwapRequestCreate, cur_user: dict = Depends(require_auth)
+):
+    """Employee offers a shift swap. Status starts as pending_partner until the partner accepts."""
+    from datetime import datetime as _dt4
+
+    employee = _resolve_employee_for_user(cur_user)
+    requester_id = employee["ID"]
+
+    for d in [body.requester_date, body.partner_date]:
+        try:
+            _dt4.strptime(d, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
+    if requester_id == body.partner_id:
+        raise HTTPException(
+            status_code=400, detail="Du kannst nicht mit dir selbst tauschen"
+        )
+
+    entry = get_db().create_swap_request(
+        requester_id=requester_id,
+        requester_date=body.requester_date,
+        partner_id=body.partner_id,
+        partner_date=body.partner_date,
+        note=body.note or "",
+        status="pending_partner",
+    )
+    get_db().log_action(
+        cur_user.get("NAME", "system"),
+        "CREATE",
+        "swap_request",
+        entry["id"],
+        f"Self-Service: MA {requester_id} → MA {body.partner_id} ({body.requester_date}↔{body.partner_date})",
+    )
+
+    # Notify partner
+    try:
+        req_name = f"{employee.get('Vorname', '')} {employee.get('Nachname', '')}".strip()
+        if not req_name:
+            req_name = employee.get("SHORTNAME", f"MA #{requester_id}")
+        create_notification(
+            type="swap_request",
+            title="🔄 Neue Tauschanfrage",
+            message=f"{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date}). Bitte bestätige oder lehne ab.",
+            recipient_employee_id=body.partner_id,
+            link="/tauschboerse",
+        )
+    except Exception:
+        pass
+
+    return entry
+
+
+class PartnerRespondBody(BaseModel):
+    accept: bool
+
+
+@router.patch(
+    "/api/self/swap-requests/{swap_id}/respond",
+    tags=["Self-Service"],
+    summary="Partner accepts or declines a swap request",
+)
+def partner_respond_swap(
+    swap_id: int, body: PartnerRespondBody, cur_user: dict = Depends(require_auth)
+):
+    """The swap partner accepts or declines the swap before planner decides."""
+    employee = _resolve_employee_for_user(cur_user)
+    emp_id = employee["ID"]
+
+    # Verify this employee is the partner
+    db = get_db()
+    all_reqs = db.get_swap_requests()
+    req = next((r for r in all_reqs if r.get("id") == swap_id), None)
+    if req is None:
+        raise HTTPException(status_code=404, detail="Anfrage nicht gefunden")
+    if req.get("partner_id") != emp_id:
+        raise HTTPException(
+            status_code=403, detail="Nur der Tauschpartner kann darauf antworten"
+        )
+    if req.get("status") != "pending_partner":
+        raise HTTPException(
+            status_code=400, detail="Anfrage wartet nicht auf Partner-Bestätigung"
+        )
+
+    result = db.partner_respond_swap(swap_id, body.accept)
+    if result is None:
+        raise HTTPException(status_code=400, detail="Konnte nicht verarbeitet werden")
+
+    # Notify requester
+    try:
+        partner_name = f"{employee.get('Vorname', '')} {employee.get('Nachname', '')}".strip()
+        if not partner_name:
+            partner_name = employee.get("SHORTNAME", f"MA #{emp_id}")
+        if body.accept:
+            create_notification(
+                type="swap_status",
+                title="✅ Tauschpartner hat zugestimmt",
+                message=f"{partner_name} hat deinen Tauschvorschlag ({req['requester_date']} ↔ {req['partner_date']}) angenommen. Warte auf Planer-Genehmigung.",
+                recipient_employee_id=req["requester_id"],
+                link="/tauschboerse",
+            )
+        else:
+            create_notification(
+                type="swap_status",
+                title="❌ Tauschpartner hat abgelehnt",
+                message=f"{partner_name} hat deinen Tauschvorschlag ({req['requester_date']} ↔ {req['partner_date']}) abgelehnt.",
+                recipient_employee_id=req["requester_id"],
+                link="/tauschboerse",
+            )
+    except Exception:
+        pass
+
+    db.log_action(
+        cur_user.get("NAME", "system"),
+        "UPDATE",
+        "swap_request",
+        swap_id,
+        f"Partner {'akzeptiert' if body.accept else 'abgelehnt'}",
+    )
+    return result
+
+
+@router.delete(
+    "/api/self/swap-requests/{swap_id}",
+    tags=["Self-Service"],
+    summary="Employee cancels own swap request",
+)
+def cancel_self_swap_request(
+    swap_id: int, cur_user: dict = Depends(require_auth)
+):
+    """Employee can cancel their own pending swap request."""
+    employee = _resolve_employee_for_user(cur_user)
+    emp_id = employee["ID"]
+
+    db = get_db()
+    all_reqs = db.get_swap_requests()
+    req = next((r for r in all_reqs if r.get("id") == swap_id), None)
+    if req is None:
+        raise HTTPException(status_code=404, detail="Anfrage nicht gefunden")
+    if req.get("requester_id") != emp_id:
+        raise HTTPException(
+            status_code=403, detail="Nur der Antragsteller kann stornieren"
+        )
+    if req.get("status") not in ("pending_partner", "pending"):
+        raise HTTPException(
+            status_code=400, detail="Nur ausstehende Anfragen können storniert werden"
+        )
+
+    cancelled = db.cancel_swap_request(swap_id)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="Nicht gefunden")
+
+    db.log_action(
+        cur_user.get("NAME", "system"),
+        "UPDATE",
+        "swap_request",
+        swap_id,
+        "Selbst storniert",
+    )
     return {"ok": True}
 
 
