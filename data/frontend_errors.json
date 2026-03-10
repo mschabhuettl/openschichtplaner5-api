@@ -1,125 +1,5 @@
 [
   {
-    "timestamp": "2026-02-28T21:02:55.967653Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "http://localhost/",
-    "user_agent": null,
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:02:56.102858Z",
-    "error": "<script>alert(1)</script>",
-    "component_stack": null,
-    "url": "/test",
-    "user_agent": "test",
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:03:53.106533Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "http://localhost/",
-    "user_agent": null,
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:03:53.240602Z",
-    "error": "<script>alert(1)</script>",
-    "component_stack": null,
-    "url": "/test",
-    "user_agent": "test",
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:04:36.717597Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "http://localhost/",
-    "user_agent": null,
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:04:36.986773Z",
-    "error": "<script>alert(1)</script>",
-    "component_stack": null,
-    "url": "/test",
-    "user_agent": "test",
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:05:15.431127Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "http://localhost/",
-    "user_agent": null,
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:05:15.790705Z",
-    "error": "<script>alert(1)</script>",
-    "component_stack": null,
-    "url": "/test",
-    "user_agent": "test",
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:05:35.326640Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "https://example.com",
-    "user_agent": "test-agent",
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:05:45.779567Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "http://localhost/",
-    "user_agent": null,
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:05:45.907129Z",
-    "error": "<script>alert(1)</script>",
-    "component_stack": null,
-    "url": "/test",
-    "user_agent": "test",
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:05:55.623476Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "https://example.com",
-    "user_agent": "test-agent",
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:06:06.143287Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "http://localhost/",
-    "user_agent": null,
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:06:06.267845Z",
-    "error": "<script>alert(1)</script>",
-    "component_stack": null,
-    "url": "/test",
-    "user_agent": "test",
-    "client_ip": "testclient"
-  },
-  {
-    "timestamp": "2026-02-28T21:06:18.189295Z",
-    "error": "Test error",
-    "component_stack": null,
-    "url": "https://example.com",
-    "user_agent": "test-agent",
-    "client_ip": "testclient"
-  },
-  {
     "timestamp": "2026-02-28T21:06:29.746063Z",
     "error": "Test error",
     "component_stack": null,
@@ -3997,6 +3877,126 @@
     "component_stack": null,
     "url": "/test",
     "user_agent": "test",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:05:26.985517Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "https://example.com",
+    "user_agent": "test-agent",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:05:43.379776Z",
+    "error": "Test error from pytest",
+    "component_stack": "Error: Test\n    at foo (bar.js:1:1)",
+    "url": "http://localhost/test",
+    "user_agent": "pytest",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:05:54.360139Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:05:54.743814Z",
+    "error": "<script>alert(1)</script>",
+    "component_stack": null,
+    "url": "/test",
+    "user_agent": "test",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:56:47.293981Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "https://example.com",
+    "user_agent": "test-agent",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:57:05.639126Z",
+    "error": "Test error from pytest",
+    "component_stack": "Error: Test\n    at foo (bar.js:1:1)",
+    "url": "http://localhost/test",
+    "user_agent": "pytest",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:57:15.809207Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:57:16.179432Z",
+    "error": "<script>alert(1)</script>",
+    "component_stack": null,
+    "url": "/test",
+    "user_agent": "test",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:57:24.575378Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "https://example.com",
+    "user_agent": "test-agent",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:57:57.177935Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "https://example.com",
+    "user_agent": "test-agent",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:58:08.747156Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "https://example.com",
+    "user_agent": "test-agent",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:58:12.280244Z",
+    "error": "Test error from pytest",
+    "component_stack": "Error: Test\n    at foo (bar.js:1:1)",
+    "url": "http://localhost/test",
+    "user_agent": "pytest",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:58:22.609196Z",
+    "error": "Test error",
+    "component_stack": null,
+    "url": "http://localhost/",
+    "user_agent": null,
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:58:22.994960Z",
+    "error": "<script>alert(1)</script>",
+    "component_stack": null,
+    "url": "/test",
+    "user_agent": "test",
+    "client_ip": "testclient"
+  },
+  {
+    "timestamp": "2026-03-10T11:58:23.876850Z",
+    "error": "Test error from pytest",
+    "component_stack": "Error: Test\n    at foo (bar.js:1:1)",
+    "url": "http://localhost/test",
+    "user_agent": "pytest",
     "client_ip": "testclient"
   }
 ]
