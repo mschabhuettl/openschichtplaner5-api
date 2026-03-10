@@ -160,7 +160,7 @@ def _try_send_email(
 # ── API endpoints ─────────────────────────────────────────────────────────────
 
 
-@router.get("/api/notifications", tags=["Notifications"], summary="List notifications")
+@router.get("/api/notifications", tags=["Notifications"], summary="List notifications", description="Return unread notifications for the current user.")
 def list_notifications(
     employee_id: int | None = Query(
         None, description="Filter by recipient employee id (0 = planner-wide)"
@@ -201,6 +201,7 @@ def list_notifications(
     "/api/notifications/all",
     tags=["Notifications"],
     summary="List all notifications (admin)",
+    description="Return all notifications (read and unread) for the current user.",
 )
 def list_all_notifications(
     unread_only: bool = Query(False),
@@ -219,6 +220,7 @@ def list_all_notifications(
     "/api/notifications/{notif_id}/read",
     tags=["Notifications"],
     summary="Mark notification as read",
+    description="Mark a single notification as read. Non-admin users may only mark their own notifications as read.",
 )
 def mark_read(notif_id: int, cur_user: dict = Depends(require_planer)):
     """Mark a single notification as read.
@@ -252,6 +254,7 @@ def mark_read(notif_id: int, cur_user: dict = Depends(require_planer)):
     "/api/notifications/read-all",
     tags=["Notifications"],
     summary="Mark all notifications as read",
+    description="Mark all notifications as read for the current user.",
 )
 def mark_all_read(
     employee_id: int | None = Query(None),
@@ -279,6 +282,7 @@ def mark_all_read(
     "/api/notifications/{notif_id}",
     tags=["Notifications"],
     summary="Delete notification",
+    description="Delete a notification. Non-admin users may only delete their own notifications.",
 )
 def delete_notification(notif_id: int, cur_user: dict = Depends(require_planer)):
     """Delete a notification.

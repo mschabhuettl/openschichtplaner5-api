@@ -39,7 +39,7 @@ def get_employees(
     return paginate(result, page, page_size)
 
 
-@router.get("/api/employees/{emp_id}", tags=["Employees"], summary="Get employee by ID")
+@router.get("/api/employees/{emp_id}", tags=["Employees"], summary="Get employee by ID", description="Return a single employee record by ID.")
 def get_employee(emp_id: int):
     e = get_db().get_employee(emp_id)
     if e is None:

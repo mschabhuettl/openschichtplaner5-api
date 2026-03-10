@@ -95,7 +95,7 @@ def list_absences(
     return paginate(result, page, page_size)
 
 
-@router.get("/api/group-assignments", tags=["Groups"], summary="List group assignments")
+@router.get("/api/group-assignments", tags=["Groups"], summary="List group assignments", description="Return all group assignments (employee_id, group_id pairs).")
 def get_all_group_assignments():
     """Return all group assignments (employee_id, group_id pairs)."""
     return get_db().get_all_group_assignments()
@@ -305,7 +305,8 @@ def bulk_create_absence(
 
 
 @router.get(
-    "/api/leave-entitlements", tags=["Absences"], summary="List vacation entitlements"
+    "/api/leave-entitlements", tags=["Absences"], summary="List vacation entitlements",
+    description="Return vacation/leave entitlements for a given year, optionally filtered by employee.",
 )
 def get_leave_entitlements(
     year: int | None = Query(None),
@@ -323,7 +324,8 @@ class LeaveEntitlementCreate(BaseModel):
 
 
 @router.post(
-    "/api/leave-entitlements", tags=["Absences"], summary="Set vacation entitlement"
+    "/api/leave-entitlements", tags=["Absences"], summary="Set vacation entitlement",
+    description="Set the annual leave entitlement for an employee. Requires Planer role.",
 )
 def set_leave_entitlement(
     body: LeaveEntitlementCreate, _cur_user: dict = Depends(require_planer)
@@ -342,7 +344,8 @@ def set_leave_entitlement(
 
 
 @router.get(
-    "/api/leave-balance", tags=["Absences"], summary="Get employee leave balance"
+    "/api/leave-balance", tags=["Absences"], summary="Get employee leave balance",
+    description="Return the leave balance (entitlement vs. used) for a specific employee and year.",
 )
 def get_leave_balance(
     year: int = Query(...),
@@ -352,7 +355,8 @@ def get_leave_balance(
 
 
 @router.get(
-    "/api/leave-balance/group", tags=["Absences"], summary="Get group leave balance"
+    "/api/leave-balance/group", tags=["Absences"], summary="Get group leave balance",
+    description="Return leave balances for all employees in a group for a given year.",
 )
 def get_leave_balance_group(
     year: int = Query(...),
@@ -364,7 +368,7 @@ def get_leave_balance_group(
 # ── Holiday Bans ──────────────────────────────────────────────
 
 
-@router.get("/api/holiday-bans", tags=["Absences"], summary="List holiday ban periods")
+@router.get("/api/holiday-bans", tags=["Absences"], summary="List holiday ban periods", description="Return all holiday ban periods (Urlaubssperren).")
 def get_holiday_bans(
     group_id: int | None = Query(None),
 ):
@@ -415,7 +419,8 @@ def create_holiday_ban(
 
 
 @router.delete(
-    "/api/holiday-bans/{ban_id}", tags=["Absences"], summary="Delete holiday ban period"
+    "/api/holiday-bans/{ban_id}", tags=["Absences"], summary="Delete holiday ban period",
+    description="Delete a holiday ban period by ID. Requires Planer role.",
 )
 def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
     try:
@@ -432,6 +437,7 @@ def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
     "/api/annual-close/preview",
     tags=["Absences"],
     summary="Preview annual close (Jahresabschluss)",
+    description="Preview the annual closing calculation without applying changes.",
 )
 def annual_close_preview(
     year: int = Query(...),
@@ -451,7 +457,7 @@ class AnnualCloseBody(BaseModel):
     max_carry_forward_days: float | None = Field(10, ge=0, le=366)
 
 
-@router.post("/api/annual-close", tags=["Absences"], summary="Execute annual close")
+@router.post("/api/annual-close", tags=["Absences"], summary="Execute annual close", description="Execute the annual closing (Jahresabschluss) — carry forward balances to next year. Requires Admin role.")
 def run_annual_close(body: AnnualCloseBody, _cur_user: dict = Depends(require_admin)):
     try:
         result = get_db().run_annual_close(
@@ -490,7 +496,8 @@ def _save_absence_status(data: dict) -> None:
 
 
 @router.get(
-    "/api/absences/status", tags=["Absences"], summary="List absence approval status"
+    "/api/absences/status", tags=["Absences"], summary="List absence approval status",
+    description="Return the status dict for all absences (id → {status, reject_reason}). Also supports legacy format (id → status string) and normalizes on read.",
 )
 def get_all_absence_statuses():
     """Return the status dict for all absences (id → {status, reject_reason}).

@@ -38,13 +38,13 @@ def get_schedule(
     return get_db().get_schedule(year=year, month=month, group_id=group_id)
 
 
-@router.get("/api/cycles", tags=["Schedule"], summary="List schedule cycles")
+@router.get("/api/cycles", tags=["Schedule"], summary="List schedule cycles", description="Return all configured schedule cycles.")
 def get_cycles():
     return get_db().get_cycles()
 
 
 # ── Staffing requirements ────────────────────────────────────
-@router.get("/api/staffing", tags=["Schedule"], summary="Staffing overview")
+@router.get("/api/staffing", tags=["Schedule"], summary="Staffing overview", description="Return staffing levels (actual vs required) for a given month.")
 def get_staffing(
     year: int = Query(...),
     month: int = Query(...),
@@ -63,7 +63,8 @@ def get_staffing(
 
 # ── Schedule Coverage (Personalbedarf-Ampel) ─────────────────
 @router.get(
-    "/api/schedule/coverage", tags=["Schedule"], summary="Schedule coverage analysis"
+    "/api/schedule/coverage", tags=["Schedule"], summary="Schedule coverage analysis",
+    description="Return daily coverage analysis (ok/low/critical) for a given month.",
 )
 def get_schedule_coverage(
     year: int = Query(..., description="Year (YYYY)"),
@@ -141,7 +142,7 @@ def get_schedule_coverage(
 
 
 # ── Day schedule ─────────────────────────────────────────────
-@router.get("/api/schedule/day", tags=["Schedule"], summary="Daily schedule view")
+@router.get("/api/schedule/day", tags=["Schedule"], summary="Daily schedule view", description="Return the schedule for a single day, optionally filtered by group.")
 def get_schedule_day(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     group_id: int | None = Query(None),
@@ -159,7 +160,7 @@ def get_schedule_day(
 
 
 # ── Week schedule ────────────────────────────────────────────
-@router.get("/api/schedule/week", tags=["Schedule"], summary="Weekly schedule view")
+@router.get("/api/schedule/week", tags=["Schedule"], summary="Weekly schedule view", description="Return the schedule for an entire week, optionally filtered by group.")
 def get_schedule_week(
     date: str = Query(..., description="Any date within the target week (YYYY-MM-DD)"),
     group_id: int | None = Query(None),
@@ -177,7 +178,7 @@ def get_schedule_week(
 
 
 # ── Year overview ────────────────────────────────────────────
-@router.get("/api/schedule/year", tags=["Schedule"], summary="Yearly schedule overview")
+@router.get("/api/schedule/year", tags=["Schedule"], summary="Yearly schedule overview", description="Return the yearly schedule overview for a single employee.")
 def get_schedule_year(
     year: int = Query(...),
     employee_id: int = Query(...),
@@ -216,21 +217,24 @@ def get_schedule_conflicts(
 
 
 @router.get(
-    "/api/shift-cycles", tags=["Schedule"], summary="List shift rotation cycles"
+    "/api/shift-cycles", tags=["Schedule"], summary="List shift rotation cycles",
+    description="Return all defined shift rotation cycles with their entries.",
 )
 def get_shift_cycles():
     return get_db().get_shift_cycles()
 
 
 @router.get(
-    "/api/shift-cycles/assign", tags=["Schedule"], summary="List cycle assignments"
+    "/api/shift-cycles/assign", tags=["Schedule"], summary="List cycle assignments",
+    description="Return all employee-to-cycle assignments.",
 )
 def get_cycle_assignments():
     return get_db().get_cycle_assignments()
 
 
 @router.get(
-    "/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Get shift cycle by ID"
+    "/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Get shift cycle by ID",
+    description="Return a single shift cycle by ID with its entries.",
 )
 def get_shift_cycle(cycle_id: int):
     c = get_db().get_shift_cycle(cycle_id)
@@ -249,6 +253,7 @@ class CycleAssignBody(BaseModel):
     "/api/shift-cycles/assign",
     tags=["Schedule"],
     summary="Assign employee to shift cycle",
+    description="Assign an employee to a shift rotation cycle. Requires Planer role.",
 )
 def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer)):
     # start_date format already validated by Pydantic pattern; also parse for calendar validity
@@ -282,6 +287,7 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer
     "/api/shift-cycles/assign/{employee_id}",
     tags=["Schedule"],
     summary="Remove employee from shift cycle",
+    description="Remove an employee from their assigned shift cycle. Requires Planer role.",
 )
 def remove_cycle_assignment(
     employee_id: int, _cur_user: dict = Depends(require_planer)
@@ -312,7 +318,7 @@ class ShiftCycleUpdateBody(BaseModel):
     entries: list[CycleEntryItem] = []
 
 
-@router.post("/api/shift-cycles", tags=["Schedule"], summary="Create shift cycle")
+@router.post("/api/shift-cycles", tags=["Schedule"], summary="Create shift cycle", description="Create a new shift rotation cycle. Requires Planer role.")
 def create_shift_cycle(
     body: ShiftCycleCreateBody, _cur_user: dict = Depends(require_planer)
 ):
@@ -330,7 +336,8 @@ def create_shift_cycle(
 
 
 @router.put(
-    "/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Update shift cycle"
+    "/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Update shift cycle",
+    description="Update an existing shift rotation cycle and its entries. Requires Planer role.",
 )
 def update_shift_cycle(
     cycle_id: int, body: ShiftCycleUpdateBody, _cur_user: dict = Depends(require_planer)
@@ -374,7 +381,8 @@ def update_shift_cycle(
 
 
 @router.delete(
-    "/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Delete shift cycle"
+    "/api/shift-cycles/{cycle_id}", tags=["Schedule"], summary="Delete shift cycle",
+    description="Delete a shift rotation cycle. Requires Planer role.",
 )
 def delete_shift_cycle(cycle_id: int, _cur_user: dict = Depends(require_planer)):
     try:
@@ -427,7 +435,8 @@ class TemplateCaptureRequest(BaseModel):
 
 
 @router.get(
-    "/api/schedule/templates", tags=["Schedule"], summary="List schedule templates"
+    "/api/schedule/templates", tags=["Schedule"], summary="List schedule templates",
+    description="List all saved schedule templates.",
 )
 def list_templates():
     """List all saved schedule templates."""
@@ -436,7 +445,8 @@ def list_templates():
 
 
 @router.post(
-    "/api/schedule/templates", tags=["Schedule"], summary="Create schedule template"
+    "/api/schedule/templates", tags=["Schedule"], summary="Create schedule template",
+    description="Create a new schedule template.",
 )
 def create_template(body: TemplateCreate, _cur_user: dict = Depends(require_planer)):
     """Create a new schedule template."""
@@ -454,6 +464,7 @@ def create_template(body: TemplateCreate, _cur_user: dict = Depends(require_plan
     "/api/schedule/templates/capture",
     tags=["Schedule"],
     summary="Capture week as template",
+    description="Capture the current week's schedule as a reusable template. Requires Planer role.",
 )
 def capture_template(
     body: TemplateCaptureRequest, _cur_user: dict = Depends(require_planer)
@@ -492,6 +503,7 @@ def capture_template(
     "/api/schedule/templates/{template_id}",
     tags=["Schedule"],
     summary="Delete schedule template",
+    description="Delete a schedule template by ID.",
 )
 def delete_template(template_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a schedule template by ID."""
@@ -506,6 +518,7 @@ def delete_template(template_id: int, _cur_user: dict = Depends(require_planer))
     "/api/schedule/templates/{template_id}/apply",
     tags=["Schedule"],
     summary="Apply template to week",
+    description="Apply a schedule template to a target week. Use force=true to overwrite existing entries. Requires Planer role.",
 )
 def apply_template(
     template_id: int,
@@ -748,7 +761,8 @@ def generate_schedule(
 
 
 @router.get(
-    "/api/restrictions", tags=["Schedule"], summary="List employee shift restrictions"
+    "/api/restrictions", tags=["Schedule"], summary="List employee shift restrictions",
+    description="Return all shift restrictions, optionally filtered by employee_id.",
 )
 def get_restrictions(employee_id: int | None = Query(None)):
     """Return all shift restrictions, optionally filtered by employee_id."""
@@ -762,7 +776,7 @@ class RestrictionCreate(BaseModel):
     weekday: int | None = Field(0, ge=0, le=7)
 
 
-@router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction")
+@router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction", description="Add a shift restriction preventing an employee from a specific shift. Requires Admin role.")
 def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_admin)):
     """Add a shift restriction for an employee."""
     weekday = body.weekday or 0
@@ -787,6 +801,7 @@ def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_a
     "/api/restrictions/{employee_id}/{shift_id}",
     tags=["Schedule"],
     summary="Remove shift restriction",
+    description="Remove a shift restriction for an employee.",
 )
 def remove_restriction(
     employee_id: int,
@@ -1005,7 +1020,8 @@ class DeviationCreate(BaseModel):
 
 
 @router.post(
-    "/api/einsatzplan", tags=["Schedule"], summary="Create deployment plan entry"
+    "/api/einsatzplan", tags=["Schedule"], summary="Create deployment plan entry",
+    description="Create a Sonderdienst (special duty) entry. Requires Planer role.",
 )
 def create_einsatzplan_entry(
     body: EinsatzplanCreate, _cur_user: dict = Depends(require_planer)
@@ -1051,6 +1067,7 @@ def create_einsatzplan_entry(
     "/api/einsatzplan/{entry_id}",
     tags=["Schedule"],
     summary="Update deployment plan entry",
+    description="Update an existing deployment plan entry. Requires Planer role.",
 )
 def update_einsatzplan_entry(
     entry_id: int, body: EinsatzplanUpdate, _cur_user: dict = Depends(require_planer)
@@ -1083,6 +1100,7 @@ def update_einsatzplan_entry(
     "/api/einsatzplan/{entry_id}",
     tags=["Schedule"],
     summary="Delete deployment plan entry",
+    description="Delete a SPSHI entry by ID.",
 )
 def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a SPSHI entry by ID."""
@@ -1101,6 +1119,7 @@ def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_pl
     "/api/einsatzplan/deviation",
     tags=["Schedule"],
     summary="Record deployment deviation",
+    description="Create an Arbeitszeitabweichung entry in SPSHI (TYPE=1).",
 )
 def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_planer)):
     """Create an Arbeitszeitabweichung entry in SPSHI (TYPE=1)."""
@@ -1141,7 +1160,8 @@ def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_pl
 
 
 @router.get(
-    "/api/einsatzplan", tags=["Schedule"], summary="List deployment plan entries"
+    "/api/einsatzplan", tags=["Schedule"], summary="List deployment plan entries",
+    description="Return deployment plan entries (Sonderdienste + deviations) for a specific date.",
 )
 def get_einsatzplan(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
@@ -1170,7 +1190,7 @@ class CycleExceptionSet(BaseModel):
     type: int = Field(1, ge=0, le=1)  # 1=skip, 0=normal
 
 
-@router.get("/api/cycle-exceptions", tags=["Schedule"], summary="List cycle exceptions")
+@router.get("/api/cycle-exceptions", tags=["Schedule"], summary="List cycle exceptions", description="Return cycle exceptions (date overrides in assigned cycles).")
 def get_cycle_exceptions(
     employee_id: int | None = Query(None),
     cycle_assignment_id: int | None = Query(None),
@@ -1182,7 +1202,8 @@ def get_cycle_exceptions(
 
 
 @router.post(
-    "/api/cycle-exceptions", tags=["Schedule"], summary="Create cycle exception"
+    "/api/cycle-exceptions", tags=["Schedule"], summary="Create cycle exception",
+    description="Set a cycle exception for a specific date. Requires Planer role.",
 )
 def set_cycle_exception(
     body: CycleExceptionSet, _cur_user: dict = Depends(require_planer)
@@ -1204,6 +1225,7 @@ def set_cycle_exception(
     "/api/cycle-exceptions/{exception_id}",
     tags=["Schedule"],
     summary="Delete cycle exception",
+    description="Delete a cycle exception by ID. Requires Planer role.",
 )
 def delete_cycle_exception(
     exception_id: int, _cur_user: dict = Depends(require_planer)

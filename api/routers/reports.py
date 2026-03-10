@@ -1932,6 +1932,7 @@ def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
     "/api/bookings/carry-forward",
     tags=["Statistics"],
     summary="Get carry-forward saldo",
+    description="Return carry-forward hour balances from year-end closing.",
 )
 def get_carry_forward(employee_id: int = Query(...), year: int = Query(...)):
     try:
@@ -1950,6 +1951,7 @@ class CarryForwardSet(BaseModel):
     "/api/bookings/carry-forward",
     tags=["Statistics"],
     summary="Set carry-forward saldo",
+    description="Set carry-forward hours for an employee. Requires Planer role.",
 )
 def set_carry_forward(body: CarryForwardSet, _cur_user: dict = Depends(require_planer)):
     try:
@@ -1972,6 +1974,7 @@ class AnnualStatementBody(BaseModel):
     "/api/bookings/annual-statement",
     tags=["Statistics"],
     summary="Generate annual statement",
+    description="Execute the annual year-end closing (Jahresabschluss). Requires Admin role.",
 )
 def annual_statement(
     body: AnnualStatementBody, _cur_user: dict = Depends(require_planer)
@@ -1990,6 +1993,7 @@ def annual_statement(
     "/api/overtime-records",
     tags=["Statistics"],
     summary="List overtime records",
+    description="Return overtime records for a given year, optionally filtered by employee.",
 )
 def get_overtime_records(
     year: int | None = Query(None, description="Filter by year"),
@@ -2010,6 +2014,7 @@ def _decode_csv(content: bytes) -> str:
     "/api/import/employees",
     tags=["Import"],
     summary="Import employees from CSV",
+    description="Parse #RRGGBB hex to BGR int, or pass-through int.",
 )
 async def import_employees(
     file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
@@ -2108,6 +2113,7 @@ async def import_employees(
     "/api/import/shifts",
     tags=["Import"],
     summary="Import shifts from CSV",
+    description="Parse #RRGGBB hex to BGR int, or pass-through int.",
 )
 async def import_shifts(
     file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
@@ -2739,6 +2745,7 @@ def get_burnout_radar(
     "/api/overtime-summary",
     tags=["Statistics"],
     summary="Overtime summary",
+    description="Return aggregated overtime summary (Soll/Ist/Delta) per employee.",
 )
 def get_overtime_summary(
     year: int | None = Query(
@@ -2779,6 +2786,7 @@ def get_overtime_summary(
     "/api/warnings",
     tags=["Statistics"],
     summary="Schedule warnings and anomalies",
+    description="Return staffing warnings (understaffed days) for the next 7 days.",
 )
 def get_warnings(
     year: int | None = Query(
@@ -2999,6 +3007,7 @@ def get_warnings(
     "/api/fairness",
     tags=["Statistics"],
     summary="Fairness analysis",
+    description="Calculate fairness scores for weekend, night, and holiday shift distribution across employees.",
 )
 def get_fairness_score(
     year: int = Query(..., description="Year"),
@@ -3142,6 +3151,7 @@ def get_fairness_score(
     "/api/capacity-forecast",
     tags=["Statistics"],
     summary="Capacity forecast",
+    description="Return monthly capacity forecast with understaffing risk analysis.",
 )
 def get_capacity_forecast(
     year: int = Query(..., description="Year (YYYY)"),
@@ -3366,6 +3376,7 @@ def get_capacity_forecast(
     "/api/capacity-year",
     tags=["Statistics"],
     summary="Yearly capacity overview",
+    description="Return yearly capacity overview with monthly aggregates.",
 )
 def get_capacity_year(
     year: int = Query(..., description="Year (YYYY)"),
@@ -3537,6 +3548,7 @@ def get_capacity_year(
     "/api/quality-report",
     tags=["Statistics"],
     summary="Schedule quality report",
+    description="Return a data quality report identifying missing or inconsistent records.",
 )
 def get_quality_report(
     year: int = Query(...),
@@ -3833,6 +3845,7 @@ def get_quality_report(
     "/api/availability-matrix",
     tags=["Statistics"],
     summary="Employee availability matrix",
+    description="Return employee availability matrix for a given date range.",
 )
 def get_availability_matrix(
     group_id: int | None = Query(None),
@@ -4079,6 +4092,7 @@ class SimulationRequest(BaseModel):
     "/api/simulation",
     tags=["Statistics"],
     summary="Schedule simulation",
+    description="Schichtplan-Simulation: Was passiert wenn Mitarbeiter ausfallen? Vergleicht Ist-Besetzung mit simulierter Besetzung nach Ausfall.",
 )
 def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_planer)):
     """

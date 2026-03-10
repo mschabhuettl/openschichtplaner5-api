@@ -155,7 +155,7 @@ def delete_note(note_id: int, _cur_user: dict = Depends(require_planer)):
         raise _sanitize_500(e)
 
 
-@router.get("/api/search", tags=["Employees"], summary="Global search")
+@router.get("/api/search", tags=["Employees"], summary="Global search", description="Full-text search across employees, shifts, groups, and other entities.")
 def global_search(q: str = Query("", description="Search query")):
     """Global search across employees, shifts, and leave types (absence types).
     Returns up to 20 results per category with fuzzy matching.
@@ -304,7 +304,8 @@ class GroupAccessSet(BaseModel):
 
 
 @router.get(
-    "/api/employee-access", tags=["Users"], summary="List employee access rules"
+    "/api/employee-access", tags=["Users"], summary="List employee access rules",
+    description="Return the employee-level access permissions for a user.",
 )
 def get_employee_access(
     user_id: int | None = Query(None), _cur_user: dict = Depends(require_admin)
@@ -314,7 +315,8 @@ def get_employee_access(
 
 
 @router.post(
-    "/api/employee-access", tags=["Users"], summary="Create employee access rule"
+    "/api/employee-access", tags=["Users"], summary="Create employee access rule",
+    description="Set group-based or employee-based access permissions for a user.",
 )
 def set_employee_access(
     body: EmployeeAccessSet, _cur_user: dict = Depends(require_admin)
@@ -333,6 +335,7 @@ def set_employee_access(
     "/api/employee-access/{access_id}",
     tags=["Users"],
     summary="Delete employee access rule",
+    description="Remove an employee access entry.",
 )
 def delete_employee_access(access_id: int, _cur_user: dict = Depends(require_admin)):
     """Remove an employee access entry."""
@@ -342,7 +345,7 @@ def delete_employee_access(access_id: int, _cur_user: dict = Depends(require_adm
     return {"ok": True, "deleted": access_id}
 
 
-@router.get("/api/group-access", tags=["Users"], summary="List group access rules")
+@router.get("/api/group-access", tags=["Users"], summary="List group access rules", description="Return group access permissions for a specific user.")
 def get_group_access(
     user_id: int | None = Query(None), _cur_user: dict = Depends(require_admin)
 ):
@@ -350,7 +353,7 @@ def get_group_access(
     return get_db().get_group_access(user_id=user_id)
 
 
-@router.post("/api/group-access", tags=["Users"], summary="Create group access rule")
+@router.post("/api/group-access", tags=["Users"], summary="Create group access rule", description="Set group-level access for a user.")
 def set_group_access(body: GroupAccessSet, _cur_user: dict = Depends(require_admin)):
     """Set group-level access for a user."""
     try:
@@ -361,7 +364,8 @@ def set_group_access(body: GroupAccessSet, _cur_user: dict = Depends(require_adm
 
 
 @router.delete(
-    "/api/group-access/{access_id}", tags=["Users"], summary="Delete group access rule"
+    "/api/group-access/{access_id}", tags=["Users"], summary="Delete group access rule",
+    description="Remove a group access entry.",
 )
 def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)):
     """Remove a group access entry."""
@@ -374,7 +378,7 @@ def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)
 # ── Changelog / Aktivitätsprotokoll ─────────────────────────
 
 
-@router.get("/api/changelog", tags=["Admin"], summary="List audit log entries")
+@router.get("/api/changelog", tags=["Admin"], summary="List audit log entries", description="Return the activity changelog with optional filtering and pagination.")
 def get_changelog(
     limit: int = Query(100, description="Max entries to return (applied before pagination)"),
     user: str | None = Query(None, description="Filter by user"),
@@ -400,7 +404,7 @@ class ChangelogEntry(BaseModel):
     details: str | None = ""
 
 
-@router.post("/api/changelog", tags=["Admin"], summary="Add audit log entry")
+@router.post("/api/changelog", tags=["Admin"], summary="Add audit log entry", description="Manually write an entry to the changelog.")
 def log_action(body: ChangelogEntry, _cur_user: dict = Depends(require_planer)):
     """Manually write an entry to the changelog."""
     entry = get_db().log_action(
@@ -433,7 +437,7 @@ class WishCreate(BaseModel):
     note: str | None = Field("", max_length=500)
 
 
-@router.post("/api/wishes", tags=["Self-Service"], summary="Create shift wish")
+@router.post("/api/wishes", tags=["Self-Service"], summary="Create shift wish", description="Create a shift wish or blocked day for an employee. Requires Planer role.")
 def create_wish(body: WishCreate, _cur_user: dict = Depends(require_planer)):
     wish_type = body.wish_type.upper()
     if wish_type not in ("WUNSCH", "SPERRUNG"):
@@ -453,7 +457,8 @@ def create_wish(body: WishCreate, _cur_user: dict = Depends(require_planer)):
 
 
 @router.delete(
-    "/api/wishes/{wish_id}", tags=["Self-Service"], summary="Delete shift wish"
+    "/api/wishes/{wish_id}", tags=["Self-Service"], summary="Delete shift wish",
+    description="Delete a shift wish by ID. Requires Planer role.",
 )
 def delete_wish(wish_id: int, _cur_user: dict = Depends(require_planer)):
     deleted = get_db().delete_wish(wish_id)
@@ -471,6 +476,7 @@ class WishApprove(BaseModel):
     "/api/wishes/{wish_id}/approve",
     tags=["Self-Service"],
     summary="Approve or reject a shift wish",
+    description="Approve a shift wish. Requires Planer role.",
 )
 def approve_wish(
     wish_id: int, body: WishApprove, _cur_user: dict = Depends(require_planer)
@@ -531,7 +537,7 @@ import uuid as _uuid  # noqa: E402
 _handover_notes: list[dict] = []
 
 
-@router.get("/api/handover", tags=["Notes"], summary="List handover notes")
+@router.get("/api/handover", tags=["Notes"], summary="List handover notes", description="Return handover notes for a specific date.")
 def get_handover(date: str | None = None, shift_id: int | None = None, limit: int = 50):
     """Übergabe-Notizen abrufen, optional gefiltert nach Datum/Schicht."""
     notes = list(reversed(_handover_notes))  # neueste zuerst
@@ -542,7 +548,7 @@ def get_handover(date: str | None = None, shift_id: int | None = None, limit: in
     return notes[:limit]
 
 
-@router.post("/api/handover", tags=["Notes"], summary="Create handover note")
+@router.post("/api/handover", tags=["Notes"], summary="Create handover note", description="Create a shift handover note for a date. Requires Planer role.")
 def create_handover(body: dict, _cur_user: dict = Depends(require_planer)):
     """Neue Übergabe-Notiz anlegen."""
     note = {
@@ -581,7 +587,8 @@ def update_handover(
 
 
 @router.delete(
-    "/api/handover/{note_id}", tags=["Notes"], summary="Delete handover note"
+    "/api/handover/{note_id}", tags=["Notes"], summary="Delete handover note",
+    description="Übergabe-Notiz löschen.",
 )
 def delete_handover(note_id: str, _cur_user: dict = Depends(require_planer)):
     """Übergabe-Notiz löschen."""
@@ -613,7 +620,8 @@ class SwapRequestResolve(BaseModel):
 
 
 @router.get(
-    "/api/swap-requests", tags=["Self-Service"], summary="List shift swap requests"
+    "/api/swap-requests", tags=["Self-Service"], summary="List shift swap requests",
+    description="Return shift swap requests, optionally filtered by status or employee.",
 )
 def list_swap_requests(
     status: str | None = None,
@@ -672,7 +680,8 @@ def list_swap_requests(
 
 
 @router.post(
-    "/api/swap-requests", tags=["Self-Service"], summary="Create shift swap request"
+    "/api/swap-requests", tags=["Self-Service"], summary="Create shift swap request",
+    description="Create a new shift swap request between two employees. Requires Planer role.",
 )
 @limiter.limit("5/minute")
 def create_swap_request(
@@ -735,6 +744,7 @@ def create_swap_request(
     "/api/swap-requests/{swap_id}/resolve",
     tags=["Self-Service"],
     summary="Resolve shift swap request",
+    description="Resolve (approve/reject) a shift swap request and execute the swap if approved. Requires Planer role.",
 )
 def resolve_swap_request(
     swap_id: int, body: SwapRequestResolve, _cur_user: dict = Depends(require_planer)
@@ -886,6 +896,7 @@ def resolve_swap_request(
     "/api/swap-requests/{swap_id}",
     tags=["Self-Service"],
     summary="Cancel shift swap request",
+    description="Delete a swap request (cancel).",
 )
 def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer)):
     """Delete a swap request (cancel)."""
@@ -927,6 +938,7 @@ class SelfSwapRequestCreate(BaseModel):
     "/api/self/swap-requests",
     tags=["Self-Service"],
     summary="Employee creates own swap request",
+    description="Self-service: employee creates a shift swap request with a partner.",
 )
 @limiter.limit("5/minute")
 def create_self_swap_request(
@@ -990,6 +1002,7 @@ class PartnerRespondBody(BaseModel):
     "/api/self/swap-requests/{swap_id}/respond",
     tags=["Self-Service"],
     summary="Partner accepts or declines a swap request",
+    description="Self-service: partner accepts or declines a swap request.",
 )
 def partner_respond_swap(
     swap_id: int, body: PartnerRespondBody, cur_user: dict = Depends(require_auth)
@@ -1055,6 +1068,7 @@ def partner_respond_swap(
     "/api/self/swap-requests/{swap_id}",
     tags=["Self-Service"],
     summary="Employee cancels own swap request",
+    description="Self-service: requester cancels their own pending swap request.",
 )
 def cancel_self_swap_request(
     swap_id: int, cur_user: dict = Depends(require_auth)
@@ -1100,6 +1114,7 @@ def cancel_self_swap_request(
     "/api/me/employee",
     tags=["Self-Service"],
     summary="Get current user's employee record",
+    description="Returns the EMPL record matching the logged-in user by name, or null.",
 )
 def get_my_employee(cur_user: dict = Depends(require_auth)):
     """Returns the EMPL record matching the logged-in user by name, or null."""
@@ -1120,7 +1135,7 @@ class SelfWishCreate(BaseModel):
     note: str | None = Field("", max_length=500)
 
 
-@router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block")
+@router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block", description="Leser can submit a Schichtwunsch or Sperrung for themselves.")
 def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth)):
     """Leser can submit a Schichtwunsch or Sperrung for themselves."""
     user_name = cur_user.get("NAME", "").strip().lower()
@@ -1154,7 +1169,8 @@ def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth
 
 
 @router.delete(
-    "/api/self/wishes/{wish_id}", tags=["Self-Service"], summary="Delete own wish"
+    "/api/self/wishes/{wish_id}", tags=["Self-Service"], summary="Delete own wish",
+    description="Leser can delete their own wishes.",
 )
 def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
     """Leser can delete their own wishes."""
@@ -1190,7 +1206,8 @@ class SelfAbsenceCreate(BaseModel):
 
 
 @router.post(
-    "/api/self/absences", tags=["Self-Service"], summary="Submit own absence request"
+    "/api/self/absences", tags=["Self-Service"], summary="Submit own absence request",
+    description="Self-service: employee requests an absence (subject to approval).",
 )
 def create_self_absence(
     body: SelfAbsenceCreate, cur_user: dict = Depends(require_auth)

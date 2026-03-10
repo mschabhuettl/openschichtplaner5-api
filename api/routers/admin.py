@@ -26,7 +26,7 @@ router = APIRouter()
 # ── Periods ───────────────────────────────────────────────────
 
 
-@router.get("/api/periods", tags=["Admin"], summary="List accounting periods")
+@router.get("/api/periods", tags=["Admin"], summary="List accounting periods", description="Return all configured accounting periods.")
 def get_periods(
     group_id: int | None = Query(None),
     _cur_user: dict = Depends(require_auth),
@@ -97,7 +97,7 @@ def delete_period(period_id: int, _cur_user: dict = Depends(require_planer)):
 # ── Settings (USETT) ─────────────────────────────────────────
 
 
-@router.get("/api/settings", tags=["Admin"], summary="Get application settings")
+@router.get("/api/settings", tags=["Admin"], summary="Get application settings", description="Return all system settings (USETT table).")
 def get_settings(_cur_user: dict = Depends(require_auth)):
     """Return global settings from 5USETT.DBF."""
     try:
@@ -267,7 +267,7 @@ def create_auto_backup() -> str | None:
         return None
 
 
-@router.get("/api/admin/backups", tags=["Backup"], summary="List database backups")
+@router.get("/api/admin/backups", tags=["Backup"], summary="List database backups", description="List all server-side backups. Admin only.")
 def list_backups(_admin: dict = Depends(require_admin)):
     """List all server-side backups. Admin only."""
     backup_dir = _get_backup_dir()
@@ -305,6 +305,7 @@ def list_backups(_admin: dict = Depends(require_admin)):
     "/api/admin/backups/{filename}/download",
     tags=["Backup"],
     summary="Download database backup",
+    description="Download a specific saved backup by filename. Admin only.",
 )
 @limiter.limit("5/minute")
 def download_saved_backup(request: Request, filename: str, _admin: dict = Depends(require_admin)):
@@ -339,7 +340,8 @@ def download_saved_backup(request: Request, filename: str, _admin: dict = Depend
 
 
 @router.delete(
-    "/api/admin/backups/{filename}", tags=["Backup"], summary="Delete database backup"
+    "/api/admin/backups/{filename}", tags=["Backup"], summary="Delete database backup",
+    description="Delete a specific saved backup. Admin only.",
 )
 def delete_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
     """Delete a specific saved backup. Admin only."""
@@ -366,7 +368,8 @@ def delete_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
 
 
 @router.get(
-    "/api/backup/download", tags=["Backup"], summary="Download current database backup"
+    "/api/backup/download", tags=["Backup"], summary="Download current database backup",
+    description="Create a ZIP of all .DBF / .FPT / .CDX files and return as download. Also saves to backup dir.",
 )
 @limiter.limit("3/minute")
 def backup_download(request: Request, _admin: dict = Depends(require_admin)):
@@ -402,7 +405,8 @@ def backup_download(request: Request, _admin: dict = Depends(require_admin)):
 
 
 @router.post(
-    "/api/backup/restore", tags=["Backup"], summary="Restore database from backup"
+    "/api/backup/restore", tags=["Backup"], summary="Restore database from backup",
+    description="Compact all .DBF files in SP5_DB_PATH by rewriting them without deleted records. Deleted records have 0x2A ('*') as the first byte of their data row. Each file is exclusively locked during the oper...",
 )
 @limiter.limit("3/minute")
 async def backup_restore(
@@ -638,7 +642,7 @@ class FrontendErrorReport(BaseModel):
     timestamp: str | None = Field(None, max_length=50)
 
 
-@router.post("/api/errors", tags=["Health"], summary="Report frontend error")
+@router.post("/api/errors", tags=["Health"], summary="Report frontend error", description="Receive a frontend error report and store it.")
 @limiter.limit("10/minute")
 def report_frontend_error(request: Request, body: FrontendErrorReport):
     """Receive a frontend error report and store it."""
@@ -668,6 +672,7 @@ def report_frontend_error(request: Request, body: FrontendErrorReport):
     "/api/admin/frontend-errors",
     tags=["Health"],
     summary="List frontend errors (Admin)",
+    description="Return all stored frontend errors.",
 )
 def get_frontend_errors(_cur_user: dict = Depends(require_admin)):
     """Return all stored frontend errors."""
@@ -676,7 +681,8 @@ def get_frontend_errors(_cur_user: dict = Depends(require_admin)):
 
 
 @router.get(
-    "/api/admin/cache-stats", tags=["Admin"], summary="Cache statistics (Admin)"
+    "/api/admin/cache-stats", tags=["Admin"], summary="Cache statistics (Admin)",
+    description="Return internal cache statistics. Admin only.",
 )
 def get_cache_stats(_cur_user: dict = Depends(require_admin)):
     """Return internal cache statistics. Admin only."""

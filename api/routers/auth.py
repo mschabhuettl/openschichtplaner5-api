@@ -516,7 +516,7 @@ def login(request: Request, body: LoginBody):
     return response
 
 
-@router.get("/api/auth/me", tags=["Auth"], summary="Current user info")
+@router.get("/api/auth/me", tags=["Auth"], summary="Current user info", description="Return the current authenticated user's info.")
 def me(user: dict = Depends(require_auth)):
     """Return the current authenticated user's info."""
     return {k: v for k, v in user.items() if k != "expires_at"}
