@@ -557,6 +557,53 @@ class ScheduleEntryCreate(BaseModel):
         return v
 
 
+def _parse_time_range(startend: str):
+    """Parse a 'HH:MM-HH:MM' string into (start_minutes, end_minutes) from midnight.
+
+    Returns None if the string cannot be parsed.
+    Handles overnight shifts where end < start by adding 24h to end.
+    """
+    if not startend or "-" not in startend:
+        return None
+    parts = startend.strip().split("-")
+    if len(parts) != 2:
+        return None
+    try:
+        sh, sm = parts[0].strip().split(":")
+        eh, em = parts[1].strip().split(":")
+        start_min = int(sh) * 60 + int(sm)
+        end_min = int(eh) * 60 + int(em)
+        if end_min <= start_min:
+            end_min += 24 * 60  # overnight shift
+        return (start_min, end_min)
+    except (ValueError, IndexError):
+        return None
+
+
+def _times_overlap(range_a, range_b) -> bool:
+    """Check if two (start_min, end_min) ranges overlap."""
+    if range_a is None or range_b is None:
+        return False
+    return range_a[0] < range_b[1] and range_b[0] < range_a[1]
+
+
+def _get_shift_time_range(shift: dict, weekday_index: int):
+    """Get the time range for a shift on a specific weekday (0=Mon..6=Sun).
+
+    Falls back to STARTEND0 if the weekday-specific field is empty.
+    """
+    # Try weekday-specific time first
+    key = f"STARTEND{weekday_index}"
+    val = (shift.get(key, "") or "").strip()
+    if val and "-" in val:
+        result = _parse_time_range(val)
+        if result:
+            return result
+    # Fall back to STARTEND0 (Monday / default)
+    val0 = (shift.get("STARTEND0", "") or "").strip()
+    return _parse_time_range(val0)
+
+
 @router.post(
     "/api/schedule",
     tags=["Schedule"],
@@ -566,22 +613,143 @@ class ScheduleEntryCreate(BaseModel):
 def create_schedule_entry(
     body: ScheduleEntryCreate, _cur_user: dict = Depends(require_planer)
 ):
+    from datetime import date as _date
+
+    from sp5lib.dbf_reader import get_table_fields
+    from sp5lib.dbf_writer import find_all_records
+
     # Date validation handled by Pydantic model
     db = get_db()
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(
             status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden"
         )
-    if db.get_shift(body.shift_id) is None:
+    new_shift = db.get_shift(body.shift_id)
+    if new_shift is None:
         raise HTTPException(
             status_code=404, detail=f"Schicht {body.shift_id} nicht gefunden"
         )
+
+    entry_date = _date.fromisoformat(body.date)
+    iso_wd = entry_date.isoweekday()  # 1=Mon, 7=Sun
+    weekday_index = iso_wd - 1  # 0=Mon, 6=Sun (for STARTEND0..STARTEND6)
+
+    # ── Conflict Check 1: Duplicate assignment (same employee + same shift + same date) ──
+    try:
+        filepath = db._table("MASHI")
+        fields = get_table_fields(filepath)
+        existing_entries = find_all_records(
+            filepath, fields, EMPLOYEEID=body.employee_id, DATE=body.date
+        )
+        for _, rec in existing_entries:
+            if rec.get("SHIFTID") == body.shift_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "type": "duplicate_assignment",
+                        "message": f"Mitarbeiter {body.employee_id} ist am {body.date} bereits "
+                                   f"der Schicht '{new_shift.get('NAME', body.shift_id)}' zugewiesen.",
+                        "employee_id": body.employee_id,
+                        "date": body.date,
+                        "shift_id": body.shift_id,
+                    },
+                )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # best-effort
+
+    # ── Conflict Check 2: Overlapping shifts (time-based) ──
+    try:
+        new_time_range = _get_shift_time_range(new_shift, weekday_index)
+        if new_time_range and existing_entries:
+            for _, rec in existing_entries:
+                existing_shift_id = rec.get("SHIFTID")
+                if existing_shift_id:
+                    existing_shift = db.get_shift(existing_shift_id)
+                    if existing_shift:
+                        existing_range = _get_shift_time_range(existing_shift, weekday_index)
+                        if _times_overlap(new_time_range, existing_range):
+                            raise HTTPException(
+                                status_code=409,
+                                detail={
+                                    "type": "overlapping_shift",
+                                    "message": (
+                                        f"Mitarbeiter {body.employee_id} hat am {body.date} bereits "
+                                        f"die Schicht '{existing_shift.get('NAME', existing_shift_id)}' "
+                                        f"die sich zeitlich mit '{new_shift.get('NAME', body.shift_id)}' überschneidet."
+                                    ),
+                                    "employee_id": body.employee_id,
+                                    "date": body.date,
+                                    "existing_shift_id": existing_shift_id,
+                                    "new_shift_id": body.shift_id,
+                                },
+                            )
+        # Also check SPSHI (Sonderdienste) for overlaps
+        spshi_path = db._table("SPSHI")
+        spshi_fields = get_table_fields(spshi_path)
+        spshi_entries = find_all_records(
+            spshi_path, spshi_fields, EMPLOYEEID=body.employee_id, DATE=body.date
+        )
+        if new_time_range and spshi_entries:
+            for _, rec in spshi_entries:
+                spshi_startend = (rec.get("STARTEND", "") or "").strip()
+                spshi_range = _parse_time_range(spshi_startend)
+                if _times_overlap(new_time_range, spshi_range):
+                    spshi_name = rec.get("NAME", "Sonderdienst")
+                    raise HTTPException(
+                        status_code=409,
+                        detail={
+                            "type": "overlapping_shift",
+                            "message": (
+                                f"Mitarbeiter {body.employee_id} hat am {body.date} bereits "
+                                f"den Sonderdienst '{spshi_name}' der sich zeitlich mit "
+                                f"'{new_shift.get('NAME', body.shift_id)}' überschneidet."
+                            ),
+                            "employee_id": body.employee_id,
+                            "date": body.date,
+                            "new_shift_id": body.shift_id,
+                        },
+                    )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # best-effort — don't block on unexpected errors
+
+    # ── Conflict Check 3: Absence/vacation on same day ──
+    try:
+        absen_path = db._table("ABSEN")
+        absen_fields = get_table_fields(absen_path)
+        absence_entries = find_all_records(
+            absen_path, absen_fields, EMPLOYEEID=body.employee_id, DATE=body.date
+        )
+        if absence_entries:
+            _, absence_rec = absence_entries[0]
+            leave_type_id = absence_rec.get("LEAVETYPID")
+            leave_type = db.get_leave_type(leave_type_id) if leave_type_id else None
+            leave_name = leave_type.get("NAME", "Abwesenheit") if leave_type else "Abwesenheit"
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "type": "absence_conflict",
+                    "message": (
+                        f"Mitarbeiter {body.employee_id} hat am {body.date} bereits "
+                        f"eine Abwesenheit eingetragen: '{leave_name}'. "
+                        f"Schichtzuweisung nicht möglich."
+                    ),
+                    "employee_id": body.employee_id,
+                    "date": body.date,
+                    "leave_type": leave_name,
+                },
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # best-effort
+
+    # ── Conflict Check 4: RESTR restrictions ──
     # Check RESTR restrictions: weekday 0=all days, 1=Mon...7=Sun (ISO weekday)
     try:
-        from datetime import date as _date
-
-        entry_date = _date.fromisoformat(body.date)
-        iso_wd = entry_date.isoweekday()  # 1=Mon, 7=Sun
         restrictions = db._read("RESTR")
         for r in restrictions:
             if (

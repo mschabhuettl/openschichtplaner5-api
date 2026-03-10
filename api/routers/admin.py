@@ -1,8 +1,10 @@
 """Admin router: users, settings, backup, periods, admin tasks."""
 
+import gzip
 import io
 import json
 import os
+import tempfile
 import zipfile
 from datetime import datetime as _backup_dt
 
@@ -404,6 +406,70 @@ def backup_download(request: Request, _admin: dict = Depends(require_admin)):
     )
 
 
+@router.get(
+    "/api/backup/sqlite",
+    tags=["Backup"],
+    summary="Export database as SQLite download",
+    description=(
+        "Sync current DBF data into a temporary SQLite database and return it "
+        "as a download. Supports optional gzip compression via ?compress=true. "
+        "Admin only."
+    ),
+)
+@limiter.limit("3/minute")
+def backup_sqlite_download(
+    request: Request,
+    compress: bool = Query(False, description="Return .gz compressed"),
+    _admin: dict = Depends(require_admin),
+):
+    """Export current DBF data as a SQLite .db file for download."""
+    db_path = _get_db_path()
+    if not db_path or not os.path.isdir(db_path):
+        raise HTTPException(
+            status_code=500, detail=f"SP5_DB_PATH not set or invalid: {db_path!r}"
+        )
+
+    # Lazy import to avoid hard dependency at module level
+    from sp5lib.sqlite_adapter import SP5SQLiteAdapter
+
+    ts = _backup_dt.now().strftime("%Y%m%d_%H%M")
+    tmp_dir = tempfile.mkdtemp(prefix="sp5_sqlite_export_")
+    sqlite_path = os.path.join(tmp_dir, f"sp5_export_{ts}.db")
+
+    try:
+        adapter = SP5SQLiteAdapter(sqlite_path)
+        adapter.init_db()
+        counts = adapter.sync_from_dbf(db_path)
+        _logger.info(
+            "SQLite export sync complete: %s → %s", counts, sqlite_path
+        )
+
+        with open(sqlite_path, "rb") as f:
+            data = f.read()
+    finally:
+        # Clean up temp file
+        try:
+            os.remove(sqlite_path)
+            os.rmdir(tmp_dir)
+        except OSError:
+            pass
+
+    filename = f"sp5_export_{ts}.db"
+
+    if compress:
+        data = gzip.compress(data)
+        filename += ".gz"
+        media_type = "application/gzip"
+    else:
+        media_type = "application/octet-stream"
+
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post(
     "/api/backup/restore", tags=["Backup"], summary="Restore database from backup",
     description="Compact all .DBF files in SP5_DB_PATH by rewriting them without deleted records. Deleted records have 0x2A ('*') as the first byte of their data row. Each file is exclusively locked during the oper...",
@@ -434,11 +500,27 @@ async def backup_restore(
         db_path_restore,
     )
 
+    # ── Auto-backup current state before restoring ──
+    pre_restore_backup = None
+    try:
+        backup_dir_pre = _get_backup_dir()
+        if backup_dir_pre:
+            ts_pre = _backup_dt.now().strftime("%Y%m%d_%H%M%S")
+            pre_name = f"sp5_backup_pre_restore_{ts_pre}.zip"
+            pre_data = _create_zip_bytes(db_path_restore)
+            pre_dest = os.path.join(backup_dir_pre, pre_name)
+            with open(pre_dest, "wb") as f_pre:
+                f_pre.write(pre_data)
+            pre_restore_backup = pre_name
+            _logger.info("Pre-restore backup created: %s (%d bytes)", pre_name, len(pre_data))
+    except Exception as e_pre:
+        _logger.error("Pre-restore backup failed: %s — proceeding anyway", e_pre)
+
     content = await file.read()
 
     # Enforce maximum upload size (50 MB)
     MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-    if len(content) > MAX_UPLOAD_BYTES:
+    if len(content) > MAX_UPLOAD_BYTES:  # noqa: PLR2004
         raise HTTPException(
             status_code=413,
             detail=f"Upload zu groß. Maximum: {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
@@ -489,7 +571,10 @@ async def backup_restore(
     _logger.warning(
         "BACKUP RESTORE completed: %d files restored: %s", len(restored), restored
     )
-    return {"restored": len(restored), "files": restored}
+    result: dict = {"restored": len(restored), "files": restored}
+    if pre_restore_backup:
+        result["pre_restore_backup"] = pre_restore_backup
+    return result
 
 
 # ── Admin: Compact database ───────────────────────────────────────────────────

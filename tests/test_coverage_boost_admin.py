@@ -191,6 +191,59 @@ class TestBackups:
         del_res = admin_client.delete(f"/api/admin/backups/{fname}")
         assert del_res.status_code == 200
 
+    def test_backup_restore_creates_pre_restore_backup(self, admin_client: TestClient):
+        """POST /api/backup/restore creates a pre-restore backup automatically."""
+        # Download current state
+        dl = admin_client.get("/api/backup/download")
+        assert dl.status_code == 200
+        # Restore from it
+        res = admin_client.post(
+            "/api/backup/restore",
+            files={"file": ("backup.zip", io.BytesIO(dl.content), "application/zip")},
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["restored"] > 0
+        # Check pre-restore backup was created
+        if "pre_restore_backup" in data:
+            assert data["pre_restore_backup"].startswith("sp5_backup_pre_restore_")
+            # Verify it appears in backup list
+            list_res = admin_client.get("/api/admin/backups")
+            filenames = [b["filename"] for b in list_res.json().get("backups", [])]
+            assert data["pre_restore_backup"] in filenames
+
+    def test_sqlite_export_download(self, admin_client: TestClient):
+        """GET /api/backup/sqlite → 200, returns SQLite file."""
+        res = admin_client.get("/api/backup/sqlite")
+        assert res.status_code == 200
+        assert res.headers["content-type"] == "application/octet-stream"
+        disp = res.headers.get("content-disposition", "")
+        assert "sp5_export_" in disp
+        assert disp.endswith('.db"')
+        # Verify it's a valid SQLite file (magic bytes)
+        assert res.content[:16].startswith(b"SQLite format 3")
+
+    def test_sqlite_export_compressed(self, admin_client: TestClient):
+        """GET /api/backup/sqlite?compress=true → 200, returns gzipped file."""
+        import gzip as _gzip
+
+        res = admin_client.get("/api/backup/sqlite?compress=true")
+        assert res.status_code == 200
+        assert res.headers["content-type"] == "application/gzip"
+        disp = res.headers.get("content-disposition", "")
+        assert disp.endswith('.db.gz"')
+        # Decompress and verify SQLite magic
+        decompressed = _gzip.decompress(res.content)
+        assert decompressed[:16].startswith(b"SQLite format 3")
+
+    def test_sqlite_export_requires_admin(self, app):
+        """GET /api/backup/sqlite without auth → 401/403."""
+        from starlette.testclient import TestClient
+
+        unauth = TestClient(app)
+        res = unauth.get("/api/backup/sqlite")
+        assert res.status_code in (401, 403)
+
 
 class TestCompactDatabase:
     """Test database compact endpoint."""
