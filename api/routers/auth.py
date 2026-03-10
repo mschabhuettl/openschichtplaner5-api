@@ -110,6 +110,7 @@ class UserUpdate(BaseModel):
 class LoginBody(BaseModel):
     username: str = Field(..., min_length=1, max_length=100)
     password: str = Field(..., min_length=1, max_length=200)
+    totp_code: str | None = Field(None, max_length=20)
 
 
 @router.post(
@@ -473,13 +474,35 @@ def login(request: Request, body: LoginBody):
             status_code=401, detail="Ungültiger Benutzername oder Passwort"
         )
 
+    # Successful password check — now handle 2FA if enabled
+    db = get_db()
+    user_id = user.get("ID")
+    totp_enabled = db.totp_get_status(user_id)
+
+    if totp_enabled:
+        if not body.totp_code:
+            # Password OK but 2FA required — don't issue token yet
+            return JSONResponse(
+                content={
+                    "ok": False,
+                    "requires_2fa": True,
+                    "detail": "2FA-Code erforderlich",
+                }
+            )
+        # Verify TOTP code
+        if not db.totp_verify(user_id, body.totp_code):
+            _failed_logins[username] = timestamps + [now]
+            _logger.warning("AUTH 2FA_FAIL | ip=%s username=%s", client_ip, username)
+            raise HTTPException(
+                status_code=401, detail="Ungültiger 2FA-Code"
+            )
+
     # Successful login: clear failed attempts
     _failed_logins.pop(username, None)
-    _logger.info("AUTH LOGIN_OK | ip=%s username=%s", client_ip, username)
-    write_audit_log("LOGIN_OK", username, {"ip": client_ip})
+    _logger.info("AUTH LOGIN_OK | ip=%s username=%s 2fa=%s", client_ip, username, totp_enabled)
+    write_audit_log("LOGIN_OK", username, {"ip": client_ip, "2fa": totp_enabled})
 
     # Enforce max concurrent sessions per user (evict oldest if over limit)
-    user_id = user.get("ID")
     user_sessions = [(tok, s) for tok, s in _sessions.items() if s.get("ID") == user_id]
     if len(user_sessions) >= _MAX_SESSIONS_PER_USER:
         # Sort by expires_at ascending, remove oldest
@@ -568,3 +591,121 @@ def logout(request: Request, x_auth_token: str | None = Header(None)):
     # Clear the cookie
     response.delete_cookie(key=_COOKIE_NAME, path="/", samesite="strict")
     return response
+
+
+# ── 2FA / TOTP Management ─────────────────────────────────────
+
+
+@router.get(
+    "/api/auth/2fa/status",
+    tags=["Auth"],
+    summary="2FA status",
+    description="Check whether TOTP 2FA is enabled for the current user.",
+)
+def totp_status(user: dict = Depends(require_auth)):
+    enabled = get_db().totp_get_status(user["ID"])
+    return {"enabled": enabled}
+
+
+class TotpSetupResponse(BaseModel):
+    secret: str
+    qr_code: str  # base64-encoded PNG
+    otpauth_uri: str
+
+
+@router.post(
+    "/api/auth/2fa/setup",
+    tags=["Auth"],
+    summary="Start 2FA setup",
+    description="Generate a TOTP secret and QR code for the authenticator app.",
+)
+def totp_setup(user: dict = Depends(require_auth)):
+    import base64
+    import io
+
+    import pyotp
+    import qrcode
+
+    db = get_db()
+    secret = db.totp_generate_secret(user["ID"])
+    username = user.get("NAME", "User")
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(name=username, issuer_name="OpenSchichtplaner5")
+
+    # Generate QR code as base64 PNG
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+    return {
+        "secret": secret,
+        "qr_code": qr_b64,
+        "otpauth_uri": uri,
+    }
+
+
+class TotpVerifyBody(BaseModel):
+    code: str = Field(..., min_length=6, max_length=20)
+
+
+@router.post(
+    "/api/auth/2fa/enable",
+    tags=["Auth"],
+    summary="Enable 2FA",
+    description="Verify a TOTP code to confirm setup and enable 2FA. Returns backup codes.",
+)
+@limiter.limit("10/minute")
+def totp_enable(request: Request, body: TotpVerifyBody, user: dict = Depends(require_auth)):
+    db = get_db()
+    backup_codes = db.totp_enable(user["ID"], body.code)
+    if backup_codes is None:
+        raise HTTPException(status_code=400, detail="Ungültiger Code. Bitte erneut versuchen.")
+    _logger.warning("AUDIT 2FA_ENABLED | user=%s user_id=%d", user.get("NAME"), user["ID"])
+    write_audit_log("2FA_ENABLED", user.get("NAME", "?"), {"user_id": user["ID"]})
+    return {"ok": True, "backup_codes": backup_codes}
+
+
+class TotpDisableBody(BaseModel):
+    password: str = Field(..., min_length=1, max_length=200)
+
+
+@router.post(
+    "/api/auth/2fa/disable",
+    tags=["Auth"],
+    summary="Disable 2FA",
+    description="Disable TOTP 2FA. Requires password confirmation.",
+)
+@limiter.limit("5/minute")
+def totp_disable(request: Request, body: TotpDisableBody, user: dict = Depends(require_auth)):
+    db = get_db()
+    # Verify password before allowing disable
+    verified = db.verify_user_password(user.get("NAME", ""), body.password)
+    if verified is None:
+        raise HTTPException(status_code=403, detail="Passwort ist falsch")
+    db.totp_disable(user["ID"])
+    _logger.warning("AUDIT 2FA_DISABLED | user=%s user_id=%d", user.get("NAME"), user["ID"])
+    write_audit_log("2FA_DISABLED", user.get("NAME", "?"), {"user_id": user["ID"]})
+    return {"ok": True}
+
+
+@router.post(
+    "/api/auth/2fa/admin-disable/{user_id}",
+    tags=["Users"],
+    summary="Admin: Disable 2FA for user",
+    description="Admin can disable 2FA for any user (e.g. if they lost their device).",
+)
+def admin_disable_2fa(user_id: int, _admin: dict = Depends(require_admin)):
+    db = get_db()
+    db.totp_disable(user_id)
+    _logger.warning(
+        "AUDIT 2FA_ADMIN_DISABLED | admin=%s target_id=%d",
+        _admin.get("NAME"),
+        user_id,
+    )
+    write_audit_log(
+        "2FA_ADMIN_DISABLED",
+        _admin.get("NAME", "?"),
+        {"target_id": user_id},
+    )
+    return {"ok": True}

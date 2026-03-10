@@ -46,6 +46,7 @@ class TestAuthLogin:
         ):
             mock_db = mock_get_db.return_value
             mock_db.verify_user_password.return_value = fake_user
+            mock_db.totp_get_status.return_value = False
             resp = write_client.post(
                 "/api/auth/login",
                 json={"username": "Admin", "password": "any_password"},
