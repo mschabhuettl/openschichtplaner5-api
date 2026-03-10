@@ -901,6 +901,8 @@ def generate_schedule(
         created = result["created"]
         skipped = result["skipped"]
         skipped_restriction = result.get("skipped_restriction", 0)
+        skipped_availability = result.get("skipped_availability", 0)
+        skipped_hours_limit = result.get("skipped_hours_limit", 0)
         errors = result.get("errors", [])
         preview = result.get("preview", [])
         report = result.get("report", {})
@@ -912,12 +914,18 @@ def generate_schedule(
             message = f"{created} Einträge erstellt, {skipped} übersprungen"
         if skipped_restriction:
             message += f", {skipped_restriction} wegen Sperren übersprungen"
+        if skipped_availability:
+            message += f", {skipped_availability} wegen Verfügbarkeit übersprungen"
+        if skipped_hours_limit:
+            message += f", {skipped_hours_limit} wegen Wochenstunden-Limit übersprungen"
         if errors:
             message += f", {len(errors)} Fehler"
         return {
             "created": created,
             "skipped": skipped,
             "skipped_restriction": skipped_restriction,
+            "skipped_availability": skipped_availability,
+            "skipped_hours_limit": skipped_hours_limit,
             "errors": errors,
             "preview": preview,
             "report": report,
