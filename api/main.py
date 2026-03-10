@@ -279,10 +279,13 @@ async def cache_control_middleware(request: Request, call_next):
     return response
 
 
-@app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
-    """Add security headers to all responses."""
-    response = await call_next(request)
+def _apply_security_headers(response):
+    """Apply security headers to a response object.
+
+    Extracted as a helper so that early-return responses (e.g. 401 from
+    auth_middleware) also get security headers, not only responses that
+    pass through the full middleware stack.
+    """
     response.headers["X-API-Version"] = _API_VERSION
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
@@ -311,6 +314,14 @@ async def security_headers_middleware(request: Request, call_next):
         response.headers["Strict-Transport-Security"] = (
             "max-age=31536000; includeSubDomains"
         )
+    return response
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    _apply_security_headers(response)
     return response
 
 
@@ -466,7 +477,9 @@ async def auth_middleware(request: Request, call_next):
     )
     if not token or not _is_token_valid(token):
         _logger.warning("AUTH 401 | ip=%s method=%s path=%s", client_ip, method, path)
-        return JSONResponse(status_code=401, content={"detail": "Nicht angemeldet"})
+        resp_401 = JSONResponse(status_code=401, content={"detail": "Nicht angemeldet"})
+        _apply_security_headers(resp_401)
+        return resp_401
     response = await call_next(request)
     if response.status_code == 403:
         user_info = _sessions.get(token, {})
