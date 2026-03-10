@@ -56,7 +56,27 @@ _logger.addHandler(_stderr_handler)
 SP5_LOG_FILE = _log_file
 
 # ── Rate Limiter ─────────────────────────────────────────────────
-limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
+
+def _rate_limit_key(request: Request) -> str:
+    """Key function: use authenticated user name if available, else client IP.
+
+    This ensures per-user limits for authenticated endpoints and per-IP
+    limits for public endpoints (e.g. login).
+    """
+    token = (
+        request.headers.get("x-auth-token")
+        or request.cookies.get("sp5_token")
+        or request.query_params.get("token")
+    )
+    if token:
+        session = _sessions.get(token)
+        if session:
+            return f"user:{session.get('NAME', 'unknown')}"
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_rate_limit_key, default_limits=["100/minute"])
 
 # ── Session store ────────────────────────────────────────────────
 # NOTE: In-process dict — not safe for multi-worker deployments.
