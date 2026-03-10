@@ -2,7 +2,7 @@
 
 import os
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .. import cache
@@ -12,7 +12,7 @@ from ..dependencies import (
     get_db,
     require_admin,
 )
-from ..schemas import EmployeeResponse, GroupResponse
+from ..schemas import GroupResponse, paginate
 from .events import broadcast
 
 router = APIRouter()
@@ -22,17 +22,21 @@ router = APIRouter()
     "/api/employees",
     tags=["Employees"],
     summary="List employees",
-    description="Return all active employees. Set include_hidden=true to include hidden/archived employees.",
-    response_model=list[EmployeeResponse],
+    description="Return all active employees. Set include_hidden=true to include hidden/archived employees. "
+    "Pass page & page_size for paginated results.",
 )
-def get_employees(include_hidden: bool = False):
+def get_employees(
+    include_hidden: bool = False,
+    page: int | None = Query(None, ge=1, description="Page number (1-based). Omit for unpaginated list."),
+    page_size: int = Query(50, ge=1, le=500, description="Items per page"),
+):
     cache_key = f"employees:list:{include_hidden}"
     cached = cache.get(cache_key)
     if cached is not None:
-        return cached
+        return paginate(cached, page, page_size)
     result = get_db().get_employees(include_hidden=include_hidden)
     cache.put(cache_key, result)
-    return result
+    return paginate(result, page, page_size)
 
 
 @router.get("/api/employees/{emp_id}", tags=["Employees"], summary="Get employee by ID")

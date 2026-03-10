@@ -12,6 +12,7 @@ from ..dependencies import (
     require_admin,
     require_planer,
 )
+from ..schemas import paginate
 from .events import broadcast
 from .notifications import create_notification
 
@@ -84,11 +85,14 @@ def list_absences(
     year: int | None = Query(None),
     employee_id: int | None = Query(None),
     leave_type_id: int | None = Query(None),
+    page: int | None = Query(None, ge=1, description="Page number (1-based). Omit for unpaginated list."),
+    page_size: int = Query(50, ge=1, le=500, description="Items per page"),
 ):
     """List all absences with optional filters."""
-    return get_db().get_absences_list(
+    result = get_db().get_absences_list(
         year=year, employee_id=employee_id, leave_type_id=leave_type_id
     )
+    return paginate(result, page, page_size)
 
 
 @router.get("/api/group-assignments", tags=["Groups"], summary="List group assignments")

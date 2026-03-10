@@ -12,6 +12,7 @@ from ..dependencies import (
     require_auth,
     require_planer,
 )
+from ..schemas import paginate
 from .events import broadcast
 from .notifications import create_notification
 from .schedule import SwapShiftsRequest, swap_shifts
@@ -375,17 +376,20 @@ def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)
 
 @router.get("/api/changelog", tags=["Admin"], summary="List audit log entries")
 def get_changelog(
-    limit: int = Query(100, description="Max entries to return"),
+    limit: int = Query(100, description="Max entries to return (applied before pagination)"),
     user: str | None = Query(None, description="Filter by user"),
     entity_type: str | None = Query(None, description="Filter by entity type (employee, schedule, absence, …)"),
     date_from: str | None = Query(None, description="ISO date YYYY-MM-DD"),
     date_to: str | None = Query(None, description="ISO date YYYY-MM-DD"),
+    page: int | None = Query(None, ge=1, description="Page number (1-based). Omit for unpaginated list."),
+    page_size: int = Query(50, ge=1, le=500, description="Items per page"),
 ):
     """Return activity log entries from changelog.json."""
-    return get_db().get_changelog(
+    result = get_db().get_changelog(
         limit=limit, user=user, entity_type=entity_type,
         date_from=date_from, date_to=date_to,
     )
+    return paginate(result, page, page_size)
 
 
 class ChangelogEntry(BaseModel):

@@ -6,7 +6,47 @@ They use extra='allow' so additional DBF fields pass through without error.
 
 from __future__ import annotations
 
+import math
+from collections.abc import Sequence
+
 from pydantic import BaseModel, ConfigDict
+
+
+class PaginatedResponse[T](BaseModel):
+    """Generic paginated response wrapper."""
+
+    items: list[T]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+def paginate(
+    data: Sequence,
+    page: int | None = None,
+    page_size: int = 50,
+) -> dict | list:
+    """Return paginated dict if page is set, else return plain list.
+
+    Backward-compatible: omitting ``page`` returns the raw list so
+    existing callers keep working.
+    """
+    if page is None:
+        return list(data)
+    page = max(1, page)
+    page_size = max(1, min(page_size, 500))
+    total = len(data)
+    pages = math.ceil(total / page_size) if total else 1
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {
+        "items": list(data[start:end]),
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": pages,
+    }
 
 
 class _FlexModel(BaseModel):
