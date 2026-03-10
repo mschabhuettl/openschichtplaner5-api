@@ -11,13 +11,17 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Enable dev mode token for smoke tests — must be set BEFORE importing app
+os.environ["SP5_DEV_MODE"] = "true"
+
 from unittest.mock import MagicMock, patch
 
-# Import the app
+# Import the app AFTER setting env vars
 from api.main import app
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
+DEV_AUTH = {"x-auth-token": "__dev_mode__"}  # SP5_DEV_MODE dev token (uses x-auth-token, not Bearer)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,8 +75,9 @@ def mock_db_factory(overrides: dict = None):
 
 class TestRootEndpoint:
     def test_root_returns_service_info(self):
+        # / serves the frontend SPA (HTML), use /api/version for service info
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/")
+            r = client.get("/api/version")
         assert r.status_code == 200
         data = r.json()
         assert data["service"] == "OpenSchichtplaner5 API"
@@ -82,7 +87,7 @@ class TestRootEndpoint:
 class TestStatsEndpoint:
     def test_stats_shape(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/stats")
+            r = client.get("/api/stats", headers=DEV_AUTH)
         assert r.status_code == 200
         data = r.json()
         for key in (
@@ -100,25 +105,25 @@ class TestStatsEndpoint:
 class TestScheduleDayEndpoint:
     def test_valid_date_returns_list(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/schedule/day?date=2025-06-15")
+            r = client.get("/api/schedule/day?date=2025-06-15", headers=DEV_AUTH)
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
     def test_invalid_date_returns_400(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/schedule/day?date=not-a-date")
+            r = client.get("/api/schedule/day?date=not-a-date", headers=DEV_AUTH)
         assert r.status_code == 400
 
     def test_missing_date_returns_422(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/schedule/day")
+            r = client.get("/api/schedule/day", headers=DEV_AUTH)
         assert r.status_code == 422
 
 
 class TestScheduleWeekEndpoint:
     def test_valid_date_returns_week_structure(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/schedule/week?date=2025-06-15")
+            r = client.get("/api/schedule/week?date=2025-06-15", headers=DEV_AUTH)
         assert r.status_code == 200
         data = r.json()
         assert "week_start" in data
@@ -127,41 +132,41 @@ class TestScheduleWeekEndpoint:
 
     def test_invalid_date_returns_400(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/schedule/week?date=bad-input")
+            r = client.get("/api/schedule/week?date=bad-input", headers=DEV_AUTH)
         assert r.status_code == 400
 
     def test_group_id_param_accepted(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/schedule/week?date=2025-06-15&group_id=1")
+            r = client.get("/api/schedule/week?date=2025-06-15&group_id=1", headers=DEV_AUTH)
         assert r.status_code == 200
 
 
 class TestStatisticsEndpoint:
     def test_requires_year_and_month(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/statistics?year=2025&month=6")
+            r = client.get("/api/statistics?year=2025&month=6", headers=DEV_AUTH)
         assert r.status_code == 200
 
     def test_invalid_month_returns_400(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/statistics?year=2025&month=13")
+            r = client.get("/api/statistics?year=2025&month=13", headers=DEV_AUTH)
         assert r.status_code == 400
 
     def test_returns_list(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/statistics?year=2025&month=1")
+            r = client.get("/api/statistics?year=2025&month=1", headers=DEV_AUTH)
         assert isinstance(r.json(), list)
 
 
 class TestScheduleMonthEndpoint:
     def test_valid_params(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/schedule?year=2025&month=6")
+            r = client.get("/api/schedule?year=2025&month=6", headers=DEV_AUTH)
         assert r.status_code == 200
 
     def test_invalid_month(self):
         with patch("api.main.get_db", return_value=mock_db_factory()):
-            r = client.get("/api/schedule?year=2025&month=0")
+            r = client.get("/api/schedule?year=2025&month=0", headers=DEV_AUTH)
         assert r.status_code == 400
 
 
