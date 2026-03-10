@@ -152,6 +152,14 @@ class EmployeeCreate(BaseModel):
     def name_not_blank(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("NAME darf nicht leer sein")
+        return v.strip()
+
+    @field_validator("EMAIL", mode="before")
+    @classmethod
+    def validate_email(cls, v):
+        import re as _re
+        if v and not _re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", str(v)):
+            raise ValueError("Ungültige E-Mail-Adresse")
         return v
 
     @field_validator("BIRTHDAY", "EMPSTART", "EMPEND", mode="before")
@@ -214,6 +222,14 @@ class EmployeeUpdate(BaseModel):
     def name_not_blank(cls, v: str | None) -> str | None:
         if v is not None and not v.strip():
             raise ValueError("NAME darf nicht leer sein")
+        return v.strip() if v is not None else v
+
+    @field_validator("EMAIL", mode="before")
+    @classmethod
+    def validate_email(cls, v):
+        import re as _re
+        if v and not _re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", str(v)):
+            raise ValueError("Ungültige E-Mail-Adresse")
         return v
 
     @field_validator("BIRTHDAY", "EMPSTART", "EMPEND", mode="before")
@@ -385,12 +401,12 @@ class GroupCreate(BaseModel):
     SHORTNAME: str = Field("", max_length=20)
     SUPERID: int = 0
     HIDE: bool = False
-    BOLD: int = 0
-    DAILYDEM: int = 0
-    ARBITR: str = ""
-    CFGLABEL: int | None = None
-    CBKLABEL: int | None = None
-    CBKSCHED: int | None = None
+    BOLD: int = Field(0, ge=0, le=1)
+    DAILYDEM: int = Field(0, ge=0)
+    ARBITR: str = Field("", max_length=200)
+    CFGLABEL: int | None = Field(None, ge=0, le=16777215)
+    CBKLABEL: int | None = Field(None, ge=0, le=16777215)
+    CBKSCHED: int | None = Field(None, ge=0, le=16777215)
 
 
 class GroupUpdate(BaseModel):
@@ -399,12 +415,12 @@ class GroupUpdate(BaseModel):
     SUPERID: int | None = None
     POSITION: int | None = None
     HIDE: bool | None = None
-    BOLD: int | None = None
-    DAILYDEM: int | None = None
-    ARBITR: str | None = None
-    CFGLABEL: int | None = None
-    CBKLABEL: int | None = None
-    CBKSCHED: int | None = None
+    BOLD: int | None = Field(None, ge=0, le=1)
+    DAILYDEM: int | None = Field(None, ge=0)
+    ARBITR: str | None = Field(None, max_length=200)
+    CFGLABEL: int | None = Field(None, ge=0, le=16777215)
+    CBKLABEL: int | None = Field(None, ge=0, le=16777215)
+    CBKSCHED: int | None = Field(None, ge=0, le=16777215)
 
     @field_validator("NAME")
     @classmethod
@@ -582,13 +598,15 @@ async def upload_employee_photo(
 
 class BulkEmployeeAction(BaseModel):
     employee_ids: list[int] = Field(
-        ..., min_length=1, description="Liste von Mitarbeiter-IDs"
+        ..., min_length=1, max_length=500, description="Liste von Mitarbeiter-IDs"
     )
     action: str = Field(
-        ..., description="'hide', 'show', 'assign_group', 'remove_group'"
+        ...,
+        pattern=r"^(hide|show|assign_group|remove_group)$",
+        description="'hide', 'show', 'assign_group', 'remove_group'",
     )
     group_id: int | None = Field(
-        None, description="Ziel-Gruppe für assign_group/remove_group"
+        None, gt=0, description="Ziel-Gruppe für assign_group/remove_group"
     )
 
 

@@ -313,7 +313,7 @@ class TestBulkEmployeeEndpoint:
         assert resp2.json()["ok"] is True
 
     def test_bulk_invalid_action(self, sync_client):
-        """Unbekannte Action: 400."""
+        """Unbekannte Action: 400 oder 422 (Pydantic pattern-Validierung)."""
         resp = sync_client.post(
             "/api/employees/bulk",
             json={
@@ -321,7 +321,7 @@ class TestBulkEmployeeEndpoint:
                 "employee_ids": [1],
             },
         )
-        assert resp.status_code == 400
+        assert resp.status_code in {400, 422}
 
     def test_bulk_assign_group_requires_group_id(self, sync_client):
         """assign_group ohne group_id: 400."""

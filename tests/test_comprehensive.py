@@ -1299,12 +1299,12 @@ class TestAPIWriteEndpoints:
         assert del_resp.status_code == 200
 
     def test_special_staffing_invalid_date(self, write_client):
-        """Verify special staffing invalid date."""
+        """Verify special staffing invalid date — Pydantic rejects with 422 (pattern), legacy 400 also accepted."""
         resp = write_client.post(
             "/api/staffing-requirements/special",
             json={"group_id": 1, "date": "not-a-date", "shift_id": 1},
         )
-        assert resp.status_code == 400
+        assert resp.status_code in {400, 422}
 
     def test_special_staffing_not_found(self, write_client):
         """Verify special staffing not found."""

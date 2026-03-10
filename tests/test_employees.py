@@ -183,7 +183,7 @@ class TestBulkOperations:
         )
 
     def test_bulk_invalid_action(self, admin_client: TestClient):
-        """Verify bulk invalid action."""
+        """Verify bulk invalid action — Pydantic rejects with 422 (pattern), legacy 400 also accepted."""
         res = admin_client.post(
             "/api/employees/bulk",
             json={
@@ -191,7 +191,7 @@ class TestBulkOperations:
                 "action": "nonexistent",
             },
         )
-        assert res.status_code == 400
+        assert res.status_code in {400, 422}
 
     def test_bulk_assign_group_missing_group_id(self, admin_client: TestClient):
         """Verify bulk assign group missing group id."""

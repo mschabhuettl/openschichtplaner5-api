@@ -394,7 +394,7 @@ class TestBulkEmployeeAction:
         assert res.status_code == 400
 
     def test_bulk_unknown_action(self, admin_client: TestClient):
-        """Bulk with unknown action → 400."""
+        """Bulk with unknown action → 400 or 422 (Pydantic pattern validation)."""
         emps = admin_client.get("/api/employees").json()
         if not emps:
             pytest.skip("No employees")
@@ -405,7 +405,7 @@ class TestBulkEmployeeAction:
                 "action": "do_something_weird",
             },
         )
-        assert res.status_code == 400
+        assert res.status_code in {400, 422}
 
     def test_bulk_empty_list_returns_422(self, admin_client: TestClient):
         """Bulk with empty employee_ids → 422."""

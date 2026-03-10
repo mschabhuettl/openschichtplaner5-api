@@ -225,20 +225,20 @@ class TestWorkplaceValidation:
 
 class TestExtrachargeValidation:
     def test_create_extracharge_empty_name(self, write_client):
-        """Verify create extracharge empty name."""
+        """Verify create extracharge empty name — Pydantic rejects with 422 (min_length), legacy 400 also accepted."""
         resp = write_client.post(
             "/api/extracharges",
             json={"NAME": "", "SHORTNAME": "T", "VALIDDAYS": "1111100"},
         )
-        assert resp.status_code == 400
+        assert resp.status_code in {400, 422}
 
     def test_create_extracharge_invalid_validdays(self, write_client):
-        """Verify create extracharge invalid validdays."""
+        """Verify create extracharge invalid validdays — Pydantic rejects with 422 (pattern), legacy 400 also accepted."""
         resp = write_client.post(
             "/api/extracharges",
             json={"NAME": "Test", "SHORTNAME": "T", "VALIDDAYS": "111"},
         )
-        assert resp.status_code == 400
+        assert resp.status_code in {400, 422}
 
     def test_update_extracharge_not_found(self, write_client):
         """Verify update extracharge not found."""

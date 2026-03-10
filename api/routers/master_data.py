@@ -2,7 +2,7 @@
 
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .. import cache
 from ..dependencies import (
@@ -98,9 +98,15 @@ def get_staffing_requirements(
 class StaffingRequirementSet(BaseModel):
     shift_id: int = Field(..., gt=0)
     weekday: int = Field(..., ge=0, le=6)
-    min: int = Field(..., ge=0)
-    max: int = Field(..., ge=0)
+    min: int = Field(..., ge=0, le=1000)
+    max: int = Field(..., ge=0, le=1000)
     group_id: int = Field(..., gt=0)
+
+    @model_validator(mode="after")
+    def max_gte_min(self) -> "StaffingRequirementSet":
+        if self.max < self.min:
+            raise ValueError("max muss >= min sein")
+        return self
 
 
 @router.post(
@@ -110,14 +116,7 @@ class StaffingRequirementSet(BaseModel):
 def set_staffing_requirement(
     body: StaffingRequirementSet, _cur_user: dict = Depends(require_planer)
 ):
-    if not (0 <= body.weekday <= 6):
-        raise HTTPException(
-            status_code=400, detail="weekday muss zwischen 0 (Mo) und 6 (So) liegen"
-        )
-    if body.min < 0:
-        raise HTTPException(status_code=400, detail="min darf nicht negativ sein")
-    if body.max < body.min:
-        raise HTTPException(status_code=400, detail="max muss >= min sein")
+    # All validation handled by Pydantic model (weekday, min, max, group_id, shift_id)
     try:
         result = get_db().set_staffing_requirement(
             shift_id=body.shift_id,
@@ -539,22 +538,27 @@ def remove_employee_from_workplace(
 
 
 class ExtraChargeCreate(BaseModel):
-    NAME: str
-    START: int = 0  # minutes from midnight
-    END: int = 0  # minutes from midnight
-    VALIDDAYS: str = "0000000"  # 7 chars: 0=inactive, 1=active per weekday (Mon-Sun)
-    HOLRULE: int = 0  # 0=no holiday rule, 1=holidays only, 2=not on holidays
-    VALIDITY: int = 0
+    NAME: str = Field(..., min_length=1, max_length=100)
+    START: int = Field(0, ge=0, le=1440)  # minutes from midnight
+    END: int = Field(0, ge=0, le=1440)    # minutes from midnight
+    VALIDDAYS: str = Field(
+        "0000000",
+        min_length=7,
+        max_length=7,
+        pattern=r"^[01]{7}$",
+    )  # 7 chars: 0=inactive, 1=active per weekday (Mon-Sun)
+    HOLRULE: int = Field(0, ge=0, le=2)  # 0=no holiday rule, 1=holidays only, 2=not on holidays
+    VALIDITY: int = Field(0, ge=0)
     HIDE: bool = False
 
 
 class ExtraChargeUpdate(BaseModel):
-    NAME: str | None = None
-    START: int | None = None
-    END: int | None = None
-    VALIDDAYS: str | None = None
-    HOLRULE: int | None = None
-    VALIDITY: int | None = None
+    NAME: str | None = Field(None, min_length=1, max_length=100)
+    START: int | None = Field(None, ge=0, le=1440)
+    END: int | None = Field(None, ge=0, le=1440)
+    VALIDDAYS: str | None = Field(None, min_length=7, max_length=7, pattern=r"^[01]{7}$")
+    HOLRULE: int | None = Field(None, ge=0, le=2)
+    VALIDITY: int | None = Field(None, ge=0)
     POSITION: int | None = None
     HIDE: bool | None = None
 
@@ -568,21 +572,7 @@ def get_extracharges(include_hidden: bool = False):
 def create_extracharge(
     body: ExtraChargeCreate, _cur_user: dict = Depends(require_admin)
 ):
-    if not body.NAME or not body.NAME.strip():
-        raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
-    if len(body.VALIDDAYS) != 7 or not all(c in "01" for c in body.VALIDDAYS):
-        raise HTTPException(
-            status_code=400,
-            detail="VALIDDAYS muss genau 7 Zeichen lang sein und nur '0' oder '1' enthalten (z.B. '1111100')",
-        )
-    if body.START < 0 or body.START > 1440:
-        raise HTTPException(
-            status_code=400, detail="START muss zwischen 0 und 1440 Minuten liegen"
-        )
-    if body.END < 0 or body.END > 1440:
-        raise HTTPException(
-            status_code=400, detail="END muss zwischen 0 und 1440 Minuten liegen"
-        )
+    # Validation handled by Pydantic Field constraints
     try:
         result = get_db().create_extracharge(body.model_dump())
         return {"ok": True, "record": result}
@@ -657,21 +647,27 @@ def get_special_staffing(
 
 
 class SpecialStaffingCreate(BaseModel):
-    group_id: int
-    date: str
-    shift_id: int
-    workplace_id: int = 0
-    min: int = 0
-    max: int = 0
+    group_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    shift_id: int = Field(..., gt=0)
+    workplace_id: int = Field(0, ge=0)
+    min: int = Field(0, ge=0, le=1000)
+    max: int = Field(0, ge=0, le=1000)
+
+    @model_validator(mode="after")
+    def max_gte_min(self) -> "SpecialStaffingCreate":
+        if self.max < self.min:
+            raise ValueError("max muss >= min sein")
+        return self
 
 
 class SpecialStaffingUpdate(BaseModel):
-    group_id: int | None = None
-    date: str | None = None
-    shift_id: int | None = None
-    workplace_id: int | None = None
-    min: int | None = None
-    max: int | None = None
+    group_id: int | None = Field(None, gt=0)
+    date: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    shift_id: int | None = Field(None, gt=0)
+    workplace_id: int | None = Field(None, ge=0)
+    min: int | None = Field(None, ge=0, le=1000)
+    max: int | None = Field(None, ge=0, le=1000)
 
 
 @router.post(
@@ -684,15 +680,7 @@ def create_special_staffing(
     body: SpecialStaffingCreate, _cur_user: dict = Depends(require_planer)
 ):
     """Create a date-specific staffing requirement."""
-    try:
-        from datetime import datetime
-
-        datetime.strptime(body.date, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
-        )
+    # Date format and range validated by Pydantic model
     try:
         result = get_db().create_special_staffing(
             groupid=body.group_id,
@@ -785,27 +773,27 @@ def _save_skills(data: dict):
 
 
 class SkillCreate(BaseModel):
-    name: str
-    description: str | None = ""
-    color: str | None = "#3b82f6"
-    icon: str | None = "🎯"
-    category: str | None = ""
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = Field("", max_length=500)
+    color: str | None = Field("#3b82f6", max_length=20, pattern=r"^#[0-9a-fA-F]{3,8}$")
+    icon: str | None = Field("🎯", max_length=10)
+    category: str | None = Field("", max_length=100)
 
 
 class SkillUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    color: str | None = None
-    icon: str | None = None
-    category: str | None = None
+    name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = Field(None, max_length=500)
+    color: str | None = Field(None, max_length=20, pattern=r"^#[0-9a-fA-F]{3,8}$")
+    icon: str | None = Field(None, max_length=10)
+    category: str | None = Field(None, max_length=100)
 
 
 class SkillAssignment(BaseModel):
-    employee_id: int
-    skill_id: str
-    level: int | None = 1  # 1=basic, 2=advanced, 3=expert
-    certified_until: str | None = None  # ISO date
-    notes: str | None = ""
+    employee_id: int = Field(..., gt=0)
+    skill_id: str = Field(..., min_length=1, max_length=20)
+    level: int | None = Field(1, ge=1, le=3)  # 1=basic, 2=advanced, 3=expert
+    certified_until: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")  # ISO date
+    notes: str | None = Field("", max_length=500)
 
 
 @router.get("/api/skills", tags=["Employees"], summary="List employee skills", description="Return all defined skills/qualifications.")

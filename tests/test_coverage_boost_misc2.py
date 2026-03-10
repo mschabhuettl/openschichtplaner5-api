@@ -204,7 +204,7 @@ class TestWishWrongType:
     """Test wish with wrong type."""
 
     def test_create_wish_wrong_type(self, planer_client: TestClient):
-        """Create wish with invalid type → 400."""
+        """Create wish with invalid type → 400 or 422 (Pydantic pattern validation)."""
         emps = planer_client.get("/api/employees").json()
         if not emps:
             pytest.skip("No employees")
@@ -216,7 +216,7 @@ class TestWishWrongType:
                 "wish_type": "INVALID_TYPE",
             },
         )
-        assert res.status_code == 400
+        assert res.status_code in {400, 422}
 
     def test_create_wish_case_insensitive(self, planer_client: TestClient):
         """Create wish with lowercase type → 200."""
