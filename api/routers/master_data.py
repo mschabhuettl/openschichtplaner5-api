@@ -4,6 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
+from .. import cache
 from ..dependencies import (
     _logger,
     _sanitize_500,
@@ -25,22 +26,46 @@ router = APIRouter()
     response_model=list[ShiftResponse],
 )
 def get_shifts(include_hidden: bool = False):
-    return get_db().get_shifts(include_hidden=include_hidden)
+    cache_key = f"shifts:list:{include_hidden}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    result = get_db().get_shifts(include_hidden=include_hidden)
+    cache.put(cache_key, result)
+    return result
 
 
 @router.get("/api/leave-types", tags=["Absences"], summary="List leave types")
 def get_leave_types(include_hidden: bool = False):
-    return get_db().get_leave_types(include_hidden=include_hidden)
+    cache_key = f"leave_types:list:{include_hidden}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    result = get_db().get_leave_types(include_hidden=include_hidden)
+    cache.put(cache_key, result)
+    return result
 
 
 @router.get("/api/workplaces", tags=["Employees"], summary="List workplaces")
 def get_workplaces(include_hidden: bool = False):
-    return get_db().get_workplaces(include_hidden=include_hidden)
+    cache_key = f"workplaces:list:{include_hidden}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    result = get_db().get_workplaces(include_hidden=include_hidden)
+    cache.put(cache_key, result)
+    return result
 
 
 @router.get("/api/holidays", tags=["Events"], summary="List holidays")
 def get_holidays(year: int | None = None):
-    return get_db().get_holidays(year=year)
+    cache_key = f"holidays:list:{year}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    result = get_db().get_holidays(year=year)
+    cache.put(cache_key, result)
+    return result
 
 
 # ── Staffing Requirements ─────────────────────────────────────
@@ -173,6 +198,7 @@ def create_shift(body: ShiftCreate, _cur_user: dict = Depends(require_admin)):
         )
     try:
         result = get_db().create_shift(body.model_dump())
+        cache.invalidate("shifts:")
         _logger.warning(
             "AUDIT SHIFT_CREATE | user=%s name=%s id=%s",
             _cur_user.get("NAME"),
@@ -203,6 +229,7 @@ def update_shift(
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_shift(shift_id, data)
+        cache.invalidate("shifts:")
         _logger.warning(
             "AUDIT SHIFT_UPDATE | user=%s shift_id=%d fields=%s",
             _cur_user.get("NAME"),
@@ -238,6 +265,7 @@ def hide_shift(
             )
     try:
         count = db.hide_shift(shift_id)
+        cache.invalidate("shifts:")
         _logger.warning(
             "AUDIT SHIFT_DELETE | user=%s shift_id=%d force=%s",
             _cur_user.get("NAME"),
@@ -285,6 +313,7 @@ def create_leave_type(body: LeaveTypeCreate, _cur_user: dict = Depends(require_a
         )
     try:
         result = get_db().create_leave_type(body.model_dump())
+        cache.invalidate("leave_types:")
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e, "create_leave_type")
@@ -297,6 +326,7 @@ def update_leave_type(
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_leave_type(lt_id, data)
+        cache.invalidate("leave_types:")
         return {"ok": True, "record": result}
     except ValueError:
         raise HTTPException(
@@ -323,6 +353,7 @@ def hide_leave_type(
             )
     try:
         count = db.hide_leave_type(lt_id)
+        cache.invalidate("leave_types:")
         return {"ok": True, "hidden": count}
     except Exception as e:
         raise _sanitize_500(e, f"hide_leave_type/{lt_id}")
@@ -359,6 +390,7 @@ def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)
     # DATE and NAME validation handled by Pydantic model
     try:
         result = get_db().create_holiday(body.model_dump())
+        cache.invalidate("holidays:")
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e)
@@ -371,6 +403,7 @@ def update_holiday(
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_holiday(holiday_id, data)
+        cache.invalidate("holidays:")
         return {"ok": True, "record": result}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -382,6 +415,7 @@ def update_holiday(
 def delete_holiday(holiday_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_holiday(holiday_id)
+        cache.invalidate("holidays:")
         return {"ok": True, "deleted": count}
     except Exception as e:
         raise _sanitize_500(e)
@@ -415,6 +449,7 @@ def create_workplace(body: WorkplaceCreate, _cur_user: dict = Depends(require_ad
         raise HTTPException(status_code=400, detail="NAME darf nicht leer sein")
     try:
         result = get_db().create_workplace(body.model_dump())
+        cache.invalidate("workplaces:")
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e)
@@ -427,6 +462,7 @@ def update_workplace(
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_workplace(wp_id, data)
+        cache.invalidate("workplaces:")
         return {"ok": True, "record": result}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -440,6 +476,7 @@ def update_workplace(
 def hide_workplace(wp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().hide_workplace(wp_id)
+        cache.invalidate("workplaces:")
         return {"ok": True, "hidden": count}
     except Exception as e:
         raise _sanitize_500(e)

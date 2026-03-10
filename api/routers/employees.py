@@ -5,6 +5,7 @@ import os
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .. import cache
 from ..dependencies import (
     _logger,
     _sanitize_500,
@@ -25,7 +26,13 @@ router = APIRouter()
     response_model=list[EmployeeResponse],
 )
 def get_employees(include_hidden: bool = False):
-    return get_db().get_employees(include_hidden=include_hidden)
+    cache_key = f"employees:list:{include_hidden}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    result = get_db().get_employees(include_hidden=include_hidden)
+    cache.put(cache_key, result)
+    return result
 
 
 @router.get("/api/employees/{emp_id}", tags=["Employees"], summary="Get employee by ID")
@@ -46,12 +53,17 @@ def get_employee(emp_id: int):
     response_model=list[GroupResponse],
 )
 def get_groups(include_hidden: bool = False):
+    cache_key = f"groups:list:{include_hidden}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
     db = get_db()
     groups = db.get_groups(include_hidden=include_hidden)
     # Fetch all group→members in a single pass to avoid N+1
     all_members = db.get_all_group_members()
     for g in groups:
         g["member_count"] = len(all_members.get(g["ID"], []))
+    cache.put(cache_key, groups)
     return groups
 
 
@@ -236,6 +248,7 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
             new_value={"NAME": body.NAME, "SHORTNAME": body.SHORTNAME},
             user_id=_cur_user.get("ID"),
         )
+        cache.invalidate("employees:")
         broadcast("employee_changed", {"action": "created", "employee_id": result.get("ID")})
         return {"ok": True, "record": result}
     except ValueError as e:
@@ -285,6 +298,7 @@ def update_employee(
             new_value=data,
             user_id=_cur_user.get("ID"),
         )
+        cache.invalidate("employees:")
         broadcast("employee_changed", {"action": "updated", "employee_id": emp_id})
         return {"ok": True, "record": result}
     except HTTPException:
@@ -327,6 +341,7 @@ def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
             old_value={"NAME": old_name},
             user_id=_cur_user.get("ID"),
         )
+        cache.invalidate("employees:")
         broadcast("employee_changed", {"action": "deleted", "employee_id": emp_id})
         return {"ok": True, "hidden": count}
     except HTTPException:
@@ -410,6 +425,7 @@ def create_group(body: GroupCreate, _cur_user: dict = Depends(require_admin)):
         raise HTTPException(status_code=400, detail="Feld 'NAME' darf nicht leer sein")
     try:
         result = get_db().create_group(body.model_dump())
+        cache.invalidate("groups:")
         _logger.warning(
             "AUDIT GROUP_CREATE | user=%s name=%s id=%s",
             _cur_user.get("NAME"),
@@ -433,6 +449,7 @@ def update_group(
     try:
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         result = get_db().update_group(group_id, data)
+        cache.invalidate("groups:")
         _logger.warning(
             "AUDIT GROUP_UPDATE | user=%s group_id=%d fields=%s",
             _cur_user.get("NAME"),
@@ -457,6 +474,7 @@ def update_group(
 def delete_group(group_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         count = get_db().delete_group(group_id)
+        cache.invalidate("groups:")
         _logger.warning(
             "AUDIT GROUP_DELETE | user=%s group_id=%d", _cur_user.get("NAME"), group_id
         )
@@ -476,6 +494,7 @@ def add_group_member(
 ):
     try:
         result = get_db().add_group_member(group_id, body.employee_id)
+        cache.invalidate("groups:")
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e, f"add_group_member/{group_id}")
@@ -492,6 +511,7 @@ def remove_group_member(
 ):
     try:
         count = get_db().remove_group_member(group_id, emp_id)
+        cache.invalidate("groups:")
         return {"ok": True, "removed": count}
     except Exception as e:
         raise _sanitize_500(e, f"remove_group_member/{group_id}/{emp_id}")
@@ -614,4 +634,5 @@ def bulk_employee_action(
     else:
         raise HTTPException(status_code=400, detail=f"Unbekannte Aktion: {body.action}")
 
+    cache.invalidate("employees:", "groups:")
     return {"ok": True, "affected": affected, "errors": errors}
