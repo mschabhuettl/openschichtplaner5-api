@@ -2,7 +2,6 @@
 
 import os
 import re as _re
-import secrets
 import time as _time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -18,6 +17,7 @@ from ..dependencies import (
     _logger,
     _sanitize_500,
     _sessions,
+    create_jwt_token,
     get_db,
     invalidate_sessions_for_user,
     limiter,
@@ -492,10 +492,9 @@ def login(request: Request, body: LoginBody):
             len(user_sessions) - _MAX_SESSIONS_PER_USER + 1,
         )
 
-    # Generate a session token with expiry
-    token = secrets.token_hex(32)
+    # Generate a signed JWT token with expiry
     expires_at = now + _TOKEN_EXPIRE_HOURS * 3600
-    _sessions[token] = {**user, "expires_at": expires_at}
+    token = create_jwt_token(user, expires_at)
 
     # Set HttpOnly cookie (Secure only in production)
     response = JSONResponse(
@@ -533,14 +532,33 @@ def me(user: dict = Depends(require_auth)):
 )
 def logout(request: Request, x_auth_token: str | None = Header(None)):
     """Invalidate the session token. Reads from cookie or X-Auth-Token header."""
+    from ..dependencies import _decode_jwt
+
     client_ip = request.client.host if request.client else "unknown"
     # Prefer cookie, fall back to header
     token = request.cookies.get(_COOKIE_NAME) or x_auth_token
-    if token and token in _sessions:
-        user_info = _sessions[token]
-        username = user_info.get("NAME", "?")
-        user_id = user_info.get("ID", "?")
-        del _sessions[token]
+    logged_out = False
+    if token:
+        # Try legacy direct lookup first
+        if token in _sessions:
+            user_info = _sessions[token]
+            username = user_info.get("NAME", "?")
+            user_id = user_info.get("ID", "?")
+            del _sessions[token]
+            logged_out = True
+        else:
+            # Try JWT decode to find session ID
+            payload = _decode_jwt(token)
+            if payload:
+                session_id = payload.get("sid")
+                if session_id and session_id in _sessions:
+                    user_info = _sessions[session_id]
+                    username = user_info.get("NAME", "?")
+                    user_id = user_info.get("ID", "?")
+                    del _sessions[session_id]
+                    logged_out = True
+
+    if logged_out:
         _logger.info(
             "AUTH LOGOUT | ip=%s username=%s user_id=%s", client_ip, username, user_id
         )

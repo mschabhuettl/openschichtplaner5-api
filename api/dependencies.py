@@ -8,9 +8,12 @@ import json as _json
 import logging
 import logging.handlers
 import os
+import secrets as _secrets
 import time as _time
 from datetime import UTC
 from datetime import datetime as _dt
+
+import jwt as _jwt
 
 from fastapi import Depends, Header, HTTPException, Request
 from slowapi import Limiter
@@ -70,7 +73,7 @@ def _rate_limit_key(request: Request) -> str:
         or request.query_params.get("token")
     )
     if token:
-        session = _sessions.get(token)
+        session = _get_session_from_token(token)
         if session:
             return f"user:{session.get('NAME', 'unknown')}"
     return get_remote_address(request)
@@ -78,8 +81,15 @@ def _rate_limit_key(request: Request) -> str:
 
 limiter = Limiter(key_func=_rate_limit_key, default_limits=["100/minute"])
 
+# ── JWT Configuration ────────────────────────────────────────────
+# Secret: use env var or generate a strong random one (persists for process lifetime).
+# For multi-worker / restart-safe deployments, set SP5_JWT_SECRET in env.
+_JWT_SECRET = os.environ.get("SP5_JWT_SECRET") or _secrets.token_hex(64)
+_JWT_ALGORITHM = "HS256"
+
 # ── Session store ────────────────────────────────────────────────
 # NOTE: In-process dict — not safe for multi-worker deployments.
+# JWT provides integrity + expiry; sessions dict enables server-side revocation.
 _sessions: dict[str, dict] = {}
 
 # Token lifetime
@@ -110,16 +120,78 @@ _DEV_USER = {
 _DEV_MODE_ACTIVE = os.environ.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes")
 
 
+def create_jwt_token(user_data: dict, expires_at: float) -> str:
+    """Create a signed JWT token containing user session data."""
+    # Generate a unique session ID for server-side revocation
+    session_id = _secrets.token_hex(16)
+    payload = {
+        "sid": session_id,
+        "uid": user_data.get("ID"),
+        "name": user_data.get("NAME", ""),
+        "role": user_data.get("role", "Leser"),
+        "exp": int(expires_at),
+        "iat": int(_time.time()),
+    }
+    token = _jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
+    # Register in server-side session store for revocation support
+    _sessions[session_id] = {**user_data, "expires_at": expires_at, "_session_id": session_id}
+    return token
+
+
+def _decode_jwt(token: str) -> dict | None:
+    """Decode and verify a JWT token. Returns payload or None."""
+    try:
+        payload = _jwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGORITHM])
+        return payload
+    except _jwt.ExpiredSignatureError:
+        return None
+    except _jwt.InvalidTokenError:
+        return None
+
+
 def _is_token_valid(token: str) -> bool:
-    """Return True if the token exists and has not expired."""
+    """Return True if the token exists and has not expired.
+
+    Supports both legacy session tokens (direct lookup) and JWT tokens.
+    """
+    # Legacy: direct session lookup (for dev mode token and backward compat)
     session = _sessions.get(token)
-    if not session:
+    if session:
+        expires_at = session.get("expires_at")
+        if expires_at is not None and _time.time() > expires_at:
+            del _sessions[token]
+            return False
+        return True
+
+    # JWT: decode and verify, then check server-side revocation
+    payload = _decode_jwt(token)
+    if payload is None:
         return False
-    expires_at = session.get("expires_at")
-    if expires_at is not None and _time.time() > expires_at:
-        del _sessions[token]
-        return False
-    return True
+    session_id = payload.get("sid")
+    if session_id and session_id in _sessions:
+        session = _sessions[session_id]
+        expires_at = session.get("expires_at")
+        if expires_at is not None and _time.time() > expires_at:
+            del _sessions[session_id]
+            return False
+        return True
+    return False
+
+
+def _get_session_from_token(token: str) -> dict | None:
+    """Resolve a token (legacy or JWT) to its session data."""
+    # Legacy direct lookup
+    session = _sessions.get(token)
+    if session:
+        return session
+    # JWT decode
+    payload = _decode_jwt(token)
+    if payload is None:
+        return None
+    session_id = payload.get("sid")
+    if session_id:
+        return _sessions.get(session_id)
+    return None
 
 
 def get_current_user(
@@ -131,8 +203,7 @@ def get_current_user(
     Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
     (query param kept for SSE connections where EventSource cannot set headers).
 
-    In dev mode (SP5_DEV_MODE=true), the '__dev_mode__' token is pre-registered
-    in _sessions at startup, giving full Admin access.
+    Supports both legacy hex tokens and signed JWT tokens.
     """
     token = (
         x_auth_token
@@ -143,7 +214,7 @@ def get_current_user(
         return None
 
     if _is_token_valid(token):
-        return _sessions[token]
+        return _get_session_from_token(token)
     return None
 
 
@@ -200,7 +271,10 @@ def get_db() -> SP5Database:
 
 
 def invalidate_sessions_for_user(user_id: int) -> int:
-    """Remove all active sessions for a given user ID. Returns count removed."""
+    """Remove all active sessions for a given user ID. Returns count removed.
+
+    Works for both legacy token keys and JWT session IDs.
+    """
     to_remove = [tok for tok, s in _sessions.items() if s.get("ID") == user_id]
     for tok in to_remove:
         del _sessions[tok]
