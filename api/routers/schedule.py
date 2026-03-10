@@ -1,12 +1,13 @@
 """Schedule, shift-cycles, staffing, einsatzplan, restrictions router."""
 
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator
 
 from ..dependencies import (
     _sanitize_500,
     get_db,
+    limiter,
     require_admin,
     require_planer,
 )
@@ -709,8 +710,9 @@ class ScheduleGenerateRequest(BaseModel):
     summary="Auto-generate schedule from cycles",
     description="Auto-generate schedule entries for a month from shift-cycle assignments. Use `dry_run=true` for preview without writing. Requires Planer role.",
 )
+@limiter.limit("10/minute")
 def generate_schedule(
-    body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_planer)
+    request: Request, body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_planer)
 ):
     """Generate (or preview) schedule entries for a month based on cycle assignments.
     dry_run=True: returns preview without writing.

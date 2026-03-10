@@ -2016,8 +2016,9 @@ def _decode_csv(content: bytes) -> str:
     summary="Import employees from CSV",
     description="Parse #RRGGBB hex to BGR int, or pass-through int.",
 )
+@limiter.limit("5/minute")
 async def import_employees(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import employees from CSV. Required columns: NAME or NACHNAME.
     Accepted column aliases: VORNAME/FIRSTNAME, NACHNAME/NAME, KURZZEICHEN/SHORTNAME/KÜRZEL,
@@ -2115,8 +2116,9 @@ async def import_employees(
     summary="Import shifts from CSV",
     description="Parse #RRGGBB hex to BGR int, or pass-through int.",
 )
+@limiter.limit("5/minute")
 async def import_shifts(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import shifts from CSV. Required: NAME.
     Optional: KURZZEICHEN/SHORTNAME, FARBE/COLORBK (hex #RRGGBB or int BGR), DURATION0."""
@@ -2204,8 +2206,9 @@ async def import_shifts(
     tags=["Import"],
     summary="Import absences from CSV",
 )
+@limiter.limit("5/minute")
 async def import_absences(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import absences from CSV. Required: EMPLOYEE_ID, DATE (YYYY-MM-DD), LEAVE_TYPE_ID."""
     content = await _validate_csv_upload(file)
@@ -2265,8 +2268,9 @@ async def import_absences(
     tags=["Import"],
     summary="Import holidays from CSV",
 )
+@limiter.limit("5/minute")
 async def import_holidays(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import holidays from CSV. Required: DATE (YYYY-MM-DD), NAME.
     Optional: INTERVAL (0=einmalig, 1=jährlich), REGION (ignored, for info only)."""
@@ -2327,8 +2331,9 @@ async def import_holidays(
     tags=["Import"],
     summary="Import actual-hour bookings from CSV",
 )
+@limiter.limit("5/minute")
 async def import_bookings_actual(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import actual-hour bookings (TYPE=0) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
@@ -2394,8 +2399,9 @@ async def import_bookings_actual(
     tags=["Import"],
     summary="Import nominal-hour bookings from CSV",
 )
+@limiter.limit("5/minute")
 async def import_bookings_nominal(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import nominal-hour bookings (TYPE=1) from CSV.
     Required: Personalnummer,Datum,Stunden. Optional: Notiz."""
@@ -2461,8 +2467,9 @@ async def import_bookings_nominal(
     tags=["Import"],
     summary="Import vacation entitlements from CSV",
 )
+@limiter.limit("5/minute")
 async def import_entitlements(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import leave entitlements from CSV.
     Required: Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage."""
@@ -2547,8 +2554,9 @@ async def import_entitlements(
     tags=["Import"],
     summary="Import absences from CSV (alternate format)",
 )
+@limiter.limit("5/minute")
 async def import_absences_csv(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import absences from CSV using Personalnummer and Abwesenheitsart-Kürzel.
     Required: Personalnummer,Datum,Abwesenheitsart-Kürzel."""
@@ -2633,8 +2641,9 @@ async def import_absences_csv(
     tags=["Import"],
     summary="Import groups from CSV",
 )
+@limiter.limit("5/minute")
 async def import_groups(
-    file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import groups from CSV.
     Required: Name. Optional: Kürzel, Übergeordnete-Gruppe-Name."""

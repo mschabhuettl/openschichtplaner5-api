@@ -92,8 +92,8 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.middleware.gzip import GZipMiddleware  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
-from slowapi import _rate_limit_exceeded_handler  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
+from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
 
 # ── Import shared dependencies ──────────────────────────────────
 # These are re-exported here so tests can still do `from api.main import _sessions`
@@ -238,7 +238,30 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]  # slowapi handler signature differs from starlette's expected type
+app.add_middleware(SlowAPIMiddleware)
+
+
+def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """Custom 429 handler — returns German JSON matching our API error style."""
+    _logger.warning(
+        "RATE_LIMIT 429 | ip=%s path=%s detail=%s",
+        request.client.host if request.client else "unknown",
+        request.url.path,
+        exc.detail,
+    )
+    response = JSONResponse(
+        status_code=429,
+        content={
+            "detail": f"Zu viele Anfragen. Bitte warte kurz und versuche es erneut. ({exc.detail})"
+        },
+    )
+    response = request.app.state.limiter._inject_headers(
+        response, request.state.view_rate_limit
+    )
+    return response
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 

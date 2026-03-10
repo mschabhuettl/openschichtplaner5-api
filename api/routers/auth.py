@@ -241,8 +241,9 @@ class ChangePasswordBody(BaseModel):
     summary="Change user password",
     description="Set a new password for an API user. Requires Admin role.",
 )
+@limiter.limit("5/minute")
 def change_user_password(
-    user_id: int, body: ChangePasswordBody, _admin: dict = Depends(require_admin)
+    request: Request, user_id: int, body: ChangePasswordBody, _admin: dict = Depends(require_admin)
 ):
     if not body.new_password or len(body.new_password.strip()) < 1:
         raise HTTPException(status_code=400, detail="Passwort darf nicht leer sein")
@@ -288,7 +289,8 @@ class SelfChangePasswordBody(BaseModel):
     summary="Change own password",
     description="Change the current user's password. Requires the old password for verification.",
 )
-def change_own_password(body: SelfChangePasswordBody, user: dict = Depends(require_auth)):
+@limiter.limit("5/minute")
+def change_own_password(request: Request, body: SelfChangePasswordBody, user: dict = Depends(require_auth)):
     """Self-service password change: verify old password, set new one."""
     username = user.get("NAME", "")
     user_id = user.get("ID")
@@ -352,7 +354,8 @@ def _generate_temp_password(length: int = 12) -> str:
     summary="Reset user password (Admin/Planer)",
     description="Generate a temporary password for a user. Sends email if SMTP is configured and user has a linked employee with an email address. Returns the temp password to the admin.",
 )
-def reset_user_password(user_id: int, admin: dict = Depends(require_planer)):
+@limiter.limit("5/minute")
+def reset_user_password(request: Request, user_id: int, admin: dict = Depends(require_planer)):
     """Admin/Planer resets a user's password to a generated temporary one."""
     db = get_db()
     temp_pw = _generate_temp_password()

@@ -1209,8 +1209,9 @@ class SelfAbsenceCreate(BaseModel):
     "/api/self/absences", tags=["Self-Service"], summary="Submit own absence request",
     description="Self-service: employee requests an absence (subject to approval).",
 )
+@limiter.limit("10/minute")
 def create_self_absence(
-    body: SelfAbsenceCreate, cur_user: dict = Depends(require_auth)
+    request: Request, body: SelfAbsenceCreate, cur_user: dict = Depends(require_auth)
 ):
     """Leser can submit an absence/vacation request for themselves."""
     user_name = cur_user.get("NAME", "").strip().lower()

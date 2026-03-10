@@ -7,10 +7,10 @@ Provides:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from ..dependencies import require_admin
+from ..dependencies import limiter, require_admin
 
 router = APIRouter(tags=["Email"])
 
@@ -42,7 +42,8 @@ def get_email_config(_cur_user: dict = Depends(require_admin)):
         "Returns success/failure status.\n\n**Required role:** Admin"
     ),
 )
-def send_test_email(body: TestEmailRequest, _cur_user: dict = Depends(require_admin)):
+@limiter.limit("3/minute")
+def send_test_email(request: Request, body: TestEmailRequest, _cur_user: dict = Depends(require_admin)):
     """Send a test email to verify SMTP configuration."""
     from sp5lib.email_service import get_config, send_email
 
