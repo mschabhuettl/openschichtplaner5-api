@@ -43,13 +43,13 @@ async def _validate_csv_upload(file: UploadFile) -> bytes:
     if ct and ct not in _ALLOWED_CSV_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"Ungültiger Dateityp '{ct}'. Nur CSV-Dateien erlaubt.",
+            detail=f"Invalid file type '{ct}'. Only CSV files allowed.",
         )
     content = await file.read()
     if len(content) > _MAX_CSV_SIZE:
         raise HTTPException(
             status_code=413,
-            detail="Datei zu groß (max. 10 MB für CSV-Import).",
+            detail="File too large (max. 10 MB for CSV import).",
         )
     return content
 
@@ -91,18 +91,18 @@ def get_statistics(
         month = _date.today().month
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
     return get_db().get_statistics(year, month, group_id=group_id)
 
 
-# ── Year Summary (Jahresrückblick) ────────────────────────────
+# ── Year Summary ────────────────────────────
 @router.get(
     "/api/statistics/year-summary",
     tags=["Statistics"],
-    summary="Year summary (Jahresrückblick)",
+    summary="Year summary",
     description=(
-        "Return aggregated statistics for all 12 months of a year (Jahresrückblick).\n\n"
+        "Return aggregated statistics for all 12 months of a year.\n\n"
         "Contains per-employee totals for the full year plus month-by-month breakdown. "
         "Optionally filter by `group_id`.\n\n"
         "**Required role:** Leser"
@@ -114,7 +114,7 @@ def get_year_summary(
     ),
     group_id: int | None = Query(None, description="Filter by group ID"),
 ):
-    """Return aggregated statistics for all 12 months of a year (Jahresrückblick)."""
+    """Return aggregated statistics for all 12 months of a year."""
     from datetime import date as _date
 
     if year is None:
@@ -245,7 +245,7 @@ def get_employee_statistics(
         if not (1 <= month <= 12):
             raise HTTPException(
                 status_code=400,
-                detail="Ungültiger Monat: muss zwischen 1 und 12 liegen",
+                detail="Invalid month: must be between 1 and 12",
             )
         return db.get_employee_stats_month(emp_id, year, month)
     return db.get_employee_stats_year(emp_id, year)
@@ -311,7 +311,7 @@ def get_shift_statistics(
     - periods: list of {year, month, label} for trend window
     - shift_usage: per shift, monthly counts + total
     - employee_distribution: per employee, counts by shift category
-    - category_totals: global counts by category (Früh/Spät/Nacht/Sonstige)
+    - category_totals: global counts by category (Early/Late/Night/Other)
     """
     from collections import defaultdict
     from datetime import date as _date
@@ -572,7 +572,7 @@ def export_schedule(
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
         header_font = Font(bold=True, color="FFFFFF", size=9)
         header_fill = PatternFill(fill_type="solid", fgColor="1E293B")
-        # Column 1: Name, col 2: Kürzel, then days
+        # Column 1: Name, col 2: abbreviation, then days
         ws.cell(1, 1, "Mitarbeiter").font = header_font
         ws.cell(1, 1).fill = header_fill
         ws.cell(1, 1).alignment = Alignment(horizontal="left")
@@ -1298,7 +1298,7 @@ def get_monthly_report(
 
     if not stats:
         raise HTTPException(
-            status_code=404, detail=f"Keine Daten für {month_label} gefunden."
+            status_code=404, detail=f"No data found for {month_label}."
         )
 
     # ── Extra-charge hours per employee ───────────────────────
@@ -1366,7 +1366,7 @@ def get_monthly_report(
     except ImportError:
         raise HTTPException(
             status_code=500,
-            detail="fpdf2 nicht installiert. Bitte 'pip install fpdf2' ausführen.",
+            detail="fpdf2 not installed. Please run 'pip install fpdf2'.",
         )
 
     class SP5Report(FPDF):
@@ -1528,7 +1528,7 @@ def get_monthly_report(
             align="L",
         )
         col_idx += 1  # noqa: E702
-        # Kürzel
+        # Abbreviation
         pdf.cell(
             all_cols[col_idx][1],
             ROW_H,
@@ -1568,7 +1568,7 @@ def get_monthly_report(
             align="R",
         )
         col_idx += 1  # noqa: E702
-        # ÜSt h — color
+        # Overtime h — color
         ot_val = row["Überstunden"]
         if ot_val > 0:
             pdf.set_text_color(22, 163, 74)
@@ -1759,7 +1759,7 @@ def get_monthly_report(
     )
 
 
-# ── Zeitkonto / Überstunden ──────────────────────────────────
+# ── Time Account / Overtime ──────────────────────────────────
 
 
 @router.get(
@@ -1886,7 +1886,7 @@ def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     if body.type not in (0, 1):
         raise HTTPException(status_code=400, detail="type must be 0 (Ist) or 1 (Soll)")
@@ -1925,7 +1925,7 @@ def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
         raise _sanitize_500(e)
 
 
-# ── Carry Forward (Saldo-Übertrag) ────────────────────────────
+# ── Carry Forward (Balance Carryover) ────────────────────────────
 
 
 @router.get(
@@ -2071,7 +2071,7 @@ async def import_employees(
         workdays_raw = row.get("WORKDAYS") or row.get("ARBEITSTAGE") or ""
 
         if not name:
-            errors.append({"row": i, "reason": "NAME/NACHNAME fehlt — übersprungen"})
+            errors.append({"row": i, "reason": "NAME/NACHNAME missing — skipped"})
             skipped += 1
             continue
 
@@ -2081,7 +2081,7 @@ async def import_employees(
             errors.append(
                 {
                     "row": i,
-                    "reason": f"Duplikat: Mitarbeiter '{firstname} {name}' existiert bereits — übersprungen",
+                    "reason": f"Duplicate: employee '{firstname} {name}' already exists — skipped",
                 }
             )
             skipped += 1
@@ -2160,7 +2160,7 @@ async def import_shifts(
 
         name = row.get("NAME") or ""
         if not name:
-            errors.append({"row": i, "reason": "NAME fehlt — übersprungen"})
+            errors.append({"row": i, "reason": "NAME missing — skipped"})
             skipped += 1
             continue
 
@@ -2169,7 +2169,7 @@ async def import_shifts(
             errors.append(
                 {
                     "row": i,
-                    "reason": f"Duplikat: Schicht '{name}' existiert bereits — übersprungen",
+                    "reason": f"Duplicate: shift '{name}' already exists — skipped",
                 }
             )
             skipped += 1
@@ -2231,7 +2231,7 @@ async def import_absences(
             errors.append(
                 {
                     "row": i,
-                    "reason": "Pflichtfelder fehlen (EMPLOYEE_ID, DATE, LEAVE_TYPE_ID) — übersprungen",
+                    "reason": "Required fields missing (EMPLOYEE_ID, DATE, LEAVE_TYPE_ID) — skipped",
                 }
             )
             skipped += 1
@@ -2245,7 +2245,7 @@ async def import_absences(
             errors.append(
                 {
                     "row": i,
-                    "reason": f"Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen",
+                    "reason": f"Invalid date '{date_raw}' (expected YYYY-MM-DD) — skipped",
                 }
             )
             skipped += 1
@@ -2273,7 +2273,7 @@ async def import_holidays(
     request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import holidays from CSV. Required: DATE (YYYY-MM-DD), NAME.
-    Optional: INTERVAL (0=einmalig, 1=jährlich), REGION (ignored, for info only)."""
+    Optional: INTERVAL (0=one-time, 1=yearly), REGION (ignored, for info only)."""
     content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
@@ -2291,7 +2291,7 @@ async def import_holidays(
 
         if not date_raw or not name:
             errors.append(
-                {"row": i, "reason": "DATE und NAME sind Pflicht — übersprungen"}
+                {"row": i, "reason": "DATE and NAME are required — skipped"}
             )
             skipped += 1
             continue
@@ -2304,7 +2304,7 @@ async def import_holidays(
             errors.append(
                 {
                     "row": i,
-                    "reason": f"Ungültiges Datum '{date_raw}' (erwartet YYYY-MM-DD) — übersprungen",
+                    "reason": f"Invalid date '{date_raw}' (expected YYYY-MM-DD) — skipped",
                 }
             )
             skipped += 1
@@ -2472,7 +2472,7 @@ async def import_entitlements(
     request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import leave entitlements from CSV.
-    Required: Personalnummer,Jahr,Abwesenheitsart-Kürzel,Tage."""
+    Required: PersonnelNumber,Year,AbsenceType-Abbreviation,Days."""
     content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
@@ -2558,8 +2558,8 @@ async def import_entitlements(
 async def import_absences_csv(
     request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
-    """Import absences from CSV using Personalnummer and Abwesenheitsart-Kürzel.
-    Required: Personalnummer,Datum,Abwesenheitsart-Kürzel."""
+    """Import absences from CSV using personnel number and absence type abbreviation.
+    Required: PersonnelNumber,Date,AbsenceType-Abbreviation."""
     content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
@@ -2646,7 +2646,7 @@ async def import_groups(
     request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
     """Import groups from CSV.
-    Required: Name. Optional: Kürzel, Übergeordnete-Gruppe-Name."""
+    Required: Name. Optional: Abbreviation, Parent-Group-Name."""
     content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
@@ -2676,7 +2676,7 @@ async def import_groups(
         )
 
         if not name:
-            errors.append({"row": i, "reason": "NAME fehlt — übersprungen"})
+            errors.append({"row": i, "reason": "NAME missing — skipped"})
             skipped += 1
             continue
 
@@ -2687,7 +2687,7 @@ async def import_groups(
                 errors.append(
                     {
                         "row": i,
-                        "reason": f"Übergeordnete Gruppe '{parent_name}' nicht gefunden — übersprungen",
+                        "reason": f"Parent group '{parent_name}' not found — skipped",
                     }
                 )
                 skipped += 1
@@ -2731,12 +2731,12 @@ def get_burnout_radar(
     """Return list of at-risk employees (long streaks or significant overtime)."""
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
     if not (2000 <= year <= 2100):
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen",
+            detail="Invalid year: must be between 2000 and 2100",
         )
     return get_db().get_burnout_radar(
         year=year,
@@ -2747,7 +2747,7 @@ def get_burnout_radar(
     )
 
 
-# ── Überstunden-Zusammenfassung ───────────────────────────────
+# ── Overtime Summary ───────────────────────────────
 
 
 @router.get(
@@ -2762,7 +2762,7 @@ def get_overtime_summary(
     ),
     group_id: int | None = Query(None, description="Filter by group"),
 ):
-    """Return overtime summary (Überstunden) per employee for a given year."""
+    """Return overtime summary per employee for a given year."""
     from datetime import date as _date
 
     if year is None:
@@ -2826,7 +2826,7 @@ def get_warnings(
 
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
 
     db = get_db()
@@ -2838,7 +2838,7 @@ def get_warnings(
         w_id += 1
         return w_id
 
-    # ── 1. Nächster Monat noch nicht geplant ─────────────────────
+    # ── 1. Next month not yet planned ─────────────────────
     # Check if current month → warn if < 7 days until month end and next month has no schedule
     last_day = _cal.monthrange(year, month)[1]
     month_end = _date(year, month, last_day)
@@ -2883,14 +2883,14 @@ def get_warnings(
                     "type": "next_month_unplanned",
                     "severity": "warning",
                     "title": f"{next_month_name} {next_year} noch nicht geplant",
-                    "message": f"Nur noch {days_until_end} Tage bis Monatsende – der nächste Monat hat keinen Dienstplan.",
+                    "message": f"Only {days_until_end} days until month end — next month has no schedule.",
                     "link": "/schedule",
                     "link_label": "Zum Dienstplan",
                     "date": today.isoformat(),
                 }
             )
 
-    # ── 2. Überstunden > Schwellenwert ───────────────────────────
+    # ── 2. Overtime > threshold ───────────────────────────
     OVERTIME_THRESHOLD = 20.0  # hours
     try:
         stats = db.get_statistics(year, month)
@@ -3023,7 +3023,7 @@ def get_fairness_score(
     group_id: int | None = Query(None, description="Filter by group"),
 ):
     """
-    Berechnet den Fairness-Score: Wie gleichmäßig sind Wochenend-, Nacht-
+    Calculates the fairness score: How evenly are weekend, night
     und Feiertagsschichten unter den Mitarbeitern verteilt?
     """
     import math
@@ -3155,7 +3155,7 @@ def get_fairness_score(
     return {"year": year, "employees": result, "fairness": fairness}
 
 
-# ── Kapazitäts-Forecast ──────────────────────────────────────────
+# ── Capacity Forecast ──────────────────────────────────────────
 @router.get(
     "/api/capacity-forecast",
     tags=["Statistics"],
@@ -3183,7 +3183,7 @@ def get_capacity_forecast(
 
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
 
     db = get_db()
@@ -3380,7 +3380,7 @@ def get_capacity_forecast(
     }
 
 
-# ── Jahres-Kapazitätsübersicht ───────────────────────────────────────────────
+# ── Annual Capacity Overview ───────────────────────────────────────────────
 @router.get(
     "/api/capacity-year",
     tags=["Statistics"],
@@ -3550,7 +3550,7 @@ def get_capacity_year(
     }
 
 
-# ── Qualitätsbericht ─────────────────────────────────────────────────────────
+# ── Quality Report ─────────────────────────────────────────────────────────
 
 
 @router.get(
@@ -3563,13 +3563,13 @@ def get_quality_report(
     year: int = Query(...),
     month: int = Query(...),
 ):
-    """Monatlicher Qualitätsbericht: Besetzung, Stunden-Compliance, Konflikte, Score."""
+    """Monthly quality report: staffing, hours compliance, conflicts, score."""
     import calendar as _cal
     from collections import defaultdict
 
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
 
     db = get_db()
@@ -3672,7 +3672,7 @@ def get_quality_report(
             }
         )
 
-    # ── Stunden-Compliance (via get_statistics für korrekte Stunden-Berechnung) ──
+    # ── Hours Compliance (via get_statistics for correct hours calculation) ──
     hours_issues = []
     hours_ok = []
     total_target = 0.0
@@ -3700,7 +3700,7 @@ def get_quality_report(
             and absence_days < 10
             and stat.get("shifts_count", 0) > 0
         ):
-            # stark unterstunden ohne Abwesenheiten = ungewöhnlich
+            # significantly under hours without absences = unusual
             issue_type = "under"
         if issue_type:
             hours_issues.append(
@@ -3806,7 +3806,7 @@ def get_quality_report(
             {
                 "severity": "ok",
                 "category": "Allgemein",
-                "message": "Keine Auffälligkeiten — Monat kann abgeschlossen werden.",
+                "message": "No issues found — month can be closed.",
             }
         )
 
@@ -3847,7 +3847,7 @@ def get_quality_report(
     }
 
 
-# ── Verfügbarkeits-Matrix ────────────────────────────────────────────────────
+# ── Availability Matrix ────────────────────────────────────────────────────
 
 
 @router.get(
@@ -3863,8 +3863,8 @@ def get_availability_matrix(
 ):
     """
     Analysiert Schicht-Muster aus dem Dienstplan (MASHI + SPSHI + ABSEN).
-    Gibt pro Mitarbeiter zurück:
-      - Schicht-Häufigkeit pro Wochentag (7 Tage × n Schichtarten)
+    Returns per employee:
+      - Shift frequency per weekday (7 days × n shift types)
       - Schicht-Mix (wie oft welche Schicht)
       - Muster-Label (z.B. "3-Schicht-Rotation", "Tagschicht Mo-Fr", "Frei")
     """

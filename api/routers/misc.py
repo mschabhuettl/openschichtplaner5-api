@@ -72,7 +72,7 @@ def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     try:
         import html as _html
@@ -117,7 +117,7 @@ def update_note(
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+                detail="Invalid date format, please use YYYY-MM-DD",
             )
     try:
         import html as _html
@@ -375,7 +375,7 @@ def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)
     return {"ok": True, "deleted": access_id}
 
 
-# ── Changelog / Aktivitätsprotokoll ─────────────────────────
+# ── Changelog / Activity Log ─────────────────────────
 
 
 @router.get("/api/changelog", tags=["Admin"], summary="List audit log entries", description="Return the activity changelog with optional filtering and pagination.")
@@ -417,7 +417,7 @@ def log_action(body: ChangelogEntry, _cur_user: dict = Depends(require_planer)):
     return entry
 
 
-# ── Schicht-Wünsche & Sperrtage ─────────────────────────────────
+# ── Shift Preferences & Blocked Days ─────────────────────────────────
 
 
 @router.get("/api/wishes", tags=["Self-Service"], summary="List shift wishes")
@@ -530,8 +530,8 @@ def approve_wish(
     return updated
 
 
-# ── Übergabe-Protokoll ────────────────────────────────────────────────────────
-# In-memory store (reset on restart – kann später auf DB umgestellt werden)
+# ── Handover Protocol ────────────────────────────────────────────────────────
+# In-memory store (reset on restart — can be migrated to DB later)
 import uuid as _uuid  # noqa: E402
 
 _handover_notes: list[dict] = []
@@ -539,7 +539,7 @@ _handover_notes: list[dict] = []
 
 @router.get("/api/handover", tags=["Notes"], summary="List handover notes", description="Return handover notes for a specific date.")
 def get_handover(date: str | None = None, shift_id: int | None = None, limit: int = 50):
-    """Übergabe-Notizen abrufen, optional gefiltert nach Datum/Schicht."""
+    """Retrieve handover notes, optionally filtered by date/shift."""
     notes = list(reversed(_handover_notes))  # neueste zuerst
     if date:
         notes = [n for n in notes if n["date"] == date]
@@ -550,7 +550,7 @@ def get_handover(date: str | None = None, shift_id: int | None = None, limit: in
 
 @router.post("/api/handover", tags=["Notes"], summary="Create handover note", description="Create a shift handover note for a date. Requires Planer role.")
 def create_handover(body: dict, _cur_user: dict = Depends(require_planer)):
-    """Neue Übergabe-Notiz anlegen."""
+    """Create a new handover note."""
     note = {
         "id": str(_uuid.uuid4())[:8],
         "date": body.get("date", ""),
@@ -588,10 +588,10 @@ def update_handover(
 
 @router.delete(
     "/api/handover/{note_id}", tags=["Notes"], summary="Delete handover note",
-    description="Übergabe-Notiz löschen.",
+    description="Delete a handover note.",
 )
 def delete_handover(note_id: str, _cur_user: dict = Depends(require_planer)):
-    """Übergabe-Notiz löschen."""
+    """Delete a handover note."""
     global _handover_notes
     before = len(_handover_notes)
     _handover_notes = [n for n in _handover_notes if n["id"] != note_id]
@@ -602,7 +602,7 @@ def delete_handover(note_id: str, _cur_user: dict = Depends(require_planer)):
     return {"ok": True}
 
 
-# ── Schicht-Tauschbörse ──────────────────────────────────────────
+# ── Shift Swap Exchange ──────────────────────────────────────────
 
 
 class SwapRequestCreate(BaseModel):
@@ -654,9 +654,9 @@ def list_swap_requests(
         req_emp = employees.get(req["requester_id"], {})
         par_emp = employees.get(req["partner_id"], {})
         r["requester_name"] = (
-            f"{req_emp.get('NAME', 'Gelöschter MA')}, {req_emp.get('FIRSTNAME', '')}"
+            f"{req_emp.get('NAME', 'Deleted Employee')}, {req_emp.get('FIRSTNAME', '')}"
             if req_emp
-            else f"Gelöschter MA (ID {req['requester_id']})"
+            else f"Deleted Employee (ID {req['requester_id']})"
         )
         r["requester_short"] = (
             req_emp.get("SHORTNAME", f"#{req['requester_id']}")
@@ -664,9 +664,9 @@ def list_swap_requests(
             else f"#{req['requester_id']}"
         )
         r["partner_name"] = (
-            f"{par_emp.get('NAME', 'Gelöschter MA')}, {par_emp.get('FIRSTNAME', '')}"
+            f"{par_emp.get('NAME', 'Deleted Employee')}, {par_emp.get('FIRSTNAME', '')}"
             if par_emp
-            else f"Gelöschter MA (ID {req['partner_id']})"
+            else f"Deleted Employee (ID {req['partner_id']})"
         )
         r["partner_short"] = (
             par_emp.get("SHORTNAME", f"#{req['partner_id']}")
@@ -695,10 +695,10 @@ def create_swap_request(
         try:
             _dt4.strptime(d, "%Y-%m-%d")
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
+            raise HTTPException(status_code=400, detail=f"Invalid date: {d}")
     if body.requester_id == body.partner_id:
         raise HTTPException(
-            status_code=400, detail="Antragsteller und Partner müssen verschieden sein"
+            status_code=400, detail="Requester and partner must be different"
         )
     entry = get_db().create_swap_request(
         requester_id=body.requester_id,
@@ -922,7 +922,7 @@ def _resolve_employee_for_user(cur_user: dict):
     if employee is None:
         raise HTTPException(
             status_code=404,
-            detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden",
+            detail="No employee record found for this user",
         )
     return employee
 
@@ -954,7 +954,7 @@ def create_self_swap_request(
         try:
             _dt4.strptime(d, "%Y-%m-%d")
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
+            raise HTTPException(status_code=400, detail=f"Invalid date: {d}")
     if requester_id == body.partner_id:
         raise HTTPException(
             status_code=400, detail="Du kannst nicht mit dir selbst tauschen"
@@ -1023,7 +1023,7 @@ def partner_respond_swap(
         )
     if req.get("status") != "pending_partner":
         raise HTTPException(
-            status_code=400, detail="Anfrage wartet nicht auf Partner-Bestätigung"
+            status_code=400, detail="Request is not awaiting partner confirmation"
         )
 
     result = db.partner_respond_swap(swap_id, body.accept)
@@ -1088,7 +1088,7 @@ def cancel_self_swap_request(
         )
     if req.get("status") not in ("pending_partner", "pending"):
         raise HTTPException(
-            status_code=400, detail="Nur ausstehende Anfragen können storniert werden"
+            status_code=400, detail="Only pending requests can be cancelled"
         )
 
     cancelled = db.cancel_swap_request(swap_id)
@@ -1148,7 +1148,7 @@ def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth
     if employee is None:
         raise HTTPException(
             status_code=404,
-            detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden",
+            detail="No employee record found for this user",
         )
     wish_type = body.wish_type.upper()
     if wish_type not in ("WUNSCH", "SPERRUNG"):
@@ -1184,14 +1184,14 @@ def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
     if employee is None:
         raise HTTPException(
             status_code=404,
-            detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden",
+            detail="No employee record found for this user",
         )
     # Verify the wish belongs to this employee
     wishes = db.get_wishes(employee_id=employee["ID"])
     wish = next((w for w in wishes if w.get("id") == wish_id), None)
     if wish is None:
         raise HTTPException(
-            status_code=404, detail="Wunsch nicht gefunden oder gehört nicht dir"
+            status_code=404, detail="Preference not found or does not belong to you"
         )
     deleted = db.delete_wish(wish_id)
     if not deleted:
@@ -1216,7 +1216,7 @@ def get_self_schedule(
 ):
     """Return only the current user's schedule entries for year/month."""
     if not (1 <= month <= 12):
-        raise HTTPException(status_code=400, detail="Ungültiger Monat")
+        raise HTTPException(status_code=400, detail="Invalid month")
     user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -1277,13 +1277,13 @@ def create_self_absence(
     if employee is None:
         raise HTTPException(
             status_code=404,
-            detail="Kein Mitarbeiter-Datensatz für diesen Benutzer gefunden",
+            detail="No employee record found for this user",
         )
     # Check if already exists
     existing = db.get_absences_list(employee_id=employee["ID"])
     if any(a.get("date") == body.date for a in existing):
         raise HTTPException(
-            status_code=409, detail="Abwesenheit für dieses Datum bereits vorhanden"
+            status_code=409, detail="Absence for this date already exists"
         )
     result = db.add_absence(employee["ID"], body.date, body.leave_type_id)
     return result

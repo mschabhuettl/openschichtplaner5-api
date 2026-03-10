@@ -87,7 +87,7 @@ class Test2FAEnable:
             json={"code": "000000"},
         )
         assert res.status_code == 400
-        assert "Ungültiger Code" in res.json().get("detail", "")
+        assert "Invalid code" in res.json().get("detail", "")
 
     def test_2fa_enable_valid_code(self, write_db_path):
         """Full 2FA enable flow: setup → generate valid code → enable."""
@@ -392,7 +392,7 @@ class TestPasswordStrength:
             json={"new_password": "alllowercase1"},
         )
         assert res.status_code == 400
-        assert "Großbuchstaben" in res.json().get("detail", "")
+        assert "uppercase" in res.json().get("detail", "")
 
     def test_no_digit(self, sync_client):
         res = sync_client.post(

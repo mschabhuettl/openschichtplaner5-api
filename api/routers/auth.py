@@ -51,7 +51,7 @@ def _validate_password_strength(password: str) -> None:
     if _PW_REQUIRE_UPPER and not _re.search(r"[A-Z]", password):
         raise HTTPException(
             status_code=400,
-            detail="Passwort muss mindestens einen Großbuchstaben enthalten.",
+            detail="Password must contain at least one uppercase letter.",
         )
     if _PW_REQUIRE_DIGIT and not _re.search(r"[0-9]", password):
         raise HTTPException(
@@ -471,7 +471,7 @@ def login(request: Request, body: LoginBody):
         _failed_logins[username] = timestamps + [now]
         _logger.warning("AUTH LOGIN_FAIL | ip=%s username=%s", client_ip, username)
         raise HTTPException(
-            status_code=401, detail="Ungültiger Benutzername oder Passwort"
+            status_code=401, detail="Invalid username or password"
         )
 
     # Successful password check — now handle 2FA if enabled
@@ -494,7 +494,7 @@ def login(request: Request, body: LoginBody):
             _failed_logins[username] = timestamps + [now]
             _logger.warning("AUTH 2FA_FAIL | ip=%s username=%s", client_ip, username)
             raise HTTPException(
-                status_code=401, detail="Ungültiger 2FA-Code"
+                status_code=401, detail="Invalid 2FA code"
             )
 
     # Successful login: clear failed attempts
@@ -660,7 +660,7 @@ def totp_enable(request: Request, body: TotpVerifyBody, user: dict = Depends(req
     db = get_db()
     backup_codes = db.totp_enable(user["ID"], body.code)
     if backup_codes is None:
-        raise HTTPException(status_code=400, detail="Ungültiger Code. Bitte erneut versuchen.")
+        raise HTTPException(status_code=400, detail="Invalid code. Please try again.")
     _logger.warning("AUDIT 2FA_ENABLED | user=%s user_id=%d", user.get("NAME"), user["ID"])
     write_audit_log("2FA_ENABLED", user.get("NAME", "?"), {"user_id": user["ID"]})
     return {"ok": True, "backup_codes": backup_codes}

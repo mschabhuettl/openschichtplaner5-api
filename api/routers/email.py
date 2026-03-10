@@ -62,7 +62,7 @@ def send_test_email(request: Request, body: TestEmailRequest, _cur_user: dict = 
         subject="[SP5] Test-E-Mail",
         title="Test-E-Mail",
         message=(
-            "Diese E-Mail wurde erfolgreich über OpenSchichtplaner5 versendet.\n\n"
+            "This email was successfully sent via OpenSchichtplaner5.\n\n"
             "Die SMTP-Konfiguration funktioniert korrekt. ✅"
         ),
         config=cfg,
@@ -71,5 +71,5 @@ def send_test_email(request: Request, body: TestEmailRequest, _cur_user: dict = 
         return {"ok": True, "message": f"Test-E-Mail an {body.to} gesendet."}
     raise HTTPException(
         status_code=500,
-        detail="E-Mail konnte nicht gesendet werden. Bitte SMTP-Einstellungen prüfen.",
+        detail="Email could not be sent. Please check SMTP settings.",
     )

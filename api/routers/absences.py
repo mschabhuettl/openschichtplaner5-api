@@ -36,7 +36,7 @@ def delete_absence_only(
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     try:
         db = get_db()
@@ -48,7 +48,7 @@ def delete_absence_only(
             action="DELETE",
             entity="absence",
             entity_id=employee_id,
-            details=f"Abwesenheit für MA {employee_id} am {date} gelöscht",
+            details=f"Absence for employee {employee_id} on {date} deleted",
             old_value={"employee_id": employee_id, "date": date},
             user_id=_cur_user.get("ID"),
         )
@@ -71,7 +71,7 @@ class AbsenceCreate(BaseModel):
         try:
             _dtt.strptime(v, "%Y-%m-%d")
         except ValueError:
-            raise ValueError("Datum muss ein gültiges Datum im Format YYYY-MM-DD sein")
+            raise ValueError("Date must be a valid date in YYYY-MM-DD format")
         return v
 
 
@@ -189,7 +189,7 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
             action="CREATE",
             entity="absence",
             entity_id=body.employee_id,
-            details=f"Abwesenheit Typ {body.leave_type_id} für MA {body.employee_id} am {body.date}",
+            details=f"Absence type {body.leave_type_id} for employee {body.employee_id} on {body.date}",
             new_value={"employee_id": body.employee_id, "date": body.date, "leave_type_id": body.leave_type_id},
             user_id=_cur_user.get("ID"),
         )
@@ -220,7 +220,7 @@ class BulkAbsenceCreate(BaseModel):
         try:
             _dtt.strptime(v, "%Y-%m-%d")
         except ValueError:
-            raise ValueError("Datum muss ein gültiges Datum im Format YYYY-MM-DD sein")
+            raise ValueError("Date must be a valid date in YYYY-MM-DD format")
         return v
 
 
@@ -389,7 +389,7 @@ class HolidayBanCreate(BaseModel):
         try:
             _dtt.strptime(v, "%Y-%m-%d")
         except ValueError:
-            raise ValueError("Datum muss ein gültiges Datum im Format YYYY-MM-DD sein")
+            raise ValueError("Date must be a valid date in YYYY-MM-DD format")
         return v
 
     @model_validator(mode="after")

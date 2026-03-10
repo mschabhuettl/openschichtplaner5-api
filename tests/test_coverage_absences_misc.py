@@ -175,7 +175,7 @@ class TestNoteUpdatePaths:
         # A date that matches the pattern but is invalid goes through to router code → 400
         r2 = admin_client.put(f"/api/notes/{note_id}", json={"date": "2025-13-99"})
         assert r2.status_code == 400
-        assert "Datumsformat" in r2.json()["detail"]
+        assert "date format" in r2.json()["detail"].lower()
 
     def test_update_note_not_found(self, admin_client):
         """Lines 152-153: update non-existent note → 404."""

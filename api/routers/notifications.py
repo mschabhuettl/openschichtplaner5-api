@@ -241,7 +241,7 @@ def mark_read(notif_id: int, cur_user: dict = Depends(require_planer)):
                 ):
                     raise HTTPException(
                         status_code=403,
-                        detail="Zugriff verweigert: Notification gehört nicht dir",
+                        detail="Access denied: notification does not belong to you",
                     )
                 n["read"] = True
                 _save(data)
@@ -302,7 +302,7 @@ def delete_notification(notif_id: int, cur_user: dict = Depends(require_planer))
         if not is_admin and recipient is not None and recipient != cur_user.get("ID"):
             raise HTTPException(
                 status_code=403,
-                detail="Zugriff verweigert: Notification gehört nicht dir",
+                detail="Access denied: notification does not belong to you",
             )
         new_data = [n for n in data if n["id"] != notif_id]
         _save(new_data)

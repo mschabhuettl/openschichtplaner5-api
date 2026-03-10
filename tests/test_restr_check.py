@@ -2,7 +2,7 @@
 Test: POST /api/schedule respects RESTR restrictions.
 
 The individual schedule entry endpoint should return HTTP 409 with
-"Einschränkung" in the detail when a RESTR entry blocks the assignment.
+"restriction" in the detail when a RESTR entry blocks the assignment.
 """
 
 import pytest
@@ -22,7 +22,7 @@ class TestRestrictionCheck:
         return employees[0]["ID"], shifts[0]["ID"]
 
     def test_no_restriction_allows_entry(self, planer_client, write_db_path):
-        """Without a restriction, scheduling succeeds (no Einschränkung 409)."""
+        """Without a restriction, scheduling succeeds (no restriction 409)."""
         emp_id, shift_id = self._get_emp_shift(write_db_path)
         resp = planer_client.post(
             "/api/schedule",
@@ -34,10 +34,10 @@ class TestRestrictionCheck:
         )
         # May succeed or fail for other reasons — but NOT due to restrictions
         if resp.status_code == 409:
-            assert "Einschränkung" not in resp.json().get("detail", "")
+            assert "restriction" not in resp.json().get("detail", "").lower()
 
     def test_restriction_all_days_blocks(self, planer_client, write_db_path):
-        """RESTR weekday=0 (all days) → POST returns 409 with Einschränkung."""
+        """RESTR weekday=0 (all days) → POST returns 409 with restriction."""
         from sp5lib.database import SP5Database
 
         emp_id, shift_id = self._get_emp_shift(write_db_path)
@@ -59,7 +59,7 @@ class TestRestrictionCheck:
         assert resp.status_code == 409, (
             f"Expected 409, got {resp.status_code}: {resp.text}"
         )
-        assert "Einschränkung" in resp.json().get("detail", "")
+        assert "restriction" in resp.json().get("detail", "").lower()
 
     def test_restriction_weekday_match_blocks(self, planer_client, write_db_path):
         """RESTR weekday=5 (Friday) blocks assignment on a Friday."""
@@ -84,7 +84,7 @@ class TestRestrictionCheck:
         assert resp.status_code == 409, (
             f"Expected 409, got {resp.status_code}: {resp.text}"
         )
-        assert "Einschränkung" in resp.json().get("detail", "")
+        assert "restriction" in resp.json().get("detail", "").lower()
 
     def test_restriction_weekday_no_match_allows(self, planer_client, write_db_path):
         """RESTR weekday=5 (Friday) does NOT block on a Monday."""
@@ -107,4 +107,4 @@ class TestRestrictionCheck:
             },
         )
         if resp.status_code == 409:
-            assert "Einschränkung" not in resp.json().get("detail", "")
+            assert "restriction" not in resp.json().get("detail", "").lower()

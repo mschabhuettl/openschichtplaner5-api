@@ -160,7 +160,7 @@ class TestConflictDetectionAPI:
         detail = resp_shift.json()["detail"]
         if isinstance(detail, dict):
             assert detail["type"] == "absence_conflict"
-            assert "Abwesenheit" in detail["message"]
+            assert "absence" in detail["message"].lower()
 
         # Clean up
         write_client.delete(f"/api/schedule/{emp_id}/{date}")
@@ -221,7 +221,7 @@ class TestConflictDetectionAPI:
         detail = resp2.json()["detail"]
         if isinstance(detail, dict):
             assert detail["type"] == "overlapping_shift"
-            assert "überschneidet" in detail["message"]
+            assert "overlap" in detail["message"].lower()
 
         # Clean up
         write_client.delete(f"/api/schedule/{emp_id}/{date}")

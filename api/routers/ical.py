@@ -163,7 +163,7 @@ def get_employee_ical(
         if user_level < 2:  # Planer level
             raise HTTPException(
                 status_code=403,
-                detail="Nur Planer/Admin können fremde Schichtpläne exportieren",
+                detail="Only planners/admins can export other employees' schedules",
             )
 
     return _generate_ical_response(employee_id, year, month)
@@ -175,12 +175,12 @@ def _generate_ical_response(
     """Generate iCal response for an employee's monthly schedule."""
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
     if not (2000 <= year <= 2100):
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen",
+            detail="Invalid year: must be between 2000 and 2100",
         )
 
     db = get_db()
@@ -505,7 +505,7 @@ def get_ical_feed(token: str):
     if employee_id is None:
         raise HTTPException(
             status_code=404,
-            detail="Ungültiger oder widerrufener Feed-Token",
+            detail="Invalid or revoked feed token",
         )
 
     ical_str = _generate_feed_ical(employee_id)
@@ -620,4 +620,4 @@ def revoke_ical_token(user: dict = Depends(require_auth)):
     if not revoked:
         return {"ok": True, "message": "Kein Token vorhanden"}
 
-    return {"ok": True, "message": "Token widerrufen — Feed-URL ist ab sofort ungültig"}
+    return {"ok": True, "message": "Token revoked — feed URL is now invalid"}

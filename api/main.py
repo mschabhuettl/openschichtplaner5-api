@@ -352,18 +352,18 @@ async def security_headers_middleware(request: Request, call_next):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Translate Pydantic validation errors into German user-friendly messages."""
     _TYPE_MSGS = {
-        "missing": "Pflichtfeld fehlt",
-        "int_parsing": "Muss eine ganze Zahl sein",
-        "float_parsing": "Muss eine Zahl sein",
-        "bool_parsing": "Muss true oder false sein",
-        "string_too_short": "Eingabe zu kurz",
-        "string_too_long": "Eingabe zu lang",
-        "string_pattern_mismatch": "Ungültiges Format",
-        "greater_than": "Muss größer als {gt} sein",
-        "greater_than_equal": "Muss mindestens {ge} sein",
-        "less_than_equal": "Muss höchstens {le} sein",
-        "less_than": "Muss kleiner als {lt} sein",
-        "type_error": "Falscher Datentyp",
+        "missing": "Required field missing",
+        "int_parsing": "Must be an integer",
+        "float_parsing": "Must be a number",
+        "bool_parsing": "Must be true or false",
+        "string_too_short": "Input too short",
+        "string_too_long": "Input too long",
+        "string_pattern_mismatch": "Invalid format",
+        "greater_than": "Must be greater than {gt}",
+        "greater_than_equal": "Must be at least {ge}",
+        "less_than_equal": "Must be at most {le}",
+        "less_than": "Must be less than {lt}",
+        "type_error": "Wrong data type",
     }
     # Types where we prefer the custom validator message over the generic mapping
     _PASS_THROUGH_TYPES = {"value_error", "assertion_error"}
@@ -373,7 +373,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             str(loc) for loc in e.get("loc", []) if loc not in ("body", "query", "path")
         )
         etype = e.get("type", "")
-        raw_msg = e.get("msg", "Ungültiger Wert")
+        raw_msg = e.get("msg", "Invalid value")
         # Strip pydantic's "Value error, " prefix from custom validators
         if raw_msg.startswith("Value error, "):
             raw_msg = raw_msg[len("Value error, "):]
@@ -393,7 +393,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             errors.append(f"{field}: {msg}")
         else:
             errors.append(msg)
-    detail = "; ".join(errors) if errors else "Ungültige Eingabe"
+    detail = "; ".join(errors) if errors else "Invalid input"
     return JSONResponse(status_code=422, content={"detail": detail})
 
 
@@ -817,7 +817,7 @@ def get_dashboard_summary(
 
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
 
     db = get_db()
@@ -1252,7 +1252,7 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
         from fastapi import HTTPException
 
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
 
     # Total employees

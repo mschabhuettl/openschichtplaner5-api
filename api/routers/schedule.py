@@ -29,12 +29,12 @@ def get_schedule(
 ):
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
     if not (2000 <= year <= 2100):
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen",
+            detail="Invalid year: must be between 2000 and 2100",
         )
     return get_db().get_schedule(year=year, month=month, group_id=group_id)
 
@@ -52,12 +52,12 @@ def get_staffing(
 ):
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
     if not (2000 <= year <= 2100):
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen",
+            detail="Invalid year: must be between 2000 and 2100",
         )
     return get_db().get_staffing(year, month)
 
@@ -79,12 +79,12 @@ def get_schedule_coverage(
 
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
     if not (2000 <= year <= 2100):
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen",
+            detail="Invalid year: must be between 2000 and 2100",
         )
 
     db = get_db()
@@ -155,7 +155,7 @@ def get_schedule_day(
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     return get_db().get_schedule_day(date, group_id=group_id)
 
@@ -173,7 +173,7 @@ def get_schedule_week(
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     return get_db().get_schedule_week(date, group_id=group_id)
 
@@ -187,7 +187,7 @@ def get_schedule_year(
     if not (2000 <= year <= 2100):
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen",
+            detail="Invalid year: must be between 2000 and 2100",
         )
     return get_db().get_schedule_year(year, employee_id)
 
@@ -203,12 +203,12 @@ def get_schedule_conflicts(
     """Return all scheduling conflicts for a given month."""
     if not (1 <= month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
     if not (2000 <= year <= 2100):
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Jahr: muss zwischen 2000 und 2100 liegen",
+            detail="Invalid year: must be between 2000 and 2100",
         )
     conflicts = get_db().get_schedule_conflicts(year, month, group_id)
     return {"conflicts": conflicts}
@@ -265,7 +265,7 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     db = get_db()
     # Referential integrity: verify employee and cycle exist
@@ -372,7 +372,7 @@ def update_shift_cycle(
         raise HTTPException(
             status_code=500,
             detail={
-                "message": f"Zyklus teilweise gespeichert — {len(errors)} Einträge fehlgeschlagen",
+                "message": f"Cycle partially saved — {len(errors)} entries failed",
                 "errors": errors,
                 "cycle": cycle,
             },
@@ -480,7 +480,7 @@ def capture_template(
     )
     if not entries:
         raise HTTPException(
-            status_code=400, detail="Keine Schicht-Einträge in dieser Woche gefunden"
+            status_code=400, detail="No shift entries found in this week"
         )
     assignments = [
         {
@@ -553,7 +553,7 @@ class ScheduleEntryCreate(BaseModel):
         try:
             _dtt.strptime(v, "%Y-%m-%d")
         except ValueError:
-            raise ValueError("Datum muss ein gültiges Datum im Format YYYY-MM-DD sein")
+            raise ValueError("Date must be a valid date in YYYY-MM-DD format")
         return v
 
 
@@ -675,9 +675,9 @@ def create_schedule_entry(
                                 detail={
                                     "type": "overlapping_shift",
                                     "message": (
-                                        f"Mitarbeiter {body.employee_id} hat am {body.date} bereits "
-                                        f"die Schicht '{existing_shift.get('NAME', existing_shift_id)}' "
-                                        f"die sich zeitlich mit '{new_shift.get('NAME', body.shift_id)}' überschneidet."
+                                        f"Employee {body.employee_id} already has on {body.date} "
+                                        f"the shift '{existing_shift.get('NAME', existing_shift_id)}' "
+                                        f"which overlaps in time with '{new_shift.get('NAME', body.shift_id)}'."
                                     ),
                                     "employee_id": body.employee_id,
                                     "date": body.date,
@@ -702,9 +702,9 @@ def create_schedule_entry(
                         detail={
                             "type": "overlapping_shift",
                             "message": (
-                                f"Mitarbeiter {body.employee_id} hat am {body.date} bereits "
-                                f"den Sonderdienst '{spshi_name}' der sich zeitlich mit "
-                                f"'{new_shift.get('NAME', body.shift_id)}' überschneidet."
+                                f"Employee {body.employee_id} already has on {body.date} "
+                                f"the special shift '{spshi_name}' which overlaps in time with "
+                                f"'{new_shift.get('NAME', body.shift_id)}'."
                             ),
                             "employee_id": body.employee_id,
                             "date": body.date,
@@ -727,15 +727,15 @@ def create_schedule_entry(
             _, absence_rec = absence_entries[0]
             leave_type_id = absence_rec.get("LEAVETYPID")
             leave_type = db.get_leave_type(leave_type_id) if leave_type_id else None
-            leave_name = leave_type.get("NAME", "Abwesenheit") if leave_type else "Abwesenheit"
+            leave_name = leave_type.get("NAME", "Absence") if leave_type else "Absence"
             raise HTTPException(
                 status_code=409,
                 detail={
                     "type": "absence_conflict",
                     "message": (
-                        f"Mitarbeiter {body.employee_id} hat am {body.date} bereits "
-                        f"eine Abwesenheit eingetragen: '{leave_name}'. "
-                        f"Schichtzuweisung nicht möglich."
+                        f"Employee {body.employee_id} already has on {body.date} "
+                        f"an absence recorded: '{leave_name}'. "
+                        f"Shift assignment not possible."
                     ),
                     "employee_id": body.employee_id,
                     "date": body.date,
@@ -760,9 +760,9 @@ def create_schedule_entry(
                 if wday == 0 or wday == iso_wd:
                     reason = (r.get("RESERVED") or "").strip()
                     detail = (
-                        f"Mitarbeiter {body.employee_id} hat eine Einschränkung für "
-                        f"Schicht {body.shift_id}"
-                        + (f" an Wochentag {iso_wd}" if wday != 0 else "")
+                        f"Employee {body.employee_id} has a restriction for "
+                        f"shift {body.shift_id}"
+                        + (f" on weekday {iso_wd}" if wday != 0 else "")
                         + (f": {reason}" if reason else "")
                     )
                     raise HTTPException(status_code=409, detail=detail)
@@ -782,7 +782,7 @@ def create_schedule_entry(
             action="CREATE",
             entity="schedule",
             entity_id=body.employee_id,
-            details=f"Schicht {body.shift_id} für Mitarbeiter {body.employee_id} am {body.date}",
+            details=f"Shift {body.shift_id} for employee {body.employee_id} on {body.date}",
             new_value={"employee_id": body.employee_id, "date": body.date, "shift_id": body.shift_id},
             user_id=_cur_user.get("ID"),
         )
@@ -809,7 +809,7 @@ def delete_schedule_entry(
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     try:
         db = get_db()
@@ -825,7 +825,7 @@ def delete_schedule_entry(
             action="DELETE",
             entity="schedule",
             entity_id=employee_id,
-            details=f"Schichteintrag für Mitarbeiter {employee_id} am {date} gelöscht",
+            details=f"Schedule entry for employee {employee_id} on {date} deleted",
             old_value={"employee_id": employee_id, "date": date},
             user_id=_cur_user.get("ID"),
         )
@@ -853,7 +853,7 @@ def delete_shift_only(
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     try:
         count = get_db().delete_shift_only(employee_id, date)
@@ -887,7 +887,7 @@ def generate_schedule(
     respect_restrictions=True: skips shifts that employee has a restriction for."""
     if not (1 <= body.month <= 12):
         raise HTTPException(
-            status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen"
+            status_code=400, detail="Invalid month: must be between 1 and 12"
         )
     try:
         result = get_db().generate_schedule_from_cycle(
@@ -908,16 +908,16 @@ def generate_schedule(
         report = result.get("report", {})
         if body.dry_run:
             message = (
-                f"Vorschau: {created} Einträge würden erstellt, {skipped} übersprungen"
+                f"Preview: {created} entries would be created, {skipped} skipped"
             )
         else:
-            message = f"{created} Einträge erstellt, {skipped} übersprungen"
+            message = f"{created} entries created, {skipped} skipped"
         if skipped_restriction:
-            message += f", {skipped_restriction} wegen Sperren übersprungen"
+            message += f", {skipped_restriction} skipped due to restrictions"
         if skipped_availability:
-            message += f", {skipped_availability} wegen Verfügbarkeit übersprungen"
+            message += f", {skipped_availability} skipped due to availability"
         if skipped_hours_limit:
-            message += f", {skipped_hours_limit} wegen Wochenstunden-Limit übersprungen"
+            message += f", {skipped_hours_limit} skipped due to weekly hours limit"
         if errors:
             message += f", {len(errors)} Fehler"
         return {
@@ -1039,7 +1039,7 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_plan
             _dt2.strptime(entry.date, "%Y-%m-%d")
         except ValueError:
             raise HTTPException(
-                status_code=400, detail=f"Ungültiges Datumsformat: {entry.date}"
+                status_code=400, detail=f"Invalid date format: {entry.date}"
             )
         try:
             if entry.shift_id is None:
@@ -1108,7 +1108,7 @@ def bulk_group_assign(body: BulkGroupAssignBody, _cur_user: dict = Depends(requi
         d_from = _dt3.strptime(body.date_from, "%Y-%m-%d").date()
         d_to = _dt3.strptime(body.date_to, "%Y-%m-%d").date()
     except ValueError:
-        raise HTTPException(status_code=400, detail="Ungültiges Datumsformat")
+        raise HTTPException(status_code=400, detail="Invalid date format")
 
     if d_from > d_to:
         raise HTTPException(status_code=400, detail="date_from muss vor date_to liegen")
@@ -1212,7 +1212,7 @@ def create_einsatzplan_entry(
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     db = get_db()
     if db.get_employee(body.employee_id) is None:
@@ -1308,7 +1308,7 @@ def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_pl
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     db = get_db()
     if db.get_employee(body.employee_id) is None:
@@ -1353,7 +1353,7 @@ def get_einsatzplan(
     except ValueError:
         raise HTTPException(
             status_code=400,
-            detail="Ungültiges Datumsformat, bitte JJJJ-MM-TT verwenden",
+            detail="Invalid date format, please use YYYY-MM-DD",
         )
     return get_db().get_spshi_entries_for_day(date, group_id=group_id)
 
@@ -1437,7 +1437,7 @@ def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_plane
 
     if body.employee_id_1 == body.employee_id_2:
         raise HTTPException(
-            status_code=400, detail="Beide Mitarbeiter müssen verschieden sein"
+            status_code=400, detail="Both employees must be different"
         )
     if not body.dates:
         raise HTTPException(status_code=400, detail="Mindestens ein Datum erforderlich")
@@ -1445,7 +1445,7 @@ def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_plane
         try:
             _dt3.strptime(d, "%Y-%m-%d")
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
+            raise HTTPException(status_code=400, detail=f"Invalid date: {d}")
 
     db = get_db()
     swapped = 0
@@ -1564,7 +1564,7 @@ def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
         try:
             _dt2.strptime(d, "%Y-%m-%d")
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Ungültiges Datum: {d}")
+            raise HTTPException(status_code=400, detail=f"Invalid date: {d}")
 
     # Collect source entries grouped by date
     # We query each date individually via the schedule tables
@@ -1651,6 +1651,6 @@ def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
         "created": created,
         "skipped": skipped,
         "errors": errors,
-        "message": f"{created} Einträge kopiert, {skipped} übersprungen"
+        "message": f"{created} entries copied, {skipped} skipped"
         + (f", {len(errors)} Fehler" if errors else ""),
     }

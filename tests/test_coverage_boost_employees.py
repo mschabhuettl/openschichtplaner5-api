@@ -119,7 +119,7 @@ class TestEmployeeWriteErrorPaths:
             "/api/employees", json={"NAME": "Dup2", "SHORTNAME": shortname}
         )
         assert res2.status_code == 409
-        assert "vergeben" in res2.json().get("detail", "")
+        assert "already taken" in res2.json().get("detail", "")
 
     def test_delete_employee_not_found(self, admin_client: TestClient):
         """DELETE /api/employees/99999 → 404."""

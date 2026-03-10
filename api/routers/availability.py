@@ -9,10 +9,10 @@ import os
 import threading
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ..dependencies import _logger, _sanitize_500, get_db
+from ..dependencies import _logger, get_db
 
 router = APIRouter()
 
@@ -55,7 +55,7 @@ class TimeWindow(BaseModel):
         parts = v.split(":")
         h, m = int(parts[0]), int(parts[1])
         if not (0 <= h <= 23 and 0 <= m <= 59):
-            raise ValueError(f"Ungültige Uhrzeit: {v}")
+            raise ValueError(f"Invalid time: {v}")
         return v
 
     @model_validator(mode="after")
@@ -71,10 +71,10 @@ class DayAvailability(BaseModel):
     """Availability for a single day of the week."""
 
     day: int = Field(..., ge=0, le=6, description="Wochentag: 0=Montag, 6=Sonntag")
-    available: bool = Field(True, description="Ob der Mitarbeiter an diesem Tag verfügbar ist")
+    available: bool = Field(True, description="Whether the employee is available on this day")
     time_windows: list[TimeWindow] = Field(
         default_factory=list,
-        description="Liste von Zeitfenstern (leer = ganztägig wenn available=true)",
+        description="List of time slots (empty = all day when available=true)",
     )
 
     @model_validator(mode="after")
@@ -88,8 +88,8 @@ class DayAvailability(BaseModel):
         for i in range(1, len(windows)):
             if windows[i].start < windows[i - 1].end:
                 raise ValueError(
-                    f"Tag {self.day}: Zeitfenster überlappen sich "
-                    f"({windows[i-1].start}-{windows[i-1].end} und {windows[i].start}-{windows[i].end})"
+                    f"Day {self.day}: time slots overlap "
+                    f"({windows[i-1].start}-{windows[i-1].end} and {windows[i].start}-{windows[i].end})"
                 )
         return self
 
@@ -101,7 +101,7 @@ class AvailabilityUpdate(BaseModel):
         ...,
         min_length=1,
         max_length=7,
-        description="Verfügbarkeit pro Wochentag",
+        description="Availability per weekday",
     )
 
     @field_validator("days")

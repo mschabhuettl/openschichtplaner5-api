@@ -188,7 +188,7 @@ def _create_zip_bytes(db_path: str) -> bytes:
             status_code=500,
             detail=(
                 f"Backup abgebrochen: Kritische Datenbankdateien fehlen: "
-                f"{', '.join(sorted(missing))}. Bitte Datenbankverzeichnis prüfen."
+                f"{', '.join(sorted(missing))}. Please check database directory."
             ),
         )
 
@@ -319,7 +319,7 @@ def download_saved_backup(request: Request, filename: str, _admin: dict = Depend
         or "/" in filename
         or ".." in filename
     ):
-        raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
+        raise HTTPException(status_code=400, detail="Invalid filename")
 
     backup_dir = _get_backup_dir()
     if not backup_dir:
@@ -353,7 +353,7 @@ def delete_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
         or "/" in filename
         or ".." in filename
     ):
-        raise HTTPException(status_code=400, detail="Ungültiger Dateiname")
+        raise HTTPException(status_code=400, detail="Invalid filename")
 
     backup_dir = _get_backup_dir()
     if not backup_dir:
@@ -523,13 +523,13 @@ async def backup_restore(
     if len(content) > MAX_UPLOAD_BYTES:  # noqa: PLR2004
         raise HTTPException(
             status_code=413,
-            detail=f"Upload zu groß. Maximum: {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+            detail=f"Upload too large. Maximum: {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
         )
 
     try:
         zf = zipfile.ZipFile(io.BytesIO(content))
     except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Ungültige ZIP-Datei")
+        raise HTTPException(status_code=400, detail="Invalid ZIP file")
 
     names_in_zip = zf.namelist()
 
@@ -540,12 +540,12 @@ async def backup_restore(
         if ".." in norm.split("/") or norm.startswith("/"):
             raise HTTPException(
                 status_code=400,
-                detail=f"Sicherheitsfehler: ZIP-Eintrag mit ungültigem Pfad abgelehnt: {entry!r}",
+                detail=f"Security error: ZIP entry with invalid path rejected: {entry!r}",
             )
 
     dbf_files = [n for n in names_in_zip if os.path.splitext(n)[1].upper() == ".DBF"]
     if not dbf_files:
-        raise HTTPException(status_code=400, detail="ZIP enthält keine .DBF Dateien")
+        raise HTTPException(status_code=400, detail="ZIP contains no .DBF files")
 
     safe_db_path = os.path.abspath(db_path_restore)
     restored: list[str] = []

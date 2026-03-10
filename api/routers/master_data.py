@@ -261,8 +261,8 @@ def hide_shift(
         if usage > 0:
             raise HTTPException(
                 status_code=409,
-                detail=f"Schicht {shift_id} ist noch in {usage} Plantafel-Einträgen aktiv. "
-                "Mit ?force=true trotzdem ausblenden.",
+                detail=f"Shift {shift_id} is still active in {usage} schedule entries. "
+                "Use ?force=true to hide anyway.",
             )
     try:
         count = db.hide_shift(shift_id)
@@ -349,8 +349,8 @@ def hide_leave_type(
         if usage > 0:
             raise HTTPException(
                 status_code=409,
-                detail=f"Abwesenheitstyp {lt_id} ist noch in {usage} Abwesenheits-Einträgen aktiv. "
-                "Mit ?force=true trotzdem ausblenden.",
+                detail=f"Absence type {lt_id} is still active in {usage} absence entries. "
+                "Use ?force=true to hide anyway.",
             )
     try:
         count = db.hide_leave_type(lt_id)
@@ -376,7 +376,7 @@ class HolidayCreate(BaseModel):
         try:
             _dtt.strptime(v, "%Y-%m-%d")
         except ValueError:
-            raise ValueError("DATE muss ein gültiges Datum im Format YYYY-MM-DD sein")
+            raise ValueError("DATE must be a valid date in YYYY-MM-DD format")
         return v
 
 
@@ -534,7 +534,7 @@ def remove_employee_from_workplace(
         raise _sanitize_500(e)
 
 
-# ── Extra Charges (Zeitzuschläge) ─────────────────────────────
+# ── Extra Charges (Time Surcharges) ─────────────────────────────
 
 
 class ExtraChargeCreate(BaseModel):

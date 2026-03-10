@@ -101,7 +101,7 @@ def _validate_date_field(v: str, field_name: str) -> str:
         try:
             _dtt.strptime(v, "%Y-%m-%d")
         except ValueError:
-            raise ValueError(f"'{field_name}' ist kein gültiges Datum")
+            raise ValueError(f"'{field_name}' is not a valid date")
     return v
 
 
@@ -159,7 +159,7 @@ class EmployeeCreate(BaseModel):
     def validate_email(cls, v):
         import re as _re
         if v and not _re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", str(v)):
-            raise ValueError("Ungültige E-Mail-Adresse")
+            raise ValueError("Invalid email address")
         return v
 
     @field_validator("BIRTHDAY", "EMPSTART", "EMPEND", mode="before")
@@ -229,7 +229,7 @@ class EmployeeUpdate(BaseModel):
     def validate_email(cls, v):
         import re as _re
         if v and not _re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", str(v)):
-            raise ValueError("Ungültige E-Mail-Adresse")
+            raise ValueError("Invalid email address")
         return v
 
     @field_validator("BIRTHDAY", "EMPSTART", "EMPEND", mode="before")
@@ -275,7 +275,7 @@ def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admi
         if str(e).startswith("DUPLICATE:SHORTNAME:"):
             sn = (body.SHORTNAME or "").strip()
             raise HTTPException(
-                status_code=409, detail=f"Kürzel '{sn}' ist bereits vergeben"
+                status_code=409, detail=f"Abbreviation '{sn}' is already taken"
             )
         raise _sanitize_500(e, "create_employee")
     except Exception as e:
@@ -581,7 +581,7 @@ async def upload_employee_photo(
     content = await file.read()
     _MAX_PHOTO_SIZE = 5 * 1024 * 1024  # 5 MB
     if len(content) > _MAX_PHOTO_SIZE:
-        raise HTTPException(status_code=413, detail="Datei zu groß (max. 5 MB)")
+        raise HTTPException(status_code=413, detail="File too large (max. 5 MB)")
     dest.write_bytes(content)
 
     rel_path = f"uploads/photos/{emp_id}{ext}"
@@ -606,7 +606,7 @@ class BulkEmployeeAction(BaseModel):
         description="'hide', 'show', 'assign_group', 'remove_group'",
     )
     group_id: int | None = Field(
-        None, gt=0, description="Ziel-Gruppe für assign_group/remove_group"
+        None, gt=0, description="Target group for assign_group/remove_group"
     )
 
 
@@ -631,7 +631,7 @@ def bulk_employee_action(
     elif body.action == "assign_group":
         if not body.group_id:
             raise HTTPException(
-                status_code=400, detail="group_id erforderlich für assign_group"
+                status_code=400, detail="group_id required for assign_group"
             )
         for emp_id in body.employee_ids:
             try:
@@ -644,7 +644,7 @@ def bulk_employee_action(
     elif body.action == "remove_group":
         if not body.group_id:
             raise HTTPException(
-                status_code=400, detail="group_id erforderlich für remove_group"
+                status_code=400, detail="group_id required for remove_group"
             )
         for emp_id in body.employee_ids:
             try:
