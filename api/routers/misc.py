@@ -1205,6 +1205,59 @@ class SelfAbsenceCreate(BaseModel):
     note: str | None = Field("", max_length=500)
 
 
+@router.get(
+    "/api/self/schedule", tags=["Self-Service"], summary="Get own schedule",
+    description="Return the logged-in employee's schedule entries for a given month.",
+)
+def get_self_schedule(
+    year: int = Query(..., description="Year"),
+    month: int = Query(..., description="Month (1-12)"),
+    cur_user: dict = Depends(require_auth),
+):
+    """Return only the current user's schedule entries for year/month."""
+    if not (1 <= month <= 12):
+        raise HTTPException(status_code=400, detail="Ungültiger Monat")
+    user_name = cur_user.get("NAME", "").strip().lower()
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    employee = next(
+        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
+        None,
+    )
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz gefunden")
+    all_entries = db.get_schedule(year=year, month=month)
+    emp_id = employee["ID"]
+    return [e for e in all_entries if e.get("employee_id") == emp_id]
+
+
+@router.get(
+    "/api/self/wishes", tags=["Self-Service"], summary="Get own wishes",
+    description="Return the logged-in employee's wishes, optionally filtered by month.",
+)
+def get_self_wishes(
+    year: int | None = Query(None, description="Year (optional filter)"),
+    month: int | None = Query(None, description="Month 1-12 (optional filter)"),
+    cur_user: dict = Depends(require_auth),
+):
+    """Return only the current user's wishes, optionally filtered by year/month."""
+    user_name = cur_user.get("NAME", "").strip().lower()
+    db = get_db()
+    employees = db.get_employees(include_hidden=False)
+    employee = next(
+        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
+        None,
+    )
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz gefunden")
+    kwargs: dict = {"employee_id": employee["ID"]}
+    if year is not None:
+        kwargs["year"] = year
+    if month is not None:
+        kwargs["month"] = month
+    return db.get_wishes(**kwargs)
+
+
 @router.post(
     "/api/self/absences", tags=["Self-Service"], summary="Submit own absence request",
     description="Self-service: employee requests an absence (subject to approval).",
