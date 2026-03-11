@@ -37,12 +37,13 @@ def session(engine):
 
 class TestSchema:
     def test_tables_created(self, engine):
-        """All three tables should exist after init_db."""
+        """All four tables should exist after init_db."""
         inspector = inspect(engine)
         tables = inspector.get_table_names()
         assert "employees" in tables
         assert "groups" in tables
         assert "group_assignments" in tables
+        assert "companies" in tables
 
     def test_init_db_idempotent(self, engine):
         """Calling init_db multiple times should not raise."""
@@ -61,6 +62,7 @@ class TestSchema:
             "salutation", "street", "zip", "town", "phone", "email",
             "birthday", "empstart", "empend", "function", "hide",
             "note1", "note2", "note3", "note4", "created_at", "updated_at",
+            "company_id",
         }
         assert expected.issubset(cols)
 
