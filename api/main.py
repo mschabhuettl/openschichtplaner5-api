@@ -135,6 +135,7 @@ ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()] or [
 _OPENAPI_TAGS = [
     {"name": "Health", "description": "System health and version info"},
     {"name": "Auth", "description": "Authentication: login and logout"},
+    {"name": "Companies", "description": "Company / tenant management (multi-tenant)"},
     {"name": "Employees", "description": "Employee management (CRUD)"},
     {"name": "Groups", "description": "Group management and member assignments"},
     {"name": "Shifts", "description": "Shift definitions (CRUD)"},
@@ -612,6 +613,7 @@ from .routers import (  # noqa: E402
     admin,
     auth,
     availability,
+    companies,
     email,
     employees,
     events,
@@ -624,6 +626,7 @@ from .routers import (  # noqa: E402
 )
 
 app.include_router(auth.router)
+app.include_router(companies.router)
 app.include_router(employees.router)
 app.include_router(schedule.router)
 app.include_router(absences.router)

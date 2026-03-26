@@ -77,7 +77,22 @@ def migrate(database_url_or_engine: str | Engine | None = None) -> None:
         else:
             print(f"⏭ Default company already exists: {default}")
 
-    # 4. Backfill company_id for existing employees
+    # 4. Add company_id column to groups if missing
+    if "groups" in existing_tables:
+        columns = [c["name"] for c in inspector.get_columns("groups")]
+        if "company_id" not in columns:
+            with engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "ALTER TABLE groups ADD COLUMN company_id INTEGER "
+                        "REFERENCES companies(id) ON DELETE SET NULL"
+                    )
+                )
+            print("✔ Added column 'company_id' to 'groups'")
+        else:
+            print("⏭ Column 'company_id' already exists on 'groups'")
+
+    # 5. Backfill company_id for existing employees
     if "employees" in inspector.get_table_names():
         with get_session(engine) as session:
             result = session.execute(
@@ -85,6 +100,15 @@ def migrate(database_url_or_engine: str | Engine | None = None) -> None:
             )
             session.commit()
             print(f"✔ Updated {result.rowcount} employee(s) with company_id=1")
+
+    # 6. Backfill company_id for existing groups
+    if "groups" in inspector.get_table_names():
+        with get_session(engine) as session:
+            result = session.execute(
+                text("UPDATE groups SET company_id = 1 WHERE company_id IS NULL")
+            )
+            session.commit()
+            print(f"✔ Updated {result.rowcount} group(s) with company_id=1")
 
 
 if __name__ == "__main__":
