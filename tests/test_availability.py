@@ -1,6 +1,5 @@
 """Tests for employee availability endpoints (Q036)."""
 
-import json
 import os
 
 import pytest

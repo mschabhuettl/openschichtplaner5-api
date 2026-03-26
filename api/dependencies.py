@@ -14,7 +14,6 @@ from datetime import UTC
 from datetime import datetime as _dt
 
 import jwt as _jwt
-
 from fastapi import Depends, Header, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address

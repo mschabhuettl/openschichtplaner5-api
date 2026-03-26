@@ -283,8 +283,9 @@ class TestIcalTokenDb:
     def db(self):
         """Create a database instance pointing at the test DB."""
         import os
-        db_path = os.environ.get(
-            "DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"
+        db_path = os.environ.get("SP5_DB_PATH") or os.environ.get(
+            "DB_PATH",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures"),
         )
         from sp5lib.database import SP5Database
         database = SP5Database(db_path)
@@ -501,9 +502,9 @@ class TestGenerateFeedIcal:
         import os
 
         from sp5lib.database import SP5Database
-        db_path = os.environ.get(
-            "SP5_DB_PATH",
-            os.environ.get("DB_PATH", "/home/claw/.openclaw/workspace/sp5_db/Daten"),
+        db_path = os.environ.get("SP5_DB_PATH") or os.environ.get(
+            "DB_PATH",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures"),
         )
         db = SP5Database(db_path)
         employees = db.get_employees(include_hidden=False)

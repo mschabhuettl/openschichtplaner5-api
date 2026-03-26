@@ -353,10 +353,15 @@ class TestMiscCoverage:
 class TestSelfService:
     """Cover lines 949-952, 981-987 in misc.py."""
 
-    def test_self_absences_list(self, admin_client):
-        """GET /api/self/absences."""
-        r = admin_client.get("/api/self/absences")
-        assert r.status_code in (200, 404)
+    def test_self_absences_submit(self, admin_client):
+        """POST /api/self/absences (self-service absence request)."""
+        r = admin_client.post("/api/self/absences", json={
+            "leave_type_id": 1,
+            "start_date": "2026-04-01",
+            "end_date": "2026-04-02",
+        })
+        # 200/201 if success, 400/404/422 if validation error — just not 405/500
+        assert r.status_code in (200, 201, 400, 404, 422)
 
     def test_self_wishes_list(self, admin_client):
         r = admin_client.get("/api/self/wishes")
