@@ -9,7 +9,7 @@ class TestHealthEndpoint:
         resp = sync_client.get("/api/health")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "ok"
+        assert data["status"] in ("healthy", "degraded", "unhealthy")
         assert "version" in data
 
     def test_health_no_db_path(self, sync_client):

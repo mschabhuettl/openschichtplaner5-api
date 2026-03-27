@@ -649,59 +649,179 @@ app.include_router(webhooks.router)
 _API_VERSION = "1.0.0-rc3"
 
 
+def _format_uptime(seconds: float) -> str:
+    """Format seconds into a human-readable uptime string."""
+    total = int(seconds)
+    days, remainder = divmod(total, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, secs = divmod(remainder, 60)
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if not parts:
+        parts.append(f"{secs}s")
+    return " ".join(parts)
+
+
+def _get_dir_size(path: str) -> int:
+    """Get total size of files in a directory (non-recursive)."""
+    total = 0
+    try:
+        for entry in os.scandir(path):
+            if entry.is_file(follow_symlinks=False):
+                total += entry.stat().st_size
+    except OSError:
+        return -1
+    return total
+
+
 @app.get(
     "/api/health",
     tags=["Health"],
     summary="Health check",
     description=(
-        "Returns service status, API version, uptime in seconds, and DB connection state. "
+        "Returns extended service health: DB status, disk, memory, uptime, "
+        "version, and aggregated check results. "
         "This endpoint is public (no authentication required)."
     ),
 )
 def health():
-    """Health check endpoint — public, no auth required.
-    Returns status, version, uptime, DB connectivity + DBF readability, and session count.
+    """Extended health check endpoint — public, no auth required.
+
+    Returns aggregated health status with checks for DB, disk, memory,
+    plus uptime, version, and session count.
+    Sensitive info (paths, errors) is never exposed.
     """
+    import shutil
     import time as _t
 
-    # DB connectivity check
-    db_status = "connected"
+    import psutil
+
+    now = _t.time()
+
+    # ── DB check ──
+    db_check = "ok"
     try:
         db = get_db()
         db.get_stats()
     except Exception:
-        db_status = "error"
+        db_check = "error"
 
-    # DBF file readability check
     CRITICAL_TABLES = ["EMPL", "USER", "SHIFT", "MASHI", "ABSEN"]
-    dbf_ok = []
-    dbf_missing = []
+    dbf_ok_count = 0
+    dbf_missing: list[str] = []
+    latest_mtime: float = 0.0
     for table in CRITICAL_TABLES:
-        path = os.path.join(DB_PATH, f"5{table}.DBF")
-        if os.path.exists(path) and os.access(path, os.R_OK):
-            dbf_ok.append(f"5{table}.DBF")
+        fpath = os.path.join(DB_PATH, f"5{table}.DBF")
+        if os.path.exists(fpath) and os.access(fpath, os.R_OK):
+            dbf_ok_count += 1
+            try:
+                mtime = os.path.getmtime(fpath)
+                if mtime > latest_mtime:
+                    latest_mtime = mtime
+            except OSError:
+                pass
         else:
             dbf_missing.append(f"5{table}.DBF")
 
-    # Active sessions (non-expired)
-    now = _t.time()
+    if dbf_missing:
+        db_check = "error"
+
+    from datetime import datetime
+
+    db_details: dict = {
+        "status": db_check,
+        "dbf_ok": dbf_ok_count,
+        "dbf_missing": dbf_missing,
+    }
+    if latest_mtime > 0:
+        db_details["last_modified"] = datetime.fromtimestamp(
+            latest_mtime, tz=UTC
+        ).isoformat()
+
+    # ── Disk check ──
+    disk_check = "ok"
+    disk_details: dict = {}
+    try:
+        usage = shutil.disk_usage(DB_PATH)
+        free_mb = usage.free / (1024 * 1024)
+        disk_details["free_mb"] = round(free_mb, 1)
+        disk_details["total_mb"] = round(usage.total / (1024 * 1024), 1)
+        disk_details["used_percent"] = round(
+            (usage.used / usage.total) * 100, 1
+        )
+        db_dir_size = _get_dir_size(DB_PATH)
+        if db_dir_size >= 0:
+            disk_details["db_dir_size_mb"] = round(
+                db_dir_size / (1024 * 1024), 2
+            )
+        if free_mb < 100:
+            disk_check = "warning"
+        if free_mb < 20:
+            disk_check = "error"
+    except OSError:
+        disk_check = "error"
+
+    # ── Memory check ──
+    memory_check = "ok"
+    memory_details: dict = {}
+    try:
+        process = psutil.Process()
+        mem_info = process.memory_info()
+        rss_mb = mem_info.rss / (1024 * 1024)
+        memory_details["rss_mb"] = round(rss_mb, 1)
+        vm = psutil.virtual_memory()
+        memory_details["system_used_percent"] = round(vm.percent, 1)
+        memory_details["system_available_mb"] = round(
+            vm.available / (1024 * 1024), 1
+        )
+        if rss_mb > 512:
+            memory_check = "warning"
+        if rss_mb > 1024:
+            memory_check = "error"
+    except Exception:
+        memory_check = "error"
+
+    # ── Uptime ──
+    uptime_seconds = round(now - _APP_START_TIME, 1)
+    uptime_human = _format_uptime(now - _APP_START_TIME)
+    started_at = datetime.fromtimestamp(_APP_START_TIME, tz=UTC).isoformat()
+
+    # ── Active sessions ──
     active_sessions = sum(
         1
         for s in _sessions.values()
         if s.get("expires_at") is None or s.get("expires_at", 0) > now
     )
 
-    overall = "ok" if db_status == "connected" and not dbf_missing else "degraded"
+    # ── Aggregate status ──
+    checks = {
+        "db": db_check,
+        "disk": disk_check,
+        "memory": memory_check,
+    }
+    check_values = list(checks.values())
+    if "error" in check_values:
+        overall = "unhealthy"
+    elif "warning" in check_values:
+        overall = "degraded"
+    else:
+        overall = "healthy"
 
     return {
         "status": overall,
+        "checks": checks,
         "version": _API_VERSION,
-        "uptime_seconds": round(now - _APP_START_TIME, 1),
-        "db": {
-            "status": db_status,
-            "dbf_ok": len(dbf_ok),
-            "dbf_missing": dbf_missing,
-        },
+        "uptime": uptime_human,
+        "uptime_seconds": uptime_seconds,
+        "started_at": started_at,
+        "db": db_details,
+        "disk": disk_details,
+        "memory": memory_details,
         "sessions": {"active": active_sessions},
     }
 
