@@ -723,6 +723,7 @@ from .routers import (  # noqa: E402
     notification_settings,
     notifications,
     overtime,
+    qualification_matrix,
     recurring_shifts,
     reports,
     schedule,
@@ -734,6 +735,7 @@ from .routers import (  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(companies.router)
+app.include_router(qualification_matrix.router)  # must be before employees (path conflict: /api/employees/{emp_id})
 app.include_router(employees.router)
 app.include_router(schedule_comments.router)  # must be before schedule.router (path conflict)
 app.include_router(schedule_pdf.router)  # must be before schedule.router (path conflict: /api/schedule/pdf)
