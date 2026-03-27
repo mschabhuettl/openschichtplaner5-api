@@ -727,6 +727,7 @@ from .routers import (  # noqa: E402
     reports,
     schedule,
     schedule_comments,
+    schedule_pdf,
     webhooks,
     work_time_rules,
 )
@@ -735,6 +736,7 @@ app.include_router(auth.router)
 app.include_router(companies.router)
 app.include_router(employees.router)
 app.include_router(schedule_comments.router)  # must be before schedule.router (path conflict)
+app.include_router(schedule_pdf.router)  # must be before schedule.router (path conflict: /api/schedule/pdf)
 app.include_router(schedule.router)
 app.include_router(absences.router)
 app.include_router(master_data.router)
