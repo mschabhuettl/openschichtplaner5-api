@@ -1,6 +1,9 @@
 """Employees and groups router."""
 
+import csv
+import io
 import os
+import re
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -634,6 +637,228 @@ async def upload_employee_photo(
         pass  # best effort
 
     return {"ok": True, "photo_url": f"/api/employees/{emp_id}/photo", "path": rel_path}
+
+
+# ── CSV Import ────────────────────────────────────────────────
+
+_CSV_REQUIRED_COLUMNS = {"first_name", "last_name"}
+_CSV_OPTIONAL_COLUMNS = {"email", "phone", "group_id", "contract_hours", "qualifications"}
+_CSV_ALL_COLUMNS = _CSV_REQUIRED_COLUMNS | _CSV_OPTIONAL_COLUMNS
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+@router.post(
+    "/api/employees/import-csv",
+    tags=["Import"],
+    summary="Import employees from CSV",
+    description=(
+        "Bulk-create employees from a CSV file upload. "
+        "Required columns: first_name, last_name. "
+        "Optional: email, phone, group_id, contract_hours, qualifications (comma-separated). "
+        "Skips duplicates (same first_name + last_name). "
+        "Rolls back all if >50% of rows have errors. Admin-only."
+    ),
+)
+async def import_employees_csv(
+    file: UploadFile = File(...),
+    _cur_user: dict = Depends(require_admin),
+):
+    """Import employees from a CSV file."""
+    # Validate content type
+    ct = (file.content_type or "").lower()
+    if ct and ct not in ("text/csv", "application/octet-stream", "text/plain"):
+        raise HTTPException(status_code=400, detail="Nur CSV-Dateien erlaubt")
+
+    # Read and decode file
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Datei zu groß (max. 5 MB)")
+    if not raw.strip():
+        raise HTTPException(status_code=400, detail="CSV-Datei ist leer")
+
+    try:
+        text = raw.decode("utf-8-sig")  # handle BOM
+    except UnicodeDecodeError:
+        try:
+            text = raw.decode("latin-1")
+        except UnicodeDecodeError:
+            raise HTTPException(status_code=400, detail="CSV-Datei konnte nicht dekodiert werden")
+
+    # Parse CSV
+    # Try to detect delimiter
+    sniffer_sample = text[:2048]
+    try:
+        dialect = csv.Sniffer().sniff(sniffer_sample, delimiters=",;\t")
+    except csv.Error:
+        dialect = None
+
+    reader = csv.DictReader(io.StringIO(text), dialect=dialect) if dialect else csv.DictReader(io.StringIO(text))
+
+    # Normalize header names
+    if reader.fieldnames is None:
+        raise HTTPException(status_code=400, detail="CSV-Header fehlt")
+
+    # Map headers: strip whitespace, lowercase
+    header_map = {}
+    for h in reader.fieldnames:
+        normalized = h.strip().lower().replace(" ", "_")
+        header_map[h] = normalized
+
+    # Check required columns exist
+    normalized_headers = set(header_map.values())
+    missing = _CSV_REQUIRED_COLUMNS - normalized_headers
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Pflicht-Spalten fehlen: {', '.join(sorted(missing))}",
+        )
+
+    # Load existing employees for duplicate check
+    db = get_db()
+    existing_employees = db.get_employees(include_hidden=True)
+    existing_names = {
+        (e.get("FIRSTNAME", "").strip().lower(), e.get("NAME", "").strip().lower())
+        for e in existing_employees
+    }
+
+    # Load existing groups for validation
+    existing_groups = db.get_groups(include_hidden=True)
+    valid_group_ids = {g["ID"] for g in existing_groups}
+
+    # Process rows
+    rows_to_create: list[dict] = []
+    errors: list[dict] = []
+    skipped = 0
+    total_rows = 0
+
+    for row_num, raw_row in enumerate(reader, start=2):  # row 1 is header
+        total_rows += 1
+        # Normalize keys
+        row = {header_map.get(k, k): (v.strip() if v else "") for k, v in raw_row.items()}
+
+        first_name = row.get("first_name", "").strip()
+        last_name = row.get("last_name", "").strip()
+
+        # Validate required fields
+        row_errors = []
+        if not first_name:
+            row_errors.append({"row": row_num, "field": "first_name", "message": "Vorname ist Pflichtfeld"})
+        if not last_name:
+            row_errors.append({"row": row_num, "field": "last_name", "message": "Nachname ist Pflichtfeld"})
+
+        if row_errors:
+            errors.extend(row_errors)
+            continue
+
+        # Check duplicate
+        name_key = (first_name.lower(), last_name.lower())
+        if name_key in existing_names:
+            skipped += 1
+            continue
+
+        # Validate optional fields
+        email = row.get("email", "").strip()
+        if email and not _EMAIL_RE.match(email):
+            errors.append({"row": row_num, "field": "email", "message": "Ungültige E-Mail-Adresse"})
+            continue
+
+        phone = row.get("phone", "").strip()
+
+        group_id_str = row.get("group_id", "").strip()
+        group_id = None
+        if group_id_str:
+            try:
+                group_id = int(group_id_str)
+                if group_id not in valid_group_ids:
+                    errors.append({"row": row_num, "field": "group_id", "message": f"Gruppe {group_id} existiert nicht"})
+                    continue
+            except ValueError:
+                errors.append({"row": row_num, "field": "group_id", "message": "group_id muss eine Zahl sein"})
+                continue
+
+        contract_hours_str = row.get("contract_hours", "").strip()
+        contract_hours = 0.0
+        if contract_hours_str:
+            try:
+                contract_hours = float(contract_hours_str)
+                if contract_hours < 0 or contract_hours > 168:
+                    errors.append({"row": row_num, "field": "contract_hours", "message": "contract_hours muss zwischen 0 und 168 liegen"})
+                    continue
+            except ValueError:
+                errors.append({"row": row_num, "field": "contract_hours", "message": "contract_hours muss eine Zahl sein"})
+                continue
+
+        qualifications = row.get("qualifications", "").strip()
+
+        # Add to existing_names to catch duplicates within CSV
+        existing_names.add(name_key)
+
+        rows_to_create.append({
+            "NAME": last_name,
+            "FIRSTNAME": first_name,
+            "EMAIL": email,
+            "PHONE": phone,
+            "HRSWEEK": contract_hours,
+            "NOTE1": qualifications,  # Store qualifications in NOTE1
+            "_group_id": group_id,
+        })
+
+    if total_rows == 0:
+        raise HTTPException(status_code=400, detail="CSV-Datei enthält keine Datenzeilen")
+
+    # Check error threshold: if >50% errors, rollback all
+    valid_rows = len(rows_to_create)
+    error_rows = len(errors)
+    processable = valid_rows + error_rows  # excludes skipped
+    if processable > 0 and error_rows / processable > 0.5:
+        return {
+            "created": 0,
+            "skipped": skipped,
+            "errors": errors,
+            "rolled_back": True,
+            "message": f"Zu viele Fehler ({error_rows}/{processable} Zeilen). Import abgebrochen.",
+        }
+
+    # Create employees
+    created = 0
+    for emp_data in rows_to_create:
+        group_id = emp_data.pop("_group_id", None)
+        try:
+            result = db.create_employee(emp_data)
+            created += 1
+            emp_id = result.get("ID")
+
+            # Assign to group if specified
+            if group_id is not None and emp_id:
+                try:
+                    db.add_group_member(group_id, emp_id)
+                except Exception as ge:
+                    _logger.warning("CSV import: group assignment failed for emp %s: %s", emp_id, ge)
+
+            _logger.info(
+                "CSV_IMPORT employee created | user=%s name=%s %s id=%s",
+                _cur_user.get("NAME"),
+                emp_data.get("NAME"),
+                emp_data.get("FIRSTNAME"),
+                emp_id,
+            )
+        except Exception as e:
+            _logger.warning("CSV import: create_employee failed: %s", e)
+            errors.append({
+                "row": 0,
+                "field": "create",
+                "message": f"Fehler beim Erstellen: {emp_data.get('FIRSTNAME')} {emp_data.get('NAME')}",
+            })
+
+    cache.invalidate("employees:", "groups:")
+    if created > 0:
+        broadcast("employee_changed", {"action": "csv_import", "count": created})
+
+    return {
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+    }
 
 
 # ── Bulk Operations ─────────────────────────────────────────
