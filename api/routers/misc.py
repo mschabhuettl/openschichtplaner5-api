@@ -1,5 +1,6 @@
 """Misc router: notes, wishes, handover, swap-requests, changelog, search, access."""
 
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -16,6 +17,8 @@ from ..schemas import paginate
 from .events import broadcast
 from .notifications import create_notification
 from .schedule import SwapShiftsRequest, swap_shifts
+
+_log = logging.getLogger("sp5.swap")
 
 router = APIRouter()
 
@@ -627,6 +630,49 @@ def delete_handover(note_id: str, _cur_user: dict = Depends(require_planer)):
 # ── Shift Swap Exchange ──────────────────────────────────────────
 
 
+def _send_swap_email(
+    *,
+    notification_type: str,
+    title: str,
+    message: str,
+    recipient_employee_id: int,
+    link: str = "/tauschboerse",
+) -> None:
+    """Send swap-related email to an employee. Falls back to log if SMTP not configured."""
+    try:
+        from sp5lib.email_service import get_config, send_notification_email
+
+        cfg = get_config()
+        if not cfg.is_configured:
+            _log.info(
+                "SMTP not configured — swap email skipped for employee %d: %s",
+                recipient_employee_id,
+                title,
+            )
+            return
+        employees = get_db().get_employees(include_hidden=True)
+        employee = next(
+            (e for e in employees if e.get("ID") == recipient_employee_id), None
+        )
+        if employee is None:
+            return
+        recipient_email = (employee.get("EMAIL") or "").strip() or None
+        if not recipient_email:
+            _log.debug(
+                "No email address for employee %d — swap email skipped", recipient_employee_id
+            )
+            return
+        send_notification_email(
+            notification_type=notification_type,
+            title=title,
+            message=message,
+            recipient_email=recipient_email,
+            link=link,
+        )
+    except Exception:
+        _log.exception("Error sending swap email to employee %d", recipient_employee_id)
+
+
 class SwapRequestCreate(BaseModel):
     requester_id: int = Field(..., gt=0)
     requester_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
@@ -722,12 +768,14 @@ def create_swap_request(
         raise HTTPException(
             status_code=400, detail="Requester and partner must be different"
         )
+    creator_name = _cur_user.get("NAME", "planner")
     entry = get_db().create_swap_request(
         requester_id=body.requester_id,
         requester_date=body.requester_date,
         partner_id=body.partner_id,
         partner_date=body.partner_date,
         note=body.note or "",
+        created_by=creator_name,
     )
     get_db().log_action(
         "system",
@@ -748,12 +796,19 @@ def create_swap_request(
             if requester
             else f"MA #{body.requester_id}"
         )
+        notif_msg = f"{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date})."
         create_notification(
             type="swap_request",
             title="🔄 Neue Tauschanfrage",
-            message=f"{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date}).",
+            message=notif_msg,
             recipient_employee_id=body.partner_id,
             link="/tauschboerse",
+        )
+        _send_swap_email(
+            notification_type="swap_request",
+            title="🔄 Neue Tauschanfrage",
+            message=notif_msg,
+            recipient_employee_id=body.partner_id,
         )
     except Exception:
         pass
@@ -877,13 +932,20 @@ def resolve_swap_request(
         )
         # ── Notify both parties: approved ──
         try:
+            approved_msg = f"Der Tausch ({entry['requester_date']} ↔ {entry['partner_date']}) wurde genehmigt und im Schichtplan umgesetzt."
             for emp_id in [entry["requester_id"], entry["partner_id"]]:
                 create_notification(
-                    type="swap_status",
+                    type="swap_approved",
                     title="✅ Schichttausch genehmigt",
-                    message=f"Der Tausch ({entry['requester_date']} ↔ {entry['partner_date']}) wurde genehmigt und im Schichtplan umgesetzt.",
+                    message=approved_msg,
                     recipient_employee_id=emp_id,
                     link="/tauschboerse",
+                )
+                _send_swap_email(
+                    notification_type="swap_approved",
+                    title="✅ Schichttausch genehmigt",
+                    message=approved_msg,
+                    recipient_employee_id=emp_id,
                 )
         except Exception:
             pass
@@ -897,17 +959,23 @@ def resolve_swap_request(
         swap_id,
         f"Abgelehnt: {body.reject_reason}",
     )
-    # ── Notify both parties: rejected ──
+    # ── Notify requesting employee: rejected (with reason) ──
     try:
         reason_txt = f" Grund: {body.reject_reason}" if body.reject_reason else ""
-        for emp_id in [entry["requester_id"], entry["partner_id"]]:
-            create_notification(
-                type="swap_status",
-                title="❌ Schichttausch abgelehnt",
-                message=f"Der Tausch ({entry['requester_date']} ↔ {entry['partner_date']}) wurde abgelehnt.{reason_txt}",
-                recipient_employee_id=emp_id,
-                link="/tauschboerse",
-            )
+        rejected_msg = f"Der Tausch ({entry['requester_date']} ↔ {entry['partner_date']}) wurde abgelehnt.{reason_txt}"
+        create_notification(
+            type="swap_rejected",
+            title="❌ Schichttausch abgelehnt",
+            message=rejected_msg,
+            recipient_employee_id=entry["requester_id"],
+            link="/tauschboerse",
+        )
+        _send_swap_email(
+            notification_type="swap_rejected",
+            title="❌ Schichttausch abgelehnt",
+            message=rejected_msg,
+            recipient_employee_id=entry["requester_id"],
+        )
     except Exception:
         pass
     broadcast("swap_changed", {"action": "rejected", "swap_id": swap_id})
@@ -927,6 +995,37 @@ def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer))
         raise HTTPException(status_code=404, detail="Nicht gefunden")
     broadcast("swap_changed", {"action": "cancelled", "swap_id": swap_id})
     return {"ok": True}
+
+
+@router.get(
+    "/api/shifts/swap/{swap_id}/history",
+    tags=["Self-Service"],
+    summary="Get swap request status history",
+    description="Returns the full status change history for a swap request. Also accessible as /api/v1/shifts/swap/{id}/history.",
+)
+def get_swap_history(swap_id: int, _cur_user: dict = Depends(require_auth)):
+    """Return all status transitions for the given swap request."""
+    history = get_db().get_swap_request_history(swap_id)
+    if history is None:
+        raise HTTPException(status_code=404, detail="Swap-Anfrage nicht gefunden")
+    return {"swap_id": swap_id, "history": history}
+
+
+@router.post(
+    "/api/shifts/swap/expire",
+    tags=["Self-Service"],
+    summary="Expire old swap requests",
+    description="Automatically expire swap requests older than the given number of days (default: 7). Requires Planer role. Also accessible as /api/v1/shifts/swap/expire.",
+)
+def expire_swap_requests(
+    max_age_days: int = Query(7, ge=1, le=365),
+    _cur_user: dict = Depends(require_planer),
+):
+    """Expire pending swap requests older than max_age_days. Returns list of expired IDs."""
+    expired = get_db().expire_old_swap_requests(max_age_days=max_age_days)
+    for swap_id in expired:
+        broadcast("swap_changed", {"action": "expired", "swap_id": swap_id})
+    return {"expired_count": len(expired), "expired_ids": expired}
 
 
 # ─── Self-Service Swap Requests ─────────────────────────────
@@ -989,6 +1088,7 @@ def create_self_swap_request(
         partner_date=body.partner_date,
         note=body.note or "",
         status="pending_partner",
+        created_by=cur_user.get("NAME", "system"),
     )
     get_db().log_action(
         cur_user.get("NAME", "system"),
@@ -1003,12 +1103,19 @@ def create_self_swap_request(
         req_name = f"{employee.get('Vorname', '')} {employee.get('Nachname', '')}".strip()
         if not req_name:
             req_name = employee.get("SHORTNAME", f"MA #{requester_id}")
+        self_notif_msg = f"{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date}). Bitte bestätige oder lehne ab."
         create_notification(
             type="swap_request",
             title="🔄 Neue Tauschanfrage",
-            message=f"{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date}). Bitte bestätige oder lehne ab.",
+            message=self_notif_msg,
             recipient_employee_id=body.partner_id,
             link="/tauschboerse",
+        )
+        _send_swap_email(
+            notification_type="swap_request",
+            title="🔄 Neue Tauschanfrage",
+            message=self_notif_msg,
+            recipient_employee_id=body.partner_id,
         )
     except Exception:
         pass
@@ -1048,30 +1155,44 @@ def partner_respond_swap(
             status_code=400, detail="Request is not awaiting partner confirmation"
         )
 
-    result = db.partner_respond_swap(swap_id, body.accept)
+    partner_name = f"{employee.get('Vorname', '')} {employee.get('Nachname', '')}".strip()
+    if not partner_name:
+        partner_name = employee.get("SHORTNAME", f"MA #{emp_id}")
+    result = db.partner_respond_swap(swap_id, body.accept, partner_name=partner_name)
     if result is None:
         raise HTTPException(status_code=400, detail="Konnte nicht verarbeitet werden")
 
     # Notify requester
     try:
-        partner_name = f"{employee.get('Vorname', '')} {employee.get('Nachname', '')}".strip()
-        if not partner_name:
-            partner_name = employee.get("SHORTNAME", f"MA #{emp_id}")
         if body.accept:
+            accept_msg = f"{partner_name} hat deinen Tauschvorschlag ({req['requester_date']} ↔ {req['partner_date']}) angenommen. Warte auf Planer-Genehmigung."
             create_notification(
                 type="swap_status",
                 title="✅ Tauschpartner hat zugestimmt",
-                message=f"{partner_name} hat deinen Tauschvorschlag ({req['requester_date']} ↔ {req['partner_date']}) angenommen. Warte auf Planer-Genehmigung.",
+                message=accept_msg,
                 recipient_employee_id=req["requester_id"],
                 link="/tauschboerse",
             )
+            _send_swap_email(
+                notification_type="swap_request",
+                title="✅ Tauschpartner hat zugestimmt",
+                message=accept_msg,
+                recipient_employee_id=req["requester_id"],
+            )
         else:
+            reject_msg = f"{partner_name} hat deinen Tauschvorschlag ({req['requester_date']} ↔ {req['partner_date']}) abgelehnt."
             create_notification(
-                type="swap_status",
+                type="swap_rejected",
                 title="❌ Tauschpartner hat abgelehnt",
-                message=f"{partner_name} hat deinen Tauschvorschlag ({req['requester_date']} ↔ {req['partner_date']}) abgelehnt.",
+                message=reject_msg,
                 recipient_employee_id=req["requester_id"],
                 link="/tauschboerse",
+            )
+            _send_swap_email(
+                notification_type="swap_rejected",
+                title="❌ Tauschpartner hat abgelehnt",
+                message=reject_msg,
+                recipient_employee_id=req["requester_id"],
             )
     except Exception:
         pass
@@ -1113,7 +1234,7 @@ def cancel_self_swap_request(
             status_code=400, detail="Only pending requests can be cancelled"
         )
 
-    cancelled = db.cancel_swap_request(swap_id)
+    cancelled = db.cancel_swap_request(swap_id, cancelled_by=cur_user.get("NAME", "user"))
     if not cancelled:
         raise HTTPException(status_code=404, detail="Nicht gefunden")
 
