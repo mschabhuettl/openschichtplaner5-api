@@ -727,6 +727,7 @@ from .routers import (  # noqa: E402
     schedule,
     schedule_comments,
     webhooks,
+    work_time_rules,
 )
 
 app.include_router(auth.router)
@@ -749,6 +750,7 @@ app.include_router(recurring_shifts.router)
 app.include_router(webhooks.router)
 app.include_router(overtime.router)
 app.include_router(export_scheduler.router)
+app.include_router(work_time_rules.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────
