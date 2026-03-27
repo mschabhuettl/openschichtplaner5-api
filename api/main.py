@@ -719,6 +719,7 @@ from .routers import (  # noqa: E402
     master_data,
     misc,
     notifications,
+    recurring_shifts,
     reports,
     schedule,
     webhooks,
@@ -738,6 +739,7 @@ app.include_router(notifications.router)
 app.include_router(ical.router)
 app.include_router(email.router)
 app.include_router(availability.router)
+app.include_router(recurring_shifts.router)
 app.include_router(webhooks.router)
 
 
