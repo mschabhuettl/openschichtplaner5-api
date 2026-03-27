@@ -1,4 +1,4 @@
-"""Tests for security headers and CSRF protection (Q024)."""
+"""Tests for security headers, CSP, and CSRF protection (Q024 + Q054)."""
 
 import pytest
 from api.main import app
@@ -17,6 +17,14 @@ async def client():
         yield c
 
 
+def _get_csp(headers) -> str:
+    """Extract CSP value from either enforcing or report-only header."""
+    return headers.get(
+        "content-security-policy",
+        headers.get("content-security-policy-report-only", ""),
+    )
+
+
 @pytest.mark.anyio
 async def test_security_headers_present(client: AsyncClient):
     """All security headers must be set on every response."""
@@ -30,10 +38,19 @@ async def test_security_headers_present(client: AsyncClient):
     assert h["referrer-policy"] == "strict-origin-when-cross-origin"
     assert h["x-xss-protection"] == "1; mode=block"
 
-    # Content Security Policy
-    csp = h["content-security-policy"]
+    # Content Security Policy (may be enforcing or report-only)
+    csp = _get_csp(h)
+    assert csp, "CSP header must be present"
     assert "default-src 'self'" in csp
+    assert "script-src 'self'" in csp
+    assert "style-src 'self' 'unsafe-inline'" in csp
+    assert "img-src 'self' data: blob:" in csp
+    assert "connect-src 'self'" in csp
     assert "frame-ancestors 'none'" in csp
+    assert "base-uri 'self'" in csp
+    assert "form-action 'self'" in csp
+    # Ensure dangerous directives are NOT present
+    assert "'unsafe-eval'" not in csp
 
     # Permissions Policy
     pp = h["permissions-policy"]
@@ -48,13 +65,27 @@ async def test_security_headers_present(client: AsyncClient):
 
 
 @pytest.mark.anyio
+async def test_csp_report_only_mode(client: AsyncClient, monkeypatch):
+    """When CSP_REPORT_ONLY=true, use Content-Security-Policy-Report-Only."""
+    import api.main as main_module
+
+    monkeypatch.setattr(main_module, "_CSP_REPORT_ONLY", True)
+    resp = await client.get("/api/health")
+    h = resp.headers
+    assert "content-security-policy-report-only" in h
+    csp = h["content-security-policy-report-only"]
+    assert "default-src 'self'" in csp
+
+
+@pytest.mark.anyio
 async def test_security_headers_on_error_responses(client: AsyncClient):
     """Security headers must also be present on 404/error responses."""
     resp = await client.get("/api/nonexistent-endpoint-xyz")
     h = resp.headers
     assert h.get("x-content-type-options") == "nosniff"
     assert h.get("x-frame-options") == "DENY"
-    assert "content-security-policy" in h
+    csp = _get_csp(h)
+    assert csp, "CSP must be present on error responses"
 
 
 @pytest.mark.anyio
@@ -72,15 +103,10 @@ async def test_security_headers_on_post(client: AsyncClient):
 @pytest.mark.anyio
 async def test_cookie_samesite_strict(client: AsyncClient, tmp_path, monkeypatch):
     """Login cookie must use SameSite=Strict and HttpOnly."""
-    # We can't easily test actual cookie attributes without a real login,
-    # but we verify the code path sets them correctly by checking the
-    # set-cookie header format after a successful login.
-    # This test just verifies security headers are present on the login endpoint.
     resp = await client.post(
         "/api/auth/login",
         json={"benutzername": "admin", "passwort": "wrong"},
     )
-    # Even failed login should have security headers
     h = resp.headers
     assert h.get("x-content-type-options") == "nosniff"
 
@@ -88,7 +114,6 @@ async def test_cookie_samesite_strict(client: AsyncClient, tmp_path, monkeypatch
 @pytest.mark.anyio
 async def test_cors_not_wildcard(client: AsyncClient):
     """CORS must not use wildcard '*' — only explicit origins."""
-    # Send a preflight request
     resp = await client.options(
         "/api/health",
         headers={
@@ -96,7 +121,6 @@ async def test_cors_not_wildcard(client: AsyncClient):
             "Access-Control-Request-Method": "GET",
         },
     )
-    # Evil origin should NOT be reflected back
     acao = resp.headers.get("access-control-allow-origin", "")
     assert acao != "*", "CORS must not use wildcard"
     assert "evil.example.com" not in acao
@@ -118,5 +142,4 @@ async def test_no_server_header_leak(client: AsyncClient):
     """Server header should not leak implementation details."""
     resp = await client.get("/api/health")
     server = resp.headers.get("server", "").lower()
-    # Should not expose detailed version info
     assert "uvicorn" not in server or "python" not in server
