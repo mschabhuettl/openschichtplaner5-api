@@ -239,7 +239,7 @@ app = FastAPI(
         "- **Planer** – can write schedules and absences\n"
         "- **Admin** – full access including user and master-data management\n"
     ),
-    version="1.0.0-rc3",
+    version="1.0.0",
     openapi_tags=_OPENAPI_TAGS,
 )
 
@@ -761,7 +761,7 @@ app.include_router(notification_settings.router)
 
 # ── Routes ──────────────────────────────────────────────────────
 
-_API_VERSION = "1.0.0-rc3"
+_API_VERSION = "1.0.0"
 
 
 def _format_uptime(seconds: float) -> str:
