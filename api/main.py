@@ -720,6 +720,7 @@ from .routers import (  # noqa: E402
     ical,
     master_data,
     misc,
+    notification_settings,
     notifications,
     overtime,
     recurring_shifts,
@@ -751,6 +752,7 @@ app.include_router(webhooks.router)
 app.include_router(overtime.router)
 app.include_router(export_scheduler.router)
 app.include_router(work_time_rules.router)
+app.include_router(notification_settings.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────

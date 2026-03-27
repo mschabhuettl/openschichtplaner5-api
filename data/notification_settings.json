@@ -1,0 +1,12 @@
+{
+  "999": {
+    "shift_assigned": true,
+    "shift_changed": true,
+    "swap_requested": true,
+    "swap_approved": true,
+    "swap_rejected": true,
+    "vacation_approved": true,
+    "vacation_rejected": true,
+    "schedule_comment_added": true
+  }
+}
