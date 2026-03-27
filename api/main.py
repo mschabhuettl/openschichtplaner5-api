@@ -712,6 +712,7 @@ from .routers import (  # noqa: E402
     auth,
     availability,
     companies,
+    conflict_report,
     email,
     employees,
     events,
@@ -736,6 +737,7 @@ app.include_router(schedule.router)
 app.include_router(absences.router)
 app.include_router(master_data.router)
 app.include_router(reports.router)
+app.include_router(conflict_report.router)
 app.include_router(admin.router)
 app.include_router(misc.router)
 app.include_router(events.router)
