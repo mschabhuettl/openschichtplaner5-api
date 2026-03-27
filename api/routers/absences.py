@@ -11,6 +11,7 @@ from ..dependencies import (
     get_db,
     require_admin,
     require_planer,
+    require_role,
 )
 from ..schemas import paginate
 from .events import broadcast
@@ -594,3 +595,266 @@ def patch_absence_status(
             pass  # Never fail the main request due to notification issues
 
     return {"ok": True, "id": absence_id, "rejected_removed": rejected_removed, **entry}
+
+
+# ── Absence Statistics ────────────────────────────────────────────────────────
+
+def _classify_leave_type(lt: dict | None) -> str:
+    """Classify a leave type into 'vacation', 'sick', or 'other'."""
+    if lt is None:
+        return "other"
+    # Vacation: ENTITLED flag (counts against leave quota)
+    if lt.get("ENTITLED"):
+        return "vacation"
+    # Sick: detect by name/shortname keyword
+    lt_name = (lt.get("NAME", "") or "").lower()
+    lt_short = (lt.get("SHORTNAME", "") or "").lower()
+    if any(kw in lt_name or kw in lt_short for kw in ["krank", "sick", "ku"]):
+        return "sick"
+    return "other"
+
+
+def _build_employee_stats(
+    employee_id: int, year: int, absences: list[dict], lt_map: dict, status_data: dict
+) -> dict:
+    """Build per-employee absence stats for a given year."""
+    year_str = str(year)
+    vacation_days = 0
+    sick_days = 0
+    other_days = 0
+    by_month: dict[int, dict] = {m: {"month": m, "vacation": 0, "sick": 0, "other": 0} for m in range(1, 13)}
+    pending_requests = 0
+
+    for ab in absences:
+        if ab.get("employee_id") != employee_id:
+            continue
+        d = ab.get("date", "")
+        if not d.startswith(year_str):
+            continue
+        lt_id = ab.get("leave_type_id")
+        lt = lt_map.get(lt_id) if lt_id else None
+        category = _classify_leave_type(lt)
+        try:
+            month = int(d[5:7])
+        except (ValueError, IndexError):
+            continue
+        if category == "vacation":
+            vacation_days += 1
+            by_month[month]["vacation"] += 1
+        elif category == "sick":
+            sick_days += 1
+            by_month[month]["sick"] += 1
+        else:
+            other_days += 1
+            by_month[month]["other"] += 1
+
+        # Count pending: check absence_status.json by id
+        ab_id = ab.get("id")
+        if ab_id is not None:
+            entry = status_data.get(str(ab_id))
+            if isinstance(entry, dict):
+                if entry.get("status") == "pending":
+                    pending_requests += 1
+            elif isinstance(entry, str) and entry == "pending":
+                pending_requests += 1
+
+    return {
+        "employee_id": employee_id,
+        "year": year,
+        "vacation_days": vacation_days,
+        "sick_days": sick_days,
+        "other_days": other_days,
+        "total_days": vacation_days + sick_days + other_days,
+        "by_month": list(by_month.values()),
+        "pending_requests": pending_requests,
+    }
+
+
+@router.get(
+    "/api/absences/stats/employee/{employee_id}",
+    tags=["Absence Statistics"],
+    summary="Absence statistics for an employee",
+    description=(
+        "Return vacation, sick, and other absence counts for a specific employee in a year. "
+        "Requires at least Planer role."
+    ),
+)
+def get_absence_stats_employee(
+    employee_id: int,
+    year: int = Query(..., ge=2000, le=2100, description="Year (YYYY)"),
+    _cur_user: dict = Depends(require_role("Planer")),
+):
+    """Return absence statistics for one employee in a year."""
+    try:
+        db = get_db()
+        emp = db.get_employee(employee_id)
+        if emp is None:
+            raise HTTPException(status_code=404, detail=f"Mitarbeiter {employee_id} nicht gefunden")
+        absences = db.get_absences_list(year=year, employee_id=employee_id)
+        lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
+        status_data = _load_absence_status()
+        stats = _build_employee_stats(employee_id, year, absences, lt_map, status_data)
+        stats["employee_name"] = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", ")
+        return stats
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.get(
+    "/api/absences/stats/group/{group_id}",
+    tags=["Absence Statistics"],
+    summary="Absence statistics for a group",
+    description=(
+        "Return per-employee absence stats plus group totals and top-3 rankings for a group in a year. "
+        "Requires at least Planer role."
+    ),
+)
+def get_absence_stats_group(
+    group_id: int,
+    year: int = Query(..., ge=2000, le=2100, description="Year (YYYY)"),
+    _cur_user: dict = Depends(require_role("Planer")),
+):
+    """Return group-level absence stats: per-employee breakdown, totals, top-3."""
+    try:
+        db = get_db()
+        groups_map = {g["ID"]: g for g in db.get_groups(include_hidden=True)}
+        if group_id not in groups_map:
+            raise HTTPException(status_code=404, detail=f"Gruppe {group_id} nicht gefunden")
+        group = groups_map[group_id]
+
+        member_ids = db.get_group_members(group_id)
+        emp_map = {e["ID"]: e for e in db.get_employees(include_hidden=True)}
+        lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
+        absences = db.get_absences_list(year=year)
+        status_data = _load_absence_status()
+
+        employees_stats = []
+        group_vacation = 0
+        group_sick = 0
+        group_other = 0
+
+        for eid in member_ids:
+            emp = emp_map.get(eid)
+            if not emp:
+                continue
+            stats = _build_employee_stats(eid, year, absences, lt_map, status_data)
+            stats["employee_name"] = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", ")
+            employees_stats.append(stats)
+            group_vacation += stats["vacation_days"]
+            group_sick += stats["sick_days"]
+            group_other += stats["other_days"]
+
+        employees_stats.sort(key=lambda x: x.get("employee_name", ""))
+
+        top3_sick = sorted(employees_stats, key=lambda x: -x["sick_days"])[:3]
+        top3_vacation = sorted(employees_stats, key=lambda x: -x["vacation_days"])[:3]
+
+        return {
+            "group_id": group_id,
+            "group_name": group.get("NAME", ""),
+            "year": year,
+            "employees": employees_stats,
+            "group_totals": {
+                "vacation_days": group_vacation,
+                "sick_days": group_sick,
+                "other_days": group_other,
+                "total_days": group_vacation + group_sick + group_other,
+            },
+            "top3_by_sick_days": [
+                {"employee_id": s["employee_id"], "employee_name": s["employee_name"], "sick_days": s["sick_days"]}
+                for s in top3_sick
+            ],
+            "top3_by_vacation_days": [
+                {"employee_id": s["employee_id"], "employee_name": s["employee_name"], "vacation_days": s["vacation_days"]}
+                for s in top3_vacation
+            ],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.get(
+    "/api/absences/stats/overview",
+    tags=["Absence Statistics"],
+    summary="Company-wide absence statistics overview",
+    description=(
+        "Return company-wide absence stats: all groups with totals and month-by-month breakdown. "
+        "Requires at least Planer role."
+    ),
+)
+def get_absence_stats_overview(
+    year: int = Query(..., ge=2000, le=2100, description="Year (YYYY)"),
+    _cur_user: dict = Depends(require_role("Planer")),
+):
+    """Return company-wide absence stats: groups summary + monthly breakdown."""
+    try:
+        db = get_db()
+        all_groups = db.get_groups(include_hidden=False)
+        lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
+        absences = db.get_absences_list(year=year)
+        status_data = _load_absence_status()
+
+        # Monthly company-wide totals
+        monthly: dict[int, dict] = {
+            m: {"month": m, "vacation": 0, "sick": 0, "other": 0} for m in range(1, 13)
+        }
+        year_str = str(year)
+
+        # Pre-compute all absences with category
+        for ab in absences:
+            d = ab.get("date", "")
+            if not d.startswith(year_str):
+                continue
+            lt_id = ab.get("leave_type_id")
+            lt = lt_map.get(lt_id) if lt_id else None
+            category = _classify_leave_type(lt)
+            try:
+                month = int(d[5:7])
+            except (ValueError, IndexError):
+                continue
+            monthly[month][category] += 1
+
+        groups_summary = []
+        for grp in all_groups:
+            gid = grp["ID"]
+            member_ids = db.get_group_members(gid)
+            grp_vacation = 0
+            grp_sick = 0
+            grp_other = 0
+            for eid in member_ids:
+                stats = _build_employee_stats(eid, year, absences, lt_map, status_data)
+                grp_vacation += stats["vacation_days"]
+                grp_sick += stats["sick_days"]
+                grp_other += stats["other_days"]
+            groups_summary.append({
+                "group_id": gid,
+                "group_name": grp.get("NAME", ""),
+                "vacation_days": grp_vacation,
+                "sick_days": grp_sick,
+                "other_days": grp_other,
+                "total_days": grp_vacation + grp_sick + grp_other,
+            })
+
+        total_vacation = sum(g["vacation_days"] for g in groups_summary)
+        total_sick = sum(g["sick_days"] for g in groups_summary)
+        total_other = sum(g["other_days"] for g in groups_summary)
+
+        return {
+            "year": year,
+            "company_totals": {
+                "vacation_days": total_vacation,
+                "sick_days": total_sick,
+                "other_days": total_other,
+                "total_days": total_vacation + total_sick + total_other,
+            },
+            "groups": groups_summary,
+            "by_month": list(monthly.values()),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
