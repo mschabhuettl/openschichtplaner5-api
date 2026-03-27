@@ -723,12 +723,14 @@ from .routers import (  # noqa: E402
     recurring_shifts,
     reports,
     schedule,
+    schedule_comments,
     webhooks,
 )
 
 app.include_router(auth.router)
 app.include_router(companies.router)
 app.include_router(employees.router)
+app.include_router(schedule_comments.router)  # must be before schedule.router (path conflict)
 app.include_router(schedule.router)
 app.include_router(absences.router)
 app.include_router(master_data.router)
