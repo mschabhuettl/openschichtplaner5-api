@@ -644,6 +644,7 @@ def export_schedule(
                 cell.alignment = Alignment(horizontal="center")
                 cell.border = border
             ws.row_dimensions[r_idx].height = 14
+        ws.freeze_panes = "C2"
         buf = io.BytesIO()
         wb.save(buf)
         return _xlsx_response(buf.getvalue(), f"dienstplan_{month}.xlsx")
@@ -784,7 +785,7 @@ def export_schedule(
     tags=["Export"],
     summary="Export yearly statistics",
     description=(
-        "Export yearly statistics (all 12 months) as CSV or HTML.\n\n"
+        "Export yearly statistics (all 12 months) as CSV, HTML, or XLSX.\n\n"
         "Includes per-employee target hours, actual hours, overtime, vacation days, and sick days "
         "plus a summary row per employee across the year.\n\n"
         "**Required role:** Planer"
@@ -849,6 +850,60 @@ def export_statistics(
         summary[k]["Überstunden (h)"] += r["Überstunden (h)"]
         summary[k]["Abwesenheitstage"] += r["Abwesenheitstage"]
         summary[k]["Urlaubstage"] += r["Urlaubstage"]
+
+    if format == "xlsx":
+        try:
+            import openpyxl
+            from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+            from openpyxl.utils import get_column_letter
+        except ImportError:
+            raise HTTPException(status_code=500, detail="openpyxl nicht installiert.")
+        wb = openpyxl.Workbook()
+        ws_sum = wb.active
+        ws_sum.title = f"Jahres\u00fcbersicht {year}"
+        thin = Side(border_style="thin", color="CBD5E1")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        sum_headers = ["Mitarbeiter", "K\u00fcrzel", "Soll (h)", "Ist (h)", "\u00dcberstunden (h)", "Abwesenheitstage", "Urlaubstage"]
+        sum_widths = [28, 10, 12, 12, 16, 18, 14]
+        for c, (h, w) in enumerate(zip(sum_headers, sum_widths), start=1):
+            cell = ws_sum.cell(1, c, h)
+            cell.font = Font(bold=True, color="FFFFFF", size=9)
+            cell.fill = PatternFill(fill_type="solid", fgColor="1E293B")
+            cell.alignment = Alignment(horizontal="left")
+            cell.border = border
+            ws_sum.column_dimensions[get_column_letter(c)].width = w
+        for r_idx, s in enumerate(summary.values(), start=2):
+            fill_color = "F8FAFC" if r_idx % 2 == 0 else "FFFFFF"
+            vals = [s["Mitarbeiter"], s["K\u00fcrzel"], round(s["Soll (h)"], 1), round(s["Ist (h)"], 1), round(s["\u00dcberstunden (h)"], 1), s["Abwesenheitstage"], s["Urlaubstage"]]
+            for c, val in enumerate(vals, start=1):
+                cell = ws_sum.cell(r_idx, c, val)
+                cell.font = Font(size=9)
+                cell.fill = PatternFill(fill_type="solid", fgColor=fill_color)
+                cell.border = border
+        ws_sum.freeze_panes = "A2"
+        ws_det = wb.create_sheet(f"Monatsdetail {year}")
+        det_headers = ["Monat", "Mitarbeiter", "K\u00fcrzel", "Soll (h)", "Ist (h)", "\u00dcberstunden (h)", "Abwesenheitstage", "Urlaubstage"]
+        det_widths = [14, 28, 10, 12, 12, 16, 18, 14]
+        for c, (h, w) in enumerate(zip(det_headers, det_widths), start=1):
+            cell = ws_det.cell(1, c, h)
+            cell.font = Font(bold=True, color="FFFFFF", size=9)
+            cell.fill = PatternFill(fill_type="solid", fgColor="1E293B")
+            cell.alignment = Alignment(horizontal="left")
+            cell.border = border
+            ws_det.column_dimensions[get_column_letter(c)].width = w
+        MONTHS_DE_XLSX = ["", "Januar", "Februar", "M\u00e4rz", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
+        for r_idx, row in enumerate(rows_data, start=2):
+            fill_color = "F8FAFC" if r_idx % 2 == 0 else "FFFFFF"
+            vals = [MONTHS_DE_XLSX[row["Monat"]], row["Mitarbeiter"], row["K\u00fcrzel"], row["Soll (h)"], row["Ist (h)"], row["\u00dcberstunden (h)"], row["Abwesenheitstage"], row["Urlaubstage"]]
+            for c, val in enumerate(vals, start=1):
+                cell = ws_det.cell(r_idx, c, val)
+                cell.font = Font(size=9)
+                cell.fill = PatternFill(fill_type="solid", fgColor=fill_color)
+                cell.border = border
+        ws_det.freeze_panes = "A2"
+        buf = io.BytesIO()
+        wb.save(buf)
+        return _xlsx_response(buf.getvalue(), f"statistiken_{year}.xlsx")
 
     if format == "csv":
         return _csv_response(rows_data, f"statistiken_{year}.csv")
@@ -1091,6 +1146,7 @@ def export_employees(
                     cell.font = Font(size=9)
                     cell.fill = PatternFill(fill_type="solid", fgColor=fill_color)
                     cell.border = border
+            ws.freeze_panes = "A2"
         buf = io.BytesIO()
         wb.save(buf)
         return _xlsx_response(buf.getvalue(), f"mitarbeiter_{_today_str}.xlsx")
@@ -1230,6 +1286,7 @@ def export_absences(
                     cell.font = Font(size=9)
                     cell.fill = PatternFill(fill_type="solid", fgColor=fill_color)
                     cell.border = border
+            ws.freeze_panes = "A2"
         buf = io.BytesIO()
         wb.save(buf)
         return _xlsx_response(buf.getvalue(), f"abwesenheiten_{year}.xlsx")
