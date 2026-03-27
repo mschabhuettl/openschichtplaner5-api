@@ -334,8 +334,8 @@ def update_employee(
 @router.delete(
     "/api/employees/{emp_id}",
     tags=["Employees"],
-    summary="Delete (hide) employee",
-    description="Marks an employee as hidden. Requires Admin role.",
+    summary="Deactivate (soft-delete) employee",
+    description="Marks an employee as inactive/hidden. Historical data (shifts, absences) is preserved. Requires Admin role.",
 )
 def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
@@ -349,25 +349,68 @@ def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
                 status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
             )
         _logger.warning(
-            "AUDIT EMPLOYEE_DELETE | user=%s emp_id=%d", _cur_user.get("NAME"), emp_id
+            "AUDIT EMPLOYEE_DEACTIVATE | user=%s emp_id=%d", _cur_user.get("NAME"), emp_id
         )
-        # Audit: employee hidden/deleted
+        # Audit: employee deactivated
         db.log_action(
             user=_cur_user.get("NAME", "?"),
-            action="DELETE",
+            action="DEACTIVATE",
             entity="employee",
             entity_id=emp_id,
-            details=f"Mitarbeiter {old_name} (ID {emp_id}) ausgeblendet",
-            old_value={"NAME": old_name},
+            details=f"Mitarbeiter {old_name} (ID {emp_id}) deaktiviert",
+            old_value={"NAME": old_name, "HIDE": False},
+            new_value={"HIDE": True},
             user_id=_cur_user.get("ID"),
         )
         cache.invalidate("employees:")
-        broadcast("employee_changed", {"action": "deleted", "employee_id": emp_id})
-        return {"ok": True, "hidden": count}
+        broadcast("employee_changed", {"action": "deactivated", "employee_id": emp_id})
+        return {"ok": True, "deactivated": count}
     except HTTPException:
         raise
     except Exception as e:
         raise _sanitize_500(e, f"delete_employee/{emp_id}")
+
+
+@router.put(
+    "/api/employees/{emp_id}/activate",
+    tags=["Employees"],
+    summary="Reactivate employee",
+    description="Reactivates a previously deactivated (hidden) employee. Requires Admin role.",
+)
+def activate_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
+    try:
+        db = get_db()
+        old_emp = db.get_employee(emp_id)
+        if old_emp is None:
+            raise HTTPException(
+                status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
+            )
+        old_name = old_emp.get("NAME", "?")
+        count = db.activate_employee(emp_id)
+        if count == 0:
+            raise HTTPException(
+                status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
+            )
+        _logger.warning(
+            "AUDIT EMPLOYEE_ACTIVATE | user=%s emp_id=%d", _cur_user.get("NAME"), emp_id
+        )
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="ACTIVATE",
+            entity="employee",
+            entity_id=emp_id,
+            details=f"Mitarbeiter {old_name} (ID {emp_id}) reaktiviert",
+            old_value={"HIDE": True},
+            new_value={"HIDE": False},
+            user_id=_cur_user.get("ID"),
+        )
+        cache.invalidate("employees:")
+        broadcast("employee_changed", {"action": "activated", "employee_id": emp_id})
+        return {"ok": True, "activated": count}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e, f"activate_employee/{emp_id}")
 
 
 # ── Employee Photo Upload ─────────────────────────────────────
