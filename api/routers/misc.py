@@ -1287,3 +1287,25 @@ def create_self_absence(
         )
     result = db.add_absence(employee["ID"], body.date, body.leave_type_id)
     return result
+
+
+# ── Release Notes (CHANGELOG.md) ─────────────────────────────
+
+
+@router.get(
+    "/api/release-notes",
+    tags=["System"],
+    summary="Get release notes",
+    description="Return the content of CHANGELOG.md from the project root.",
+)
+def get_release_notes():
+    """Return CHANGELOG.md content as JSON."""
+    import pathlib
+
+    # Project root is 2 levels up from this file (routers/ -> api/ -> backend/ -> project root)
+    changelog_path = pathlib.Path(__file__).resolve().parents[3] / "CHANGELOG.md"
+    try:
+        content = changelog_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        content = "No changelog available."
+    return {"content": content}
