@@ -719,6 +719,7 @@ from .routers import (  # noqa: E402
     master_data,
     misc,
     notifications,
+    overtime,
     recurring_shifts,
     reports,
     schedule,
@@ -741,6 +742,7 @@ app.include_router(email.router)
 app.include_router(availability.router)
 app.include_router(recurring_shifts.router)
 app.include_router(webhooks.router)
+app.include_router(overtime.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────
