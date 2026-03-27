@@ -14,8 +14,9 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture(scope="module")
 def client():
-    from api.main import app, _sessions
     import secrets
+
+    from api.main import _sessions, app
     tok = secrets.token_hex(20)
     _sessions[tok] = {"ID": 999, "NAME": "test_planer_xlsx", "role": "Planer", "ADMIN": False, "RIGHTS": 2}
     c = TestClient(app)
