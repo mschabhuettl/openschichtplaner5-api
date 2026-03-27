@@ -156,12 +156,19 @@ def delete_note(note_id: int, _cur_user: dict = Depends(require_planer)):
 
 
 @router.get("/api/search", tags=["Employees"], summary="Global search", description="Full-text search across employees, shifts, groups, and other entities.")
-def global_search(q: str = Query("", description="Search query")):
-    """Global search across employees, shifts, and leave types (absence types).
-    Returns up to 20 results per category with fuzzy matching.
+def global_search(
+    q: str = Query("", description="Search query"),
+    limit: int = Query(10, ge=1, le=50, description="Max results per category"),
+    grouped: bool = Query(False, description="Return grouped results by category"),
+):
+    """Global search across employees, shifts, leave types (absence types), and groups.
+    Returns up to `limit` results per category with fuzzy matching.
+    When `grouped=true`, returns `{"employees": [...], "groups": [...], "shifts": [...], "leave_types": [...]}`.
     """
     query = q.strip()
     if not query:
+        if grouped:
+            return {"employees": [], "groups": [], "shifts": [], "leave_types": [], "query": query}
         return {"results": [], "query": query}
 
     db = get_db()
@@ -278,9 +285,24 @@ def global_search(q: str = Query("", description="Search query")):
                 }
             )
 
-    # Sort by score descending, limit to 30 total
+    # Sort by score descending
     results.sort(key=lambda x: -(x["score"] or 0))  # type: ignore[operator]  # score is always numeric but typed as mixed dict value
-    results = results[:30]
+
+    if grouped:
+        # Group results by type and limit per category
+        grouped_results: dict[str, list] = {"employees": [], "groups": [], "shifts": [], "leave_types": []}
+        type_key_map = {"employee": "employees", "group": "groups", "shift": "shifts", "leave_type": "leave_types"}
+        for r in results:
+            key = type_key_map.get(r["type"], r["type"] + "s")
+            if key not in grouped_results:
+                grouped_results[key] = []
+            if len(grouped_results[key]) < limit:
+                score = r.pop("score")  # noqa: F841
+                grouped_results[key].append(r)
+        return {**grouped_results, "query": query}
+
+    # Flat response: limit total results
+    results = results[:limit * 3]
     # Remove internal score field from output
     for r in results:
         del r["score"]
