@@ -469,7 +469,12 @@ def login(request: Request, body: LoginBody):
     user = get_db().verify_user_password(username, body.password)
     if user is None:
         _failed_logins[username] = timestamps + [now]
-        _logger.warning("AUTH LOGIN_FAIL | ip=%s username=%s", client_ip, username)
+        _logger.warning(
+            "AUTH LOGIN_FAIL | ip=%s username=%s",
+            client_ip,
+            username,
+            extra={"event": "login_failure", "username": username},
+        )
         raise HTTPException(
             status_code=401, detail="Invalid username or password"
         )
@@ -499,7 +504,13 @@ def login(request: Request, body: LoginBody):
 
     # Successful login: clear failed attempts
     _failed_logins.pop(username, None)
-    _logger.info("AUTH LOGIN_OK | ip=%s username=%s 2fa=%s", client_ip, username, totp_enabled)
+    _logger.info(
+        "AUTH LOGIN_OK | ip=%s username=%s 2fa=%s",
+        client_ip,
+        username,
+        totp_enabled,
+        extra={"event": "login_success", "username": username},
+    )
     write_audit_log("LOGIN_OK", username, {"ip": client_ip, "2fa": totp_enabled})
 
     # Enforce max concurrent sessions per user (evict oldest if over limit)

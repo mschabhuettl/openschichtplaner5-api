@@ -4,6 +4,7 @@ Extracted from main.py for modular router support.
 """
 
 # ── Structured JSON Logging setup ───────────────────────────────
+import contextvars as _contextvars
 import json as _json
 import logging
 import logging.handlers
@@ -19,9 +20,14 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sp5lib.database import SP5Database
 
+# ── Request-scoped context (propagated to all log entries) ───────
+request_id_ctx: _contextvars.ContextVar[str | None] = _contextvars.ContextVar(
+    "request_id", default=None
+)
+
 
 class _JsonFormatter(logging.Formatter):
-    """Emit log records as single-line JSON objects."""
+    """Emit log records as single-line JSON objects with request_id from context."""
 
     def format(self, record: logging.LogRecord) -> str:
         entry = {
@@ -33,25 +39,52 @@ class _JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
+        # Attach request_id from contextvars (if available)
+        rid = request_id_ctx.get(None)
+        if rid:
+            entry["request_id"] = rid
+        # Merge extra fields attached by logger.info("msg", extra={...})
+        for key in ("request_id", "method", "path", "status_code", "duration_ms",
+                     "username", "event", "exc_type"):
+            val = getattr(record, key, None)
+            if val is not None:
+                entry[key] = val
         if record.exc_info:
             entry["exc"] = self.formatException(record.exc_info)
         return _json.dumps(entry, ensure_ascii=False)
 
 
+class _TextFormatter(logging.Formatter):
+    """Human-readable formatter for local development (SP5_LOG_FORMAT=text)."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        ts = _dt.fromtimestamp(record.created, tz=UTC).strftime("%H:%M:%S")
+        rid = request_id_ctx.get(None) or getattr(record, "request_id", None)
+        rid_part = f" [{rid[:8]}]" if rid else ""
+        base = f"{ts} {record.levelname:<5}{rid_part} {record.name}: {record.getMessage()}"
+        if record.exc_info:
+            base += "\n" + self.formatException(record.exc_info)
+        return base
+
+
+# Choose formatter based on SP5_LOG_FORMAT env var (default: json)
+_log_format = os.environ.get("SP5_LOG_FORMAT", "json").lower()
+_formatter = _TextFormatter() if _log_format == "text" else _JsonFormatter()
+
 _log_file = "/tmp/sp5-api.log"
 _handler = logging.handlers.RotatingFileHandler(
     _log_file, maxBytes=10 * 1024 * 1024, backupCount=3
 )
-_handler.setFormatter(_JsonFormatter())
+_handler.setFormatter(_formatter)
 
-_logger = logging.getLogger("sp5api")
+_logger = logging.getLogger("sp5.api")
 # Log level configurable via ENV
 _log_level_str = os.environ.get("SP5_LOG_LEVEL", "INFO").upper()
 _log_level = getattr(logging, _log_level_str, logging.INFO)
 _logger.setLevel(_log_level)
 _logger.addHandler(_handler)
 _stderr_handler = logging.StreamHandler()
-_stderr_handler.setFormatter(_JsonFormatter())
+_stderr_handler.setFormatter(_formatter)
 _logger.addHandler(_stderr_handler)
 
 # Keep reference to log file path for health endpoint

@@ -425,7 +425,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Catch unhandled exceptions, log with details, return sanitized 500."""
-    import traceback
+    from .dependencies import request_id_ctx
 
     token = (
         request.headers.get("x-auth-token")
@@ -433,13 +433,20 @@ async def global_exception_handler(request: Request, exc: Exception):
         or request.query_params.get("token")
     )
     user = _sessions.get(token, {}).get("NAME", "-") if token else "-"
+    rid = request_id_ctx.get(None) or "-"
     _logger.error(
-        "Unhandled exception: %s %s | user=%s | %s\n%s",
+        "Unhandled exception: %s %s | user=%s | %s: %s",
         request.method,
         request.url.path,
         user,
         type(exc).__name__,
-        traceback.format_exc(),
+        str(exc),
+        exc_info=True,
+        extra={
+            "request_id": rid,
+            "exc_type": type(exc).__name__,
+            "event": "unhandled_exception",
+        },
     )
 
     return JSONResponse(
@@ -464,16 +471,22 @@ _PUBLIC_PATHS = {
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
-    """Log every request as structured JSON with timing info and request-ID."""
-    import json as _json_mod
+    """Log every request with timing info and request-ID via structured logging."""
     import time as _t
     import uuid as _uuid
-    from datetime import datetime as _dt2
 
-    # Generate a short unique request ID for correlating log entries
-    req_id = _uuid.uuid4().hex[:8]
+    from .dependencies import request_id_ctx
+
+    # Use incoming X-Request-ID or generate a new UUID
+    req_id = request.headers.get("x-request-id") or str(_uuid.uuid4())
+    # Set request_id in contextvars so all log entries include it
+    token_cv = request_id_ctx.set(req_id)
     start = _t.time()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        request_id_ctx.reset(token_cv)
+        raise
     duration_ms = round((_t.time() - start) * 1000)
     token = (
         request.headers.get("x-auth-token")
@@ -481,19 +494,24 @@ async def request_logging_middleware(request: Request, call_next):
         or request.query_params.get("token")
     )
     user = _sessions.get(token, {}).get("NAME", "-") if token else "-"
-    now = _dt2.now(UTC)
-    ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
-    entry = {
-        "timestamp": ts,
-        "req_id": req_id,
-        "method": request.method,
-        "path": request.url.path,
-        "status": response.status_code,
-        "duration_ms": duration_ms,
-        "user": user,
-    }
-    _logger.info(_json_mod.dumps(entry, ensure_ascii=False))
+    _logger.info(
+        "%s %s %d %dms user=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+        user,
+        extra={
+            "request_id": req_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": duration_ms,
+            "username": user,
+        },
+    )
     response.headers["X-Request-ID"] = req_id
+    request_id_ctx.reset(token_cv)
     # Record metrics (after response so headers are set)
     _metrics.record_request(
         status=response.status_code,
