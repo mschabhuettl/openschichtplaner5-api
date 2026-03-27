@@ -715,6 +715,7 @@ from .routers import (  # noqa: E402
     email,
     employees,
     events,
+    export_scheduler,
     ical,
     master_data,
     misc,
@@ -745,6 +746,7 @@ app.include_router(availability.router)
 app.include_router(recurring_shifts.router)
 app.include_router(webhooks.router)
 app.include_router(overtime.router)
+app.include_router(export_scheduler.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────
