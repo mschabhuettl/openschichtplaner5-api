@@ -765,6 +765,58 @@ def get_frontend_errors(_cur_user: dict = Depends(require_admin)):
     return {"count": len(errors), "errors": errors[-100:]}  # last 100
 
 
+# ── Rate-Limit Dashboard ──────────────────────────────────────
+
+
+@router.get(
+    "/api/v1/admin/rate-limits",
+    tags=["Admin"],
+    summary="Rate-limit events (Admin)",
+    description=(
+        "Return logged rate-limit (429) events, newest first. "
+        "Supports filtering by time range (since/until as ISO-8601) and user name."
+    ),
+)
+def get_rate_limit_events(
+    since: str | None = Query(None, description="ISO-8601 start (inclusive)"),
+    until: str | None = Query(None, description="ISO-8601 end (inclusive)"),
+    user: str | None = Query(None, description="Filter by username"),
+    limit: int = Query(500, ge=1, le=5000, description="Max events to return"),
+    _cur_user: dict = Depends(require_admin),
+):
+    from api.rate_limit_store import get_rate_limit_events as _get_events
+
+    events = _get_events(since=since, until=until, user=user, limit=limit)
+
+    # Compute summary stats
+    top_users: dict[str, int] = {}
+    top_endpoints: dict[str, int] = {}
+    top_ips: dict[str, int] = {}
+    for evt in events:
+        u = evt.get("user") or "(anonymous)"
+        ep = evt.get("endpoint", "?")
+        ip = evt.get("ip", "?")
+        top_users[u] = top_users.get(u, 0) + 1
+        top_endpoints[ep] = top_endpoints.get(ep, 0) + 1
+        top_ips[ip] = top_ips.get(ip, 0) + 1
+
+    def _top(d: dict[str, int], n: int = 10) -> list[dict]:
+        return [
+            {"name": k, "count": v}
+            for k, v in sorted(d.items(), key=lambda x: -x[1])[:n]
+        ]
+
+    return {
+        "count": len(events),
+        "events": events,
+        "summary": {
+            "top_users": _top(top_users),
+            "top_endpoints": _top(top_endpoints),
+            "top_ips": _top(top_ips),
+        },
+    }
+
+
 @router.get(
     "/api/admin/cache-stats", tags=["Admin"], summary="Cache statistics (Admin)",
     description="Return internal cache statistics. Admin only.",

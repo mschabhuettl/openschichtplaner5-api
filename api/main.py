@@ -275,11 +275,38 @@ def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Custom 429 handler — returns structured JSON with Retry-After header."""
     import re as _re_mod
 
+    from api.rate_limit_store import log_rate_limit_event
+
+    client_ip = request.client.host if request.client else "unknown"
+    endpoint = request.url.path
+
     _logger.warning(
         "RATE_LIMIT 429 | ip=%s path=%s detail=%s",
-        request.client.host if request.client else "unknown",
-        request.url.path,
+        client_ip,
+        endpoint,
         exc.detail,
+    )
+
+    # Resolve authenticated user (if any)
+    _rl_user: str | None = None
+    _rl_token = (
+        request.headers.get("x-auth-token")
+        or request.cookies.get("sp5_token")
+        or request.query_params.get("token")
+    )
+    if _rl_token:
+        from .dependencies import _get_session_from_token
+
+        _rl_session = _get_session_from_token(_rl_token)
+        if _rl_session:
+            _rl_user = _rl_session.get("NAME")
+
+    # Persist rate-limit event for the admin dashboard
+    log_rate_limit_event(
+        user=_rl_user,
+        ip=client_ip,
+        endpoint=endpoint,
+        detail=str(exc.detail) if exc.detail else "",
     )
     # Parse retry_after seconds from slowapi's detail string (e.g. "5 per 1 minute")
     retry_after = 60  # sensible default
