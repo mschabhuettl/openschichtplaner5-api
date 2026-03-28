@@ -402,7 +402,6 @@ class TestCRUDEndpoints:
 
 
 class TestTestEndpoint:
-    @pytest.mark.asyncio
     def test_test_webhook_endpoint(self, client):
         # Create webhook first
         create_resp = client.post(

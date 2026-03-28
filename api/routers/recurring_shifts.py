@@ -8,7 +8,7 @@ import json
 import os
 import threading
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -148,7 +148,7 @@ def create_recurring_shift(
         "day_of_week": body.day_of_week,
         "valid_from": body.valid_from,
         "valid_until": body.valid_until,
-        "created_at": datetime.utcnow().isoformat() + "Z",
+        "created_at": datetime.now(UTC).isoformat() + "Z",
     }
 
     with _LOCK:
