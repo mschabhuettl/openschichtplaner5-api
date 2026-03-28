@@ -205,6 +205,27 @@ def _check_db_files_on_startup(db_path: str) -> None:
 async def lifespan(app: FastAPI):
     import asyncio
 
+    # ── Auto-migration on startup ──────────────────────────────
+    try:
+        from sp5lib.auto_migrate import run_startup_migration
+
+        migration_result = run_startup_migration()
+        if migration_result.error:
+            _logger.error("Startup auto-migration FAILED: %s", migration_result.error)
+        elif migration_result.skipped:
+            _logger.info("Startup auto-migration skipped: %s", migration_result.skip_reason)
+        elif migration_result.had_migrations:
+            _logger.info(
+                "Startup auto-migration OK: %s → %s (%d applied)",
+                migration_result.previous_version or "(empty)",
+                migration_result.current_version,
+                len(migration_result.migrations_applied),
+            )
+        else:
+            _logger.info("Startup auto-migration: no migrations needed")
+    except Exception as _exc:
+        _logger.warning("Startup auto-migration error: %s", _exc)
+
     # Startup DB accessibility check
     _check_db_files_on_startup(DB_PATH)
     # Auto-backup on startup (only if last backup > 24h old)
@@ -1027,6 +1048,52 @@ async def frontend_root():
 def get_dev_mode():
     """Returns whether SP5_DEV_MODE is active. Safe to call without auth."""
     return {"dev_mode": _DEV_MODE_ACTIVE}
+
+
+@app.get(
+    "/api/migration/status",
+    tags=["Admin"],
+    summary="Database migration status",
+    description=(
+        "Returns the current database schema version, target version, "
+        "and whether auto-migration is enabled."
+    ),
+)
+def get_migration_status():
+    """Return current migration/schema version status."""
+    from sp5lib.auto_migrate import (
+        DBF_SCHEMA_VERSION,
+        _get_alembic_head,
+        _get_db_revision,
+        _get_dbf_schema_version,
+        _is_auto_migrate_enabled,
+    )
+    from sp5lib.db_config import BACKEND_POSTGRESQL, get_database_url, get_db_backend
+
+    backend = get_db_backend()
+    auto_migrate = _is_auto_migrate_enabled()
+
+    if backend == BACKEND_POSTGRESQL:
+        database_url = get_database_url()
+        db_rev = _get_db_revision(database_url) if database_url else None
+        head_rev = _get_alembic_head()
+        return {
+            "backend": backend,
+            "auto_migrate_enabled": auto_migrate,
+            "db_revision": db_rev,
+            "target_revision": head_rev,
+            "up_to_date": db_rev == head_rev and db_rev is not None,
+        }
+    else:
+        db_path = os.environ.get("SP5_DB_PATH", DB_PATH)
+        current = _get_dbf_schema_version(db_path)
+        return {
+            "backend": backend,
+            "auto_migrate_enabled": auto_migrate,
+            "db_schema_version": current,
+            "target_schema_version": DBF_SCHEMA_VERSION,
+            "up_to_date": current == DBF_SCHEMA_VERSION,
+        }
 
 
 @app.get("/api/stats", tags=["Health"], summary="Database statistics")
