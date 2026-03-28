@@ -295,11 +295,20 @@ def require_planer(user: dict | None = Depends(get_current_user)) -> dict:
     return user
 
 
-def get_db() -> SP5Database:
-    """Get a database connection using the current DB_PATH from main module."""
-    import api.main as _main
+def get_db():
+    """Get a database connection using the configured backend.
 
-    return SP5Database(_main.DB_PATH)
+    Returns SP5Database (DBF) or SP5PostgresDatabase (PostgreSQL)
+    depending on the DB_BACKEND environment variable.
+    """
+    from sp5lib.db_config import is_postgresql
+
+    if is_postgresql():
+        from sp5lib.db_factory import get_database
+        return get_database()
+    else:
+        import api.main as _main
+        return SP5Database(_main.DB_PATH)
 
 
 def invalidate_sessions_for_user(user_id: int) -> int:
