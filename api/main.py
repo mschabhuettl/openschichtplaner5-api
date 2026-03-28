@@ -239,8 +239,19 @@ async def lifespan(app: FastAPI):
         _logger.warning("Startup auto-backup failed: %s", _exc)
     # Start background cleanup task
     cleanup_task = asyncio.create_task(_periodic_cleanup())
+    # Start scheduled reports background scheduler
+    try:
+        from .routers.scheduled_reports import start_scheduler, stop_scheduler
+        start_scheduler(interval_seconds=300)
+        _logger.info("Scheduled reports scheduler started")
+    except Exception as _exc:
+        _logger.warning("Scheduled reports scheduler start failed: %s", _exc)
     yield
     cleanup_task.cancel()
+    try:
+        stop_scheduler()
+    except Exception:
+        pass
     _logger.info("SP5 API shutting down — cleaning up resources")
 
 
@@ -782,6 +793,7 @@ from .routers import (  # noqa: E402
     schedule,
     schedule_comments,
     schedule_pdf,
+    scheduled_reports,
     webhooks,
     work_time_rules,
 )
@@ -808,6 +820,7 @@ app.include_router(recurring_shifts.router)
 app.include_router(webhooks.router)
 app.include_router(overtime.router)
 app.include_router(export_scheduler.router)
+app.include_router(scheduled_reports.router)
 app.include_router(work_time_rules.router)
 app.include_router(notification_settings.router)
 
