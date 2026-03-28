@@ -271,7 +271,7 @@ app = FastAPI(
         "- **Planer** – can write schedules and absences\n"
         "- **Admin** – full access including user and master-data management\n"
     ),
-    version="1.0.0",
+    version="1.1.0",
     openapi_tags=_OPENAPI_TAGS,
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
