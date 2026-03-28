@@ -186,48 +186,105 @@ class TestEmployeePhoto:
         )
         assert res2.status_code == 413
 
+    @staticmethod
+    def _make_test_image(fmt: str = "JPEG") -> bytes:
+        """Create a minimal valid image in the given format."""
+        from PIL import Image as _PILImage
+        buf = io.BytesIO()
+        img = _PILImage.new("RGB", (50, 50), color=(200, 100, 50))
+        img.save(buf, format=fmt)
+        return buf.getvalue()
+
     def test_upload_photo_success_jpeg(self, admin_client: TestClient):
-        """POST valid JPEG photo → 200."""
+        """POST valid JPEG photo → 200, stored as WebP."""
         res = admin_client.get("/api/employees")
         employees = res.json()
         if not employees:
             pytest.skip("No employees in DB")
         emp_id = employees[0]["ID"]
-        content = b"\xff\xd8\xff\xe0" + b"\x00" * 100
+        content = self._make_test_image("JPEG")
         res2 = admin_client.post(
             f"/api/employees/{emp_id}/photo",
             files={"file": ("photo.jpg", io.BytesIO(content), "image/jpeg")},
         )
         assert res2.status_code == 200
         assert res2.json()["ok"] is True
+        assert res2.json()["path"].endswith(".webp")
 
     def test_upload_photo_success_png(self, admin_client: TestClient):
-        """POST valid PNG photo → 200."""
+        """POST valid PNG photo → 200, stored as WebP."""
         res = admin_client.get("/api/employees")
         employees = res.json()
         if not employees:
             pytest.skip("No employees in DB")
         emp_id = employees[0]["ID"]
-        content = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        content = self._make_test_image("PNG")
         res2 = admin_client.post(
             f"/api/employees/{emp_id}/photo",
             files={"file": ("photo.png", io.BytesIO(content), "image/png")},
         )
         assert res2.status_code == 200
+        assert res2.json()["path"].endswith(".webp")
 
     def test_upload_photo_success_gif(self, admin_client: TestClient):
-        """POST valid GIF photo → 200."""
+        """POST valid GIF photo → 200, stored as WebP."""
         res = admin_client.get("/api/employees")
         employees = res.json()
         if not employees:
             pytest.skip("No employees in DB")
         emp_id = employees[0]["ID"]
-        content = b"GIF89a" + b"\x00" * 100
+        content = self._make_test_image("GIF")
         res2 = admin_client.post(
             f"/api/employees/{emp_id}/photo",
             files={"file": ("photo.gif", io.BytesIO(content), "image/gif")},
         )
         assert res2.status_code == 200
+        assert res2.json()["path"].endswith(".webp")
+
+    def test_upload_photo_with_crop(self, admin_client: TestClient):
+        """POST photo with crop params → 200, cropped image stored as WebP."""
+        res = admin_client.get("/api/employees")
+        employees = res.json()
+        if not employees:
+            pytest.skip("No employees in DB")
+        emp_id = employees[0]["ID"]
+        content = self._make_test_image("JPEG")
+        res2 = admin_client.post(
+            f"/api/employees/{emp_id}/photo?crop_x=5&crop_y=5&crop_w=30&crop_h=30",
+            files={"file": ("photo.jpg", io.BytesIO(content), "image/jpeg")},
+        )
+        assert res2.status_code == 200
+        assert res2.json()["ok"] is True
+
+    def test_get_photo_after_upload(self, admin_client: TestClient):
+        """GET photo after upload → 200 with image/webp."""
+        res = admin_client.get("/api/employees")
+        employees = res.json()
+        if not employees:
+            pytest.skip("No employees in DB")
+        emp_id = employees[0]["ID"]
+        content = self._make_test_image("PNG")
+        admin_client.post(
+            f"/api/employees/{emp_id}/photo",
+            files={"file": ("photo.png", io.BytesIO(content), "image/png")},
+        )
+        res2 = admin_client.get(f"/api/employees/{emp_id}/photo")
+        assert res2.status_code == 200
+        assert "webp" in res2.headers.get("content-type", "")
+
+    def test_upload_photo_invalid_image_data(self, admin_client: TestClient):
+        """POST with valid content-type but corrupt image data → 400."""
+        res = admin_client.get("/api/employees")
+        employees = res.json()
+        if not employees:
+            pytest.skip("No employees in DB")
+        emp_id = employees[0]["ID"]
+        content = b"not-a-real-image-just-garbage-data"
+        res2 = admin_client.post(
+            f"/api/employees/{emp_id}/photo",
+            files={"file": ("photo.jpg", io.BytesIO(content), "image/jpeg")},
+        )
+        assert res2.status_code == 400
 
 
 class TestGroupWriteOps:

@@ -432,10 +432,18 @@ async def get_employee_photo(emp_id: int):
     from fastapi.responses import FileResponse as _FileResponse
 
     photos_dir = pathlib.Path(_PHOTOS_DIR)
-    for ext in (".jpg", ".jpeg", ".png", ".gif"):
+    # Prefer WebP, then fall back to other formats
+    for ext in (".webp", ".jpg", ".jpeg", ".png", ".gif"):
         p = photos_dir / f"{emp_id}{ext}"
         if p.exists():
-            return _FileResponse(str(p))
+            media_type = {
+                ".webp": "image/webp",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".gif": "image/gif",
+            }.get(ext, "application/octet-stream")
+            return _FileResponse(str(p), media_type=media_type)
     raise HTTPException(status_code=404, detail="Kein Foto vorhanden")
 
 
@@ -590,10 +598,23 @@ def remove_group_member(
     "/api/employees/{emp_id}/photo", tags=["Employees"], summary="Upload employee photo"
 )
 async def upload_employee_photo(
-    emp_id: int, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
+    emp_id: int,
+    file: UploadFile = File(...),
+    crop_x: int = Query(0, ge=0, description="Crop area X offset in pixels"),
+    crop_y: int = Query(0, ge=0, description="Crop area Y offset in pixels"),
+    crop_w: int = Query(0, ge=0, description="Crop area width in pixels (0 = full)"),
+    crop_h: int = Query(0, ge=0, description="Crop area height in pixels (0 = full)"),
+    _cur_user: dict = Depends(require_admin),
 ):
-    """Upload a photo for an employee (JPG/PNG/GIF)."""
+    """Upload a photo for an employee.
+
+    Accepts JPG/PNG/GIF/WebP.  The image is optionally cropped (if crop_w/crop_h > 0),
+    resized to fit within 400×400 px, and stored as WebP.
+    """
+    import io as _io
     import pathlib
+
+    from PIL import Image
 
     photos_dir = pathlib.Path(_PHOTOS_DIR)
     photos_dir.mkdir(parents=True, exist_ok=True)
@@ -606,15 +627,36 @@ async def upload_employee_photo(
         )
 
     ct = (file.content_type or "").lower()
-    allowed = ("image/jpeg", "image/png", "image/gif")
+    allowed = ("image/jpeg", "image/png", "image/gif", "image/webp")
     if ct not in allowed:
-        raise HTTPException(status_code=400, detail="Nur JPG, PNG oder GIF erlaubt")
+        raise HTTPException(status_code=400, detail="Nur JPG, PNG, GIF oder WebP erlaubt")
 
-    ext = ".jpg"
-    if ct == "image/png":
-        ext = ".png"
-    elif ct == "image/gif":
-        ext = ".gif"
+    content = await file.read()
+    _MAX_PHOTO_SIZE = 5 * 1024 * 1024  # 5 MB
+    if len(content) > _MAX_PHOTO_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (max. 5 MB)")
+
+    # Open image with Pillow
+    try:
+        img = Image.open(_io.BytesIO(content))
+        img = img.convert("RGB")  # ensure RGB for WebP
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bild konnte nicht gelesen werden")
+
+    # Apply crop if specified
+    if crop_w > 0 and crop_h > 0:
+        img_w, img_h = img.size
+        # Clamp crop to image bounds
+        cx = min(crop_x, img_w)
+        cy = min(crop_y, img_h)
+        cw = min(crop_w, img_w - cx)
+        ch = min(crop_h, img_h - cy)
+        if cw > 0 and ch > 0:
+            img = img.crop((cx, cy, cx + cw, cy + ch))
+
+    # Resize to max 400x400 preserving aspect ratio
+    max_size = (400, 400)
+    img.thumbnail(max_size, Image.LANCZOS)
 
     # Remove old photos for this employee
     for old in photos_dir.glob(f"{emp_id}.*"):
@@ -623,14 +665,13 @@ async def upload_employee_photo(
         except OSError:
             pass
 
-    dest = photos_dir / f"{emp_id}{ext}"
-    content = await file.read()
-    _MAX_PHOTO_SIZE = 5 * 1024 * 1024  # 5 MB
-    if len(content) > _MAX_PHOTO_SIZE:
-        raise HTTPException(status_code=413, detail="File too large (max. 5 MB)")
-    dest.write_bytes(content)
+    # Save as WebP
+    dest = photos_dir / f"{emp_id}.webp"
+    buf = _io.BytesIO()
+    img.save(buf, format="WEBP", quality=85)
+    dest.write_bytes(buf.getvalue())
 
-    rel_path = f"uploads/photos/{emp_id}{ext}"
+    rel_path = f"uploads/photos/{emp_id}.webp"
     try:
         db.update_employee(emp_id, {"PHOTO": rel_path})
     except Exception:
