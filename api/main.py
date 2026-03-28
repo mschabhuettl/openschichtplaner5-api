@@ -241,6 +241,9 @@ app = FastAPI(
     ),
     version="1.0.0",
     openapi_tags=_OPENAPI_TAGS,
+    docs_url="/api/v1/docs",
+    redoc_url="/api/v1/redoc",
+    openapi_url="/api/v1/openapi.json",
 )
 
 app.state.limiter = limiter
@@ -606,7 +609,9 @@ async def api_versioning_middleware(request: Request, call_next):
     path = request.url.path
     is_versioned = False
 
-    if path.startswith("/api/v1/") or path == "/api/v1":
+    # Don't rewrite OpenAPI docs paths — they are served directly by FastAPI
+    _DOCS_PATHS = {"/api/v1/docs", "/api/v1/redoc", "/api/v1/openapi.json"}
+    if (path.startswith("/api/v1/") or path == "/api/v1") and path not in _DOCS_PATHS:
         # Rewrite /api/v1/... → /api/...
         new_path = "/api" + path[7:]  # strip "/api/v1" prefix, keep rest
         request.scope["path"] = new_path
