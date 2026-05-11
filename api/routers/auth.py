@@ -309,7 +309,7 @@ def change_own_password(request: Request, body: SelfChangePasswordBody, user: di
         if not ok:
             raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
         # Invalidate all OTHER sessions (keep current)
-        removed = invalidate_sessions_for_user(user_id)
+        removed = invalidate_sessions_for_user(user_id, except_session_id=user.get("_session_id"))
         _logger.warning(
             "AUDIT PASSWORD_SELF_CHANGE | user=%s user_id=%d sessions_revoked=%d",
             username,
@@ -401,10 +401,12 @@ def reset_user_password(request: Request, user_id: int, admin: dict = Depends(re
                 employees = db.get_employees()
                 employee_email = None
                 for emp in employees:
-                    emp_name = f"{(emp.get('FIRSTNAME') or '').strip()} {(emp.get('SURNAME') or '').strip()}".strip()
+                    emp_surname = (emp.get("NAME") or "").strip()
+                    emp_firstname = (emp.get("FIRSTNAME") or "").strip()
+                    emp_full = f"{emp_firstname} {emp_surname}".strip()
                     if (emp.get("EMAIL") or "").strip() and (
-                        emp_name.lower() == target_name.lower()
-                        or (emp.get("SURNAME") or "").strip().lower() == target_name.lower()
+                        emp_full.lower() == target_name.lower()
+                        or emp_surname.lower() == target_name.lower()
                     ):
                         employee_email = emp["EMAIL"].strip()
                         break

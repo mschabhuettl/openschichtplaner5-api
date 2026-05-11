@@ -681,7 +681,7 @@ async def api_versioning_middleware(request: Request, call_next):
     # Add deprecation headers on unversioned /api/ routes (not /api/v1/)
     if not is_versioned and path.startswith("/api/"):
         response.headers["Deprecation"] = "true"
-        sunset_date = (_dt.now() + timedelta(days=365)).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        sunset_date = (_dt.now(UTC) + timedelta(days=365)).strftime("%a, %d %b %Y %H:%M:%S GMT")
         response.headers["Sunset"] = sunset_date
         response.headers["Link"] = f'</api/v1{path[4:]}>; rel="successor-version"'
 

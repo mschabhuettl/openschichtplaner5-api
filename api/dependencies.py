@@ -311,12 +311,18 @@ def get_db():
         return SP5Database(_main.DB_PATH)
 
 
-def invalidate_sessions_for_user(user_id: int) -> int:
+def invalidate_sessions_for_user(user_id: int, except_session_id: str | None = None) -> int:
     """Remove all active sessions for a given user ID. Returns count removed.
 
-    Works for both legacy token keys and JWT session IDs.
+    Works for both legacy token keys and JWT session IDs. If except_session_id
+    is provided, the matching session is preserved (used to keep the caller's
+    own session alive on self-service password changes).
     """
-    to_remove = [tok for tok, s in _sessions.items() if s.get("ID") == user_id]
+    to_remove = [
+        tok
+        for tok, s in _sessions.items()
+        if s.get("ID") == user_id and s.get("_session_id") != except_session_id
+    ]
     for tok in to_remove:
         del _sessions[tok]
     return len(to_remove)
