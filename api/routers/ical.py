@@ -191,7 +191,7 @@ def _generate_ical_response(
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
 
     emp_name = (
-        f"{employee.get('FIRSTNAME', '')} {employee.get('LASTNAME', '')}".strip()
+        f"{employee.get('FIRSTNAME', '')} {employee.get('NAME', '')}".strip()
         or employee.get("NAME", f"MA-{employee_id}")
     )
 
@@ -357,7 +357,7 @@ def _generate_feed_ical(employee_id: int, months_back: int = 1, months_ahead: in
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
 
     emp_name = (
-        f"{employee.get('FIRSTNAME', '')} {employee.get('LASTNAME', '')}".strip()
+        f"{employee.get('FIRSTNAME', '')} {employee.get('NAME', '')}".strip()
         or employee.get("NAME", f"MA-{employee_id}")
     )
 

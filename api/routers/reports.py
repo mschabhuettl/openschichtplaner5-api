@@ -423,7 +423,7 @@ def get_shift_statistics(
             {
                 "employee_id": eid,
                 "name": (
-                    emp.get("LASTNAME", "") + " " + emp.get("FIRSTNAME", "")
+                    emp.get("NAME", "") + " " + emp.get("FIRSTNAME", "")
                 ).strip(),
                 "short": emp.get("SHORTNAME", ""),
                 "total_shifts": sum(shift_counts.values()),

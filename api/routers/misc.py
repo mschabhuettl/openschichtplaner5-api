@@ -712,7 +712,7 @@ def list_swap_requests(
                     return {
                         "id": sid,
                         "name": s.get("SHORTNAME", "?"),
-                        "color": s.get("COLOR", "#888"),
+                        "color": s.get("COLORBK_HEX", "#888"),
                     }
         return None
 
