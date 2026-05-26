@@ -98,6 +98,17 @@ class TestStorage:
         loaded = _load_webhooks()
         assert len(loaded) == 2
 
+    def test_load_corrupt_file_returns_empty(self, clean_webhooks_file):
+        with open(clean_webhooks_file, "w", encoding="utf-8") as f:
+            f.write("not json{")
+        assert _load_webhooks() == []
+
+    def test_next_id(self):
+        from api.routers.webhooks import _next_id
+
+        assert _next_id([]) == 1
+        assert _next_id([{"id": 1}, {"id": 4}]) == 5
+
 
 # ── Delivery Tests ───────────────────────────────────────────────
 
@@ -135,9 +146,7 @@ class TestDelivery:
 
         with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
             with patch("api.routers.webhooks.BACKOFF_MS", 1):  # Fast backoff for tests
-                result = await deliver_webhook(
-                    sample_webhook, "shift.created", {"id": 1}
-                )
+                result = await deliver_webhook(sample_webhook, "shift.created", {"id": 1})
 
         assert result["success"] is True
         assert result["attempt"] == 2
@@ -154,9 +163,7 @@ class TestDelivery:
 
         with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
             with patch("api.routers.webhooks.BACKOFF_MS", 1):
-                result = await deliver_webhook(
-                    sample_webhook, "shift.created", {"id": 1}
-                )
+                result = await deliver_webhook(sample_webhook, "shift.created", {"id": 1})
 
         assert result["success"] is False
         assert result["attempt"] == 3
@@ -171,9 +178,7 @@ class TestDelivery:
 
         with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
             with patch("api.routers.webhooks.BACKOFF_MS", 1):
-                result = await deliver_webhook(
-                    sample_webhook, "shift.created", {"id": 1}
-                )
+                result = await deliver_webhook(sample_webhook, "shift.created", {"id": 1})
 
         assert result["success"] is False
         assert "Connection refused" in result["error"]
@@ -244,6 +249,19 @@ class TestDispatch:
         with patch("api.routers.webhooks.deliver_webhook", new_callable=AsyncMock) as mock_deliver:
             await dispatch_event("shift.created", {"id": 1})
             mock_deliver.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_dispatch_records_delivery_failure(self, sample_webhook):
+        _save_webhooks([sample_webhook])
+        with patch(
+            "api.routers.webhooks.deliver_webhook",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("boom"),
+        ):
+            await dispatch_event("shift.created", {"id": 1})
+        loaded = _load_webhooks()
+        assert loaded[0]["last_delivery"]["success"] is False
+        assert "boom" in loaded[0]["last_delivery"]["error"]
 
 
 # ── CRUD Tests (via FastAPI TestClient) ──────────────────────────
@@ -339,6 +357,46 @@ class TestCRUDEndpoints:
         assert resp.json()["record"]["name"] == "Updated"
         assert resp.json()["record"]["active"] is False
 
+    def test_update_all_fields(self, client):
+        wh_id = client.post(
+            "/api/webhooks",
+            json={"url": "https://example.com/a", "name": "A", "events": ["shift.created"]},
+        ).json()["record"]["id"]
+        resp = client.put(
+            f"/api/webhooks/{wh_id}",
+            json={
+                "url": "https://example.com/b",
+                "name": "B",
+                "events": ["shift.updated"],
+                "active": False,
+            },
+        )
+        assert resp.status_code == 200
+        rec = resp.json()["record"]
+        assert rec["url"] == "https://example.com/b"
+        assert rec["events"] == ["shift.updated"]
+        assert rec["active"] is False
+
+    def test_update_nonexistent_webhook(self, client):
+        resp = client.put("/api/webhooks/999", json={"name": "X"})
+        assert resp.status_code == 404
+
+    def test_update_invalid_url(self, client):
+        wh_id = client.post(
+            "/api/webhooks",
+            json={"url": "https://example.com/a", "name": "A", "events": ["shift.created"]},
+        ).json()["record"]["id"]
+        resp = client.put(f"/api/webhooks/{wh_id}", json={"url": "ftp://bad"})
+        assert resp.status_code == 422
+
+    def test_update_invalid_events(self, client):
+        wh_id = client.post(
+            "/api/webhooks",
+            json={"url": "https://example.com/a", "name": "A", "events": ["shift.created"]},
+        ).json()["record"]["id"]
+        resp = client.put(f"/api/webhooks/{wh_id}", json={"events": ["bogus.event"]})
+        assert resp.status_code == 422
+
     def test_delete_webhook(self, client):
         create_resp = client.post(
             "/api/webhooks",
@@ -429,3 +487,7 @@ class TestTestEndpoint:
         data = resp.json()
         assert data["ok"] is True
         assert data["delivery"]["success"] is True
+
+    def test_test_webhook_nonexistent(self, client):
+        resp = client.post("/api/webhooks/999/test")
+        assert resp.status_code == 404
