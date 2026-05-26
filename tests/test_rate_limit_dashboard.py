@@ -19,6 +19,7 @@ class TestRateLimitStore:
 
     def teardown_method(self):
         import shutil
+
         shutil.rmtree(self._tmpdir, ignore_errors=True)
 
     def test_log_and_read_events(self):
@@ -26,9 +27,15 @@ class TestRateLimitStore:
             from api.rate_limit_store import get_rate_limit_events, log_rate_limit_event
 
             # Log some events
-            log_rate_limit_event(user="Alice", ip="1.2.3.4", endpoint="/api/login", detail="5 per 1 minute")
-            log_rate_limit_event(user="Bob", ip="5.6.7.8", endpoint="/api/schedule", detail="100 per 1 minute")
-            log_rate_limit_event(user=None, ip="9.9.9.9", endpoint="/api/login", detail="5 per 1 minute")
+            log_rate_limit_event(
+                user="Alice", ip="1.2.3.4", endpoint="/api/login", detail="5 per 1 minute"
+            )
+            log_rate_limit_event(
+                user="Bob", ip="5.6.7.8", endpoint="/api/schedule", detail="100 per 1 minute"
+            )
+            log_rate_limit_event(
+                user=None, ip="9.9.9.9", endpoint="/api/login", detail="5 per 1 minute"
+            )
 
             events = get_rate_limit_events()
             assert len(events) == 3
@@ -62,12 +69,15 @@ class TestRateLimitStore:
     def test_empty_file(self):
         with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
             from api.rate_limit_store import get_rate_limit_events
+
             events = get_rate_limit_events()
             assert events == []
 
     def test_rotate_events(self):
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile), \
-             patch("api.rate_limit_store._MAX_EVENTS", 5):
+        with (
+            patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
+            patch("api.rate_limit_store._MAX_EVENTS", 5),
+        ):
             from api.rate_limit_store import (
                 get_rate_limit_events,
                 log_rate_limit_event,
@@ -84,6 +94,107 @@ class TestRateLimitStore:
             assert len(events) == 5
 
 
+class TestRateLimitStoreEdgeCases:
+    """Filter, malformed-input and failure branches of the store."""
+
+    def setup_method(self):
+        self._tmpdir = tempfile.mkdtemp()
+        self._logfile = os.path.join(self._tmpdir, "rl_events.jsonl")
+
+    def teardown_method(self):
+        import shutil
+
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_log_swallows_write_errors(self):
+        """A write failure in the request path must never raise."""
+        # Parent of the log path is a regular file → makedirs/open fail, swallowed.
+        notadir = os.path.join(self._tmpdir, "notadir")
+        with open(notadir, "w"):
+            pass
+        bad_log = os.path.join(notadir, "events.jsonl")
+        with patch("api.rate_limit_store._RATE_LIMIT_LOG", bad_log):
+            from api.rate_limit_store import log_rate_limit_event
+
+            # Must not raise despite the unwritable path.
+            log_rate_limit_event(user="X", ip="1.1.1.1", endpoint="/api/x")
+
+    def test_blank_and_malformed_lines_are_skipped(self):
+        """Empty and non-JSON lines are ignored when reading."""
+        with open(self._logfile, "w", encoding="utf-8") as f:
+            f.write("\n")  # blank line
+            f.write("   \n")  # whitespace-only line
+            f.write("not json{\n")  # malformed JSON
+            f.write(
+                json.dumps(
+                    {
+                        "timestamp": "2026-01-01T00:00:00.000Z",
+                        "user": "X",
+                        "ip": "1",
+                        "endpoint": "/a",
+                    }
+                )
+                + "\n"
+            )
+        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from api.rate_limit_store import get_rate_limit_events
+
+            events = get_rate_limit_events()
+            assert len(events) == 1
+            assert events[0]["user"] == "X"
+
+    def test_get_swallows_read_errors(self):
+        """A read failure returns an empty list rather than propagating."""
+        with open(self._logfile, "w", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "timestamp": "2026-01-01T00:00:00.000Z",
+                        "user": "X",
+                        "ip": "1",
+                        "endpoint": "/a",
+                    }
+                )
+                + "\n"
+            )
+        with (
+            patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
+            patch("builtins.open", side_effect=OSError("boom")),
+        ):
+            from api.rate_limit_store import get_rate_limit_events
+
+            assert get_rate_limit_events() == []
+
+    def test_rotate_no_file_returns_zero(self):
+        """Rotating a non-existent log is a no-op."""
+        missing = os.path.join(self._tmpdir, "does-not-exist.jsonl")
+        with patch("api.rate_limit_store._RATE_LIMIT_LOG", missing):
+            from api.rate_limit_store import rotate_events
+
+            assert rotate_events() == 0
+
+    def test_rotate_under_max_returns_zero(self):
+        """Rotating below the cap removes nothing."""
+        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from api.rate_limit_store import log_rate_limit_event, rotate_events
+
+            for i in range(3):
+                log_rate_limit_event(user=f"u{i}", ip="1.1.1.1", endpoint="/api/x")
+            assert rotate_events() == 0
+
+    def test_rotate_swallows_errors(self):
+        """A failure while rotating returns 0 rather than raising."""
+        with open(self._logfile, "w", encoding="utf-8") as f:
+            f.write("x\n")
+        with (
+            patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
+            patch("builtins.open", side_effect=OSError("boom")),
+        ):
+            from api.rate_limit_store import rotate_events
+
+            assert rotate_events() == 0
+
+
 # ── API endpoint tests ───────────────────────────────────────────────────────
 
 
@@ -97,9 +208,27 @@ class TestRateLimitAPI:
 
         # Seed some events
         events = [
-            {"timestamp": "2026-03-28T01:00:00.000Z", "user": "Alice", "ip": "1.2.3.4", "endpoint": "/api/login", "detail": "5 per 1 minute"},
-            {"timestamp": "2026-03-28T02:00:00.000Z", "user": "Bob", "ip": "5.6.7.8", "endpoint": "/api/schedule", "detail": "100 per 1 minute"},
-            {"timestamp": "2026-03-28T03:00:00.000Z", "user": "", "ip": "9.9.9.9", "endpoint": "/api/login", "detail": "5 per 1 minute"},
+            {
+                "timestamp": "2026-03-28T01:00:00.000Z",
+                "user": "Alice",
+                "ip": "1.2.3.4",
+                "endpoint": "/api/login",
+                "detail": "5 per 1 minute",
+            },
+            {
+                "timestamp": "2026-03-28T02:00:00.000Z",
+                "user": "Bob",
+                "ip": "5.6.7.8",
+                "endpoint": "/api/schedule",
+                "detail": "100 per 1 minute",
+            },
+            {
+                "timestamp": "2026-03-28T03:00:00.000Z",
+                "user": "",
+                "ip": "9.9.9.9",
+                "endpoint": "/api/login",
+                "detail": "5 per 1 minute",
+            },
         ]
         with open(self._logfile, "w") as f:
             for evt in events:
@@ -108,6 +237,7 @@ class TestRateLimitAPI:
         yield
 
         import shutil
+
         shutil.rmtree(self._tmpdir, ignore_errors=True)
 
     def test_admin_endpoint_returns_events(self):
@@ -115,6 +245,7 @@ class TestRateLimitAPI:
         with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
             # Import app after patching
             from api.rate_limit_store import get_rate_limit_events
+
             events = get_rate_limit_events()
             assert len(events) == 3
 
@@ -137,6 +268,7 @@ class TestRateLimitAPI:
         """Events can be filtered by since parameter."""
         with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
             from api.rate_limit_store import get_rate_limit_events
+
             events = get_rate_limit_events(since="2026-03-28T02:00:00.000Z")
             assert len(events) == 2  # Bob + anonymous
 
@@ -144,5 +276,6 @@ class TestRateLimitAPI:
         """Events can be filtered by until parameter."""
         with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
             from api.rate_limit_store import get_rate_limit_events
+
             events = get_rate_limit_events(until="2026-03-28T01:30:00.000Z")
             assert len(events) == 1  # Alice only
