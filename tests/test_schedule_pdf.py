@@ -227,3 +227,99 @@ class TestSchedulePdfContent:
         r2 = sync_client.get("/api/v1/schedule/pdf?year=2024&month=1")
         assert r1.status_code == 200
         assert r2.status_code == 200
+
+
+# ── _build_schedule_html unit tests (entries-present + group paths) ──────────
+
+
+class _StubDB:
+    """Minimal db stub for exercising _build_schedule_html directly."""
+
+    def __init__(self, entries, groups=None):
+        self._entries = entries
+        self._groups = groups or []
+
+    def get_schedule(self, year, month, group_id=None):
+        return self._entries
+
+    def get_groups(self):
+        return self._groups
+
+    def get_employees(self, include_hidden=False):
+        return []
+
+    def get_group_members(self, gid):
+        return []
+
+
+class TestBuildScheduleHtml:
+    """Directly exercise the HTML builder for the with-entries / group branches."""
+
+    def _entries(self):
+        return [
+            {  # a shift entry → shift_short label
+                "employee_id": 1,
+                "employee_name": "Müller, Anna",
+                "employee_short": "MA",
+                "date": "2024-07-15",
+                "kind": "shift",
+                "shift_short": "F",
+                "shift_name": "Frühschicht",
+            },
+            {  # an absence entry → leave_short label
+                "employee_id": 2,
+                "employee_name": "Bauer, Tom",
+                "employee_short": "BT",
+                "date": "2024-07-16",
+                "kind": "absence",
+                "leave_short": "U",
+                "leave_name": "Urlaub",
+            },
+            {  # display_name branch + out-of-range/short date guards
+                "employee_id": 1,
+                "employee_name": "Müller, Anna",
+                "date": "2024-07-31",
+                "kind": "shift",
+                "display_name": "X",
+            },
+        ]
+
+    def test_renders_grid_with_entries(self):
+        from api.routers.schedule_pdf import _build_schedule_html
+
+        html = _build_schedule_html(2024, 7, None, _StubDB(self._entries()))
+        assert html.strip().lower().startswith("<!doctype html")
+        assert "<table" in html
+        assert "Müller" in html and "Bauer" in html
+        assert "F" in html and "U" in html  # shift + absence labels
+        assert "Juli" in html and "2024" in html
+
+    def test_group_name_shown_when_group_given(self):
+        from api.routers.schedule_pdf import _build_schedule_html
+
+        groups = [{"ID": 5, "NAME": "Team Nord"}]
+        html = _build_schedule_html(2024, 7, 5, _StubDB(self._entries(), groups))
+        assert "Team Nord" in html
+
+    def test_ignores_bad_dates(self):
+        from api.routers.schedule_pdf import _build_schedule_html
+
+        bad = [
+            {"employee_id": 1, "employee_name": "A", "date": "bad", "kind": "shift", "shift_short": "F"},
+            {"employee_id": 1, "employee_name": "A", "date": "2024-07-99", "kind": "shift", "shift_short": "F"},
+        ]
+        html = _build_schedule_html(2024, 7, None, _StubDB(bad))
+        assert "<table" in html  # builds without raising
+
+
+class TestSchedulePdfGroupValidation:
+    def test_invalid_group_returns_404(self, sync_client):
+        from api.main import _sessions
+
+        tok = _planer_token(_sessions)
+        resp = sync_client.get(
+            "/api/v1/schedule/pdf?year=2024&month=7&group_id=999999",
+            headers={"X-Auth-Token": tok},
+        )
+        _sessions.pop(tok, None)
+        assert resp.status_code == 404
