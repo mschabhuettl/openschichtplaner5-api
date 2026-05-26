@@ -168,3 +168,92 @@ class TestCreateAbsence:
             assert resp.status_code == 404
         finally:
             _sessions.pop(tok, None)
+
+
+class _BulkDB:
+    """Per-employee add_absence behaviour: 'ok' | 'skip' (ValueError) | 'error'."""
+
+    def __init__(self, employees, behavior=None, leave_type=True):
+        self._employees = employees
+        self._behavior = behavior or {}
+        self._leave_type = leave_type
+
+    def get_leave_type(self, ltid):
+        return {"ID": ltid, "NAME": "Urlaub"} if self._leave_type else None
+
+    def get_employees(self, include_hidden=False):
+        return self._employees
+
+    def add_absence(self, eid, date, ltid):
+        b = self._behavior.get(eid, "ok")
+        if b == "skip":
+            raise ValueError("already exists")
+        if b == "error":
+            raise RuntimeError("save boom")
+        return {"ID": eid}
+
+
+def _bulk_client(monkeypatch, db):
+    from api.main import app
+
+    monkeypatch.setattr(absences, "get_db", lambda: db)
+    monkeypatch.setattr(absences, "create_notification", lambda **kwargs: None)
+    monkeypatch.setattr(absences, "_load_absence_status", lambda: {})
+    monkeypatch.setattr(absences, "_save_absence_status", lambda data: None)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+class TestBulkCreateAbsence:
+    _URL = "/api/absences/bulk"
+
+    def test_mixed_created_skipped_errors(self, monkeypatch):
+        from api.main import _sessions
+
+        db = _BulkDB(
+            [{"ID": 1}, {"ID": 2}, {"ID": 3}],
+            behavior={1: "ok", 2: "skip", 3: "error"},
+        )
+        tok = _planer_session()
+        try:
+            client = _bulk_client(monkeypatch, db)
+            client.headers["X-Auth-Token"] = tok
+            resp = client.post(
+                self._URL,
+                json={"date": "2026-07-15", "leave_type_id": 1, "employee_ids": [1, 2, 3]},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["created"] == 1
+            assert data["skipped"] == 1
+            assert len(data["errors"]) == 1
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_all_active_when_no_ids(self, monkeypatch):
+        from api.main import _sessions
+
+        db = _BulkDB([{"ID": 1}, {"ID": 2}])  # all default to "ok"
+        tok = _planer_session()
+        try:
+            client = _bulk_client(monkeypatch, db)
+            client.headers["X-Auth-Token"] = tok
+            resp = client.post(self._URL, json={"date": "2026-07-15", "leave_type_id": 1})
+            assert resp.status_code == 200
+            assert resp.json()["created"] == 2  # both active employees
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_leave_type_not_found_404(self, monkeypatch):
+        from api.main import _sessions
+
+        db = _BulkDB([{"ID": 1}], leave_type=False)
+        tok = _planer_session()
+        try:
+            client = _bulk_client(monkeypatch, db)
+            client.headers["X-Auth-Token"] = tok
+            resp = client.post(
+                self._URL, json={"date": "2026-07-15", "leave_type_id": 99, "employee_ids": [1]}
+            )
+            assert resp.status_code == 404
+        finally:
+            _sessions.pop(tok, None)
