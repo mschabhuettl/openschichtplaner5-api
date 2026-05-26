@@ -59,16 +59,21 @@ class _FlexModel(BaseModel):
 
 
 class EmployeeResponse(_FlexModel):
+    # Field names mirror the real DBF/SP5Database keys (extra columns pass through
+    # via _FlexModel). Previously this declared HIDDEN/EMPLOYEENO/GROUPID/WORKPLACEID/
+    # CONTRACTHOURS, none of which exist on the payload — they only surfaced as
+    # misleading always-null fields in the OpenAPI schema.
     ID: int
     NAME: str
     FIRSTNAME: str | None = None
     SHORTNAME: str | None = None
     BIRTHDAY: str | None = None
-    HIDDEN: bool | None = None
-    EMPLOYEENO: str | None = None
-    GROUPID: int | None = None
-    WORKPLACEID: int | None = None
-    CONTRACTHOURS: float | None = None
+    HIDE: bool | None = None
+    NUMBER: str | None = None
+    POSITION: int | None = None
+    FUNCTION: str | None = None
+    EMAIL: str | None = None
+    PHONE: str | None = None
 
 
 # ── Group ─────────────────────────────────────────────────────────────────────
@@ -78,7 +83,7 @@ class GroupResponse(_FlexModel):
     ID: int
     NAME: str
     SHORTNAME: str | None = None
-    HIDDEN: bool | None = None
+    HIDE: bool | None = None  # real DBF key (was HIDDEN, which was always null)
     member_count: int | None = None
 
 
