@@ -295,6 +295,10 @@ def change_own_password(request: Request, body: SelfChangePasswordBody, user: di
     """Self-service password change: verify old password, set new one."""
     username = user.get("NAME", "")
     user_id = user.get("ID")
+    if user_id is None:
+        # An authenticated session always carries an int ID; guard defensively and
+        # narrow the type for the session-invalidation call below.
+        raise HTTPException(status_code=401, detail="Ungültige Sitzung")
 
     # Verify old password
     db = get_db()
