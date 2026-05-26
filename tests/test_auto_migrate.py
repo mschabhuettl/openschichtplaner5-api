@@ -88,7 +88,7 @@ class TestDbfBackup:
         dbf_dir.mkdir()
         (dbf_dir / "5EMPL.DBF").write_text("fake dbf data")
 
-        with patch("sp5lib.auto_migrate._BACKEND_DIR", tmp_path):
+        with patch.dict(os.environ, {"SP5_BACKEND_DIR": str(tmp_path)}):
             result = _create_dbf_backup(str(dbf_dir))
 
         assert result is not None
@@ -255,7 +255,7 @@ class TestRunStartupMigrationDbf:
         backend_dir = tmp_path / "backend"
         backend_dir.mkdir()
 
-        with patch("sp5lib.auto_migrate._BACKEND_DIR", backend_dir):
+        with patch.dict(os.environ, {"SP5_BACKEND_DIR": str(backend_dir)}):
             result = run_startup_migration()
 
         assert result.success is True

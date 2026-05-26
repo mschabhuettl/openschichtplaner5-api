@@ -9,6 +9,14 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
+# Tell the libopenschichtplaner5 (sp5lib) package where this app's backend root is,
+# so it can locate backend/data, backend/api/data and the Alembic dir even when
+# installed standalone in site-packages. Computed relative to this file
+# (api/main.py → api/ → backend/). setdefault so an explicit env override wins.
+os.environ.setdefault(
+    "SP5_BACKEND_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+
 _APP_START_TIME = _startup_time_module.time()
 
 
