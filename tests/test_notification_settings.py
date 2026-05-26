@@ -1,7 +1,6 @@
 """Tests for notification settings endpoint (Q080)."""
 
 
-
 class TestNotificationSettingsGet:
     def test_get_settings_authenticated_ok(self, sync_client):
         resp = sync_client.get("/api/v1/notifications/settings")
@@ -21,15 +20,21 @@ class TestNotificationSettingsGet:
         resp = sync_client.get("/api/v1/notifications/settings")
         settings = resp.json()["settings"]
         expected_keys = [
-            "shift_assigned", "shift_changed", "swap_requested",
-            "swap_approved", "swap_rejected", "vacation_approved",
-            "vacation_rejected", "schedule_comment_added",
+            "shift_assigned",
+            "shift_changed",
+            "swap_requested",
+            "swap_approved",
+            "swap_rejected",
+            "vacation_approved",
+            "vacation_rejected",
+            "schedule_comment_added",
         ]
         for key in expected_keys:
             assert key in settings, f"Missing key: {key}"
 
     def test_get_settings_unauthenticated_returns_401(self, app):
         from starlette.testclient import TestClient
+
         bare_client = TestClient(app)
         resp = bare_client.get("/api/v1/notifications/settings")
         assert resp.status_code == 401
@@ -51,11 +56,19 @@ class TestNotificationSettingsUpdate:
         assert resp.status_code == 200
 
     def test_update_returns_updated_flag(self, sync_client):
-        payload = {k: True for k in [
-            "shift_assigned", "shift_changed", "swap_requested",
-            "swap_approved", "swap_rejected", "vacation_approved",
-            "vacation_rejected", "schedule_comment_added",
-        ]}
+        payload = {
+            k: True
+            for k in [
+                "shift_assigned",
+                "shift_changed",
+                "swap_requested",
+                "swap_approved",
+                "swap_rejected",
+                "vacation_approved",
+                "vacation_rejected",
+                "schedule_comment_added",
+            ]
+        }
         resp = sync_client.put("/api/v1/notifications/settings", json=payload)
         assert resp.json()["updated"] is True
 
@@ -75,11 +88,19 @@ class TestNotificationSettingsUpdate:
         assert resp.json()["settings"]["shift_assigned"] is False
 
     def test_update_all_false(self, sync_client):
-        payload = {k: False for k in [
-            "shift_assigned", "shift_changed", "swap_requested",
-            "swap_approved", "swap_rejected", "vacation_approved",
-            "vacation_rejected", "schedule_comment_added",
-        ]}
+        payload = {
+            k: False
+            for k in [
+                "shift_assigned",
+                "shift_changed",
+                "swap_requested",
+                "swap_approved",
+                "swap_rejected",
+                "vacation_approved",
+                "vacation_rejected",
+                "schedule_comment_added",
+            ]
+        }
         resp = sync_client.put("/api/v1/notifications/settings", json=payload)
         assert resp.status_code == 200
         settings = resp.json()["settings"]
@@ -87,11 +108,19 @@ class TestNotificationSettingsUpdate:
             assert val is False
 
     def test_update_all_true(self, sync_client):
-        payload = {k: True for k in [
-            "shift_assigned", "shift_changed", "swap_requested",
-            "swap_approved", "swap_rejected", "vacation_approved",
-            "vacation_rejected", "schedule_comment_added",
-        ]}
+        payload = {
+            k: True
+            for k in [
+                "shift_assigned",
+                "shift_changed",
+                "swap_requested",
+                "swap_approved",
+                "swap_rejected",
+                "vacation_approved",
+                "vacation_rejected",
+                "schedule_comment_added",
+            ]
+        }
         resp = sync_client.put("/api/v1/notifications/settings", json=payload)
         assert resp.status_code == 200
         settings = resp.json()["settings"]
@@ -100,9 +129,25 @@ class TestNotificationSettingsUpdate:
 
     def test_update_unauthenticated_returns_401(self, app):
         from starlette.testclient import TestClient
+
         bare_client = TestClient(app)
         resp = bare_client.put(
             "/api/v1/notifications/settings",
             json={"shift_assigned": False},
         )
         assert resp.status_code == 401
+
+
+class TestNotificationSettingsStorage:
+    def test_load_all_returns_empty_on_corrupt_file(self, tmp_path):
+        """A corrupt settings file is swallowed and treated as empty."""
+        from unittest.mock import patch
+
+        import api.routers.notification_settings as ns
+
+        bad = tmp_path / "notification_settings.json"
+        bad.write_text("not json{", encoding="utf-8")
+        with patch.object(ns, "_SETTINGS_FILE", str(bad)):
+            assert ns._load_all() == {}
+            # get_user_settings then falls back to the full defaults
+            assert ns.get_user_settings(42) == ns.DEFAULT_SETTINGS
