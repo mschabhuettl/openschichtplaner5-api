@@ -769,7 +769,7 @@ def get_frontend_errors(_cur_user: dict = Depends(require_admin)):
 
 
 @router.get(
-    "/api/v1/admin/rate-limits",
+    "/api/admin/rate-limits",
     tags=["Admin"],
     summary="Rate-limit events (Admin)",
     description=(
