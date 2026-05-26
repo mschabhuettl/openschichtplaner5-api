@@ -44,6 +44,7 @@ class TestSchedulePdfBasic:
     def test_returns_200_with_planer(self, sync_client):
         """Planer role should get a 200 HTML response."""
         from api.main import _sessions
+
         tok = _planer_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=1",
@@ -55,6 +56,7 @@ class TestSchedulePdfBasic:
     def test_content_type_is_html(self, sync_client):
         """Response must have text/html content-type."""
         from api.main import _sessions
+
         tok = _planer_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=1",
@@ -66,6 +68,7 @@ class TestSchedulePdfBasic:
     def test_html_contains_doctype(self, sync_client):
         """Response body must start with an HTML doctype."""
         from api.main import _sessions
+
         tok = _planer_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=1",
@@ -78,6 +81,7 @@ class TestSchedulePdfBasic:
     def test_html_contains_month_year(self, sync_client):
         """HTML must mention the requested month and year."""
         from api.main import _sessions
+
         tok = _planer_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=3",
@@ -91,6 +95,7 @@ class TestSchedulePdfBasic:
     def test_html_contains_table(self, sync_client):
         """HTML must contain a <table> element for the schedule grid."""
         from api.main import _sessions
+
         tok = _planer_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=6",
@@ -103,6 +108,7 @@ class TestSchedulePdfBasic:
     def test_html_contains_a4_landscape_css(self, sync_client):
         """HTML must declare A4 landscape page layout for printing."""
         from api.main import _sessions
+
         tok = _planer_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=1",
@@ -121,6 +127,7 @@ class TestSchedulePdfAuth:
     def test_requires_auth(self, app):
         """Unauthenticated request must return 401."""
         from starlette.testclient import TestClient
+
         with TestClient(app, raise_server_exceptions=True) as c:
             resp = c.get("/api/v1/schedule/pdf?year=2024&month=1")
         assert resp.status_code == 401
@@ -128,6 +135,7 @@ class TestSchedulePdfAuth:
     def test_leser_role_forbidden(self, sync_client):
         """Leser (read-only) role must be rejected with 403."""
         from api.main import _sessions
+
         tok = _leser_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=1",
@@ -173,9 +181,7 @@ class TestSchedulePdfValidation:
 
     def test_invalid_group_id_404(self, sync_client):
         """Non-existent group_id must return 404."""
-        resp = sync_client.get(
-            "/api/v1/schedule/pdf?year=2024&month=1&group_id=999999"
-        )
+        resp = sync_client.get("/api/v1/schedule/pdf?year=2024&month=1&group_id=999999")
         assert resp.status_code == 404
 
     def test_all_months_accessible(self, sync_client):
@@ -197,6 +203,7 @@ class TestSchedulePdfContent:
     def test_html_contains_day_numbers(self, sync_client):
         """The schedule table header must include day numbers 1 through 28+."""
         from api.main import _sessions
+
         tok = _planer_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=2",  # Feb 2024 = 29 days
@@ -212,6 +219,7 @@ class TestSchedulePdfContent:
     def test_html_contains_print_css(self, sync_client):
         """HTML must contain @media print CSS block."""
         from api.main import _sessions
+
         tok = _planer_token(_sessions)
         resp = sync_client.get(
             "/api/v1/schedule/pdf?year=2024&month=1",
@@ -305,11 +313,103 @@ class TestBuildScheduleHtml:
         from api.routers.schedule_pdf import _build_schedule_html
 
         bad = [
-            {"employee_id": 1, "employee_name": "A", "date": "bad", "kind": "shift", "shift_short": "F"},
-            {"employee_id": 1, "employee_name": "A", "date": "2024-07-99", "kind": "shift", "shift_short": "F"},
+            {
+                "employee_id": 1,
+                "employee_name": "A",
+                "date": "bad",
+                "kind": "shift",
+                "shift_short": "F",
+            },
+            {
+                "employee_id": 1,
+                "employee_name": "A",
+                "date": "2024-07-99",
+                "kind": "shift",
+                "shift_short": "F",
+            },
         ]
         html = _build_schedule_html(2024, 7, None, _StubDB(bad))
         assert "<table" in html  # builds without raising
+
+    def test_non_numeric_day_is_skipped(self):
+        # A date that's long enough but has a non-numeric day → int() raises → skip.
+        from api.routers.schedule_pdf import _build_schedule_html
+
+        entries = [
+            {
+                "employee_id": 1,
+                "employee_name": "A",
+                "date": "2024-07-ab",
+                "kind": "shift",
+                "shift_short": "F",
+            },
+        ]
+        html = _build_schedule_html(2024, 7, None, _StubDB(entries))
+        assert "<table" in html  # builds without raising
+
+    def test_today_is_highlighted_in_current_month(self):
+        from datetime import date
+
+        from api.routers.schedule_pdf import _build_schedule_html
+
+        today = date.today()
+        entries = [
+            {
+                "employee_id": 1,
+                "employee_name": "A",
+                "date": today.isoformat(),
+                "kind": "shift",
+                "shift_short": "F",
+            },
+        ]
+        html = _build_schedule_html(today.year, today.month, None, _StubDB(entries))
+        assert "today" in html  # the is_today CSS class is applied
+
+
+class _EmpStub(_StubDB):
+    """Stub whose employee list / group members are configurable, for the
+    no-schedule-entries fallback path."""
+
+    def __init__(self, emps, members=None, groups=None):
+        super().__init__([], groups)
+        self._emps = emps
+        self._members = members
+
+    def get_employees(self, include_hidden=False):
+        return self._emps
+
+    def get_group_members(self, gid):
+        return self._members or []
+
+
+class TestBuildScheduleHtmlNoEntries:
+    """When there are no schedule entries, employees come from the roster/group."""
+
+    def test_falls_back_to_all_employees(self):
+        from api.routers.schedule_pdf import _build_schedule_html
+
+        stub = _EmpStub([{"ID": 1, "NAME": "Solo", "FIRSTNAME": "Sam"}])
+        html = _build_schedule_html(2024, 7, None, stub)
+        assert "<table" in html
+        assert "Keine Mitarbeiter" not in html
+
+    def test_group_filter_restricts_fallback_employees(self):
+        from api.routers.schedule_pdf import _build_schedule_html
+
+        stub = _EmpStub(
+            [{"ID": 1, "NAME": "In"}, {"ID": 2, "NAME": "Out"}],
+            members=[1],
+            groups=[{"ID": 5, "NAME": "Team"}],
+        )
+        html = _build_schedule_html(2024, 7, 5, stub)
+        assert "<table" in html
+        assert "Keine Mitarbeiter" not in html
+
+    def test_no_employees_shows_no_data_message(self):
+        from api.routers.schedule_pdf import _build_schedule_html
+
+        html = _build_schedule_html(2024, 7, None, _EmpStub([]))
+        assert "Keine Mitarbeiter" in html
 
 
 class TestSchedulePdfGroupValidation:
