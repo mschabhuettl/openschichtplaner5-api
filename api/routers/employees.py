@@ -638,7 +638,10 @@ async def upload_employee_photo(
 
     # Open image with Pillow
     try:
-        img = Image.open(_io.BytesIO(content))
+        # Annotate as Image.Image: Image.open() returns an ImageFile, but convert()/
+        # crop() below return a plain Image — without this the reassignments are
+        # flagged as incompatible by the type checker.
+        img: Image.Image = Image.open(_io.BytesIO(content))
         img = img.convert("RGB")  # ensure RGB for WebP
     except Exception:
         raise HTTPException(status_code=400, detail="Bild konnte nicht gelesen werden")
@@ -656,7 +659,9 @@ async def upload_employee_photo(
 
     # Resize to max 400x400 preserving aspect ratio
     max_size = (400, 400)
-    img.thumbnail(max_size, Image.LANCZOS)
+    # Image.Resampling.LANCZOS is the supported form; the top-level Image.LANCZOS
+    # alias is deprecated and slated for removal in a future Pillow.
+    img.thumbnail(max_size, Image.Resampling.LANCZOS)
 
     # Remove old photos for this employee
     for old in photos_dir.glob(f"{emp_id}.*"):
