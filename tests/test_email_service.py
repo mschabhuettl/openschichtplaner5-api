@@ -146,6 +146,42 @@ class TestTemplateRendering:
         assert "Link:" not in text
 
 
+class TestTemplateEscaping:
+    """User-influenced content must be HTML-escaped to prevent stored injection."""
+
+    def test_html_escapes_title(self) -> None:
+        html = _render_html("<script>alert(1)</script>", "ok")
+        assert "<script>alert(1)</script>" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_html_escapes_message(self) -> None:
+        html = _render_html("Title", "<img src=x onerror=alert(1)>")
+        assert "<img src=x" not in html
+        assert "&lt;img" in html
+
+    def test_html_escapes_message_but_keeps_br(self) -> None:
+        html = _render_html("Title", "Line1\nLine2")
+        # newline conversion still works after escaping
+        assert "Line1<br>Line2" in html
+
+    def test_html_rejects_javascript_link(self) -> None:
+        html = _render_html("Title", "Msg", link="javascript:alert(1)")
+        assert "javascript:alert" not in html
+        assert "Jetzt ansehen" not in html  # CTA dropped entirely
+
+    def test_html_rejects_data_uri_link(self) -> None:
+        html = _render_html("Title", "Msg", link="data:text/html,<script>")
+        assert "data:text/html" not in html
+
+    def test_html_allows_http_and_relative_links(self) -> None:
+        assert "https://ok.test/x" in _render_html(
+            "T", "M", link="https://ok.test/x"
+        )
+        assert "https://sp5.test/rel" in _render_html(
+            "T", "M", link="/rel", app_url="https://sp5.test"
+        )
+
+
 # ── send_email ────────────────────────────────────────────────────────────────
 
 

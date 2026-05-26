@@ -792,7 +792,7 @@ def create_swap_request(
             (e for e in employees if e.get("ID") == body.requester_id), None
         )
         req_name = (
-            f"{requester.get('Vorname', '')} {requester.get('Nachname', '')}".strip()
+            f"{requester.get('FIRSTNAME', '')} {requester.get('NAME', '')}".strip()
             if requester
             else f"MA #{body.requester_id}"
         )
@@ -1100,7 +1100,7 @@ def create_self_swap_request(
 
     # Notify partner
     try:
-        req_name = f"{employee.get('Vorname', '')} {employee.get('Nachname', '')}".strip()
+        req_name = f"{employee.get('FIRSTNAME', '')} {employee.get('NAME', '')}".strip()
         if not req_name:
             req_name = employee.get("SHORTNAME", f"MA #{requester_id}")
         self_notif_msg = f"{req_name} möchte den Dienst am {body.requester_date} mit dir tauschen (dein Datum: {body.partner_date}). Bitte bestätige oder lehne ab."
@@ -1155,7 +1155,7 @@ def partner_respond_swap(
             status_code=400, detail="Request is not awaiting partner confirmation"
         )
 
-    partner_name = f"{employee.get('Vorname', '')} {employee.get('Nachname', '')}".strip()
+    partner_name = f"{employee.get('FIRSTNAME', '')} {employee.get('NAME', '')}".strip()
     if not partner_name:
         partner_name = employee.get("SHORTNAME", f"MA #{emp_id}")
     result = db.partner_respond_swap(swap_id, body.accept, partner_name=partner_name)

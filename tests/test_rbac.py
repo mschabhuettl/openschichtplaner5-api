@@ -220,3 +220,54 @@ class TestAdminPermissions:
         body = res.json()
         assert "detail" in body
         assert isinstance(body["detail"], str)
+
+
+# ── Availability writes (require Planer) ────────────────────────────────────────
+
+_AVAIL_BODY = {"days": [{"day": 0, "available": True, "time_windows": []}]}
+
+
+class TestAvailabilityRBAC:
+    def test_leser_cannot_set_availability(self, sync_client, leser_token):
+        """POST availability requires Planer — Leser must be rejected."""
+        res = sync_client.post(
+            "/api/employees/1/availability", json=_AVAIL_BODY, headers=_h(leser_token)
+        )
+        assert res.status_code in (401, 403), f"got {res.status_code}: {res.text}"
+
+    def test_leser_cannot_update_availability(self, sync_client, leser_token):
+        """PUT availability requires Planer — Leser must be rejected."""
+        res = sync_client.put(
+            "/api/employees/1/availability", json=_AVAIL_BODY, headers=_h(leser_token)
+        )
+        assert res.status_code in (401, 403), f"got {res.status_code}: {res.text}"
+
+    def test_anonymous_cannot_set_availability(self, app):
+        with TestClient(app, raise_server_exceptions=False) as raw:
+            res = raw.post("/api/employees/1/availability", json=_AVAIL_BODY)
+        assert res.status_code == 401
+
+    def test_planer_allowed_to_set_availability(self, sync_client, planer_token):
+        """Planer must pass the role check (not 401/403)."""
+        res = sync_client.post(
+            "/api/employees/1/availability", json=_AVAIL_BODY, headers=_h(planer_token)
+        )
+        assert res.status_code not in (401, 403), f"got {res.status_code}: {res.text}"
+
+
+# ── Shift-restriction DELETE (require Admin, symmetric with POST) ────────────────
+
+
+class TestRestrictionRBAC:
+    def test_leser_cannot_delete_restriction(self, sync_client, leser_token):
+        res = sync_client.delete("/api/restrictions/1/1", headers=_h(leser_token))
+        assert res.status_code in (401, 403), f"got {res.status_code}: {res.text}"
+
+    def test_planer_cannot_delete_restriction(self, sync_client, planer_token):
+        """DELETE restriction requires Admin — Planer must be rejected (matches POST)."""
+        res = sync_client.delete("/api/restrictions/1/1", headers=_h(planer_token))
+        assert res.status_code in (401, 403), f"got {res.status_code}: {res.text}"
+
+    def test_admin_allowed_to_delete_restriction(self, sync_client, admin_token):
+        res = sync_client.delete("/api/restrictions/1/1", headers=_h(admin_token))
+        assert res.status_code not in (401, 403), f"got {res.status_code}: {res.text}"

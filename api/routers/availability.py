@@ -9,10 +9,10 @@ import os
 import threading
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ..dependencies import _logger, get_db
+from ..dependencies import _logger, get_db, require_planer
 
 router = APIRouter()
 
@@ -156,7 +156,9 @@ def get_availability(emp_id: int):
     description="Set the full weekly availability for an employee. "
     "Replaces any existing availability data.",
 )
-def set_availability(emp_id: int, body: AvailabilityUpdate):
+def set_availability(
+    emp_id: int, body: AvailabilityUpdate, _cur_user: dict = Depends(require_planer)
+):
     emp = get_db().get_employee(emp_id)
     if emp is None:
         raise HTTPException(
@@ -185,7 +187,9 @@ def set_availability(emp_id: int, body: AvailabilityUpdate):
     description="Partial update: only the days included in the request are updated. "
     "Other days remain unchanged.",
 )
-def update_availability(emp_id: int, body: AvailabilityUpdate):
+def update_availability(
+    emp_id: int, body: AvailabilityUpdate, _cur_user: dict = Depends(require_planer)
+):
     emp = get_db().get_employee(emp_id)
     if emp is None:
         raise HTTPException(

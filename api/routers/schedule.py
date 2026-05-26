@@ -979,14 +979,15 @@ def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_a
     "/api/restrictions/{employee_id}/{shift_id}",
     tags=["Schedule"],
     summary="Remove shift restriction",
-    description="Remove a shift restriction for an employee.",
+    description="Remove a shift restriction for an employee. Requires Admin role.",
 )
 def remove_restriction(
     employee_id: int,
     shift_id: int,
     weekday: int = Query(0),
+    _cur_user: dict = Depends(require_admin),
 ):
-    """Remove a shift restriction for an employee."""
+    """Remove a shift restriction for an employee. Requires Admin role."""
     try:
         count = get_db().remove_restriction(
             employee_id=employee_id, shift_id=shift_id, weekday=weekday
