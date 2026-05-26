@@ -185,6 +185,10 @@ class TestDBFReader:
         assert _parse_date("") is None
         assert _parse_date("abcdefgh") is None
         assert _parse_date("20241301") is None  # invalid month
+        assert _parse_date("20230231") is None  # Feb 31 — impossible calendar date
+        assert _parse_date("20230431") is None  # Apr 31 — impossible calendar date
+        assert _parse_date("20240229") == "2024-02-29"  # leap day is valid
+        assert _parse_date("20230229") is None  # not a leap year
 
 
 # ─────────────────────────────────────────────────────────────

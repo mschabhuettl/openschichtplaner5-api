@@ -24,6 +24,8 @@ import tempfile
 import threading
 from datetime import date
 
+import pytest
+
 _here = os.path.dirname(os.path.abspath(__file__))
 _backend = os.path.dirname(_here)
 if _backend not in sys.path:
@@ -169,6 +171,36 @@ def test_encode_field_date_empty_string():
     f = {"type": "D", "len": 8, "dec": 0}
     result = _encode_field("", f)
     assert result == b" " * 8
+
+
+# ─── _encode_field: numeric overflow must not silently corrupt ────────────────
+
+
+def test_encode_field_numeric_fits_exactly():
+    """A value that fits exactly is right-aligned to the field width."""
+    f = {"type": "N", "len": 4, "dec": 0}
+    assert _encode_field(42, f) == b"  42"
+    assert _encode_field(9999, f) == b"9999"
+
+
+def test_encode_field_numeric_overflow_raises():
+    """An over-wide integer must raise, not silently drop high-order digits."""
+    f = {"type": "N", "len": 4, "dec": 0, "name": "FOO"}
+    with pytest.raises(ValueError, match="does not fit"):
+        _encode_field(99999, f)  # would have become '9999' before the fix
+
+
+def test_encode_field_numeric_decimal_overflow_raises():
+    """An over-wide decimal value must raise as well."""
+    f = {"type": "N", "len": 5, "dec": 2, "name": "BAR"}  # max '99.99'
+    with pytest.raises(ValueError, match="does not fit"):
+        _encode_field(1000.0, f)  # '1000.00' is 7 chars > 5
+
+
+def test_encode_field_numeric_invalid_returns_spaces():
+    """Non-numeric input still yields spaces (unchanged behavior)."""
+    f = {"type": "N", "len": 4, "dec": 0}
+    assert _encode_field("abc", f) == b" " * 4
 
 
 # ─── _read_header_info: truncated file ───────────────────────────────────────
