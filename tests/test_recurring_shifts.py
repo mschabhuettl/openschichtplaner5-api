@@ -20,12 +20,13 @@ def _clean_recurring_file():
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _pattern_body(**kwargs):
     """Build a valid recurring shift pattern body with sensible defaults."""
     defaults = {
-        "employee_id": 40,   # first employee in fixtures
+        "employee_id": 40,  # first employee in fixtures
         "group_id": None,
-        "shift_type": 1,     # Frühschicht (ID=1 in fixtures)
+        "shift_type": 1,  # Frühschicht (ID=1 in fixtures)
         "start_time": "06:00",
         "end_time": "14:00",
         "recurrence": "weekly",
@@ -38,6 +39,7 @@ def _pattern_body(**kwargs):
 
 
 # ── POST /api/shifts/recurring ─────────────────────────────────────────────
+
 
 class TestCreateRecurringShift:
     def test_create_basic_weekly(self, write_client):
@@ -132,6 +134,7 @@ class TestCreateRecurringShift:
 
 # ── GET /api/shifts/recurring ──────────────────────────────────────────────
 
+
 class TestListRecurringShifts:
     def test_list_empty(self, write_client):
         """List returns empty when no patterns exist."""
@@ -181,6 +184,7 @@ class TestListRecurringShifts:
 
 # ── DELETE /api/shifts/recurring/{id} ──────────────────────────────────────
 
+
 class TestDeleteRecurringShift:
     def test_delete_existing(self, write_client):
         """Delete an existing pattern returns ok."""
@@ -209,6 +213,7 @@ class TestDeleteRecurringShift:
 
 
 # ── POST /api/shifts/recurring/{id}/generate ───────────────────────────────
+
 
 class TestGenerateShifts:
     def test_generate_nonexistent_pattern(self, write_client):
@@ -283,3 +288,110 @@ class TestGenerateShifts:
             json={"from_date": "2026-01-01", "to_date": "2026-01-31"},
         )
         assert resp.status_code == 403
+
+
+class TestRecurringShiftValidationAndErrors:
+    """Validator inner branches and generation failure paths."""
+
+    def test_create_out_of_range_time(self, write_client):
+        """A time matching HH:MM but out of range (25:00) is rejected by the validator."""
+        resp = write_client.post(
+            "/api/shifts/recurring",
+            json=_pattern_body(start_time="25:00"),
+        )
+        assert resp.status_code == 422
+
+    def test_create_calendar_invalid_date(self, write_client):
+        """A date matching the pattern but not a real calendar date is rejected."""
+        resp = write_client.post(
+            "/api/shifts/recurring",
+            json=_pattern_body(valid_from="2026-13-01"),
+        )
+        assert resp.status_code == 422
+
+    def test_create_nonexistent_shift_type(self, write_client):
+        """An unknown shift type → 404."""
+        resp = write_client.post(
+            "/api/shifts/recurring",
+            json=_pattern_body(shift_type=999999),
+        )
+        assert resp.status_code == 404
+
+    def test_generate_calendar_invalid_date(self, write_client):
+        """A calendar-invalid date in the generate body → 422."""
+        create_resp = write_client.post("/api/shifts/recurring", json=_pattern_body())
+        pattern_id = create_resp.json()["pattern"]["id"]
+        resp = write_client.post(
+            f"/api/shifts/recurring/{pattern_id}/generate",
+            json={"from_date": "2026-13-01", "to_date": "2026-12-31"},
+        )
+        assert resp.status_code == 422
+
+    def test_generate_pattern_without_employee(self, write_client):
+        """Generating from a group-only pattern (no employee_id) → 422."""
+        create_resp = write_client.post(
+            "/api/shifts/recurring",
+            json=_pattern_body(employee_id=None, group_id=1),
+        )
+        assert create_resp.status_code == 200
+        pattern_id = create_resp.json()["pattern"]["id"]
+        resp = write_client.post(
+            f"/api/shifts/recurring/{pattern_id}/generate",
+            json={"from_date": "2026-01-01", "to_date": "2026-01-31"},
+        )
+        assert resp.status_code == 422
+
+    def test_generate_creates_new_entries(self, write_client):
+        """Generating into a fresh date range actually creates schedule entries."""
+        create_resp = write_client.post(
+            "/api/shifts/recurring",
+            json=_pattern_body(
+                employee_id=40,
+                shift_type=1,
+                recurrence="weekly",
+                day_of_week=0,
+                valid_from="2027-01-01",
+                valid_until="2027-12-31",
+            ),
+        )
+        pattern_id = create_resp.json()["pattern"]["id"]
+        resp = write_client.post(
+            f"/api/shifts/recurring/{pattern_id}/generate",
+            json={"from_date": "2027-01-01", "to_date": "2027-01-31"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["generated"] >= 1
+        assert len(data["dates"]) == data["generated"]
+
+    def test_generate_proceeds_when_lookup_and_insert_fail(self, write_client, monkeypatch):
+        """Generation tolerates a failed existing-shift lookup and counts failed
+        inserts as skipped rather than erroring out."""
+        create_resp = write_client.post(
+            "/api/shifts/recurring",
+            json=_pattern_body(
+                employee_id=40,
+                day_of_week=0,
+                recurrence="weekly",
+                valid_from="2026-01-01",
+                valid_until="2026-12-31",
+            ),
+        )
+        pattern_id = create_resp.json()["pattern"]["id"]
+
+        class _GenBoomDB:
+            def _table(self, name):
+                raise RuntimeError("MASHI lookup failed")  # best-effort path
+
+            def add_schedule_entry(self, *a, **k):
+                raise RuntimeError("insert failed")  # per-date failure → skipped
+
+        monkeypatch.setattr("api.routers.recurring_shifts.get_db", lambda: _GenBoomDB())
+        resp = write_client.post(
+            f"/api/shifts/recurring/{pattern_id}/generate",
+            json={"from_date": "2026-01-01", "to_date": "2026-01-31"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["generated"] == 0
+        assert data["skipped"] >= 1
