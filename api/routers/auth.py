@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from ..dependencies import (
     _LOCKOUT_MAX,
     _LOCKOUT_WINDOW,
+    _LOGIN_RATE_LIMIT,
     _MAX_SESSIONS_PER_USER,
     _TOKEN_EXPIRE_HOURS,
     _failed_logins,
@@ -449,7 +450,7 @@ def reset_user_password(request: Request, user_id: int, admin: dict = Depends(re
     summary="Login",
     description="Authenticate with username and password. Returns a session token valid for 8 hours (configurable via TOKEN_EXPIRE_HOURS).",
 )
-@limiter.limit("5/minute")
+@limiter.limit(_LOGIN_RATE_LIMIT)
 def login(request: Request, body: LoginBody):
     """Simple login: verify username+password against 5USER.DBF."""
     client_ip = request.client.host if request.client else "unknown"

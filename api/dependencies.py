@@ -129,6 +129,12 @@ def _int_env(name: str, default: int) -> int:
     return value if value >= 0 else default
 
 
+def _str_env(name: str, default: str) -> str:
+    """Read a non-empty string from the environment, falling back to ``default``."""
+    value = (os.environ.get(name) or "").strip()
+    return value or default
+
+
 # ── Rate Limiter ─────────────────────────────────────────────────
 
 
@@ -150,8 +156,11 @@ def _rate_limit_key(request: Request) -> str:
     return get_remote_address(request)
 
 
-# Global default rate limit; configurable via RATE_LIMIT_API (e.g. "200/minute").
-_API_RATE_LIMIT = os.environ.get("RATE_LIMIT_API", "100/minute")
+# Rate limits configurable via ENV (documented in .env.example). RATE_LIMIT_API
+# is the global default; RATE_LIMIT_LOGIN guards credential endpoints (used in
+# auth.py decorators).
+_API_RATE_LIMIT = _str_env("RATE_LIMIT_API", "100/minute")
+_LOGIN_RATE_LIMIT = _str_env("RATE_LIMIT_LOGIN", "5/minute")
 limiter = Limiter(key_func=_rate_limit_key, default_limits=[_API_RATE_LIMIT])
 
 # ── JWT Configuration ────────────────────────────────────────────
