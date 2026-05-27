@@ -78,6 +78,9 @@ def test_sync_returns_per_table_counts(client, admin_token):
         "absences",
         "holidays",
         "periods",
+        "bookings",
+        "overtime",
+        "leave_entitlements",
     } <= set(synced)
     # The fixtures contain real rows for these key tables.
     assert synced["shifts"] > 0
@@ -177,6 +180,25 @@ def test_periods_endpoint_ok(client, admin_token):
     assert isinstance(resp.json(), list)
 
 
+def test_time_accounting_endpoints_ok(client, admin_token):
+    """5BOOK / 5OVER / 5LEAEN endpoints respond with lists (fixtures empty), and
+    accept their filter params (lib 1.5.0)."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    assert isinstance(client.get("/api/admin/orm/bookings", headers=_h(admin_token)).json(), list)
+    # date-range filter is accepted
+    r = client.get(
+        "/api/admin/orm/bookings?date_from=2026-01-01&date_to=2026-12-31&employee_id=1",
+        headers=_h(admin_token),
+    )
+    assert r.status_code == 200 and isinstance(r.json(), list)
+    assert isinstance(client.get("/api/admin/orm/overtime", headers=_h(admin_token)).json(), list)
+    # year filter is accepted on leave-entitlements
+    r = client.get(
+        "/api/admin/orm/leave-entitlements?year=2026&employee_id=1", headers=_h(admin_token)
+    )
+    assert r.status_code == 200 and isinstance(r.json(), list)
+
+
 def test_endpoints_require_admin(client):
     """Unauthenticated callers are rejected on every endpoint."""
     assert client.post("/api/admin/orm/sync").status_code == 401
@@ -188,6 +210,9 @@ def test_endpoints_require_admin(client):
     assert client.get("/api/admin/orm/absences").status_code == 401
     assert client.get("/api/admin/orm/holidays").status_code == 401
     assert client.get("/api/admin/orm/periods").status_code == 401
+    assert client.get("/api/admin/orm/bookings").status_code == 401
+    assert client.get("/api/admin/orm/overtime").status_code == 401
+    assert client.get("/api/admin/orm/leave-entitlements").status_code == 401
 
 
 def test_sync_is_idempotent(client, admin_token):

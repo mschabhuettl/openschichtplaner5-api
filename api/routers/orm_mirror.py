@@ -2,13 +2,15 @@
 
 Materializes a read-only SQLAlchemy projection of the DBF data via
 libopenschichtplaner5's sync utilities and exposes it through the library's
-repositories. ``POST /sync`` mirrors all 11 supported tables via the library's
-``sync_all`` (lib 1.4.0); the read endpoints cover:
+repositories. ``POST /sync`` mirrors all 14 supported tables via the library's
+``sync_all``; the read endpoints cover:
 
 * master-data definitions — shifts / leave types / workplaces (lib 1.2.0),
 * schedule entries — shift assignments (5MASHI), special shifts (5SPSHI) and
-  absences (5ABSEN) with date-range queries (lib 1.3.0), and
-* calendar data — holidays (5HOLID) and periods (5PERIO) (lib 1.4.0).
+  absences (5ABSEN) with date-range queries (lib 1.3.0),
+* calendar data — holidays (5HOLID) and periods (5PERIO) (lib 1.4.0), and
+* time accounting — bookings (5BOOK), overtime (5OVER) and leave
+  entitlements (5LEAEN) (lib 1.5.0).
 
 This is the gradual DBF→ORM migration path the library is built for: the DBF
 files stay the source of truth, while the ORM store is a queryable,
@@ -238,5 +240,74 @@ def list_orm_periods(user: dict = Depends(require_admin)):
         return [p.to_dict() for p in PeriodRepository(session).list()]
     except Exception as e:
         raise _sanitize_500(e, "list_orm_periods")
+    finally:
+        session.close()
+
+
+# ── Time accounting (lib 1.5.0) — bookings / overtime / entitlements ──
+
+
+@router.get("/bookings")
+def list_orm_bookings(
+    date_from: str | None = Query(None, description="ISO date (inclusive lower bound)"),
+    date_to: str | None = Query(None, description="ISO date (inclusive upper bound)"),
+    employee_id: int | None = Query(None, description="Filter by employee ID"),
+    user: dict = Depends(require_admin),
+):
+    """List manual account / time bookings (5BOOK), filterable by date range
+    and/or employee."""
+    from sp5lib.orm.repository import AccountBookingRepository
+
+    session = _get_orm_session()
+    try:
+        rows = AccountBookingRepository(session).list(
+            date_from=date_from, date_to=date_to, employee_id=employee_id
+        )
+        return [r.to_dict() for r in rows]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_bookings")
+    finally:
+        session.close()
+
+
+@router.get("/overtime")
+def list_orm_overtime(
+    date_from: str | None = Query(None, description="ISO date (inclusive lower bound)"),
+    date_to: str | None = Query(None, description="ISO date (inclusive upper bound)"),
+    employee_id: int | None = Query(None, description="Filter by employee ID"),
+    user: dict = Depends(require_admin),
+):
+    """List manual overtime adjustments (5OVER), filterable by date range
+    and/or employee."""
+    from sp5lib.orm.repository import OvertimeEntryRepository
+
+    session = _get_orm_session()
+    try:
+        rows = OvertimeEntryRepository(session).list(
+            date_from=date_from, date_to=date_to, employee_id=employee_id
+        )
+        return [r.to_dict() for r in rows]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_overtime")
+    finally:
+        session.close()
+
+
+@router.get("/leave-entitlements")
+def list_orm_leave_entitlements(
+    year: int | None = Query(None, description="Filter by entitlement year"),
+    employee_id: int | None = Query(None, description="Filter by employee ID"),
+    user: dict = Depends(require_admin),
+):
+    """List annual leave entitlements (5LEAEN), filterable by year and/or
+    employee."""
+    from sp5lib.orm.repository import LeaveEntitlementRepository
+
+    session = _get_orm_session()
+    try:
+        rows = LeaveEntitlementRepository(session).list(year=year, employee_id=employee_id)
+        return [r.to_dict() for r in rows]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_leave_entitlements")
     finally:
         session.close()
