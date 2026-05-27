@@ -15,11 +15,13 @@ class TestCSVImportEndpoint:
 
     def test_import_basic(self, write_client):
         """Import a simple CSV with 2 employees."""
-        csv_data = _make_csv([
-            "first_name,last_name,email",
-            "Max,Importtest,max@example.com",
-            "Anna,Importtest,anna@example.com",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,email",
+                "Max,Importtest,max@example.com",
+                "Anna,Importtest,anna@example.com",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("employees.csv", io.BytesIO(csv_data), "text/csv")},
@@ -32,10 +34,12 @@ class TestCSVImportEndpoint:
 
     def test_import_with_all_columns(self, write_client):
         """Import CSV with all optional columns."""
-        csv_data = _make_csv([
-            "first_name,last_name,email,phone,contract_hours,qualifications",
-            "Lisa,Volltest,lisa@test.at,+43123456,38.5,Ersthelfer",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,email,phone,contract_hours,qualifications",
+                "Lisa,Volltest,lisa@test.at,+43123456,38.5,Ersthelfer",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("full.csv", io.BytesIO(csv_data), "text/csv")},
@@ -46,10 +50,13 @@ class TestCSVImportEndpoint:
 
     def test_import_semicolon_delimiter(self, write_client):
         """Import CSV using semicolon delimiter (common in German locale)."""
-        csv_data = _make_csv([
-            "first_name;last_name;email",
-            "Fritz;Semikolon;fritz@test.at",
-        ], delimiter=";")
+        csv_data = _make_csv(
+            [
+                "first_name;last_name;email",
+                "Fritz;Semikolon;fritz@test.at",
+            ],
+            delimiter=";",
+        )
         # _make_csv just joins — the actual delimiter is in the content
         csv_data = b"first_name;last_name;email\nFritz;Semikolon;fritz@test.at\n"
         resp = write_client.post(
@@ -74,10 +81,12 @@ class TestCSVImportEndpoint:
 
     def test_import_skips_duplicates(self, write_client):
         """Second import of same names should skip them."""
-        csv_data = _make_csv([
-            "first_name,last_name",
-            "Duplikat,Testfall",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name",
+                "Duplikat,Testfall",
+            ]
+        )
         # First import
         resp1 = write_client.post(
             "/api/v1/employees/import-csv",
@@ -96,11 +105,13 @@ class TestCSVImportEndpoint:
 
     def test_import_skips_duplicates_within_csv(self, write_client):
         """Duplicate names within the same CSV should be created only once."""
-        csv_data = _make_csv([
-            "first_name,last_name",
-            "InternDup,Person",
-            "InternDup,Person",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name",
+                "InternDup,Person",
+                "InternDup,Person",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("dup.csv", io.BytesIO(csv_data), "text/csv")},
@@ -113,14 +124,16 @@ class TestCSVImportEndpoint:
 
     def test_import_missing_required_fields(self, write_client):
         """Rows missing first_name or last_name should produce errors."""
-        csv_data = _make_csv([
-            "first_name,last_name,email",
-            ",Nachname,a@b.com",
-            "Vorname,,b@c.com",
-            "Valid,Person1,c@d.com",
-            "Also,Valid2,e@f.com",
-            "Third,Valid3,g@h.com",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,email",
+                ",Nachname,a@b.com",
+                "Vorname,,b@c.com",
+                "Valid,Person1,c@d.com",
+                "Also,Valid2,e@f.com",
+                "Third,Valid3,g@h.com",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("miss.csv", io.BytesIO(csv_data), "text/csv")},
@@ -136,10 +149,12 @@ class TestCSVImportEndpoint:
 
     def test_import_invalid_email(self, write_client):
         """Invalid email format should produce an error."""
-        csv_data = _make_csv([
-            "first_name,last_name,email",
-            "Bad,Email,not-an-email",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,email",
+                "Bad,Email,not-an-email",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("bad_email.csv", io.BytesIO(csv_data), "text/csv")},
@@ -151,10 +166,12 @@ class TestCSVImportEndpoint:
 
     def test_import_invalid_group_id(self, write_client):
         """Non-existent group_id should produce an error."""
-        csv_data = _make_csv([
-            "first_name,last_name,group_id",
-            "Test,GroupFail,999999",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,group_id",
+                "Test,GroupFail,999999",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("grp.csv", io.BytesIO(csv_data), "text/csv")},
@@ -165,10 +182,12 @@ class TestCSVImportEndpoint:
 
     def test_import_invalid_group_id_non_numeric(self, write_client):
         """Non-numeric group_id should produce an error."""
-        csv_data = _make_csv([
-            "first_name,last_name,group_id",
-            "Test,GroupText,abc",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,group_id",
+                "Test,GroupText,abc",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("grp2.csv", io.BytesIO(csv_data), "text/csv")},
@@ -179,10 +198,12 @@ class TestCSVImportEndpoint:
 
     def test_import_invalid_contract_hours(self, write_client):
         """Invalid contract_hours should produce an error."""
-        csv_data = _make_csv([
-            "first_name,last_name,contract_hours",
-            "Test,HoursFail,abc",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,contract_hours",
+                "Test,HoursFail,abc",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("hrs.csv", io.BytesIO(csv_data), "text/csv")},
@@ -193,10 +214,12 @@ class TestCSVImportEndpoint:
 
     def test_import_contract_hours_out_of_range(self, write_client):
         """contract_hours > 168 should produce an error."""
-        csv_data = _make_csv([
-            "first_name,last_name,contract_hours",
-            "Test,HoursRange,200",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,contract_hours",
+                "Test,HoursRange,200",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("hrs2.csv", io.BytesIO(csv_data), "text/csv")},
@@ -209,10 +232,12 @@ class TestCSVImportEndpoint:
 
     def test_import_missing_header(self, write_client):
         """CSV without required header columns should fail."""
-        csv_data = _make_csv([
-            "email,phone",
-            "a@b.com,123",
-        ])
+        csv_data = _make_csv(
+            [
+                "email,phone",
+                "a@b.com,123",
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("noheader.csv", io.BytesIO(csv_data), "text/csv")},
@@ -243,13 +268,15 @@ class TestCSVImportEndpoint:
 
     def test_import_rollback_on_too_many_errors(self, write_client):
         """If >50% of rows have errors, all should be rolled back."""
-        csv_data = _make_csv([
-            "first_name,last_name,email",
-            ",Bad1,a@b.com",       # error: no first_name
-            ",Bad2,c@d.com",       # error: no first_name
-            ",Bad3,e@f.com",       # error: no first_name
-            "Good,Person,g@h.com", # valid
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name,email",
+                ",Bad1,a@b.com",  # error: no first_name
+                ",Bad2,c@d.com",  # error: no first_name
+                ",Bad3,e@f.com",  # error: no first_name
+                "Good,Person,g@h.com",  # valid
+            ]
+        )
         resp = write_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("rollback.csv", io.BytesIO(csv_data), "text/csv")},
@@ -262,10 +289,12 @@ class TestCSVImportEndpoint:
 
     def test_import_requires_admin(self, planer_client):
         """Non-admin users should get 403."""
-        csv_data = _make_csv([
-            "first_name,last_name",
-            "Nope,Forbidden",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name",
+                "Nope,Forbidden",
+            ]
+        )
         resp = planer_client.post(
             "/api/v1/employees/import-csv",
             files={"file": ("perm.csv", io.BytesIO(csv_data), "text/csv")},
@@ -297,13 +326,64 @@ class TestCSVImportEndpoint:
 
     def test_import_via_unversioned_path(self, write_client):
         """The unversioned /api/ path should also work (with deprecation headers)."""
-        csv_data = _make_csv([
-            "first_name,last_name",
-            "Unversioned,Path",
-        ])
+        csv_data = _make_csv(
+            [
+                "first_name,last_name",
+                "Unversioned,Path",
+            ]
+        )
         resp = write_client.post(
             "/api/employees/import-csv",
             files={"file": ("unv.csv", io.BytesIO(csv_data), "text/csv")},
         )
         assert resp.status_code == 200
         assert resp.json()["created"] == 1
+
+
+class TestCSVImportValidation:
+    """Upload-validation branches: content type, size, emptiness, encoding,
+    and the delimiter-sniff fallback."""
+
+    _URL = "/api/v1/employees/import-csv"
+
+    def test_rejects_non_csv_content_type(self, write_client):
+        resp = write_client.post(
+            self._URL,
+            files={"file": ("x.png", io.BytesIO(b"first_name,last_name\nA,B\n"), "image/png")},
+        )
+        assert resp.status_code == 400
+
+    def test_rejects_file_over_5mb(self, write_client):
+        big = b"x" * (5 * 1024 * 1024 + 1)
+        resp = write_client.post(
+            self._URL,
+            files={"file": ("big.csv", io.BytesIO(big), "text/csv")},
+        )
+        assert resp.status_code == 413
+
+    def test_rejects_empty_file(self, write_client):
+        resp = write_client.post(
+            self._URL,
+            files={"file": ("empty.csv", io.BytesIO(b""), "text/csv")},
+        )
+        assert resp.status_code == 400
+
+    def test_decodes_latin1_when_not_utf8(self, write_client):
+        # ö/ü as latin-1 bytes are invalid UTF-8 → the endpoint falls back to latin-1.
+        data = "first_name,last_name\nJörg,Müller\n".encode("latin-1")
+        resp = write_client.post(
+            self._URL,
+            files={"file": ("latin1.csv", io.BytesIO(data), "text/csv")},
+        )
+        assert resp.status_code == 200
+
+    def test_undetectable_delimiter_falls_back_to_default(self, write_client):
+        # A single-column file gives the sniffer no delimiter → csv.Error → default reader.
+        # Every row then lacks last_name, triggering the >50%-errors rollback (400);
+        # the point is the sniff-failure fallback path runs without crashing.
+        data = b"first_name\nAnna\n"
+        resp = write_client.post(
+            self._URL,
+            files={"file": ("nodelim.csv", io.BytesIO(data), "text/csv")},
+        )
+        assert resp.status_code == 400
