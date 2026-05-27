@@ -288,3 +288,74 @@ def test_sync_is_idempotent(client, admin_token):
     # Row count in the mirror stays stable across re-syncs.
     after = client.get("/api/admin/orm/shifts", headers=_h(admin_token)).json()
     assert len(after) <= first["shifts"]
+
+
+# ── Error-path coverage: every endpoint must sanitise internal errors ────────
+# (no exception detail may leak into the HTTP response — only the generic 500).
+
+_SECRET = "leak-me-internal-xyz"
+
+_READ_ENDPOINTS = [
+    ("/api/admin/orm/shifts", "ShiftRepository"),
+    ("/api/admin/orm/leave-types", "LeaveTypeRepository"),
+    ("/api/admin/orm/workplaces", "WorkplaceRepository"),
+    ("/api/admin/orm/shift-assignments", "ShiftAssignmentRepository"),
+    ("/api/admin/orm/special-shifts", "SpecialShiftRepository"),
+    ("/api/admin/orm/absences", "AbsenceRepository"),
+    ("/api/admin/orm/holidays", "HolidayRepository"),
+    ("/api/admin/orm/periods", "PeriodRepository"),
+    ("/api/admin/orm/bookings", "AccountBookingRepository"),
+    ("/api/admin/orm/overtime", "OvertimeEntryRepository"),
+    ("/api/admin/orm/leave-entitlements", "LeaveEntitlementRepository"),
+    ("/api/admin/orm/shift-demands", "ShiftDemandRepository"),
+    ("/api/admin/orm/special-demands", "SpecialDemandRepository"),
+    ("/api/admin/orm/cycles", "CycleRepository"),
+    ("/api/admin/orm/cycle-assignments", "CycleAssignmentRepository"),
+    ("/api/admin/orm/restrictions", "RestrictionRepository"),
+]
+
+
+class _BoomRepo:
+    """Stand-in repository whose query raises, to exercise the 500 path."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def list(self, *args, **kwargs):
+        raise RuntimeError(_SECRET)
+
+
+@pytest.mark.parametrize("path,repo_name", _READ_ENDPOINTS)
+def test_read_endpoint_sanitizes_internal_error(client, admin_token, monkeypatch, path, repo_name):
+    import sp5lib.orm.repository as repo_mod
+
+    monkeypatch.setattr(repo_mod, repo_name, _BoomRepo)
+    resp = client.get(path, headers=_h(admin_token))
+    assert resp.status_code == 500, resp.text
+    assert _SECRET not in resp.text  # internal detail must not leak
+
+
+def test_sync_sanitizes_internal_error(client, admin_token, monkeypatch):
+    import sp5lib.orm.sync as sync_mod
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError(_SECRET)
+
+    monkeypatch.setattr(sync_mod, "sync_all", _boom)
+    resp = client.post("/api/admin/orm/sync", headers=_h(admin_token))
+    assert resp.status_code == 500, resp.text
+    assert _SECRET not in resp.text
+
+
+def test_status_sanitizes_internal_error(client, admin_token, monkeypatch):
+    class _BoomSession:
+        def scalar(self, *args, **kwargs):
+            raise RuntimeError(_SECRET)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(orm_mirror, "_get_orm_session", lambda: _BoomSession())
+    resp = client.get("/api/admin/orm/status", headers=_h(admin_token))
+    assert resp.status_code == 500, resp.text
+    assert _SECRET not in resp.text
