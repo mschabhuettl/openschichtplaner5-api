@@ -5,7 +5,22 @@ declared HIDDEN/EMPLOYEENO/GROUPID/CONTRACTHOURS — fields that never exist on 
 payload and only surfaced as misleading always-null entries in the OpenAPI schema.
 """
 
-from api.schemas import EmployeeResponse, GroupResponse
+from api.schemas import EmployeeResponse, GroupResponse, ShiftResponse
+
+
+def test_shift_response_uses_real_keys():
+    """5SHIFT.DBF exposes HIDE, not HIDDEN (verified against the fixture)."""
+    fields = ShiftResponse.model_fields
+    assert "HIDE" in fields  # real DBF key
+    assert "HIDDEN" not in fields  # phantom key removed
+
+
+def test_shift_response_validates_real_record():
+    rec = {"ID": 1, "NAME": "Früh", "SHORTNAME": "F", "HIDE": 0, "POSITION": 2}
+    m = ShiftResponse(**rec)
+    assert m.ID == 1
+    assert m.HIDE is False  # int 0 coerces to bool
+    assert m.POSITION == 2
 
 
 def test_group_response_uses_real_keys():

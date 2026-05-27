@@ -96,7 +96,8 @@ class ShiftResponse(_FlexModel):
     SHORTNAME: str | None = None
     COLORBK: int | None = None
     COLORTEXT: int | None = None
-    HIDDEN: bool | None = None
+    HIDE: bool | None = None  # real DBF key (was HIDDEN, which never exists → always null)
+    POSITION: int | None = None
     STARTEND0: str | None = None
 
 
