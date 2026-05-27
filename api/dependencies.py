@@ -31,9 +31,7 @@ class _JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         entry = {
-            "timestamp": _dt.fromtimestamp(record.created, tz=UTC).strftime(
-                "%Y-%m-%dT%H:%M:%S."
-            )
+            "timestamp": _dt.fromtimestamp(record.created, tz=UTC).strftime("%Y-%m-%dT%H:%M:%S.")
             + f"{int(record.msecs):03d}Z",
             "level": record.levelname,
             "logger": record.name,
@@ -44,8 +42,16 @@ class _JsonFormatter(logging.Formatter):
         if rid:
             entry["request_id"] = rid
         # Merge extra fields attached by logger.info("msg", extra={...})
-        for key in ("request_id", "method", "path", "status_code", "duration_ms",
-                     "username", "event", "exc_type"):
+        for key in (
+            "request_id",
+            "method",
+            "path",
+            "status_code",
+            "duration_ms",
+            "username",
+            "event",
+            "exc_type",
+        ):
             val = getattr(record, key, None)
             if val is not None:
                 entry[key] = val
@@ -72,9 +78,7 @@ _log_format = os.environ.get("SP5_LOG_FORMAT", "json").lower()
 _formatter = _TextFormatter() if _log_format == "text" else _JsonFormatter()
 
 _log_file = "/tmp/sp5-api.log"
-_handler = logging.handlers.RotatingFileHandler(
-    _log_file, maxBytes=10 * 1024 * 1024, backupCount=3
-)
+_handler = logging.handlers.RotatingFileHandler(_log_file, maxBytes=10 * 1024 * 1024, backupCount=3)
 _handler.setFormatter(_formatter)
 
 _logger = logging.getLogger("sp5.api")
@@ -116,7 +120,36 @@ limiter = Limiter(key_func=_rate_limit_key, default_limits=["100/minute"])
 # ── JWT Configuration ────────────────────────────────────────────
 # Secret: use env var or generate a strong random one (persists for process lifetime).
 # For multi-worker / restart-safe deployments, set SP5_JWT_SECRET in env.
-_JWT_SECRET = os.environ.get("SP5_JWT_SECRET") or _secrets.token_hex(64)
+
+
+def _resolve_jwt_secret(env: dict[str, str]) -> tuple[str, str | None]:
+    """Resolve the JWT signing secret and an optional operator warning.
+
+    Returns ``(secret, warning_or_None)``. When ``SP5_JWT_SECRET`` is set it is
+    used as-is. Otherwise a strong random per-process secret is generated — fine
+    for local/dev, but in production that silently invalidates sessions on every
+    restart and across multiple workers, so a warning is surfaced unless the app
+    is running in dev/debug mode.
+    """
+    configured = env.get("SP5_JWT_SECRET")
+    if configured:
+        return configured, None
+
+    dev_mode = env.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes")
+    debug = env.get("DEBUG", "").lower() in ("1", "true", "yes")
+    warning = None
+    if not dev_mode and not debug:
+        warning = (
+            "SP5_JWT_SECRET is not set — using a random per-process secret. Sessions will "
+            "NOT survive a restart and are invalid across multiple workers. Set "
+            "SP5_JWT_SECRET (a long random value) in production."
+        )
+    return _secrets.token_hex(64), warning
+
+
+_JWT_SECRET, _jwt_secret_warning = _resolve_jwt_secret(dict(os.environ))
+if _jwt_secret_warning:
+    _logger.warning(_jwt_secret_warning)
 _JWT_ALGORITHM = "HS256"
 
 # ── Session store ────────────────────────────────────────────────
@@ -237,11 +270,7 @@ def get_current_user(
 
     Supports both legacy hex tokens and signed JWT tokens.
     """
-    token = (
-        x_auth_token
-        or request.cookies.get("sp5_token")
-        or request.query_params.get("token")
-    )
+    token = x_auth_token or request.cookies.get("sp5_token") or request.query_params.get("token")
     if not token:
         return None
 
@@ -289,9 +318,7 @@ def require_planer(user: dict | None = Depends(get_current_user)) -> dict:
     if user is None:
         raise HTTPException(status_code=401, detail="Nicht angemeldet")
     if _ROLE_LEVEL.get(user.get("role", "Leser"), 1) < 2:
-        raise HTTPException(
-            status_code=403, detail="Mindestrolle 'Planer' erforderlich"
-        )
+        raise HTTPException(status_code=403, detail="Mindestrolle 'Planer' erforderlich")
     return user
 
 
@@ -305,9 +332,11 @@ def get_db():
 
     if is_postgresql():
         from sp5lib.db_factory import get_database
+
         return get_database()
     else:
         import api.main as _main
+
         return SP5Database(_main.DB_PATH)
 
 
