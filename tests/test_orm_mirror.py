@@ -58,18 +58,27 @@ def _h(tok):
 
 
 def test_sync_returns_per_table_counts(client, admin_token):
-    """Sync mirrors the three definition tables and reports non-trivial counts."""
+    """Sync mirrors the definition + schedule tables and reports counts."""
     resp = client.post("/api/admin/orm/sync", headers=_h(admin_token))
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["ok"] is True
     synced = body["synced"]
-    # The three FK-free definition tables are reported.
-    assert set(synced) == {"shifts", "leave_types", "workplaces"}
-    # The fixtures contain real shift/leave-type/workplace rows.
+    # Definition tables (1.2.0) + schedule-entry tables (1.3.0) are reported.
+    assert set(synced) == {
+        "shifts",
+        "leave_types",
+        "workplaces",
+        "shift_assignments",
+        "special_shifts",
+        "absences",
+    }
+    # The fixtures contain real definition + schedule rows.
     assert synced["shifts"] > 0
     assert synced["leave_types"] > 0
     assert synced["workplaces"] > 0
+    assert synced["shift_assignments"] > 0
+    assert synced["absences"] > 0
 
 
 def test_list_shifts_after_sync(client, admin_token):
@@ -103,12 +112,57 @@ def test_list_workplaces_after_sync(client, admin_token):
     assert {"ID", "NAME", "SHORTNAME"} <= set(rows[0])
 
 
+def test_list_shift_assignments_after_sync(client, admin_token):
+    """5MASHI schedule entries are mirrored with DBF-shaped keys."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    resp = client.get("/api/admin/orm/shift-assignments", headers=_h(admin_token))
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()
+    assert isinstance(rows, list) and len(rows) > 0
+    assert {"ID", "DATE", "EMPLOYEEID", "SHIFTID"} <= set(rows[0])
+
+
+def test_shift_assignments_date_range_filter(client, admin_token):
+    """date_from/date_to narrow the result to a single day."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    full = client.get("/api/admin/orm/shift-assignments", headers=_h(admin_token)).json()
+    assert len(full) > 0
+    day = full[0]["DATE"]
+    narrowed = client.get(
+        f"/api/admin/orm/shift-assignments?date_from={day}&date_to={day}",
+        headers=_h(admin_token),
+    ).json()
+    assert 0 < len(narrowed) <= len(full)
+    assert all(r["DATE"] == day for r in narrowed)
+
+
+def test_absences_after_sync(client, admin_token):
+    """5ABSEN entries are mirrored and queryable."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    resp = client.get("/api/admin/orm/absences", headers=_h(admin_token))
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()
+    assert isinstance(rows, list) and len(rows) > 0
+    assert {"ID", "DATE", "EMPLOYEEID"} <= set(rows[0])
+
+
+def test_special_shifts_endpoint_ok(client, admin_token):
+    """5SPSHI endpoint responds with a list (fixtures may have zero rows)."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    resp = client.get("/api/admin/orm/special-shifts", headers=_h(admin_token))
+    assert resp.status_code == 200, resp.text
+    assert isinstance(resp.json(), list)
+
+
 def test_endpoints_require_admin(client):
     """Unauthenticated callers are rejected on every endpoint."""
     assert client.post("/api/admin/orm/sync").status_code == 401
     assert client.get("/api/admin/orm/shifts").status_code == 401
     assert client.get("/api/admin/orm/leave-types").status_code == 401
     assert client.get("/api/admin/orm/workplaces").status_code == 401
+    assert client.get("/api/admin/orm/shift-assignments").status_code == 401
+    assert client.get("/api/admin/orm/special-shifts").status_code == 401
+    assert client.get("/api/admin/orm/absences").status_code == 401
 
 
 def test_sync_is_idempotent(client, admin_token):
