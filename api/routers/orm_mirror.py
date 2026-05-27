@@ -2,11 +2,13 @@
 
 Materializes a read-only SQLAlchemy projection of the DBF data via
 libopenschichtplaner5's sync utilities and exposes it through the library's
-repositories. Two layers are mirrored:
+repositories. ``POST /sync`` mirrors all 11 supported tables via the library's
+``sync_all`` (lib 1.4.0); the read endpoints cover:
 
-* master-data definitions — shifts / leave types / workplaces (lib 1.2.0), and
+* master-data definitions — shifts / leave types / workplaces (lib 1.2.0),
 * schedule entries — shift assignments (5MASHI), special shifts (5SPSHI) and
-  absences (5ABSEN) with date-range queries (lib 1.3.0).
+  absences (5ABSEN) with date-range queries (lib 1.3.0), and
+* calendar data — holidays (5HOLID) and periods (5PERIO) (lib 1.4.0).
 
 This is the gradual DBF→ORM migration path the library is built for: the DBF
 files stay the source of truth, while the ORM store is a queryable,
@@ -66,45 +68,22 @@ def _daten_path() -> str:
 def sync_orm_mirror(user: dict = Depends(require_admin)):
     """Refresh the ORM mirror from the live DBF files.
 
-    Upserts the master-data definition tables (shifts, leave types, workplaces)
-    and the schedule-entry tables (shift assignments, special shifts, absences)
-    and returns the per-table row counts. Safe to call repeatedly; the library's
-    sync uses upsert semantics keyed by DBF ID, and rows with invalid dates are
-    skipped.
-
-    Note: ``sync_all`` is intentionally not used — it also syncs
-    ``group_assignments`` (5GRASG.DBF), whose DBF IDs are not unique and trip a
-    UNIQUE constraint on dirty data (reported to the lib). The tables mirrored
-    here have no such issue.
+    Delegates to the library's ``sync_all``, which mirrors all 11 supported
+    tables — employees, groups, group_assignments, shifts, leave_types,
+    workplaces, shift_assignments, special_shifts, absences, holidays and
+    periods — and returns the per-table row counts. Safe to call repeatedly; the
+    library's sync uses upsert semantics, rows with invalid dates are skipped,
+    and as of lib 1.4.0 ``sync_group_assignments`` dedups and skips dangling
+    rows, so ``sync_all`` runs cleanly on dirty DBF data. ``sync_all`` opens,
+    commits and closes its own session internally.
     """
-    from sp5lib.orm.base import get_session
-    from sp5lib.orm.sync import (
-        sync_absences,
-        sync_leave_types,
-        sync_shift_assignments,
-        sync_shifts,
-        sync_special_shifts,
-        sync_workplaces,
-    )
+    from sp5lib.orm.sync import sync_all
 
-    daten = _daten_path()
-    session = get_session(_get_orm_engine())
     try:
-        stats = {
-            "shifts": sync_shifts(session, daten),
-            "leave_types": sync_leave_types(session, daten),
-            "workplaces": sync_workplaces(session, daten),
-            "shift_assignments": sync_shift_assignments(session, daten),
-            "special_shifts": sync_special_shifts(session, daten),
-            "absences": sync_absences(session, daten),
-        }
-        session.commit()
+        stats = sync_all(_get_orm_engine(), _daten_path())
         return {"ok": True, "synced": stats}
     except Exception as e:
-        session.rollback()
         raise _sanitize_500(e, "sync_orm_mirror")
-    finally:
-        session.close()
 
 
 @router.get("/shifts")
@@ -221,5 +200,43 @@ def list_orm_absences(
         return [r.to_dict() for r in rows]
     except Exception as e:
         raise _sanitize_500(e, "list_orm_absences")
+    finally:
+        session.close()
+
+
+# ── Calendar data (lib 1.4.0) — holidays & periods ───────────────
+
+
+@router.get("/holidays")
+def list_orm_holidays(
+    year: int | None = Query(
+        None, description="Restrict to this calendar year (plus recurring holidays)"
+    ),
+    user: dict = Depends(require_admin),
+):
+    """List public holidays (5HOLID) from the ORM mirror (DBF-shaped dicts).
+
+    With ``year`` set, returns holidays in that year plus all recurring ones."""
+    from sp5lib.orm.repository import HolidayRepository
+
+    session = _get_orm_session()
+    try:
+        return [h.to_dict() for h in HolidayRepository(session).list(year=year)]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_holidays")
+    finally:
+        session.close()
+
+
+@router.get("/periods")
+def list_orm_periods(user: dict = Depends(require_admin)):
+    """List accounting / planning periods (5PERIO) from the ORM mirror."""
+    from sp5lib.orm.repository import PeriodRepository
+
+    session = _get_orm_session()
+    try:
+        return [p.to_dict() for p in PeriodRepository(session).list()]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_periods")
     finally:
         session.close()

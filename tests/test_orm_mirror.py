@@ -1,9 +1,10 @@
 """Integration tests for the ORM-mirror admin router (api/routers/orm_mirror.py).
 
-Exercises the consumption of libopenschichtplaner5 1.2.0: POST /api/admin/orm/sync
-runs the library's DBF→ORM sync against the bundled DBF fixtures, then the
-read endpoints serve the mirrored shifts / leave-types / workplaces back through
-the new 1.2.0 repositories. A temp-file SQLite engine stands in for the mirror DB.
+Exercises the consumption of libopenschichtplaner5: POST /api/admin/orm/sync runs
+the library's ``sync_all`` (lib 1.4.0, all 11 tables) against the bundled DBF
+fixtures, then the read endpoints serve the mirrored shifts / leave-types /
+workplaces / schedule entries / holidays / periods back through the library
+repositories (1.2.0–1.4.0). A temp-file SQLite engine stands in for the mirror DB.
 """
 
 import os
@@ -58,27 +59,31 @@ def _h(tok):
 
 
 def test_sync_returns_per_table_counts(client, admin_token):
-    """Sync mirrors the definition + schedule tables and reports counts."""
+    """sync_all (lib 1.4.0) mirrors all 11 tables and reports per-table counts."""
     resp = client.post("/api/admin/orm/sync", headers=_h(admin_token))
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["ok"] is True
     synced = body["synced"]
-    # Definition tables (1.2.0) + schedule-entry tables (1.3.0) are reported.
-    assert set(synced) == {
+    # sync_all reports every supported table.
+    assert {
+        "employees",
+        "groups",
+        "group_assignments",
         "shifts",
         "leave_types",
         "workplaces",
         "shift_assignments",
         "special_shifts",
         "absences",
-    }
-    # The fixtures contain real definition + schedule rows.
+        "holidays",
+        "periods",
+    } <= set(synced)
+    # The fixtures contain real rows for these key tables.
     assert synced["shifts"] > 0
-    assert synced["leave_types"] > 0
-    assert synced["workplaces"] > 0
     assert synced["shift_assignments"] > 0
-    assert synced["absences"] > 0
+    assert synced["group_assignments"] > 0
+    assert synced["holidays"] > 0
 
 
 def test_list_shifts_after_sync(client, admin_token):
@@ -154,6 +159,24 @@ def test_special_shifts_endpoint_ok(client, admin_token):
     assert isinstance(resp.json(), list)
 
 
+def test_holidays_after_sync(client, admin_token):
+    """5HOLID entries are mirrored with DBF-shaped keys (fixtures have 96)."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    resp = client.get("/api/admin/orm/holidays", headers=_h(admin_token))
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()
+    assert isinstance(rows, list) and len(rows) > 0
+    assert {"ID", "DATE", "NAME"} <= set(rows[0])
+
+
+def test_periods_endpoint_ok(client, admin_token):
+    """5PERIO endpoint responds with a list (fixtures have zero rows)."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    resp = client.get("/api/admin/orm/periods", headers=_h(admin_token))
+    assert resp.status_code == 200, resp.text
+    assert isinstance(resp.json(), list)
+
+
 def test_endpoints_require_admin(client):
     """Unauthenticated callers are rejected on every endpoint."""
     assert client.post("/api/admin/orm/sync").status_code == 401
@@ -163,6 +186,8 @@ def test_endpoints_require_admin(client):
     assert client.get("/api/admin/orm/shift-assignments").status_code == 401
     assert client.get("/api/admin/orm/special-shifts").status_code == 401
     assert client.get("/api/admin/orm/absences").status_code == 401
+    assert client.get("/api/admin/orm/holidays").status_code == 401
+    assert client.get("/api/admin/orm/periods").status_code == 401
 
 
 def test_sync_is_idempotent(client, admin_token):

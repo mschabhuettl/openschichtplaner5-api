@@ -170,10 +170,17 @@ class TestSyncGroupAssignments:
 
         with patch("sp5lib.orm.sync._read_dbf", return_value=SAMPLE_ASSIGNMENTS[:1]):
             count = sync_group_assignments(session, "/fake")
-        # Old 999 should be gone, only new 100
+        # Old assignments are cleared first, then the DBF rows re-inserted. As of
+        # lib 1.4.0 the DBF ID is no longer the PK (rows get a fresh autoincrement
+        # id), so verify behavior by emp/group identity rather than by DBF id.
         assert count == 1
+        # The pre-existing row (id=999) is gone.
         assert session.query(GroupAssignment).filter_by(id=999).first() is None
-        assert session.query(GroupAssignment).filter_by(id=100).first() is not None
+        # Exactly one assignment exists, matching SAMPLE_ASSIGNMENTS[0]'s emp/group.
+        rows = session.query(GroupAssignment).all()
+        assert len(rows) == 1
+        assert rows[0].employee_id == SAMPLE_ASSIGNMENTS[0]["EMPLOYEEID"]
+        assert rows[0].group_id == SAMPLE_ASSIGNMENTS[0]["GROUPID"]
 
 
 class TestSyncAll:
