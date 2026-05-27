@@ -19,6 +19,18 @@ os.environ.setdefault(
 
 _APP_START_TIME = _startup_time_module.time()
 
+# Master-data GET paths cached client-side for 60s. Single source of truth shared
+# by the cache-control middleware (which sets the header) and the metrics
+# collector (which counts hit rate) so the two can never drift apart.
+_CACHEABLE_API_PREFIXES = (
+    "/api/shifts",
+    "/api/holidays",
+    "/api/leave-types",
+    "/api/workplaces",
+    "/api/groups",
+    "/api/extracharges",
+)
+
 
 # ── In-memory metrics collector ──────────────────────────────────
 class _Metrics:
@@ -42,15 +54,7 @@ class _Metrics:
             elif status == 404:
                 self.not_found_count += 1
             # Cache tracking: count cacheable API paths
-            _CACHEABLE_PREFIXES = (
-                "/api/shifts",
-                "/api/holidays",
-                "/api/leave-types",
-                "/api/workplaces",
-                "/api/groups",
-                "/api/extracharges",
-            )
-            if any(path.startswith(p) for p in _CACHEABLE_PREFIXES):
+            if any(path.startswith(p) for p in _CACHEABLE_API_PREFIXES):
                 self.cache_total_count += 1
                 cc = response_headers.get("cache-control", "")
                 if "max-age" in cc and status == 200:
@@ -397,15 +401,7 @@ async def cache_control_middleware(request: Request, call_next):
     if request.method == "GET":
         path = request.url.path
         # Rarely-changing master data: cache for 60s client-side
-        _CACHEABLE_PREFIXES = (
-            "/api/shifts",
-            "/api/holidays",
-            "/api/leave-types",
-            "/api/workplaces",
-            "/api/groups",
-            "/api/extracharges",
-        )
-        if any(path.startswith(p) for p in _CACHEABLE_PREFIXES) and response.status_code == 200:
+        if any(path.startswith(p) for p in _CACHEABLE_API_PREFIXES) and response.status_code == 200:
             response.headers["Cache-Control"] = "private, max-age=60"
         elif path.startswith("/api/"):
             # All other API responses: no caching
