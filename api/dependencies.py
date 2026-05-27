@@ -82,8 +82,9 @@ _handler = logging.handlers.RotatingFileHandler(_log_file, maxBytes=10 * 1024 * 
 _handler.setFormatter(_formatter)
 
 _logger = logging.getLogger("sp5.api")
-# Log level configurable via ENV
-_log_level_str = os.environ.get("SP5_LOG_LEVEL", "INFO").upper()
+# Log level configurable via ENV. LOG_LEVEL is the variable documented in
+# .env.example; SP5_LOG_LEVEL stays supported as an alias.
+_log_level_str = (os.environ.get("SP5_LOG_LEVEL") or os.environ.get("LOG_LEVEL") or "INFO").upper()
 _log_level = getattr(logging, _log_level_str, logging.INFO)
 _logger.setLevel(_log_level)
 _logger.addHandler(_handler)
@@ -93,6 +94,17 @@ _logger.addHandler(_stderr_handler)
 
 # Keep reference to log file path for health endpoint
 SP5_LOG_FILE = _log_file
+
+
+def _int_env(name: str, default: int) -> int:
+    """Read a non-negative int from the environment, falling back to ``default``
+    on missing/invalid values (so a typo can never crash startup)."""
+    try:
+        value = int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+    return value if value >= 0 else default
+
 
 # ── Rate Limiter ─────────────────────────────────────────────────
 
@@ -115,7 +127,9 @@ def _rate_limit_key(request: Request) -> str:
     return get_remote_address(request)
 
 
-limiter = Limiter(key_func=_rate_limit_key, default_limits=["100/minute"])
+# Global default rate limit; configurable via RATE_LIMIT_API (e.g. "200/minute").
+_API_RATE_LIMIT = os.environ.get("RATE_LIMIT_API", "100/minute")
+limiter = Limiter(key_func=_rate_limit_key, default_limits=[_API_RATE_LIMIT])
 
 # ── JWT Configuration ────────────────────────────────────────────
 # Secret: use env var or generate a strong random one (persists for process lifetime).
@@ -172,8 +186,9 @@ _MAX_SESSIONS_PER_USER = int(os.environ.get("MAX_SESSIONS_PER_USER", "10"))
 
 # Brute-force tracking
 _failed_logins: dict[str, list] = {}
-_LOCKOUT_WINDOW = 15 * 60
-_LOCKOUT_MAX = 5
+# Brute-force lockout, configurable via ENV (documented in .env.example).
+_LOCKOUT_WINDOW = _int_env("BRUTE_FORCE_LOCKOUT_MINUTES", 15) * 60
+_LOCKOUT_MAX = _int_env("BRUTE_FORCE_MAX_ATTEMPTS", 5)
 
 # Role hierarchy
 _ROLE_LEVEL = {"Leser": 1, "Planer": 2, "Admin": 3}

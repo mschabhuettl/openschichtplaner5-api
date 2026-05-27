@@ -107,6 +107,7 @@ from .dependencies import (  # noqa: E402
     _DEV_MODE_ACTIVE,
     _DEV_TOKEN,
     _DEV_USER,
+    _int_env,
     _is_token_valid,
     _logger,
     _sessions,
@@ -184,11 +185,14 @@ _OPENAPI_TAGS = [
 
 
 async def _periodic_cleanup():
-    """Background task: purge expired sessions and stale failed-login entries every 5 minutes."""
+    """Background task: purge expired sessions and stale failed-login entries.
+
+    Interval is configurable via SESSION_CLEANUP_INTERVAL_MINUTES (default 5)."""
     import asyncio
 
+    interval_sec = _int_env("SESSION_CLEANUP_INTERVAL_MINUTES", 5) * 60
     while True:
-        await asyncio.sleep(300)
+        await asyncio.sleep(interval_sec)
         try:
             sess = purge_expired_sessions()
             logins = purge_stale_failed_logins()
