@@ -34,9 +34,7 @@ class _Metrics:
         # Circular buffer of recent DB-read latencies (ms)
         self._latencies: deque = deque(maxlen=latency_window)
 
-    def record_request(
-        self, status: int, duration_ms: float, path: str, response_headers: dict
-    ):
+    def record_request(self, status: int, duration_ms: float, path: str, response_headers: dict):
         with self._lock:
             self.request_count += 1
             if status >= 500:
@@ -163,6 +161,25 @@ _OPENAPI_TAGS = [
     {"name": "Admin", "description": "Administrative operations (Admin only)"},
     {"name": "iCal", "description": "iCal (.ics) export for calendar integration"},
     {"name": "Webhooks", "description": "Webhook management and delivery (Admin only)"},
+    {
+        "name": "Reports",
+        "description": "Reporting and analytics exports (fairness, capacity, quality, …)",
+    },
+    {"name": "Notifications", "description": "In-app notifications and read/unread state"},
+    {"name": "Availability", "description": "Employee availability submissions"},
+    {"name": "Email", "description": "Email configuration and notification sending"},
+    {"name": "Export Scheduler", "description": "Scheduled export jobs (Admin only)"},
+    {"name": "Scheduled Reports", "description": "Recurring report generation and delivery"},
+    {"name": "Recurring Shifts", "description": "Recurring shift templates and generation"},
+    {"name": "Qualifications", "description": "Employee qualification matrix"},
+    {"name": "Absence Statistics", "description": "Absence statistics and analytics"},
+    {"name": "work-time-rules", "description": "Working-time rule configuration and checks"},
+    {"name": "System", "description": "System metrics, cache and observability"},
+    {
+        "name": "ORM Mirror",
+        "description": "Read-only SQLAlchemy projection of the DBF data (Admin only) — "
+        "the gradual DBF→ORM migration mirror covering all 19 tables",
+    },
 ]
 
 
@@ -250,6 +267,7 @@ async def lifespan(app: FastAPI):
     # Start scheduled reports background scheduler
     try:
         from .routers.scheduled_reports import start_scheduler, stop_scheduler
+
         start_scheduler(interval_seconds=300)
         _logger.info("Scheduled reports scheduler started")
     except Exception as _exc:
@@ -351,9 +369,7 @@ def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         },
     )
     response.headers["Retry-After"] = str(retry_after)
-    response = request.app.state.limiter._inject_headers(
-        response, request.state.view_rate_limit
-    )
+    response = request.app.state.limiter._inject_headers(response, request.state.view_rate_limit)
     return response
 
 
@@ -385,16 +401,11 @@ async def cache_control_middleware(request: Request, call_next):
             "/api/groups",
             "/api/extracharges",
         )
-        if (
-            any(path.startswith(p) for p in _CACHEABLE_PREFIXES)
-            and response.status_code == 200
-        ):
+        if any(path.startswith(p) for p in _CACHEABLE_PREFIXES) and response.status_code == 200:
             response.headers["Cache-Control"] = "private, max-age=60"
         elif path.startswith("/api/"):
             # All other API responses: no caching
-            response.headers.setdefault(
-                "Cache-Control", "no-cache, no-store, must-revalidate"
-            )
+            response.headers.setdefault("Cache-Control", "no-cache, no-store, must-revalidate")
     return response
 
 
@@ -439,9 +450,7 @@ def _apply_security_headers(response):
     # Content Security Policy: restrict resource loading to same origin
     # Use Report-Only mode when CSP_REPORT_ONLY=true (for debugging)
     csp_header = (
-        "Content-Security-Policy-Report-Only"
-        if _CSP_REPORT_ONLY
-        else "Content-Security-Policy"
+        "Content-Security-Policy-Report-Only" if _CSP_REPORT_ONLY else "Content-Security-Policy"
     )
     response.headers[csp_header] = _CSP_VALUE
     # Additional security headers
@@ -453,9 +462,7 @@ def _apply_security_headers(response):
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     # Only send HSTS if running in production (check env)
     if os.environ.get("SP5_HSTS", "").lower() in ("1", "true", "yes"):
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=31536000; includeSubDomains"
-        )
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -495,7 +502,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         raw_msg = e.get("msg", "Invalid value")
         # Strip pydantic's "Value error, " prefix from custom validators
         if raw_msg.startswith("Value error, "):
-            raw_msg = raw_msg[len("Value error, "):]
+            raw_msg = raw_msg[len("Value error, ") :]
         if etype in _PASS_THROUGH_TYPES:
             # Use the custom message from the validator directly
             msg = raw_msg
@@ -809,10 +816,14 @@ from .routers import (  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(companies.router)
-app.include_router(qualification_matrix.router)  # must be before employees (path conflict: /api/employees/{emp_id})
+app.include_router(
+    qualification_matrix.router
+)  # must be before employees (path conflict: /api/employees/{emp_id})
 app.include_router(employees.router)
 app.include_router(schedule_comments.router)  # must be before schedule.router (path conflict)
-app.include_router(schedule_pdf.router)  # must be before schedule.router (path conflict: /api/schedule/pdf)
+app.include_router(
+    schedule_pdf.router
+)  # must be before schedule.router (path conflict: /api/schedule/pdf)
 app.include_router(schedule.router)
 app.include_router(absences.router)
 app.include_router(master_data.router)
@@ -930,9 +941,7 @@ def health():
         "dbf_missing": dbf_missing,
     }
     if latest_mtime > 0:
-        db_details["last_modified"] = datetime.fromtimestamp(
-            latest_mtime, tz=UTC
-        ).isoformat()
+        db_details["last_modified"] = datetime.fromtimestamp(latest_mtime, tz=UTC).isoformat()
 
     # ── Disk check ──
     disk_check = "ok"
@@ -942,14 +951,10 @@ def health():
         free_mb = usage.free / (1024 * 1024)
         disk_details["free_mb"] = round(free_mb, 1)
         disk_details["total_mb"] = round(usage.total / (1024 * 1024), 1)
-        disk_details["used_percent"] = round(
-            (usage.used / usage.total) * 100, 1
-        )
+        disk_details["used_percent"] = round((usage.used / usage.total) * 100, 1)
         db_dir_size = _get_dir_size(DB_PATH)
         if db_dir_size >= 0:
-            disk_details["db_dir_size_mb"] = round(
-                db_dir_size / (1024 * 1024), 2
-            )
+            disk_details["db_dir_size_mb"] = round(db_dir_size / (1024 * 1024), 2)
         if free_mb < 100:
             disk_check = "warning"
         if free_mb < 20:
@@ -967,9 +972,7 @@ def health():
         memory_details["rss_mb"] = round(rss_mb, 1)
         vm = psutil.virtual_memory()
         memory_details["system_used_percent"] = round(vm.percent, 1)
-        memory_details["system_available_mb"] = round(
-            vm.available / (1024 * 1024), 1
-        )
+        memory_details["system_available_mb"] = round(vm.available / (1024 * 1024), 1)
         if rss_mb > 512:
             memory_check = "warning"
         if rss_mb > 1024:
@@ -984,9 +987,7 @@ def health():
 
     # ── Active sessions ──
     active_sessions = sum(
-        1
-        for s in _sessions.values()
-        if s.get("expires_at") is None or s.get("expires_at", 0) > now
+        1 for s in _sessions.values() if s.get("expires_at") is None or s.get("expires_at", 0) > now
     )
 
     # ── Aggregate status ──
@@ -1157,12 +1158,8 @@ def get_stats():
 
 @app.get("/api/dashboard/summary", tags=["Health"], summary="Dashboard summary")
 def get_dashboard_summary(
-    year: int | None = Query(
-        None, description="Year (YYYY), defaults to current year"
-    ),
-    month: int | None = Query(
-        None, description="Month (1-12), defaults to current month"
-    ),
+    year: int | None = Query(None, description="Year (YYYY), defaults to current year"),
+    month: int | None = Query(None, description="Month (1-12), defaults to current month"),
 ):
     """Return all KPIs needed for the Dashboard in one request."""
     import calendar as _cal
@@ -1179,9 +1176,7 @@ def get_dashboard_summary(
         month = _today.month
 
     if not (1 <= month <= 12):
-        raise HTTPException(
-            status_code=400, detail="Invalid month: must be between 1 and 12"
-        )
+        raise HTTPException(status_code=400, detail="Invalid month: must be between 1 and 12")
 
     db = get_db()
     today = date.today()
@@ -1214,9 +1209,7 @@ def get_dashboard_summary(
 
     # ── Shifts today ─────────────────────────────────────────
     today_entries = db.get_schedule_day(today_str)
-    shifts_today_count = sum(
-        1 for e in today_entries if e["kind"] in ("shift", "special_shift")
-    )
+    shifts_today_count = sum(1 for e in today_entries if e["kind"] in ("shift", "special_shift"))
     # Group by shift short name
     shift_groups: dict = defaultdict(lambda: {"count": 0, "color": "#6B7280"})
     for e in today_entries:
@@ -1226,35 +1219,24 @@ def get_dashboard_summary(
             shift_groups[key]["color"] = e.get("color_bk", "#6B7280")
 
     by_shift = [
-        {"name": k, "count": v["count"], "color": v["color"]}
-        for k, v in shift_groups.items()
+        {"name": k, "count": v["count"], "color": v["color"]} for k, v in shift_groups.items()
     ]
     by_shift.sort(key=lambda x: -x["count"])
 
     # ── Shifts + absences this month ─────────────────────────
-    mashi_count = sum(
-        1 for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)
-    )
-    spshi_count = sum(
-        1 for r in db._read("SPSHI") if r.get("DATE", "").startswith(prefix)
-    )
+    mashi_count = sum(1 for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix))
+    spshi_count = sum(1 for r in db._read("SPSHI") if r.get("DATE", "").startswith(prefix))
     total_shifts_scheduled = mashi_count + spshi_count
 
     # Count working days for coverage %
     num_days = _cal.monthrange(year, month)[1]
-    working_days = sum(
-        1 for d in range(1, num_days + 1) if _dt(year, month, d).weekday() < 5
-    )
+    working_days = sum(1 for d in range(1, num_days + 1) if _dt(year, month, d).weekday() < 5)
     max_possible = total_employees * working_days if working_days > 0 else 1
-    coverage_pct = (
-        round((total_shifts_scheduled / max_possible) * 100) if max_possible > 0 else 0
-    )
+    coverage_pct = round((total_shifts_scheduled / max_possible) * 100) if max_possible > 0 else 0
 
     # ── Absences this month ───────────────────────────────────
     lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
-    abs_by_type: dict = defaultdict(
-        lambda: {"count": 0, "name": "", "color": "#6B7280"}
-    )
+    abs_by_type: dict = defaultdict(lambda: {"count": 0, "name": "", "color": "#6B7280"})
     total_absences_month = 0
 
     for r in db._read("ABSEN"):
@@ -1350,8 +1332,7 @@ def get_dashboard_summary(
                         staffing_warnings.append(
                             {
                                 "date": check_str,
-                                "shift": req.get("shift_short")
-                                or req.get("shift_name", "?"),
+                                "shift": req.get("shift_short") or req.get("shift_name", "?"),
                                 "shift_name": req.get("shift_name", "?"),
                                 "actual": actual,
                                 "required": min_req,
@@ -1460,9 +1441,7 @@ def get_dashboard_today():
     for i in range(7):
         day = week_start + timedelta(days=i)
         day_entries = db.get_schedule_day(day.isoformat()) if day != today else entries
-        day_count = sum(
-            1 for e in day_entries if e.get("kind") in ("shift", "special_shift")
-        )
+        day_count = sum(1 for e in day_entries if e.get("kind") in ("shift", "special_shift"))
         week_data.append(
             {
                 "date": day.isoformat(),
@@ -1500,9 +1479,7 @@ def get_dashboard_today():
 # ── Dashboard: Upcoming ───────────────────────────────────────
 
 
-@app.get(
-    "/api/dashboard/upcoming", tags=["Health"], summary="Upcoming schedule entries"
-)
+@app.get("/api/dashboard/upcoming", tags=["Health"], summary="Upcoming schedule entries")
 def get_dashboard_upcoming():
     """Return next 3 upcoming holidays and birthdays this week."""
     from datetime import date, timedelta
@@ -1614,9 +1591,7 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
     if not (1 <= req_month <= 12):
         from fastapi import HTTPException
 
-        raise HTTPException(
-            status_code=400, detail="Invalid month: must be between 1 and 12"
-        )
+        raise HTTPException(status_code=400, detail="Invalid month: must be between 1 and 12")
 
     # Total employees
     employees = db.get_employees(include_hidden=False)
@@ -1641,8 +1616,7 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
     vacation_days_used = sum(
         1
         for r in db._read("ABSEN")
-        if r.get("DATE", "").startswith(year_prefix)
-        and r.get("LEAVETYPID") in vacation_ids
+        if r.get("DATE", "").startswith(year_prefix) and r.get("LEAVETYPID") in vacation_ids
     )
 
     # Coverage bars: per day of requested month
@@ -1662,11 +1636,7 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
         try:
             wd = _dt(req_year, req_month, day_num).weekday()
             is_weekend = wd >= 5
-            is_today = (
-                req_year == today.year
-                and req_month == today.month
-                and day_num == today.day
-            )
+            is_today = req_year == today.year and req_month == today.month and day_num == today.day
             coverage_by_day.append(
                 {
                     "day": day_num,
@@ -1728,9 +1698,7 @@ if os.path.isdir(_FRONTEND_DIST):
         # Unknown /api/* paths must return 404, not the SPA — avoids silent 200 on typos/missing endpoints
         """Serve the React SPA index.html for all unmatched routes."""
         if full_path.startswith("api/") or full_path == "api":
-            raise HTTPException(
-                status_code=404, detail=f"Endpoint nicht gefunden: /{full_path}"
-            )
+            raise HTTPException(status_code=404, detail=f"Endpoint nicht gefunden: /{full_path}")
         index = os.path.join(_FRONTEND_DIST, "index.html")
         return FileResponse(index)
 
