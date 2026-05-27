@@ -81,12 +81,18 @@ def test_sync_returns_per_table_counts(client, admin_token):
         "bookings",
         "overtime",
         "leave_entitlements",
+        "shift_demand",
+        "special_demand",
+        "cycles",
+        "cycle_assignments",
+        "restrictions",
     } <= set(synced)
     # The fixtures contain real rows for these key tables.
     assert synced["shifts"] > 0
     assert synced["shift_assignments"] > 0
     assert synced["group_assignments"] > 0
     assert synced["holidays"] > 0
+    assert synced["cycles"] > 0
 
 
 def test_list_shifts_after_sync(client, admin_token):
@@ -199,6 +205,42 @@ def test_time_accounting_endpoints_ok(client, admin_token):
     assert r.status_code == 200 and isinstance(r.json(), list)
 
 
+def test_planning_endpoints_ok(client, admin_token):
+    """5SHDEM / 5SPDEM / 5CYCLE / 5CYASS / 5RESTR endpoints respond with lists and
+    accept their filter params (lib 1.6.0). Fixtures have cycles; the rest are empty."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    # cycles have fixture rows with DBF-shaped keys
+    cycles = client.get("/api/admin/orm/cycles", headers=_h(admin_token)).json()
+    assert isinstance(cycles, list) and len(cycles) > 0
+    assert {"ID", "NAME"} <= set(cycles[0])
+    # the demand/assignment/restriction endpoints respond with lists + accept filters
+    assert isinstance(
+        client.get(
+            "/api/admin/orm/shift-demands?shift_id=1&weekday=0&group_id=1", headers=_h(admin_token)
+        ).json(),
+        list,
+    )
+    assert isinstance(
+        client.get(
+            "/api/admin/orm/special-demands?date_from=2026-01-01&date_to=2026-12-31",
+            headers=_h(admin_token),
+        ).json(),
+        list,
+    )
+    assert isinstance(
+        client.get(
+            "/api/admin/orm/cycle-assignments?employee_id=1&cycle_id=1", headers=_h(admin_token)
+        ).json(),
+        list,
+    )
+    assert isinstance(
+        client.get(
+            "/api/admin/orm/restrictions?employee_id=1&shift_id=1", headers=_h(admin_token)
+        ).json(),
+        list,
+    )
+
+
 def test_endpoints_require_admin(client):
     """Unauthenticated callers are rejected on every endpoint."""
     assert client.post("/api/admin/orm/sync").status_code == 401
@@ -213,6 +255,11 @@ def test_endpoints_require_admin(client):
     assert client.get("/api/admin/orm/bookings").status_code == 401
     assert client.get("/api/admin/orm/overtime").status_code == 401
     assert client.get("/api/admin/orm/leave-entitlements").status_code == 401
+    assert client.get("/api/admin/orm/shift-demands").status_code == 401
+    assert client.get("/api/admin/orm/special-demands").status_code == 401
+    assert client.get("/api/admin/orm/cycles").status_code == 401
+    assert client.get("/api/admin/orm/cycle-assignments").status_code == 401
+    assert client.get("/api/admin/orm/restrictions").status_code == 401
 
 
 def test_sync_is_idempotent(client, admin_token):

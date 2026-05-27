@@ -2,15 +2,18 @@
 
 Materializes a read-only SQLAlchemy projection of the DBF data via
 libopenschichtplaner5's sync utilities and exposes it through the library's
-repositories. ``POST /sync`` mirrors all 14 supported tables via the library's
+repositories. ``POST /sync`` mirrors all 19 supported tables via the library's
 ``sync_all``; the read endpoints cover:
 
 * master-data definitions — shifts / leave types / workplaces (lib 1.2.0),
 * schedule entries — shift assignments (5MASHI), special shifts (5SPSHI) and
   absences (5ABSEN) with date-range queries (lib 1.3.0),
-* calendar data — holidays (5HOLID) and periods (5PERIO) (lib 1.4.0), and
+* calendar data — holidays (5HOLID) and periods (5PERIO) (lib 1.4.0),
 * time accounting — bookings (5BOOK), overtime (5OVER) and leave
-  entitlements (5LEAEN) (lib 1.5.0).
+  entitlements (5LEAEN) (lib 1.5.0), and
+* planning data — shift/special demand (5SHDEM/5SPDEM), cycles and cycle
+  assignments (5CYCLE/5CYASS) and restrictions (5RESTR) (lib 1.6.0). With this
+  the read mirror covers the full DBF schema (19 tables).
 
 This is the gradual DBF→ORM migration path the library is built for: the DBF
 files stay the source of truth, while the ORM store is a queryable,
@@ -70,10 +73,10 @@ def _daten_path() -> str:
 def sync_orm_mirror(user: dict = Depends(require_admin)):
     """Refresh the ORM mirror from the live DBF files.
 
-    Delegates to the library's ``sync_all``, which mirrors all 11 supported
-    tables — employees, groups, group_assignments, shifts, leave_types,
-    workplaces, shift_assignments, special_shifts, absences, holidays and
-    periods — and returns the per-table row counts. Safe to call repeatedly; the
+    Delegates to the library's ``sync_all``, which mirrors all 19 supported
+    tables (master data, schedule entries, calendar, time accounting and
+    planning data) and returns the per-table row counts. Safe to call
+    repeatedly; the
     library's sync uses upsert semantics, rows with invalid dates are skipped,
     and as of lib 1.4.0 ``sync_group_assignments`` dedups and skips dangling
     rows, so ``sync_all`` runs cleanly on dirty DBF data. ``sync_all`` opens,
@@ -309,5 +312,108 @@ def list_orm_leave_entitlements(
         return [r.to_dict() for r in rows]
     except Exception as e:
         raise _sanitize_500(e, "list_orm_leave_entitlements")
+    finally:
+        session.close()
+
+
+# ── Planning data (lib 1.6.0) — demand / cycles / restrictions ───────
+
+
+@router.get("/shift-demands")
+def list_orm_shift_demands(
+    shift_id: int | None = Query(None, description="Filter by shift ID"),
+    weekday: int | None = Query(None, description="Filter by weekday (0=Mon … 6=Sun)"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
+    user: dict = Depends(require_admin),
+):
+    """List per-weekday staffing demand (5SHDEM), filterable by shift, weekday
+    and/or group."""
+    from sp5lib.orm.repository import ShiftDemandRepository
+
+    session = _get_orm_session()
+    try:
+        rows = ShiftDemandRepository(session).list(
+            shift_id=shift_id, weekday=weekday, group_id=group_id
+        )
+        return [r.to_dict() for r in rows]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_shift_demands")
+    finally:
+        session.close()
+
+
+@router.get("/special-demands")
+def list_orm_special_demands(
+    date_from: str | None = Query(None, description="ISO date (inclusive lower bound)"),
+    date_to: str | None = Query(None, description="ISO date (inclusive upper bound)"),
+    shift_id: int | None = Query(None, description="Filter by shift ID"),
+    user: dict = Depends(require_admin),
+):
+    """List date-specific staffing demand (5SPDEM), filterable by date range
+    and/or shift."""
+    from sp5lib.orm.repository import SpecialDemandRepository
+
+    session = _get_orm_session()
+    try:
+        rows = SpecialDemandRepository(session).list(
+            date_from=date_from, date_to=date_to, shift_id=shift_id
+        )
+        return [r.to_dict() for r in rows]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_special_demands")
+    finally:
+        session.close()
+
+
+@router.get("/cycles")
+def list_orm_cycles(include_hidden: bool = False, user: dict = Depends(require_admin)):
+    """List rotation/shift-cycle definitions (5CYCLE) from the ORM mirror."""
+    from sp5lib.orm.repository import CycleRepository
+
+    session = _get_orm_session()
+    try:
+        return [c.to_dict() for c in CycleRepository(session).list(include_hidden=include_hidden)]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_cycles")
+    finally:
+        session.close()
+
+
+@router.get("/cycle-assignments")
+def list_orm_cycle_assignments(
+    employee_id: int | None = Query(None, description="Filter by employee ID"),
+    cycle_id: int | None = Query(None, description="Filter by cycle ID"),
+    user: dict = Depends(require_admin),
+):
+    """List employee↔cycle assignments (5CYASS), filterable by employee and/or
+    cycle."""
+    from sp5lib.orm.repository import CycleAssignmentRepository
+
+    session = _get_orm_session()
+    try:
+        rows = CycleAssignmentRepository(session).list(employee_id=employee_id, cycle_id=cycle_id)
+        return [r.to_dict() for r in rows]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_cycle_assignments")
+    finally:
+        session.close()
+
+
+@router.get("/restrictions")
+def list_orm_restrictions(
+    employee_id: int | None = Query(None, description="Filter by employee ID"),
+    shift_id: int | None = Query(None, description="Filter by shift ID"),
+    user: dict = Depends(require_admin),
+):
+    """List deployment restrictions (5RESTR), filterable by employee and/or
+    shift."""
+    from sp5lib.orm.repository import RestrictionRepository
+
+    session = _get_orm_session()
+    try:
+        rows = RestrictionRepository(session).list(employee_id=employee_id, shift_id=shift_id)
+        return [r.to_dict() for r in rows]
+    except Exception as e:
+        raise _sanitize_500(e, "list_orm_restrictions")
     finally:
         session.close()
