@@ -119,20 +119,26 @@ limiter = Limiter(key_func=_rate_limit_key, default_limits=["100/minute"])
 
 # ── JWT Configuration ────────────────────────────────────────────
 # Secret: use env var or generate a strong random one (persists for process lifetime).
-# For multi-worker / restart-safe deployments, set SP5_JWT_SECRET in env.
+# For multi-worker / restart-safe deployments, set SECRET_KEY (or SP5_JWT_SECRET) in env.
 
 
 def _resolve_jwt_secret(env: dict[str, str]) -> tuple[str, str | None]:
     """Resolve the JWT signing secret and an optional operator warning.
 
-    Returns ``(secret, warning_or_None)``. When ``SP5_JWT_SECRET`` is set it is
-    used as-is. Otherwise a strong random per-process secret is generated — fine
-    for local/dev, but in production that silently invalidates sessions on every
-    restart and across multiple workers, so a warning is surfaced unless the app
-    is running in dev/debug mode.
+    Reads ``SP5_JWT_SECRET`` first, then ``SECRET_KEY`` — the latter is the
+    variable documented in `.env.example`/README/DEPLOYMENT and the one
+    `start.sh` auto-generates, so it MUST be honoured (otherwise the configured
+    secret is silently ignored and tokens are signed with a random per-process
+    key). The shipped ``change-me…`` placeholder is treated as unset.
+
+    Returns ``(secret, warning_or_None)``. When no real secret is configured a
+    strong random per-process secret is generated — fine for local/dev, but in
+    production that silently invalidates sessions on every restart and across
+    multiple workers, so a warning is surfaced unless running in dev/debug mode.
     """
-    configured = env.get("SP5_JWT_SECRET")
-    if configured:
+    configured = (env.get("SP5_JWT_SECRET") or env.get("SECRET_KEY") or "").strip()
+    # The shipped placeholder is not a real secret.
+    if configured and not configured.lower().startswith("change-me"):
         return configured, None
 
     dev_mode = env.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes")
@@ -140,9 +146,10 @@ def _resolve_jwt_secret(env: dict[str, str]) -> tuple[str, str | None]:
     warning = None
     if not dev_mode and not debug:
         warning = (
-            "SP5_JWT_SECRET is not set — using a random per-process secret. Sessions will "
-            "NOT survive a restart and are invalid across multiple workers. Set "
-            "SP5_JWT_SECRET (a long random value) in production."
+            "No real JWT secret configured (SECRET_KEY / SP5_JWT_SECRET unset or still the "
+            "placeholder) — using a random per-process secret. Sessions will NOT survive a "
+            "restart and are invalid across multiple workers. Set SECRET_KEY to a long random "
+            "value (openssl rand -hex 32) in production."
         )
     return _secrets.token_hex(64), warning
 
