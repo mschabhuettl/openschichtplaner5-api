@@ -77,8 +77,31 @@ class _TextFormatter(logging.Formatter):
 _log_format = os.environ.get("SP5_LOG_FORMAT", "json").lower()
 _formatter = _TextFormatter() if _log_format == "text" else _JsonFormatter()
 
-_log_file = "/tmp/sp5-api.log"
-_handler = logging.handlers.RotatingFileHandler(_log_file, maxBytes=10 * 1024 * 1024, backupCount=3)
+_DEFAULT_LOG_FILE = "/tmp/sp5-api.log"
+
+
+def _open_log_handler(path: str) -> tuple[str, logging.handlers.RotatingFileHandler]:
+    """Create a rotating file handler for ``path``, creating the parent dir if
+    needed. On any failure (unwritable/missing dir) fall back to the default
+    ``/tmp`` location so logging — and thus startup — never breaks because of a
+    misconfigured LOG_FILE. Returns the (possibly fallback) path + handler."""
+    for candidate in (path, _DEFAULT_LOG_FILE):
+        try:
+            parent = os.path.dirname(candidate)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            handler = logging.handlers.RotatingFileHandler(
+                candidate, maxBytes=10 * 1024 * 1024, backupCount=3
+            )
+            return candidate, handler
+        except OSError:
+            continue
+    # Both failed (extremely unlikely) — last resort: a no-op stream handler.
+    return path, logging.handlers.RotatingFileHandler(_DEFAULT_LOG_FILE, delay=True)
+
+
+# LOG_FILE is documented in .env.example; default keeps the previous /tmp path.
+_log_file, _handler = _open_log_handler(os.environ.get("LOG_FILE") or _DEFAULT_LOG_FILE)
 _handler.setFormatter(_formatter)
 
 _logger = logging.getLogger("sp5.api")
