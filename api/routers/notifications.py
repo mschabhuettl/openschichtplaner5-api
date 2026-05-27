@@ -166,7 +166,7 @@ def list_notifications(
         None, description="Filter by recipient employee id (0 = planner-wide)"
     ),
     unread_only: bool = Query(False),
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, ge=1, le=200),
     cur_user: dict = Depends(require_planer),
 ):
     """Return notifications, newest first.
@@ -205,7 +205,7 @@ def list_notifications(
 )
 def list_all_notifications(
     unread_only: bool = Query(False),
-    limit: int = Query(100, le=500),
+    limit: int = Query(100, ge=1, le=500),
     _cur_user: dict = Depends(require_admin),
 ):
     """Return all notifications (admin-only overview of every notification in the system)."""

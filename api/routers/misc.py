@@ -405,7 +405,7 @@ def delete_group_access(access_id: int, _cur_user: dict = Depends(require_admin)
 
 @router.get("/api/changelog", tags=["Admin"], summary="List audit log entries", description="Return the activity changelog with optional filtering and pagination.")
 def get_changelog(
-    limit: int = Query(100, description="Max entries to return (applied before pagination)"),
+    limit: int = Query(100, ge=1, le=5000, description="Max entries to return (applied before pagination)"),
     user: str | None = Query(None, description="Filter by user"),
     entity_type: str | None = Query(None, description="Filter by entity type (employee, schedule, absence, …)"),
     date_from: str | None = Query(None, description="ISO date YYYY-MM-DD"),

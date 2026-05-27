@@ -97,3 +97,42 @@ class TestChangelogPagination:
         data = res.json()
         assert "items" in data
         assert data["page"] == 1
+
+
+class TestListLimitBounds:
+    """Guard the ge/le bounds on list-endpoint `limit` params.
+
+    The underlying ``get_changelog`` issues a raw ``stmt.limit(limit)`` with no
+    clamping, so an unbounded ``limit`` would materialise the whole audit log
+    (a DoS vector) and — on SQLite — a negative ``limit`` means *unlimited*.
+    These bounds reject both at the edge with a clean 422 while leaving valid
+    requests untouched.
+    """
+
+    def test_changelog_limit_zero_rejected(self, sync_client: TestClient):
+        assert sync_client.get("/api/changelog?limit=0").status_code == 422
+
+    def test_changelog_limit_negative_rejected(self, sync_client: TestClient):
+        # SQLite treats LIMIT -1 as "no limit" — ge=1 must reject it.
+        assert sync_client.get("/api/changelog?limit=-1").status_code == 422
+
+    def test_changelog_limit_too_high_rejected(self, sync_client: TestClient):
+        assert sync_client.get("/api/changelog?limit=10000").status_code == 422
+
+    def test_changelog_limit_at_max_accepted(self, sync_client: TestClient):
+        assert sync_client.get("/api/changelog?limit=5000").status_code == 200
+
+    def test_changelog_default_limit_accepted(self, sync_client: TestClient):
+        assert sync_client.get("/api/changelog?limit=100").status_code == 200
+
+    def test_notifications_limit_zero_rejected(self, sync_client: TestClient):
+        assert sync_client.get("/api/notifications?limit=0").status_code == 422
+
+    def test_notifications_limit_valid_accepted(self, sync_client: TestClient):
+        assert sync_client.get("/api/notifications?limit=50").status_code == 200
+
+    def test_notifications_all_limit_zero_rejected(self, sync_client: TestClient):
+        assert sync_client.get("/api/notifications/all?limit=0").status_code == 422
+
+    def test_notifications_all_limit_valid_accepted(self, sync_client: TestClient):
+        assert sync_client.get("/api/notifications/all?limit=100").status_code == 200
