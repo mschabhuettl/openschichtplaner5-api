@@ -91,6 +91,66 @@ def sync_orm_mirror(user: dict = Depends(require_admin)):
         raise _sanitize_500(e, "sync_orm_mirror")
 
 
+# Mirror table name → ORM model, in sync_all order (the 19-table read mirror).
+_MIRROR_TABLES = {
+    "employees": "Employee",
+    "groups": "Group",
+    "group_assignments": "GroupAssignment",
+    "shifts": "Shift",
+    "leave_types": "LeaveType",
+    "workplaces": "Workplace",
+    "shift_assignments": "ShiftAssignment",
+    "special_shifts": "SpecialShift",
+    "absences": "Absence",
+    "holidays": "Holiday",
+    "periods": "Period",
+    "bookings": "AccountBooking",
+    "overtime": "OvertimeEntry",
+    "leave_entitlements": "LeaveEntitlement",
+    "shift_demand": "ShiftDemand",
+    "special_demand": "SpecialDemand",
+    "cycles": "Cycle",
+    "cycle_assignments": "CycleAssignment",
+    "restrictions": "Restriction",
+}
+
+
+@router.get("/status")
+def orm_mirror_status(user: dict = Depends(require_admin)):
+    """Report the current ORM-mirror state without re-syncing.
+
+    Returns whether the mirror DB has been materialised and the live per-table
+    row counts (all 19 mirrored tables), so admins can gauge mirror freshness
+    cheaply before deciding to POST /sync.
+    """
+    import os
+
+    import sp5lib.orm as orm
+    from sqlalchemy import func, select
+
+    import api.main as _main
+
+    orm_db = os.path.join(os.path.dirname(_main.DB_PATH), "sp5_orm.db")
+    mirror_exists = os.path.exists(orm_db)
+
+    session = _get_orm_session()
+    try:
+        counts = {
+            name: session.scalar(select(func.count()).select_from(getattr(orm, model)))
+            for name, model in _MIRROR_TABLES.items()
+        }
+        return {
+            "mirror_db_exists": mirror_exists,
+            "table_count": len(counts),
+            "total_rows": sum(counts.values()),
+            "counts": counts,
+        }
+    except Exception as e:
+        raise _sanitize_500(e, "orm_mirror_status")
+    finally:
+        session.close()
+
+
 @router.get("/shifts")
 def list_orm_shifts(include_hidden: bool = False, user: dict = Depends(require_admin)):
     """List shift definitions from the ORM mirror (DBF-shaped dicts)."""

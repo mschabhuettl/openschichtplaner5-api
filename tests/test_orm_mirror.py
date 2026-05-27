@@ -95,6 +95,23 @@ def test_sync_returns_per_table_counts(client, admin_token):
     assert synced["cycles"] > 0
 
 
+def test_status_reports_counts_after_sync(client, admin_token):
+    """GET /status reports live per-table counts (all 19 tables) without re-syncing."""
+    assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
+    resp = client.get("/api/admin/orm/status", headers=_h(admin_token))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["table_count"] == 19
+    assert isinstance(body["mirror_db_exists"], bool)
+    counts = body["counts"]
+    assert len(counts) == 19
+    # populated key tables reflect the synced fixtures
+    assert counts["shifts"] > 0
+    assert counts["shift_assignments"] > 0
+    assert counts["holidays"] > 0
+    assert body["total_rows"] == sum(counts.values())
+
+
 def test_list_shifts_after_sync(client, admin_token):
     """After sync, the shifts read endpoint returns DBF-shaped dicts."""
     assert client.post("/api/admin/orm/sync", headers=_h(admin_token)).status_code == 200
@@ -244,6 +261,7 @@ def test_planning_endpoints_ok(client, admin_token):
 def test_endpoints_require_admin(client):
     """Unauthenticated callers are rejected on every endpoint."""
     assert client.post("/api/admin/orm/sync").status_code == 401
+    assert client.get("/api/admin/orm/status").status_code == 401
     assert client.get("/api/admin/orm/shifts").status_code == 401
     assert client.get("/api/admin/orm/leave-types").status_code == 401
     assert client.get("/api/admin/orm/workplaces").status_code == 401
