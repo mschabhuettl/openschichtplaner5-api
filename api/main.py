@@ -794,6 +794,7 @@ from .routers import (  # noqa: E402
     misc,
     notification_settings,
     notifications,
+    orm_mirror,
     overtime,
     qualification_matrix,
     recurring_shifts,
@@ -831,6 +832,7 @@ app.include_router(export_scheduler.router)
 app.include_router(scheduled_reports.router)
 app.include_router(work_time_rules.router)
 app.include_router(notification_settings.router)
+app.include_router(orm_mirror.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────
