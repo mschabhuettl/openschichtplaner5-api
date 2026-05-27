@@ -400,3 +400,66 @@ class TestCascades:
         from sqlalchemy import select
         remaining = session.scalars(select(GroupAssignment)).all()
         assert len(remaining) == 0
+
+
+# ── SQLite / Postgres backend parity ─────────────────────────────
+
+
+class TestBackendParity:
+    """Guard the SQLite/Postgres ORM model parity the ORM mirror relies on.
+
+    ``backend/api/routers/orm_mirror.py`` serialises rows via ``<model>.to_dict()``.
+    The lib keeps the entity classes canonically in ``sp5lib.orm.models`` and
+    re-exports them from ``sp5lib.orm.models_pg`` so the SQLite and Postgres
+    backends share one definition (and therefore one ``to_dict()`` shape).
+    Historically these diverged; ``backend/requirements.txt`` pins the lib with a
+    floating ``>=``, so a future release could silently reintroduce the split and
+    change the mirror's response shape per deployment. These tests fail loudly if
+    that parity ever breaks.
+    """
+
+    # Every entity the ORM mirror reads + serialises via to_dict().
+    MIRROR_ENTITIES = (
+        "Shift",
+        "LeaveType",
+        "Workplace",
+        "Absence",
+        "ShiftAssignment",
+        "SpecialShift",
+        "Holiday",
+        "Period",
+        "AccountBooking",
+        "OvertimeEntry",
+        "LeaveEntitlement",
+        "ShiftDemand",
+        "SpecialDemand",
+        "Cycle",
+        "CycleAssignment",
+        "Restriction",
+    )
+
+    @pytest.mark.parametrize("name", MIRROR_ENTITIES)
+    def test_models_pg_reexports_canonical_class(self, name):
+        """models_pg must expose the *same* class object as models for each
+        mirror entity — divergent copies would break to_dict() parity."""
+        from sp5lib.orm import models, models_pg
+
+        canonical = getattr(models, name, None)
+        assert canonical is not None, f"sp5lib.orm.models is missing {name}"
+        reexported = getattr(models_pg, name, None)
+        assert reexported is canonical, (
+            f"sp5lib.orm.models_pg.{name} must be the canonical "
+            f"sp5lib.orm.models.{name} (got {reexported!r}); divergent classes "
+            f"break to_dict() parity between the SQLite and Postgres backends"
+        )
+
+    @pytest.mark.parametrize("name", MIRROR_ENTITIES)
+    def test_mirror_entity_exposes_to_dict(self, name):
+        """Each mirror entity must expose a callable to_dict() — orm_mirror.py
+        calls it on every row it serialises."""
+        from sp5lib.orm import models
+
+        model = getattr(models, name)
+        assert callable(getattr(model, "to_dict", None)), (
+            f"{name} must expose a callable to_dict() (consumed by orm_mirror.py)"
+        )
