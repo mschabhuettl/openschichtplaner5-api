@@ -4,20 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openschichtplaner5-api"
-version = "1.1.1"
+version = "1.1.2"
 description = "REST API of OpenSchichtplaner5 — the FastAPI service layer over libopenschichtplaner5 (sp5lib): auth/2FA, employees, schedule, absences, reports, notifications and more."
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Matthias Schabhüttl", email = "matthias@matthiasschabhuettl.com" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 keywords = ["schichtplaner5", "shift-planning", "fastapi", "rest-api", "scheduling"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Framework :: FastAPI",
