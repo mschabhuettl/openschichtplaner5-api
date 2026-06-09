@@ -27,10 +27,8 @@ reports/exports, notifications (SSE), webhooks, iCal feeds and more.
 ## Installation
 
 ```bash
-pip install "openschichtplaner5-api @ git+https://github.com/mschabhuettl/openschichtplaner5-api.git@main"
+pip install openschichtplaner5-api
 ```
-
-(PyPI release pending — once published: `pip install openschichtplaner5-api`.)
 
 ## Running
 
