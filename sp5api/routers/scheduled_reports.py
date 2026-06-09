@@ -216,7 +216,7 @@ def _generate_schedule_overview(year: int, month: int, filters: dict, fmt: str) 
     except ImportError:
         _HAS_OPENPYXL = False
 
-    from sp5lib.db import get_db
+    from ..dependencies import get_db
     db = get_db()
 
     group_id = filters.get("group_id")
@@ -343,7 +343,7 @@ def _generate_schedule_overview(year: int, month: int, filters: dict, fmt: str) 
 
 def _generate_overtime_report(year: int, month: int, filters: dict, fmt: str) -> tuple[bytes, str]:
     """Generate an overtime/underhours summary report."""
-    from sp5lib.db import get_db
+    from ..dependencies import get_db
     db = get_db()
 
     group_id = filters.get("group_id")
@@ -417,7 +417,7 @@ def _generate_overtime_report(year: int, month: int, filters: dict, fmt: str) ->
 
 def _generate_absences_report(year: int, month: int, filters: dict, fmt: str) -> tuple[bytes, str]:
     """Generate an absences statistics report."""
-    from sp5lib.db import get_db
+    from ..dependencies import get_db
     db = get_db()
 
     group_id = filters.get("group_id")

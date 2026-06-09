@@ -180,7 +180,7 @@ def _generate_export(fmt: str, group_id: int | None, month: str) -> tuple[bytes,
     except ValueError as exc:
         raise ValueError(f"Invalid month format: {month}") from exc
 
-    from sp5lib.db import get_db
+    from ..dependencies import get_db
 
     db = get_db()
     entries = db.get_schedule(year=year, month=mon, group_id=group_id)

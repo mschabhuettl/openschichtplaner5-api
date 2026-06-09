@@ -687,12 +687,7 @@ class TestGenerateReport:
             {"type_name": "Urlaub", "days": 2},
         ]
 
-        from types import ModuleType
-
-        fake_db_module = ModuleType("sp5lib.db")
-        fake_db_module.get_db = MagicMock(return_value=mock_db)
-
-        with patch.dict("sys.modules", {"sp5lib.db": fake_db_module}):
+        with patch("sp5api.dependencies.get_db", return_value=mock_db):
             yield
 
     def test_generate_schedule_overview_csv(self):

@@ -21,7 +21,7 @@ class TestGenerateExport:
 
     @pytest.fixture(autouse=True)
     def _mock_db(self):
-        """Mock sp5lib.db.get_db to return predictable schedule/employee data."""
+        """Mock the DB dependency to return predictable schedule/employee data."""
         mock_db = MagicMock()
         mock_db.get_schedule.return_value = [
             {
@@ -47,10 +47,7 @@ class TestGenerateExport:
         mock_db.get_group_members.return_value = ["EMP1"]
         self.mock_db = mock_db
 
-        # Patch at the sp5lib.db module level
-        fake_db_module = MagicMock()
-        fake_db_module.get_db = MagicMock(return_value=mock_db)
-        with patch.dict("sys.modules", {"sp5lib.db": fake_db_module}):
+        with patch("sp5api.dependencies.get_db", return_value=mock_db):
             yield
 
     def test_csv_export_all_groups(self):
@@ -252,3 +249,32 @@ class TestScheduleValidation:
         from sp5api.routers.export_scheduler import ScheduleUpdate
         with pytest.raises(ValidationError):
             ScheduleUpdate(email_to=["no-at-sign"])
+
+
+class TestGenerateExportRealDB:
+    """Regression for the broken `from sp5lib.db import get_db` lazy import.
+
+    sp5lib.db never existed — every scheduled export failed with
+    ModuleNotFoundError while the unit tests masked it by injecting a fake
+    module into sys.modules. These tests run the generators against the real
+    fixture DB with no import mocking at all.
+    """
+
+    def test_generate_export_csv(self, patched_db):
+        from sp5api.routers.export_scheduler import _generate_export
+
+        file_bytes, row_count = _generate_export("csv", None, "2025-01")
+        assert isinstance(file_bytes, bytes) and file_bytes
+        assert row_count >= 0
+
+    def test_scheduled_report_generators(self, patched_db):
+        from sp5api.routers.scheduled_reports import (
+            _generate_absences_report,
+            _generate_overtime_report,
+            _generate_schedule_overview,
+        )
+
+        for gen in (_generate_schedule_overview, _generate_overtime_report, _generate_absences_report):
+            data, filename = gen(2025, 1, {}, "csv")
+            assert isinstance(data, bytes) and data
+            assert filename.endswith(".csv")

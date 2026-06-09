@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-06-10
+
+### Fixed
+
+- **Scheduled exports/reports were broken since their introduction:** four lazy
+  `from sp5lib.db import get_db` imports (`export_scheduler`, three report
+  generators in `scheduled_reports`) referenced a module that has never existed
+  in any libopenschichtplaner5 release — every scheduled Excel/CSV export and
+  every scheduled report run failed with `ModuleNotFoundError`. They now use
+  the package's own `sp5api.dependencies.get_db` (DBF/PostgreSQL per
+  `DB_BACKEND`). The unit tests had masked the bug by injecting a fake
+  `sp5lib.db` into `sys.modules`; they now patch the real dependency, and new
+  regression tests run the generators against the fixture DB with no import
+  mocking.
+- Same bug class in `GET /api/admin/cache-stats`: `from sp5lib.cache import
+  get_cache_stats` (also nonexistent) made the endpoint permanently serve its
+  degraded fallback — it now reports the API's own response-cache statistics
+  (`sp5api.cache.stats()`), with the fallback kept.
+
 ## [1.1.0] - 2026-06-10
 
 First standalone release. The API was extracted from

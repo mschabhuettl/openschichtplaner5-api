@@ -824,9 +824,9 @@ def get_cache_stats(_cur_user: dict = Depends(require_admin)):
     """Return internal cache statistics. Admin only."""
     stats: dict = {}
     try:
-        from sp5lib.cache import get_cache_stats as _get_cache_stats
+        from ..cache import stats as _cache_stats
 
-        stats = _get_cache_stats()
+        stats = _cache_stats()
     except Exception:
         try:
             from sp5lib.database import (
