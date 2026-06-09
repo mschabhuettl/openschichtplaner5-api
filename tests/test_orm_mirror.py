@@ -10,9 +10,9 @@ repositories (1.2.0–1.4.0). A temp-file SQLite engine stands in for the mirror
 import os
 import secrets
 
-import api.routers.orm_mirror as orm_mirror
+import sp5api.routers.orm_mirror as orm_mirror
 import pytest
-from api.main import _sessions, app
+from sp5api.main import _sessions, app
 from starlette.testclient import TestClient
 
 _FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")

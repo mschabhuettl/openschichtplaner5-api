@@ -7,7 +7,7 @@ import secrets
 
 def _inject_role(role: str) -> str:
     """Inject a session token with the given role, return token."""
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -21,7 +21,7 @@ def _inject_role(role: str) -> str:
 
 
 def _remove_token(tok: str) -> None:
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     _sessions.pop(tok, None)
 
@@ -122,7 +122,7 @@ class TestQualificationMatrix:
 
     def test_requires_auth(self, sync_client):
         """Endpoint should reject unauthenticated requests."""
-        from api.main import app
+        from sp5api.main import app
         from starlette.testclient import TestClient
 
         bare = TestClient(app, raise_server_exceptions=False)
@@ -130,7 +130,7 @@ class TestQualificationMatrix:
         assert r.status_code in (401, 403)
 
     def test_leser_role_is_forbidden(self, sync_client):
-        from api.main import app
+        from sp5api.main import app
         from starlette.testclient import TestClient
 
         tok = _inject_role("Leser")
@@ -145,7 +145,7 @@ class TestQualificationMatrix:
             _remove_token(tok)
 
     def test_planer_role_allowed(self, sync_client):
-        from api.main import app
+        from sp5api.main import app
         from starlette.testclient import TestClient
 
         tok = _inject_role("Planer")
@@ -228,7 +228,7 @@ class TestQualificationStats:
         assert names == sorted(names), "Stats should be sorted alphabetically"
 
     def test_requires_auth(self, sync_client):
-        from api.main import app
+        from sp5api.main import app
         from starlette.testclient import TestClient
 
         bare = TestClient(app, raise_server_exceptions=False)

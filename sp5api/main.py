@@ -106,7 +106,7 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
 
 # ── Import shared dependencies ──────────────────────────────────
-# These are re-exported here so tests can still do `from api.main import _sessions`
+# These are re-exported here so tests can still do `from sp5api.main import _sessions`
 from .dependencies import (  # noqa: E402
     _DEV_MODE_ACTIVE,
     _DEV_TOKEN,
@@ -320,7 +320,7 @@ def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     """Custom 429 handler — returns structured JSON with Retry-After header."""
     import re as _re_mod
 
-    from api.rate_limit_store import log_rate_limit_event
+    from sp5api.rate_limit_store import log_rate_limit_event
 
     client_ip = request.client.host if request.client else "unknown"
     endpoint = request.url.path
@@ -1706,4 +1706,4 @@ if os.path.isdir(_FRONTEND_DIST):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("sp5api.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,7 +1,7 @@
 """Tests for security headers, CSP, and CSRF protection (Q024 + Q054)."""
 
 import pytest
-from api.main import app
+from sp5api.main import app
 from httpx import ASGITransport, AsyncClient
 
 
@@ -67,7 +67,7 @@ async def test_security_headers_present(client: AsyncClient):
 @pytest.mark.anyio
 async def test_csp_report_only_mode(client: AsyncClient, monkeypatch):
     """When CSP_REPORT_ONLY=true, use Content-Security-Policy-Report-Only."""
-    import api.main as main_module
+    import sp5api.main as main_module
 
     monkeypatch.setattr(main_module, "_CSP_REPORT_ONLY", True)
     resp = await client.get("/api/health")

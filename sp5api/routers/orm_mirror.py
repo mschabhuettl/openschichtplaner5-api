@@ -44,7 +44,7 @@ def _get_orm_engine():
     """
     from sp5lib.orm import get_engine, init_db
 
-    import api.main as _main
+    import sp5api.main as _main
 
     orm_db = os.path.join(os.path.dirname(_main.DB_PATH), "sp5_orm.db")
     engine = get_engine(f"sqlite:///{orm_db}")
@@ -61,7 +61,7 @@ def _get_orm_session():
 
 def _daten_path() -> str:
     """Absolute path to the live DBF data directory (the sync source)."""
-    import api.main as _main
+    import sp5api.main as _main
 
     return _main.DB_PATH
 
@@ -128,7 +128,7 @@ def orm_mirror_status(user: dict = Depends(require_admin)):
     import sp5lib.orm as orm
     from sqlalchemy import func, select
 
-    import api.main as _main
+    import sp5api.main as _main
 
     orm_db = os.path.join(os.path.dirname(_main.DB_PATH), "sp5_orm.db")
     mirror_exists = os.path.exists(orm_db)

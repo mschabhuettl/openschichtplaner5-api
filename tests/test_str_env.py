@@ -2,7 +2,7 @@
 RATE_LIMIT_LOGIN configurable. Empty/whitespace/missing → default.
 """
 
-import api.dependencies as deps
+import sp5api.dependencies as deps
 
 
 def test_returns_default_when_unset(monkeypatch):

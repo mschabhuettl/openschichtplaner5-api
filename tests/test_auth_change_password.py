@@ -21,7 +21,7 @@ class _PwDB:
 
 
 def _session(role="Admin"):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -36,8 +36,8 @@ def _session(role="Admin"):
 
 
 def _client(monkeypatch, db):
-    from api.main import app
-    from api.routers import auth as auth_router
+    from sp5api.main import app
+    from sp5api.routers import auth as auth_router
 
     monkeypatch.setattr(auth_router, "get_db", lambda: db)
     return TestClient(app, raise_server_exceptions=False)
@@ -52,7 +52,7 @@ class TestChangeOwnPassword:
         )
 
     def test_success(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session()
         client = _client(monkeypatch, _PwDB(verify=True, change=True))
@@ -66,7 +66,7 @@ class TestChangeOwnPassword:
             _sessions.pop(tok, None)
 
     def test_wrong_old_password_is_403(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session()
         client = _client(monkeypatch, _PwDB(verify=False))
@@ -77,7 +77,7 @@ class TestChangeOwnPassword:
             _sessions.pop(tok, None)
 
     def test_weak_new_password_is_400(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session()
         client = _client(monkeypatch, _PwDB(verify=True))
@@ -89,7 +89,7 @@ class TestChangeOwnPassword:
             _sessions.pop(tok, None)
 
     def test_change_password_user_not_found_is_404(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session()
         client = _client(monkeypatch, _PwDB(verify=True, change=False))
@@ -100,7 +100,7 @@ class TestChangeOwnPassword:
             _sessions.pop(tok, None)
 
     def test_db_error_is_sanitized_500(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         class _BoomDB(_PwDB):
             def change_password(self, user_id, new_password):

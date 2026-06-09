@@ -6,7 +6,7 @@ event-building branches, plus the date-parse skips, are exercised directly."""
 
 from datetime import date
 
-import api.routers.ical as ical
+import sp5api.routers.ical as ical
 
 
 class TestParseTime:
@@ -85,7 +85,7 @@ class TestTokenLifecycle:
     def _session(self, employee_id=40):
         import secrets
 
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {
@@ -100,7 +100,7 @@ class TestTokenLifecycle:
         return tok
 
     def test_token_create_get_feed_revoke(self, write_db_path):
-        from api.main import _sessions, app
+        from sp5api.main import _sessions, app
         from starlette.testclient import TestClient
 
         tok = self._session(40)  # employee 40 exists in the fixtures

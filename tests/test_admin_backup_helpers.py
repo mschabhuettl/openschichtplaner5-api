@@ -6,7 +6,7 @@ import io
 import os
 import zipfile
 
-import api.routers.admin as admin
+import sp5api.routers.admin as admin
 import pytest
 from fastapi import HTTPException
 

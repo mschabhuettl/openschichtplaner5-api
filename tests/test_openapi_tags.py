@@ -4,7 +4,7 @@ Without this, new routers can introduce tag groups that render in the Swagger UI
 with no description (as happened for Reports/Notifications/ORM Mirror/… before).
 """
 
-import api.main as main
+import sp5api.main as main
 
 
 def _route_tags() -> set[str]:

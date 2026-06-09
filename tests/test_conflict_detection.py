@@ -24,35 +24,35 @@ class TestTimeHelpers:
     """Unit tests for time parsing and overlap detection helpers."""
 
     def test_parse_time_range_valid(self):
-        from api.routers.schedule import _parse_time_range
+        from sp5api.routers.schedule import _parse_time_range
         assert _parse_time_range("06:00-14:00") == (360, 840)
         assert _parse_time_range("14:00-22:00") == (840, 1320)
 
     def test_parse_time_range_overnight(self):
-        from api.routers.schedule import _parse_time_range
+        from sp5api.routers.schedule import _parse_time_range
         # 22:00-06:00 = overnight → end gets +24h
         result = _parse_time_range("22:00-06:00")
         assert result == (1320, 1800)
 
     def test_parse_time_range_invalid(self):
-        from api.routers.schedule import _parse_time_range
+        from sp5api.routers.schedule import _parse_time_range
         assert _parse_time_range("") is None
         assert _parse_time_range(None) is None
         assert _parse_time_range("invalid") is None
         assert _parse_time_range("12:00") is None
 
     def test_times_overlap_yes(self):
-        from api.routers.schedule import _times_overlap
+        from sp5api.routers.schedule import _times_overlap
         # 06:00-14:00 overlaps with 10:00-18:00
         assert _times_overlap((360, 840), (600, 1080)) is True
 
     def test_times_overlap_no(self):
-        from api.routers.schedule import _times_overlap
+        from sp5api.routers.schedule import _times_overlap
         # 06:00-14:00 does NOT overlap with 14:00-22:00 (touching = no overlap)
         assert _times_overlap((360, 840), (840, 1320)) is False
 
     def test_times_overlap_none(self):
-        from api.routers.schedule import _times_overlap
+        from sp5api.routers.schedule import _times_overlap
         assert _times_overlap(None, (360, 840)) is False
         assert _times_overlap((360, 840), None) is False
 
@@ -184,7 +184,7 @@ class TestConflictDetectionAPI:
             pytest.skip("Need at least 2 shifts with time data for overlap test")
 
         # Try to find two shifts that actually overlap
-        from api.routers.schedule import _parse_time_range, _times_overlap
+        from sp5api.routers.schedule import _parse_time_range, _times_overlap
         overlapping_pair = None
         for i, s1 in enumerate(shifts_with_times):
             r1 = _parse_time_range(s1.get("STARTEND0", ""))

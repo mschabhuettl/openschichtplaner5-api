@@ -4,7 +4,7 @@ Driven with a fake db whose create_shift raises the relevant exception."""
 
 import secrets
 
-import api.routers.master_data as md
+import sp5api.routers.master_data as md
 from starlette.testclient import TestClient
 
 
@@ -19,7 +19,7 @@ class _ShiftDB:
 
 
 def _admin_session():
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {"ID": 920, "NAME": "md_admin", "role": "Admin", "ADMIN": True, "RIGHTS": 255}
@@ -27,7 +27,7 @@ def _admin_session():
 
 
 def _client(monkeypatch, db):
-    from api.main import app
+    from sp5api.main import app
 
     monkeypatch.setattr(md, "get_db", lambda: db)
     return TestClient(app, raise_server_exceptions=False)
@@ -40,7 +40,7 @@ class TestCreateShift:
         return client.post(self._URL, json={"NAME": name}, headers={"X-Auth-Token": tok})
 
     def test_blank_name_returns_400(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _admin_session()
         try:
@@ -51,7 +51,7 @@ class TestCreateShift:
             _sessions.pop(tok, None)
 
     def test_duplicate_shift_name_returns_409(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _ShiftDB(ValueError("DUPLICATE:SHIFTNAME:Frühschicht"))
         tok = _admin_session()
@@ -63,7 +63,7 @@ class TestCreateShift:
             _sessions.pop(tok, None)
 
     def test_generic_value_error_is_sanitized_500(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _ShiftDB(ValueError("some other problem"))
         tok = _admin_session()
@@ -75,7 +75,7 @@ class TestCreateShift:
             _sessions.pop(tok, None)
 
     def test_unexpected_error_is_sanitized_500(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _ShiftDB(RuntimeError("db boom"))
         tok = _admin_session()
@@ -87,7 +87,7 @@ class TestCreateShift:
             _sessions.pop(tok, None)
 
     def test_success_returns_record(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _admin_session()
         try:

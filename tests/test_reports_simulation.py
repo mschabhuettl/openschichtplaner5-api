@@ -4,7 +4,7 @@ staffing and classifies each day critical / degraded / ok. Driven with a fake db
 
 import secrets
 
-import api.routers.reports as reports
+import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
 
 
@@ -31,7 +31,7 @@ class _SimDB:
 
 
 def _planer_client(monkeypatch, db):
-    from api.main import _sessions, app
+    from sp5api.main import _sessions, app
 
     monkeypatch.setattr(reports, "get_db", lambda: db)
     tok = secrets.token_hex(20)
@@ -48,7 +48,7 @@ def _planer_client(monkeypatch, db):
 
 
 def test_simulation_classifies_days(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     client, tok = _planer_client(monkeypatch, _SimDB())
     try:

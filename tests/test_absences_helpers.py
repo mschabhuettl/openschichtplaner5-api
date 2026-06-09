@@ -5,7 +5,7 @@ DB), covering the vacation/sick/other classification, monthly bucketing, pending
 counting (both dict and legacy-string status), and the date guards.
 """
 
-from api.routers.absences import _build_employee_stats, _classify_leave_type
+from sp5api.routers.absences import _build_employee_stats, _classify_leave_type
 
 
 class TestClassifyLeaveType:

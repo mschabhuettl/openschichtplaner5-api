@@ -9,14 +9,14 @@ from starlette.testclient import TestClient
 @pytest.fixture
 def client_no_dev(monkeypatch):
     """TestClient with SP5_DEV_MODE NOT active."""
-    import api.dependencies as deps
-    import api.main as main_mod
+    import sp5api.dependencies as deps
+    import sp5api.main as main_mod
 
     monkeypatch.setattr(deps, "_DEV_MODE_ACTIVE", False)
     monkeypatch.setattr(main_mod, "_DEV_MODE_ACTIVE", False)
     # Remove dev token from sessions to simulate production
     deps._sessions.pop("__dev_mode__", None)
-    from api.main import app
+    from sp5api.main import app
 
     return TestClient(app, raise_server_exceptions=False)
 
@@ -24,14 +24,14 @@ def client_no_dev(monkeypatch):
 @pytest.fixture
 def client_dev(monkeypatch):
     """TestClient with SP5_DEV_MODE=true."""
-    import api.dependencies as deps
-    import api.main as main_mod
+    import sp5api.dependencies as deps
+    import sp5api.main as main_mod
 
     monkeypatch.setattr(deps, "_DEV_MODE_ACTIVE", True)
     monkeypatch.setattr(main_mod, "_DEV_MODE_ACTIVE", True)
     # Ensure dev token is in sessions (as main.py does on startup)
     deps._sessions["__dev_mode__"] = {**deps._DEV_USER, "expires_at": None}
-    from api.main import app
+    from sp5api.main import app
 
     return TestClient(app, raise_server_exceptions=False)
 

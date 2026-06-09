@@ -13,8 +13,8 @@ from fastapi.testclient import TestClient
 # Add backend to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from api.dependencies import require_admin  # noqa: E402
-from api.routers.webhooks import (  # noqa: E402
+from sp5api.dependencies import require_admin  # noqa: E402
+from sp5api.routers.webhooks import (  # noqa: E402
     VALID_EVENTS,
     _load_webhooks,
     _save_webhooks,
@@ -22,7 +22,7 @@ from api.routers.webhooks import (  # noqa: E402
     dispatch_event,
     sign_payload,
 )
-from api.routers.webhooks import router as webhooks_router  # noqa: E402
+from sp5api.routers.webhooks import router as webhooks_router  # noqa: E402
 
 # ── Fixtures ─────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ from api.routers.webhooks import router as webhooks_router  # noqa: E402
 def clean_webhooks_file(tmp_path, monkeypatch):
     """Use a temp file for webhooks storage during tests."""
     test_file = str(tmp_path / "webhooks.json")
-    monkeypatch.setattr("api.routers.webhooks._WEBHOOKS_FILE", test_file)
+    monkeypatch.setattr("sp5api.routers.webhooks._WEBHOOKS_FILE", test_file)
     return test_file
 
 
@@ -104,7 +104,7 @@ class TestStorage:
         assert _load_webhooks() == []
 
     def test_next_id(self):
-        from api.routers.webhooks import _next_id
+        from sp5api.routers.webhooks import _next_id
 
         assert _next_id([]) == 1
         assert _next_id([{"id": 1}, {"id": 4}]) == 5
@@ -124,7 +124,7 @@ class TestDelivery:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
+        with patch("sp5api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
             result = await deliver_webhook(sample_webhook, "shift.created", {"id": 1})
 
         assert result["success"] is True
@@ -144,8 +144,8 @@ class TestDelivery:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
-            with patch("api.routers.webhooks.BACKOFF_MS", 1):  # Fast backoff for tests
+        with patch("sp5api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
+            with patch("sp5api.routers.webhooks.BACKOFF_MS", 1):  # Fast backoff for tests
                 result = await deliver_webhook(sample_webhook, "shift.created", {"id": 1})
 
         assert result["success"] is True
@@ -161,8 +161,8 @@ class TestDelivery:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
-            with patch("api.routers.webhooks.BACKOFF_MS", 1):
+        with patch("sp5api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
+            with patch("sp5api.routers.webhooks.BACKOFF_MS", 1):
                 result = await deliver_webhook(sample_webhook, "shift.created", {"id": 1})
 
         assert result["success"] is False
@@ -176,8 +176,8 @@ class TestDelivery:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
-            with patch("api.routers.webhooks.BACKOFF_MS", 1):
+        with patch("sp5api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
+            with patch("sp5api.routers.webhooks.BACKOFF_MS", 1):
                 result = await deliver_webhook(sample_webhook, "shift.created", {"id": 1})
 
         assert result["success"] is False
@@ -199,7 +199,7 @@ class TestDelivery:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
+        with patch("sp5api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
             await deliver_webhook(sample_webhook, "shift.created", {"id": 1})
 
         headers = captured_kwargs.get("headers", {})
@@ -221,7 +221,7 @@ class TestDispatch:
     async def test_dispatch_filters_by_event(self, sample_webhook):
         _save_webhooks([sample_webhook])
 
-        with patch("api.routers.webhooks.deliver_webhook", new_callable=AsyncMock) as mock_deliver:
+        with patch("sp5api.routers.webhooks.deliver_webhook", new_callable=AsyncMock) as mock_deliver:
             mock_deliver.return_value = {
                 "success": True,
                 "status_code": 200,
@@ -236,7 +236,7 @@ class TestDispatch:
     async def test_dispatch_skips_non_matching_event(self, sample_webhook):
         _save_webhooks([sample_webhook])
 
-        with patch("api.routers.webhooks.deliver_webhook", new_callable=AsyncMock) as mock_deliver:
+        with patch("sp5api.routers.webhooks.deliver_webhook", new_callable=AsyncMock) as mock_deliver:
             # absence.created is not in sample_webhook events
             await dispatch_event("absence.created", {"id": 1})
             mock_deliver.assert_not_called()
@@ -246,7 +246,7 @@ class TestDispatch:
         sample_webhook["active"] = False
         _save_webhooks([sample_webhook])
 
-        with patch("api.routers.webhooks.deliver_webhook", new_callable=AsyncMock) as mock_deliver:
+        with patch("sp5api.routers.webhooks.deliver_webhook", new_callable=AsyncMock) as mock_deliver:
             await dispatch_event("shift.created", {"id": 1})
             mock_deliver.assert_not_called()
 
@@ -254,7 +254,7 @@ class TestDispatch:
     async def test_dispatch_records_delivery_failure(self, sample_webhook):
         _save_webhooks([sample_webhook])
         with patch(
-            "api.routers.webhooks.deliver_webhook",
+            "sp5api.routers.webhooks.deliver_webhook",
             new_callable=AsyncMock,
             side_effect=RuntimeError("boom"),
         ):
@@ -480,7 +480,7 @@ class TestTestEndpoint:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
+        with patch("sp5api.routers.webhooks.httpx.AsyncClient", return_value=mock_client):
             resp = client.post(f"/api/webhooks/{wh_id}/test")
 
         assert resp.status_code == 200

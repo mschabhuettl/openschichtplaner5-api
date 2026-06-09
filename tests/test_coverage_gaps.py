@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 
 
 def _inject_token(role: str, name: str = "test_user") -> str:
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -24,7 +24,7 @@ def _inject_token(role: str, name: str = "test_user") -> str:
 
 
 def _remove_token(tok: str) -> None:
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     _sessions.pop(tok, None)
 
@@ -37,7 +37,7 @@ def _remove_token(tok: str) -> None:
 class TestEventsBroadcast:
     def test_broadcast_no_subscribers(self):
         """broadcast() should not raise when no subscribers are connected."""
-        from api.routers.events import broadcast
+        from sp5api.routers.events import broadcast
 
         broadcast("test_event", {"foo": "bar"})  # should not raise
 
@@ -45,7 +45,7 @@ class TestEventsBroadcast:
         """broadcast() should silently remove subscribers whose loop raises."""
         import asyncio
 
-        from api.routers.events import _lock, _subscribers, broadcast
+        from sp5api.routers.events import _lock, _subscribers, broadcast
 
         class BadLoop:
             def call_soon_threadsafe(self, *args, **kwargs):
@@ -72,7 +72,7 @@ class TestEventsBroadcast:
         # and that the endpoint is registered (accessible with auth)
         tok = _inject_token("Leser", "sse_user")
         try:
-            from api.routers.events import broadcast
+            from sp5api.routers.events import broadcast
 
             # Just verify broadcast works with no subs
             broadcast("test", {"key": "value"})

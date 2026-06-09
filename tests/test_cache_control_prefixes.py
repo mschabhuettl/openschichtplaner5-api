@@ -6,7 +6,7 @@ shared prefix list, otherwise headers and metrics silently disagree. These tests
 pin the single source of truth and its observable behaviour.
 """
 
-import api.main as main
+import sp5api.main as main
 from starlette.testclient import TestClient
 
 

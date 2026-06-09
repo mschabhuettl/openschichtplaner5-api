@@ -9,7 +9,7 @@ class TestNotificationStorage:
     """_load / _save must never raise on a bad file."""
 
     def test_load_returns_empty_on_corrupt_file(self, tmp_path):
-        import api.routers.notifications as notif
+        import sp5api.routers.notifications as notif
 
         bad = tmp_path / "notif.json"
         bad.write_text("not json{", encoding="utf-8")
@@ -17,7 +17,7 @@ class TestNotificationStorage:
             assert notif._load() == []
 
     def test_save_swallows_write_errors(self):
-        import api.routers.notifications as notif
+        import sp5api.routers.notifications as notif
 
         # The target directory does not exist → the temp-file write fails and
         # must be swallowed rather than propagating.
@@ -29,7 +29,7 @@ class TestEmailBridge:
     """_try_send_email resolves the recipient and sends, tolerating failures."""
 
     def _patches(self, *, configured=True, employee=None, send=None):
-        from api.routers import reports
+        from sp5api.routers import reports
         from sp5lib import email_service
 
         cfg = MagicMock(is_configured=configured)
@@ -42,7 +42,7 @@ class TestEmailBridge:
         ]
 
     def _run(self, patches, **kwargs):
-        import api.routers.notifications as notif
+        import sp5api.routers.notifications as notif
 
         defaults = dict(
             notification_type="info",
@@ -98,7 +98,7 @@ class TestEmailBridge:
         send.assert_not_called()
 
     def test_swallows_exceptions(self):
-        import api.routers.notifications as notif
+        import sp5api.routers.notifications as notif
         from sp5lib import email_service
 
         # get_config blowing up must not propagate out of the bridge.

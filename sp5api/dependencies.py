@@ -389,7 +389,7 @@ def get_db():
 
         return get_database()
     else:
-        import api.main as _main
+        import sp5api.main as _main
 
         return SP5Database(_main.DB_PATH)
 

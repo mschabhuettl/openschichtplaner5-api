@@ -6,7 +6,7 @@ while valid rows import. Driven with a fake db."""
 import io
 import secrets
 
-import api.routers.reports as reports
+import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
 
 
@@ -22,7 +22,7 @@ class _ImportDB:
 
 
 def _admin_client(monkeypatch, db):
-    from api.main import _sessions, app
+    from sp5api.main import _sessions, app
 
     monkeypatch.setattr(reports, "get_db", lambda: db)
     tok = secrets.token_hex(20)
@@ -33,7 +33,7 @@ def _admin_client(monkeypatch, db):
 
 
 def test_import_absences_csv_row_validation(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     # Columns must upper-case to the recognised keys (NUMBER, DATE, SHORTNAME).
     csv_text = (

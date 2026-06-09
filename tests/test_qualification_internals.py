@@ -4,7 +4,7 @@ parsed qualifications, so the aggregation loop is driven here with a fake db."""
 
 import secrets
 
-import api.routers.qualification_matrix as qm
+import sp5api.routers.qualification_matrix as qm
 from starlette.testclient import TestClient
 
 
@@ -41,7 +41,7 @@ def test_stats_aggregates_employee_qualifications(app, monkeypatch):
     ]
     monkeypatch.setattr(qm, "get_db", lambda: _FakeDB(employees))
 
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {"ID": 904, "NAME": "qm_pl", "role": "Planer", "ADMIN": False, "RIGHTS": 1}

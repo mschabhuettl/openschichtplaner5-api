@@ -24,7 +24,7 @@ class _ResetDB:
 
 
 def _planer_session():
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -39,7 +39,7 @@ def _planer_session():
 
 
 def _setup(monkeypatch, employees, configured=True):
-    from api.routers import auth as auth_router
+    from sp5api.routers import auth as auth_router
     from sp5lib import email_service
 
     monkeypatch.setattr(auth_router, "get_db", lambda: _ResetDB(employees))
@@ -55,7 +55,7 @@ def _setup(monkeypatch, employees, configured=True):
 
 class TestResetPasswordEmail:
     def test_sends_email_when_configured_and_employee_matches(self, monkeypatch):
-        from api.main import _sessions, app
+        from sp5api.main import _sessions, app
 
         sent = _setup(
             monkeypatch,
@@ -77,7 +77,7 @@ class TestResetPasswordEmail:
             _sessions.pop(tok, None)
 
     def test_email_send_failure_is_swallowed(self, monkeypatch):
-        from api.main import _sessions, app
+        from sp5api.main import _sessions, app
 
         sent = _setup(
             monkeypatch,
@@ -96,7 +96,7 @@ class TestResetPasswordEmail:
             _sessions.pop(tok, None)
 
     def test_no_email_when_no_matching_employee(self, monkeypatch):
-        from api.main import _sessions, app
+        from sp5api.main import _sessions, app
 
         sent = _setup(
             monkeypatch,

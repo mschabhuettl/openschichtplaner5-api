@@ -9,7 +9,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _clean_recurring_file():
     """Remove stale recurring shift data before and after each test."""
-    from api.routers.recurring_shifts import _RECURRING_FILE
+    from sp5api.routers.recurring_shifts import _RECURRING_FILE
 
     if os.path.exists(_RECURRING_FILE):
         os.remove(_RECURRING_FILE)
@@ -386,7 +386,7 @@ class TestRecurringShiftValidationAndErrors:
             def add_schedule_entry(self, *a, **k):
                 raise RuntimeError("insert failed")  # per-date failure → skipped
 
-        monkeypatch.setattr("api.routers.recurring_shifts.get_db", lambda: _GenBoomDB())
+        monkeypatch.setattr("sp5api.routers.recurring_shifts.get_db", lambda: _GenBoomDB())
         resp = write_client.post(
             f"/api/shifts/recurring/{pattern_id}/generate",
             json={"from_date": "2026-01-01", "to_date": "2026-01-31"},

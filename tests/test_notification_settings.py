@@ -143,7 +143,7 @@ class TestNotificationSettingsStorage:
         """A corrupt settings file is swallowed and treated as empty."""
         from unittest.mock import patch
 
-        import api.routers.notification_settings as ns
+        import sp5api.routers.notification_settings as ns
 
         bad = tmp_path / "notification_settings.json"
         bad.write_text("not json{", encoding="utf-8")

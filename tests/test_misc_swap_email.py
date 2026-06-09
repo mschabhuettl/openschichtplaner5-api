@@ -5,7 +5,7 @@ never let a failure propagate. Driven with a fake db + mocked email_service."""
 
 from unittest.mock import MagicMock
 
-import api.routers.misc as misc
+import sp5api.routers.misc as misc
 
 
 class _DB:

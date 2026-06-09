@@ -55,7 +55,7 @@ def _create_report(client, payload: dict | None = None) -> dict:
 def isolate_reports_file(tmp_path, monkeypatch):
     """Point the router at a fresh temp file for every test."""
     store = tmp_path / "scheduled_reports.json"
-    import api.routers.scheduled_reports as mod
+    import sp5api.routers.scheduled_reports as mod
 
     monkeypatch.setattr(mod, "_REPORTS_FILE", store)
     yield store
@@ -291,8 +291,8 @@ class TestRunScheduledReport:
         """Should return SMTP not configured error without crashing."""
         r = _create_report(admin_client)
         with (
-            patch("api.routers.scheduled_reports.generate_report") as mock_gen,
-            patch("api.routers.scheduled_reports.send_report_email") as mock_send,
+            patch("sp5api.routers.scheduled_reports.generate_report") as mock_gen,
+            patch("sp5api.routers.scheduled_reports.send_report_email") as mock_send,
         ):
             mock_gen.return_value = (b"fake_bytes", "report.xlsx")
             mock_send.return_value = {"success": False, "reason": "SMTP not configured"}
@@ -303,8 +303,8 @@ class TestRunScheduledReport:
     def test_run_smtp_success(self, admin_client):
         r = _create_report(admin_client)
         with (
-            patch("api.routers.scheduled_reports.generate_report") as mock_gen,
-            patch("api.routers.scheduled_reports.send_report_email") as mock_send,
+            patch("sp5api.routers.scheduled_reports.generate_report") as mock_gen,
+            patch("sp5api.routers.scheduled_reports.send_report_email") as mock_send,
         ):
             mock_gen.return_value = (b"data", "report.xlsx")
             mock_send.return_value = {
@@ -321,8 +321,8 @@ class TestRunScheduledReport:
         r = _create_report(admin_client)
         assert admin_client.get(f"{_BASE}/{r['id']}").json()["last_run"] is None
         with (
-            patch("api.routers.scheduled_reports.generate_report") as mock_gen,
-            patch("api.routers.scheduled_reports.send_report_email") as mock_send,
+            patch("sp5api.routers.scheduled_reports.generate_report") as mock_gen,
+            patch("sp5api.routers.scheduled_reports.send_report_email") as mock_send,
         ):
             mock_gen.return_value = (b"data", "report.xlsx")
             mock_send.return_value = {"success": True, "sent_to": [], "failed": []}
@@ -332,7 +332,7 @@ class TestRunScheduledReport:
 
     def test_run_generation_failure(self, admin_client):
         r = _create_report(admin_client)
-        with patch("api.routers.scheduled_reports.generate_report") as mock_gen:
+        with patch("sp5api.routers.scheduled_reports.generate_report") as mock_gen:
             mock_gen.side_effect = RuntimeError("DB error")
             resp = admin_client.post(f"{_BASE}/{r['id']}/run")
         assert resp.status_code == 500
@@ -379,7 +379,7 @@ class TestSchedulerStatus:
 
 class TestComputeNextRun:
     def setup_method(self):
-        from api.routers.scheduled_reports import _compute_next_run
+        from sp5api.routers.scheduled_reports import _compute_next_run
 
         self._compute = _compute_next_run
 
@@ -418,26 +418,26 @@ class TestComputeNextRun:
 
 class TestGetReferenceMonth:
     def setup_method(self):
-        from api.routers.scheduled_reports import _get_reference_month
+        from sp5api.routers.scheduled_reports import _get_reference_month
 
         self._get = _get_reference_month
 
     def test_monthly_returns_previous_month(self):
-        with patch("api.routers.scheduled_reports._dt") as mock_dt:
+        with patch("sp5api.routers.scheduled_reports._dt") as mock_dt:
             mock_dt.now.return_value = _dt(2025, 3, 15, 10, 0, tzinfo=UTC)
             year, month = self._get("monthly")
         assert month == 2
         assert year == 2025
 
     def test_monthly_january_returns_december_prev_year(self):
-        with patch("api.routers.scheduled_reports._dt") as mock_dt:
+        with patch("sp5api.routers.scheduled_reports._dt") as mock_dt:
             mock_dt.now.return_value = _dt(2025, 1, 15, 10, 0, tzinfo=UTC)
             year, month = self._get("monthly")
         assert month == 12
         assert year == 2024
 
     def test_daily_returns_yesterday(self):
-        with patch("api.routers.scheduled_reports._dt") as mock_dt:
+        with patch("sp5api.routers.scheduled_reports._dt") as mock_dt:
             mock_dt.now.return_value = _dt(2025, 3, 16, 10, 0, tzinfo=UTC)
             year, month = self._get("daily")
         assert month == 3
@@ -451,8 +451,8 @@ class TestRunDueReports:
     def mock_generate_and_send(self):
         """Mock generate_report and send_report_email for scheduler tests."""
         with (
-            patch("api.routers.scheduled_reports.generate_report") as mock_gen,
-            patch("api.routers.scheduled_reports.send_report_email") as mock_send,
+            patch("sp5api.routers.scheduled_reports.generate_report") as mock_gen,
+            patch("sp5api.routers.scheduled_reports.send_report_email") as mock_send,
         ):
             mock_gen.return_value = (b"fake", "report.xlsx")
             mock_send.return_value = {"success": True, "sent_to": ["a@b.com"]}
@@ -461,15 +461,15 @@ class TestRunDueReports:
             yield
 
     def test_no_reports_returns_zero(self, tmp_path, monkeypatch):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         monkeypatch.setattr(mod, "_REPORTS_FILE", tmp_path / "reports.json")
-        from api.routers.scheduled_reports import _run_due_reports
+        from sp5api.routers.scheduled_reports import _run_due_reports
 
         assert _run_due_reports() == 0
 
     def test_disabled_report_not_sent(self, tmp_path, monkeypatch):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         store = tmp_path / "reports.json"
         past = (_dt.now(UTC) - timedelta(hours=1)).isoformat()
@@ -489,14 +489,14 @@ class TestRunDueReports:
         ]
         store.write_text(json.dumps(reports))
         monkeypatch.setattr(mod, "_REPORTS_FILE", store)
-        from api.routers.scheduled_reports import _run_due_reports
+        from sp5api.routers.scheduled_reports import _run_due_reports
 
         count = _run_due_reports()
         assert count == 0
         self.mock_generate.assert_not_called()
 
     def test_due_report_is_sent(self, tmp_path, monkeypatch):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         store = tmp_path / "reports.json"
         past = (_dt.now(UTC) - timedelta(hours=1)).isoformat()
@@ -516,7 +516,7 @@ class TestRunDueReports:
         ]
         store.write_text(json.dumps(reports))
         monkeypatch.setattr(mod, "_REPORTS_FILE", store)
-        from api.routers.scheduled_reports import _run_due_reports
+        from sp5api.routers.scheduled_reports import _run_due_reports
 
         count = _run_due_reports()
         assert count == 1
@@ -524,7 +524,7 @@ class TestRunDueReports:
         self.mock_send.assert_called_once()
 
     def test_future_report_not_sent(self, tmp_path, monkeypatch):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         store = tmp_path / "reports.json"
         future = (_dt.now(UTC) + timedelta(hours=1)).isoformat()
@@ -544,14 +544,14 @@ class TestRunDueReports:
         ]
         store.write_text(json.dumps(reports))
         monkeypatch.setattr(mod, "_REPORTS_FILE", store)
-        from api.routers.scheduled_reports import _run_due_reports
+        from sp5api.routers.scheduled_reports import _run_due_reports
 
         count = _run_due_reports()
         assert count == 0
         self.mock_generate.assert_not_called()
 
     def test_due_report_updates_next_run(self, tmp_path, monkeypatch):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         store = tmp_path / "reports.json"
         past = (_dt.now(UTC) - timedelta(hours=1)).isoformat()
@@ -571,7 +571,7 @@ class TestRunDueReports:
         ]
         store.write_text(json.dumps(reports))
         monkeypatch.setattr(mod, "_REPORTS_FILE", store)
-        from api.routers.scheduled_reports import _run_due_reports
+        from sp5api.routers.scheduled_reports import _run_due_reports
 
         _run_due_reports()
         updated = json.loads(store.read_text())
@@ -579,7 +579,7 @@ class TestRunDueReports:
         assert updated[0]["last_run"] is not None
 
     def test_report_without_next_run_skipped(self, tmp_path, monkeypatch):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         store = tmp_path / "reports.json"
         reports = [
@@ -598,7 +598,7 @@ class TestRunDueReports:
         ]
         store.write_text(json.dumps(reports))
         monkeypatch.setattr(mod, "_REPORTS_FILE", store)
-        from api.routers.scheduled_reports import _run_due_reports
+        from sp5api.routers.scheduled_reports import _run_due_reports
 
         count = _run_due_reports()
         assert count == 0
@@ -609,7 +609,7 @@ class TestRunDueReports:
 
 class TestSchedulerStartStop:
     def test_start_creates_thread(self):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         original_running = mod._scheduler_running
         original_thread = mod._scheduler_thread
@@ -630,7 +630,7 @@ class TestSchedulerStartStop:
             mod._scheduler_thread = original_thread
 
     def test_start_idempotent(self):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         mod.stop_scheduler()
         mod._scheduler_thread = None
@@ -644,7 +644,7 @@ class TestSchedulerStartStop:
             mod.stop_scheduler()
 
     def test_stop_sets_flag(self):
-        import api.routers.scheduled_reports as mod
+        import sp5api.routers.scheduled_reports as mod
 
         mod.start_scheduler(interval_seconds=3600)
         mod.stop_scheduler()
@@ -696,7 +696,7 @@ class TestGenerateReport:
             yield
 
     def test_generate_schedule_overview_csv(self):
-        from api.routers.scheduled_reports import _generate_schedule_overview
+        from sp5api.routers.scheduled_reports import _generate_schedule_overview
 
         data, filename = _generate_schedule_overview(2025, 1, {}, "csv")
         assert isinstance(data, bytes)
@@ -704,7 +704,7 @@ class TestGenerateReport:
         assert b"M" in data  # some content
 
     def test_generate_schedule_overview_xlsx(self):
-        from api.routers.scheduled_reports import _generate_schedule_overview
+        from sp5api.routers.scheduled_reports import _generate_schedule_overview
 
         try:
             import openpyxl  # noqa: F401
@@ -717,13 +717,13 @@ class TestGenerateReport:
             pytest.skip("openpyxl not installed")
 
     def test_generate_schedule_overview_with_group_filter(self):
-        from api.routers.scheduled_reports import _generate_schedule_overview
+        from sp5api.routers.scheduled_reports import _generate_schedule_overview
 
         data, filename = _generate_schedule_overview(2025, 1, {"group_id": 1}, "csv")
         assert isinstance(data, bytes)
 
     def test_generate_overtime_csv(self):
-        from api.routers.scheduled_reports import _generate_overtime_report
+        from sp5api.routers.scheduled_reports import _generate_overtime_report
 
         data, filename = _generate_overtime_report(2025, 1, {}, "csv")
         assert isinstance(data, bytes)
@@ -731,7 +731,7 @@ class TestGenerateReport:
         assert b"M" in data
 
     def test_generate_overtime_xlsx(self):
-        from api.routers.scheduled_reports import _generate_overtime_report
+        from sp5api.routers.scheduled_reports import _generate_overtime_report
 
         try:
             import openpyxl  # noqa: F401
@@ -743,14 +743,14 @@ class TestGenerateReport:
             pytest.skip("openpyxl not installed")
 
     def test_generate_absences_csv(self):
-        from api.routers.scheduled_reports import _generate_absences_report
+        from sp5api.routers.scheduled_reports import _generate_absences_report
 
         data, filename = _generate_absences_report(2025, 1, {}, "csv")
         assert isinstance(data, bytes)
         assert "abwesenheiten" in filename
 
     def test_generate_absences_xlsx(self):
-        from api.routers.scheduled_reports import _generate_absences_report
+        from sp5api.routers.scheduled_reports import _generate_absences_report
 
         try:
             import openpyxl  # noqa: F401
@@ -762,7 +762,7 @@ class TestGenerateReport:
             pytest.skip("openpyxl not installed")
 
     def test_generate_report_dispatch_schedule_overview(self):
-        from api.routers.scheduled_reports import generate_report
+        from sp5api.routers.scheduled_reports import generate_report
 
         report = {
             "report_type": "schedule_overview",
@@ -774,21 +774,21 @@ class TestGenerateReport:
         assert isinstance(data, bytes)
 
     def test_generate_report_dispatch_overtime(self):
-        from api.routers.scheduled_reports import generate_report
+        from sp5api.routers.scheduled_reports import generate_report
 
         report = {"report_type": "overtime", "frequency": "monthly", "format": "csv", "filters": {}}
         data, filename = generate_report(report)
         assert isinstance(data, bytes)
 
     def test_generate_report_dispatch_absences(self):
-        from api.routers.scheduled_reports import generate_report
+        from sp5api.routers.scheduled_reports import generate_report
 
         report = {"report_type": "absences", "frequency": "monthly", "format": "csv", "filters": {}}
         data, filename = generate_report(report)
         assert isinstance(data, bytes)
 
     def test_generate_report_unknown_type(self):
-        from api.routers.scheduled_reports import generate_report
+        from sp5api.routers.scheduled_reports import generate_report
 
         with pytest.raises(ValueError, match="Unknown report_type"):
             generate_report(
@@ -801,7 +801,7 @@ class TestGenerateReport:
 
 class TestSendReportEmail:
     def test_smtp_not_configured_returns_error(self):
-        from api.routers.scheduled_reports import send_report_email
+        from sp5api.routers.scheduled_reports import send_report_email
 
         mock_cfg = MagicMock()
         mock_cfg.is_configured = False
@@ -821,7 +821,7 @@ class TestSendReportEmail:
         assert "SMTP" in result.get("reason", "")
 
     def test_smtp_send_success(self):
-        from api.routers.scheduled_reports import send_report_email
+        from sp5api.routers.scheduled_reports import send_report_email
 
         mock_cfg = MagicMock()
         mock_cfg.is_configured = True
@@ -855,7 +855,7 @@ class TestSendReportEmail:
         assert "a@b.com" in result["sent_to"]
 
     def test_smtp_send_failure_marks_failed(self):
-        from api.routers.scheduled_reports import send_report_email
+        from sp5api.routers.scheduled_reports import send_report_email
 
         mock_cfg = MagicMock()
         mock_cfg.is_configured = True
@@ -890,7 +890,7 @@ class TestSendReportEmail:
         assert "fail@b.com" in result["failed"]
 
     def test_smtp_ssl_mode(self):
-        from api.routers.scheduled_reports import send_report_email
+        from sp5api.routers.scheduled_reports import send_report_email
 
         mock_cfg = MagicMock()
         mock_cfg.is_configured = True
@@ -923,7 +923,7 @@ class TestSendReportEmail:
 
     def test_csv_mime_type(self):
         """CSV attachments should use text/csv MIME type."""
-        from api.routers.scheduled_reports import send_report_email
+        from sp5api.routers.scheduled_reports import send_report_email
 
         mock_cfg = MagicMock()
         mock_cfg.is_configured = True
@@ -991,7 +991,7 @@ class TestUpdateScheduledReportValidation:
 
 class TestLoadReportsCorruptFile:
     def test_returns_empty_on_corrupt_file(self, tmp_path):
-        import api.routers.scheduled_reports as sr
+        import sp5api.routers.scheduled_reports as sr
 
         bad = tmp_path / "scheduled_reports.json"
         bad.write_text("not json{", encoding="utf-8")

@@ -3,7 +3,7 @@
 
 import secrets
 
-import api.routers.reports as reports
+import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
 
 
@@ -13,7 +13,7 @@ class _EmptyStatsDB:
 
 
 def _admin_client(monkeypatch, db):
-    from api.main import _sessions, app
+    from sp5api.main import _sessions, app
 
     monkeypatch.setattr(reports, "get_db", lambda: db)
     tok = secrets.token_hex(20)
@@ -27,7 +27,7 @@ _BASE = "/api/v1/reports/monthly"
 
 
 def test_invalid_month_returns_400(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     client, tok = _admin_client(monkeypatch, _EmptyStatsDB())
     try:
@@ -37,7 +37,7 @@ def test_invalid_month_returns_400(monkeypatch):
 
 
 def test_invalid_format_returns_400(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     client, tok = _admin_client(monkeypatch, _EmptyStatsDB())
     try:
@@ -47,7 +47,7 @@ def test_invalid_format_returns_400(monkeypatch):
 
 
 def test_no_data_returns_404(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     client, tok = _admin_client(monkeypatch, _EmptyStatsDB())
     try:

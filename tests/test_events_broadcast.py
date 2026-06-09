@@ -13,20 +13,20 @@ import pytest
 class TestBroadcast:
     def setup_method(self):
         """Clear all SSE subscribers before each test."""
-        from api.routers import events as ev
+        from sp5api.routers import events as ev
 
         with ev._lock:
             ev._subscribers.clear()
 
     def test_broadcast_no_subscribers_no_error(self):
         """broadcast() with zero subscribers must not raise."""
-        from api.routers.events import broadcast
+        from sp5api.routers.events import broadcast
 
         broadcast("schedule_changed", {"month": "2024-01"})
 
     def test_broadcast_delivers_to_queue(self):
         """broadcast() puts a payload into a subscriber queue."""
-        from api.routers import events as ev
+        from sp5api.routers import events as ev
 
         loop = asyncio.new_event_loop()
         try:
@@ -48,7 +48,7 @@ class TestBroadcast:
 
     def test_broadcast_removes_dead_subscriber(self):
         """Dead subscribers (closed loop) are cleaned up after broadcast."""
-        from api.routers import events as ev
+        from sp5api.routers import events as ev
 
         dead_loop = MagicMock()
         dead_loop.call_soon_threadsafe = MagicMock(side_effect=RuntimeError("dead"))
@@ -64,7 +64,7 @@ class TestBroadcast:
 
     def test_broadcast_delivers_to_multiple_subscribers(self):
         """broadcast() reaches all live subscribers."""
-        from api.routers import events as ev
+        from sp5api.routers import events as ev
 
         loop = asyncio.new_event_loop()
         try:
@@ -89,7 +89,7 @@ class TestBroadcast:
 
     def test_broadcast_default_data_is_empty_dict(self):
         """broadcast() without data= arg defaults to {}."""
-        from api.routers import events as ev
+        from sp5api.routers import events as ev
 
         loop = asyncio.new_event_loop()
         try:
@@ -117,7 +117,7 @@ class TestEventGenerator:
     @pytest.mark.asyncio
     async def test_sends_connected_event_first(self):
         """Generator must yield 'connected' event immediately."""
-        from api.routers.events import _event_generator
+        from sp5api.routers.events import _event_generator
 
         request = MagicMock()
         request.is_disconnected = AsyncMock(side_effect=[False, True])
@@ -131,7 +131,7 @@ class TestEventGenerator:
     @pytest.mark.asyncio
     async def test_yields_queued_event(self):
         """Generator yields SSE-formatted event from queue."""
-        from api.routers.events import _event_generator
+        from sp5api.routers.events import _event_generator
 
         request = MagicMock()
         # First: not disconnected (so we process one queue item), then disconnected
@@ -150,7 +150,7 @@ class TestEventGenerator:
     @pytest.mark.asyncio
     async def test_sends_keepalive_on_timeout(self):
         """Generator yields keepalive comment when queue is empty (timeout)."""
-        from api.routers.events import _event_generator
+        from sp5api.routers.events import _event_generator
 
         request = MagicMock()
         # First iteration: not disconnected (will timeout), then disconnected
@@ -171,8 +171,8 @@ class TestEventGenerator:
     @pytest.mark.asyncio
     async def test_cleanup_removes_subscriber(self):
         """Generator removes its (loop, queue) pair from _subscribers on exit."""
-        from api.routers import events as ev
-        from api.routers.events import _event_generator
+        from sp5api.routers import events as ev
+        from sp5api.routers.events import _event_generator
 
         with ev._lock:
             ev._subscribers.clear()

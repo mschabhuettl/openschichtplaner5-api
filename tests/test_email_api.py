@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 
 
 def _inject_token(role: str) -> str:
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(16)
     _sessions[tok] = {
@@ -24,7 +24,7 @@ def _inject_token(role: str) -> str:
 
 
 def _remove_token(tok: str) -> None:
-    from api.main import _sessions
+    from sp5api.main import _sessions
     _sessions.pop(tok, None)
 
 

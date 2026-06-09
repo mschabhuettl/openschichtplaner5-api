@@ -4,7 +4,7 @@ conflict flag) which the fixtures don't populate. Driven with a fake db."""
 
 import secrets
 
-import api.routers.reports as reports
+import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
 
 _MONDAY = "2026-01-05"  # a Monday (weekday 0)
@@ -38,7 +38,7 @@ class _CapDB:
 
 
 def _admin_client(monkeypatch, db):
-    from api.main import _sessions, app
+    from sp5api.main import _sessions, app
 
     monkeypatch.setattr(reports, "get_db", lambda: db)
     tok = secrets.token_hex(20)
@@ -49,7 +49,7 @@ def _admin_client(monkeypatch, db):
 
 
 def test_capacity_forecast_computes_coverage_and_conflict(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     client, tok = _admin_client(monkeypatch, _CapDB())
     try:
@@ -74,7 +74,7 @@ def test_capacity_forecast_computes_coverage_and_conflict(monkeypatch):
 
 
 def test_capacity_forecast_invalid_month_400(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     client, tok = _admin_client(monkeypatch, _CapDB())
     try:

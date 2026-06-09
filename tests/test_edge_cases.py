@@ -210,7 +210,7 @@ class TestEmptyResults:
         dst = tmp_path / "Daten"
         shutil.copytree(fixtures_dir, str(dst))
 
-        import api.main as main_module
+        import sp5api.main as main_module
         from sp5lib.database import SP5Database
 
         old_db_path = main_module.DB_PATH

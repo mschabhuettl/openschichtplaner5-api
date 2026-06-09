@@ -327,7 +327,7 @@ class TestMigrationStatusEndpoint:
 
     @pytest.fixture
     def client(self):
-        from api.main import app
+        from sp5api.main import app
         from fastapi.testclient import TestClient
         return TestClient(app, raise_server_exceptions=False)
 

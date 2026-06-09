@@ -6,7 +6,7 @@ all four at once."""
 
 import secrets
 
-import api.routers.reports as reports
+import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
 
 
@@ -34,7 +34,7 @@ class _WarnDB:
 
 
 def _admin_session():
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {"ID": 960, "NAME": "warnuser", "role": "Admin", "ADMIN": True, "RIGHTS": 255}
@@ -43,7 +43,7 @@ def _admin_session():
 
 class TestWarningsCenter:
     def test_aggregates_all_warning_types(self, monkeypatch):
-        from api.main import _sessions, app
+        from sp5api.main import _sessions, app
 
         monkeypatch.setattr(reports, "get_db", lambda: _WarnDB())
         tok = _admin_session()
@@ -65,7 +65,7 @@ class TestWarningsCenter:
             _sessions.pop(tok, None)
 
     def test_invalid_month_returns_400(self, monkeypatch):
-        from api.main import _sessions, app
+        from sp5api.main import _sessions, app
 
         monkeypatch.setattr(reports, "get_db", lambda: _WarnDB())
         tok = _admin_session()

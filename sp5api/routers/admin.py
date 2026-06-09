@@ -784,7 +784,7 @@ def get_rate_limit_events(
     limit: int = Query(500, ge=1, le=5000, description="Max events to return"),
     _cur_user: dict = Depends(require_admin),
 ):
-    from api.rate_limit_store import get_rate_limit_events as _get_events
+    from sp5api.rate_limit_store import get_rate_limit_events as _get_events
 
     events = _get_events(since=since, until=until, user=user, limit=limit)
 

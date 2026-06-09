@@ -334,7 +334,7 @@ class TestAuthErrorPaths:
         # Create a separate token to logout
         import secrets
 
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(16)
         _sessions[tok] = {
@@ -416,7 +416,7 @@ class TestEventsEndpoint:
 
     def test_broadcast_function(self):
         """Test broadcast() doesn't raise errors."""
-        from api.routers.events import broadcast
+        from sp5api.routers.events import broadcast
 
         # With no subscribers, should be a no-op
         broadcast("test_event", {"key": "value"})
@@ -426,7 +426,7 @@ class TestEventsEndpoint:
         """Test broadcast to a subscriber."""
         import asyncio
 
-        from api.routers.events import _lock, _subscribers, broadcast
+        from sp5api.routers.events import _lock, _subscribers, broadcast
 
         loop = asyncio.new_event_loop()
         queue = asyncio.Queue(maxsize=10)

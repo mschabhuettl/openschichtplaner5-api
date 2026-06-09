@@ -140,7 +140,7 @@ class TestAdminOnlyEndpoints:
     @pytest.fixture
     def planer_client(self, app):
         """TestClient authenticated as Planer (non-admin)."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {

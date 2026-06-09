@@ -8,7 +8,7 @@ import time as _time
 from unittest.mock import MagicMock, patch
 
 import pytest
-from api.dependencies import (
+from sp5api.dependencies import (
     _LOCKOUT_WINDOW,
     _MAX_SESSIONS_PER_USER,
     _failed_logins,
@@ -16,7 +16,7 @@ from api.dependencies import (
     purge_expired_sessions,
     purge_stale_failed_logins,
 )
-from api.main import app
+from sp5api.main import app
 from fastapi.testclient import TestClient
 
 client = TestClient(app, raise_server_exceptions=False)
@@ -112,7 +112,7 @@ def test_max_sessions_per_user_evicts_oldest():
         "RIGHTS": 1,
     }
 
-    with patch("api.routers.auth.get_db", return_value=mock_db):
+    with patch("sp5api.routers.auth.get_db", return_value=mock_db):
         resp = client.post(
             "/api/auth/login", json={"username": "tester", "password": "pw"}
         )

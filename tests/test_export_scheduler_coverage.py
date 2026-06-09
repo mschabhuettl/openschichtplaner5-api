@@ -54,7 +54,7 @@ class TestGenerateExport:
             yield
 
     def test_csv_export_all_groups(self):
-        from api.routers.export_scheduler import _generate_export
+        from sp5api.routers.export_scheduler import _generate_export
         file_bytes, row_count = _generate_export("csv", None, "2025-01")
         assert row_count == 2
         content = file_bytes.decode("utf-8-sig")
@@ -63,7 +63,7 @@ class TestGenerateExport:
         assert "Mitarbeiter" in content
 
     def test_csv_export_filtered_group(self):
-        from api.routers.export_scheduler import _generate_export
+        from sp5api.routers.export_scheduler import _generate_export
         file_bytes, row_count = _generate_export("csv", 1, "2025-01")
         assert row_count == 1
         content = file_bytes.decode("utf-8-sig")
@@ -71,24 +71,24 @@ class TestGenerateExport:
         assert "Schmidt" not in content
 
     def test_xlsx_export(self):
-        from api.routers.export_scheduler import _generate_export
+        from sp5api.routers.export_scheduler import _generate_export
         file_bytes, row_count = _generate_export("xlsx", None, "2025-01")
         assert row_count == 2
         assert file_bytes[:2] == b"PK"  # zip/xlsx magic bytes
         assert len(file_bytes) > 100
 
     def test_xlsx_export_with_group_filter(self):
-        from api.routers.export_scheduler import _generate_export
+        from sp5api.routers.export_scheduler import _generate_export
         file_bytes, row_count = _generate_export("xlsx", 1, "2025-01")
         assert row_count == 1
 
     def test_invalid_month_format(self):
-        from api.routers.export_scheduler import _generate_export
+        from sp5api.routers.export_scheduler import _generate_export
         with pytest.raises(ValueError, match="Invalid month format"):
             _generate_export("csv", None, "not-a-month")
 
     def test_february_leap_year(self):
-        from api.routers.export_scheduler import _generate_export
+        from sp5api.routers.export_scheduler import _generate_export
         file_bytes, row_count = _generate_export("csv", None, "2024-02")
         content = file_bytes.decode("utf-8-sig")
         assert "29" in content  # Feb 2024 has 29 days
@@ -98,7 +98,7 @@ class TestSendExportEmail:
     """Tests for _send_export_email."""
 
     def test_smtp_not_configured(self):
-        from api.routers.export_scheduler import _send_export_email
+        from sp5api.routers.export_scheduler import _send_export_email
 
         class FakeConfig:
             is_configured = False
@@ -113,7 +113,7 @@ class TestSendExportEmail:
         assert "export_url" in result
 
     def test_all_sends_fail(self):
-        from api.routers.export_scheduler import _send_export_email
+        from sp5api.routers.export_scheduler import _send_export_email
 
         class FakeConfig:
             is_configured = True
@@ -135,7 +135,7 @@ class TestSendExportEmail:
         assert len(result["failed"]) == 2
 
     def test_partial_send_success(self):
-        from api.routers.export_scheduler import _send_export_email
+        from sp5api.routers.export_scheduler import _send_export_email
 
         class FakeConfig:
             is_configured = True
@@ -181,7 +181,7 @@ class TestSendExportEmail:
         assert "fail@test.com" in result["failed"]
 
     def test_ssl_mode(self):
-        from api.routers.export_scheduler import _send_export_email
+        from sp5api.routers.export_scheduler import _send_export_email
 
         class FakeConfig:
             is_configured = True
@@ -215,7 +215,7 @@ class TestScheduleValidation:
     """Test Pydantic model validation for edge cases."""
 
     def test_schedule_create_valid(self):
-        from api.routers.export_scheduler import ScheduleCreate
+        from sp5api.routers.export_scheduler import ScheduleCreate
         s = ScheduleCreate(
             name="Test", day_of_week=0, time="08:00",
             format="xlsx", email_to=["a@b.com"],
@@ -223,32 +223,32 @@ class TestScheduleValidation:
         assert s.frequency == "weekly"
 
     def test_schedule_update_partial(self):
-        from api.routers.export_scheduler import ScheduleUpdate
+        from sp5api.routers.export_scheduler import ScheduleUpdate
         s = ScheduleUpdate(name="New name")
         assert s.format is None
         assert s.email_to is None
 
     def test_schedule_update_validate_time(self):
-        from api.routers.export_scheduler import ScheduleUpdate
+        from sp5api.routers.export_scheduler import ScheduleUpdate
         with pytest.raises(ValidationError):
             ScheduleUpdate(time="99:99")
 
     def test_schedule_update_validate_format(self):
-        from api.routers.export_scheduler import ScheduleUpdate
+        from sp5api.routers.export_scheduler import ScheduleUpdate
         with pytest.raises(ValidationError):
             ScheduleUpdate(format="pdf")
 
     def test_schedule_update_validate_frequency(self):
-        from api.routers.export_scheduler import ScheduleUpdate
+        from sp5api.routers.export_scheduler import ScheduleUpdate
         with pytest.raises(ValidationError):
             ScheduleUpdate(frequency="daily")
 
     def test_schedule_update_validate_empty_emails(self):
-        from api.routers.export_scheduler import ScheduleUpdate
+        from sp5api.routers.export_scheduler import ScheduleUpdate
         with pytest.raises(ValidationError):
             ScheduleUpdate(email_to=[])
 
     def test_schedule_update_validate_bad_email(self):
-        from api.routers.export_scheduler import ScheduleUpdate
+        from sp5api.routers.export_scheduler import ScheduleUpdate
         with pytest.raises(ValidationError):
             ScheduleUpdate(email_to=["no-at-sign"])

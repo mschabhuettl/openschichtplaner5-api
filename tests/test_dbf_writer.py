@@ -386,8 +386,8 @@ def test_update_then_find():
 
 
 def test_api_types_importable():
-    """api.types can be imported and type aliases are defined."""
-    from api.types import (
+    """sp5api.types can be imported and type aliases are defined."""
+    from sp5api.types import (
         DBFRow,
         EmployeeList,
     )

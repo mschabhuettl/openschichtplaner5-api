@@ -5,7 +5,7 @@ session + fake db."""
 
 import secrets
 
-import api.routers.misc as misc
+import sp5api.routers.misc as misc
 from starlette.testclient import TestClient
 
 
@@ -41,7 +41,7 @@ class _SelfDB:
 
 
 def _session(name="selfuser"):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {"ID": 950, "NAME": name, "role": "Leser", "ADMIN": False, "RIGHTS": 1}
@@ -49,7 +49,7 @@ def _session(name="selfuser"):
 
 
 def _client(monkeypatch, db):
-    from api.main import app
+    from sp5api.main import app
 
     monkeypatch.setattr(misc, "get_db", lambda: db)
     c = TestClient(app, raise_server_exceptions=False)
@@ -58,7 +58,7 @@ def _client(monkeypatch, db):
 
 class TestSelfSchedule:
     def test_invalid_month_400(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session()
         try:
@@ -69,7 +69,7 @@ class TestSelfSchedule:
             _sessions.pop(tok, None)
 
     def test_returns_only_own_entries(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _SelfDB(
             schedule=[
@@ -88,7 +88,7 @@ class TestSelfSchedule:
             _sessions.pop(tok, None)
 
     def test_no_employee_record_404(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session(name="nobody")  # no matching employee
         try:
@@ -101,7 +101,7 @@ class TestSelfSchedule:
 
 class TestSelfWishes:
     def test_get_own_wishes(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _SelfDB(wishes=[{"id": 1, "wish_type": "WUNSCH"}])
         tok = _session()
@@ -114,7 +114,7 @@ class TestSelfWishes:
             _sessions.pop(tok, None)
 
     def test_create_wish_success(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session()
         try:
@@ -129,7 +129,7 @@ class TestSelfWishes:
             _sessions.pop(tok, None)
 
     def test_create_wish_invalid_type(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session()
         try:
@@ -144,7 +144,7 @@ class TestSelfWishes:
             _sessions.pop(tok, None)
 
     def test_create_wish_conflict_409(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _SelfDB(add_wish_exc=ValueError("already exists"))
         tok = _session()
@@ -162,7 +162,7 @@ class TestSelfWishes:
 
 class TestSelfAbsence:
     def test_create_absence_success(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _session()
         try:
@@ -177,7 +177,7 @@ class TestSelfAbsence:
             _sessions.pop(tok, None)
 
     def test_create_absence_duplicate_409(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _SelfDB(absences=[{"date": "2026-08-01"}])
         tok = _session()

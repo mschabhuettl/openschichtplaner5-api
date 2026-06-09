@@ -2,7 +2,7 @@
 the sanitized-500 error handlers on the period/settings endpoints, plus the
 rate-limit dashboard's summary computation."""
 
-import api.routers.admin as admin
+import sp5api.routers.admin as admin
 
 
 def _boom():
@@ -50,7 +50,7 @@ class TestRateLimitDashboard:
             {"user": "Alice", "endpoint": "/api/login", "ip": "2.2.2.2"},
             {"user": None, "endpoint": "/api/x", "ip": "1.1.1.1"},
         ]
-        monkeypatch.setattr("api.rate_limit_store.get_rate_limit_events", lambda **kw: events)
+        monkeypatch.setattr("sp5api.rate_limit_store.get_rate_limit_events", lambda **kw: events)
         resp = admin_client.get("/api/v1/admin/rate-limits")
         assert resp.status_code == 200
         data = resp.json()

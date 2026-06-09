@@ -8,7 +8,7 @@ directly with a fake db.
 
 from datetime import date
 
-import api.routers.work_time_rules as wtr
+import sp5api.routers.work_time_rules as wtr
 
 
 class FakeDB:
@@ -119,7 +119,7 @@ def test_check_all_skips_employee_without_id(app, monkeypatch):
     """check-all tolerates an employee row that has no ID."""
     import secrets
 
-    from api.main import _sessions
+    from sp5api.main import _sessions
     from starlette.testclient import TestClient
 
     class DB2(FakeDB):

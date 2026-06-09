@@ -5,12 +5,12 @@ largest untested chunk; a fake db drives the full computation."""
 
 import secrets
 
-import api.routers.reports as reports
+import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
 
 
 def _admin_client(monkeypatch, db):
-    from api.main import _sessions, app
+    from sp5api.main import _sessions, app
 
     monkeypatch.setattr(reports, "get_db", lambda: db)
     tok = secrets.token_hex(20)
@@ -63,7 +63,7 @@ class _FairDB:
 
 
 def test_fairness_score_counts_and_scores(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     client, tok = _admin_client(monkeypatch, _FairDB())
     try:
@@ -89,7 +89,7 @@ def test_fairness_score_counts_and_scores(monkeypatch):
 
 
 def test_fairness_empty_when_no_shifts(monkeypatch):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     class _EmptyDB(_FairDB):
         def get_schedule(self, year, month, group_id=None):

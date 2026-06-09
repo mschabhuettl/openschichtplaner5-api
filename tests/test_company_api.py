@@ -222,7 +222,7 @@ class TestCompanyAPIEndpoints:
         """Inject an admin session token."""
         import secrets
 
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {
@@ -241,7 +241,7 @@ class TestCompanyAPIEndpoints:
         """Inject a tenant-scoped admin session token."""
         import secrets
 
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {
@@ -277,7 +277,7 @@ class TestCompanyAPIEndpoints:
         def mock_get_orm_session():
             return orm_get_session(orm_engine), orm_engine
 
-        with patch("api.routers.companies._get_orm_session", mock_get_orm_session):
+        with patch("sp5api.routers.companies._get_orm_session", mock_get_orm_session):
             resp = client.post(
                 "/api/companies",
                 json={"name": "New Corp"},
@@ -304,7 +304,7 @@ class TestCompanyAPIEndpoints:
         def mock_get_orm_session():
             return orm_get_session(orm_engine), orm_engine
 
-        with patch("api.routers.companies._get_orm_session", mock_get_orm_session):
+        with patch("sp5api.routers.companies._get_orm_session", mock_get_orm_session):
             resp = client.get(
                 "/api/companies",
                 headers={"X-Auth-Token": admin_token},
@@ -328,7 +328,7 @@ class TestCompanyAPIEndpoints:
         def mock_get_orm_session():
             return orm_get_session(orm_engine), orm_engine
 
-        with patch("api.routers.companies._get_orm_session", mock_get_orm_session):
+        with patch("sp5api.routers.companies._get_orm_session", mock_get_orm_session):
             resp = client.put(
                 f"/api/companies/{cid}",
                 json={"name": "Updated Corp"},
@@ -358,7 +358,7 @@ class TestCompanyAPIEndpoints:
         def mock_get_orm_session():
             return orm_get_session(orm_engine), orm_engine
 
-        with patch("api.routers.companies._get_orm_session", mock_get_orm_session):
+        with patch("sp5api.routers.companies._get_orm_session", mock_get_orm_session):
             resp = client.post(
                 "/api/companies",
                 json={"name": "Existing"},

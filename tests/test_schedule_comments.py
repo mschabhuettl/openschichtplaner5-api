@@ -259,7 +259,7 @@ class TestScheduleCommentsErrorPaths:
 
     def test_list_db_error_is_sanitized_500(self, write_client, monkeypatch):
         """A DB failure on list returns a sanitized 500 (no internals leaked)."""
-        monkeypatch.setattr("api.routers.schedule_comments.get_db", lambda: _BoomDB())
+        monkeypatch.setattr("sp5api.routers.schedule_comments.get_db", lambda: _BoomDB())
         resp = write_client.get("/api/v1/schedule/comments")
         assert resp.status_code == 500
         assert resp.json()["detail"] == "Interner Serverfehler. Bitte versuche es erneut."
@@ -267,7 +267,7 @@ class TestScheduleCommentsErrorPaths:
 
     def test_create_db_error_is_sanitized_500(self, write_client, monkeypatch):
         """A DB failure on create returns a sanitized 500."""
-        monkeypatch.setattr("api.routers.schedule_comments.get_db", lambda: _BoomDB())
+        monkeypatch.setattr("sp5api.routers.schedule_comments.get_db", lambda: _BoomDB())
         resp = write_client.post(
             "/api/v1/schedule/comments",
             json={
@@ -281,7 +281,7 @@ class TestScheduleCommentsErrorPaths:
 
     def test_delete_db_error_is_sanitized_500(self, write_client, monkeypatch):
         """A non-HTTP DB failure on delete returns a sanitized 500."""
-        monkeypatch.setattr("api.routers.schedule_comments.get_db", lambda: _BoomDB())
+        monkeypatch.setattr("sp5api.routers.schedule_comments.get_db", lambda: _BoomDB())
         resp = write_client.delete("/api/v1/schedule/comments/123")
         assert resp.status_code == 500
         assert resp.json()["detail"] == "Interner Serverfehler. Bitte versuche es erneut."

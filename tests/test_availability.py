@@ -8,7 +8,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def _clean_availability_file():
     """Remove stale availability data before each test."""
-    from api.routers.availability import _AVAILABILITY_FILE
+    from sp5api.routers.availability import _AVAILABILITY_FILE
 
     if os.path.exists(_AVAILABILITY_FILE):
         os.remove(_AVAILABILITY_FILE)

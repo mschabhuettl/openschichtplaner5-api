@@ -17,7 +17,7 @@ def _employee_ids(write_db_path):
 
 
 def _make_client(app, role, name):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -54,7 +54,7 @@ class TestSelfServiceSwapRequests:
             assert data["partner_id"] == emp_b_id
             assert data["partner_accepted"] is None
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok, None)
 
     def test_partner_accepts(self, app, _employee_ids):
@@ -71,7 +71,7 @@ class TestSelfServiceSwapRequests:
             assert res.status_code == 200
             swap_id = res.json()["id"]
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_a, None)
 
         # Accept as employee B
@@ -97,7 +97,7 @@ class TestSelfServiceSwapRequests:
             })
             swap_id = res.json()["id"]
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_a, None)
 
         client_b, tok_b = _make_client(app, "Leser", emp_b_name)
@@ -109,7 +109,7 @@ class TestSelfServiceSwapRequests:
             assert data["partner_accepted"] is False
             assert "Partner" in data.get("reject_reason", "")
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_b, None)
 
     def test_wrong_partner_cannot_respond(self, app, _employee_ids):
@@ -124,7 +124,7 @@ class TestSelfServiceSwapRequests:
             })
             swap_id = res.json()["id"]
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_a, None)
 
         # Try to respond as requester (not the partner)
@@ -133,7 +133,7 @@ class TestSelfServiceSwapRequests:
             res = client_a2.patch(f"/api/self/swap-requests/{swap_id}/respond", json={"accept": True})
             assert res.status_code == 403
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_a2, None)
 
     def test_self_cancel(self, app, _employee_ids):
@@ -151,7 +151,7 @@ class TestSelfServiceSwapRequests:
             assert res.status_code == 200
             assert res.json()["ok"] is True
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_a, None)
 
     def test_cannot_swap_with_self(self, app, _employee_ids):
@@ -166,13 +166,13 @@ class TestSelfServiceSwapRequests:
             })
             assert res.status_code == 400
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_a, None)
 
     def test_full_lifecycle_with_planner_approval(self, app, _employee_ids):
         """Full flow: create → partner accept → planner approve."""
         emp_a_id, emp_b_id, emp_a_name, emp_b_name = _employee_ids
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         # 1. Employee A creates request
         client_a, tok_a = _make_client(app, "Leser", emp_a_name)
@@ -213,7 +213,7 @@ class TestSelfServiceSwapRequests:
     def test_resolve_sends_notifications(self, app, _employee_ids):
         """Planner resolve endpoint returns successfully (notifications fire-and-forget)."""
         emp_a_id, emp_b_id, emp_a_name, emp_b_name = _employee_ids
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         planner, tok_p = _make_client(app, "Planer", "test_planer")
         try:

@@ -23,27 +23,27 @@ class TestSlugify:
     """Unit tests for _slugify helper."""
 
     def test_basic_slug(self):
-        from api.routers.companies import _slugify
+        from sp5api.routers.companies import _slugify
 
         assert _slugify("Test Corp") == "test-corp"
 
     def test_special_characters(self):
-        from api.routers.companies import _slugify
+        from sp5api.routers.companies import _slugify
 
         assert _slugify("Böse & Söhne GmbH") == "bse-shne-gmbh"
 
     def test_empty_name_returns_company(self):
-        from api.routers.companies import _slugify
+        from sp5api.routers.companies import _slugify
 
         assert _slugify("!!!") == "company"
 
     def test_whitespace_and_dashes(self):
-        from api.routers.companies import _slugify
+        from sp5api.routers.companies import _slugify
 
         assert _slugify("  My  Cool  Company  ") == "my-cool-company"
 
     def test_already_slug(self):
-        from api.routers.companies import _slugify
+        from sp5api.routers.companies import _slugify
 
         assert _slugify("already-a-slug") == "already-a-slug"
 
@@ -52,17 +52,17 @@ class TestIsSuperAdmin:
     """Tests for _is_super_admin."""
 
     def test_super_admin(self):
-        from api.routers.companies import _is_super_admin
+        from sp5api.routers.companies import _is_super_admin
 
         assert _is_super_admin({"role": "Admin", "company_id": None}) is True
 
     def test_tenant_admin(self):
-        from api.routers.companies import _is_super_admin
+        from sp5api.routers.companies import _is_super_admin
 
         assert _is_super_admin({"role": "Admin", "company_id": 1}) is False
 
     def test_non_admin(self):
-        from api.routers.companies import _is_super_admin
+        from sp5api.routers.companies import _is_super_admin
 
         assert _is_super_admin({"role": "Planer", "company_id": None}) is False
 
@@ -83,7 +83,7 @@ class TestCompanyEndpoints:
     def admin_token(self):
         import secrets
 
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {
@@ -101,7 +101,7 @@ class TestCompanyEndpoints:
     def tenant_token(self):
         import secrets
 
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {
@@ -141,13 +141,13 @@ class TestCompanyEndpoints:
         cid = c.id
         sess.close()
 
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.get(f"/api/companies/{cid}", headers={"X-Auth-Token": admin_token})
             assert resp.status_code == 200
             assert resp.json()["name"] == "Get Test"
 
     def test_get_company_not_found(self, client, admin_token, orm_engine):
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.get("/api/companies/9999", headers={"X-Auth-Token": admin_token})
             assert resp.status_code == 404
 
@@ -167,7 +167,7 @@ class TestCompanyEndpoints:
         sess.close()
 
         # tenant_token is scoped to company_id=1, accessing other company should be 403
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.get(f"/api/companies/{other_id}", headers={"X-Auth-Token": tenant_token})
             assert resp.status_code == 403
 
@@ -187,18 +187,18 @@ class TestCompanyEndpoints:
         sess.close()
 
         assert cid > 1, "Target must not be id=1 (protected)"
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.delete(f"/api/companies/{cid}", headers={"X-Auth-Token": admin_token})
             assert resp.status_code == 200
             assert resp.json()["deactivated"] == cid
 
     def test_delete_company_not_found(self, client, admin_token, orm_engine):
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.delete("/api/companies/9999", headers={"X-Auth-Token": admin_token})
             assert resp.status_code == 404
 
     def test_update_company_not_found(self, client, admin_token, orm_engine):
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.put(
                 "/api/companies/9999", json={"name": "X"}, headers={"X-Auth-Token": admin_token}
             )
@@ -215,7 +215,7 @@ class TestCompanyEndpoints:
         sess.commit()
         sess.close()
 
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.get("/api/companies", headers={"X-Auth-Token": tenant_token})
             assert resp.status_code == 200
             data = resp.json()
@@ -224,7 +224,7 @@ class TestCompanyEndpoints:
             assert data[0]["id"] == 1
 
     def test_create_company_with_custom_slug(self, client, admin_token, orm_engine):
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.post(
                 "/api/companies",
                 json={"name": "Custom Slug Co", "slug": "custom-slug"},
@@ -244,7 +244,7 @@ class TestCompanyEndpoints:
         cid = c.id
         sess.close()
 
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.put(
                 f"/api/companies/{cid}",
                 json={"name": "New Name", "slug": "new-slug", "is_active": False},
@@ -281,7 +281,7 @@ class TestCompanyEndpoints:
 
     def test_create_blank_name_rejected(self, client, admin_token, orm_engine):
         """A whitespace-only name is rejected by the validator (422)."""
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.post(
                 "/api/companies",
                 json={"name": "   "},
@@ -291,7 +291,7 @@ class TestCompanyEndpoints:
 
     def test_update_blank_name_rejected(self, client, admin_token, orm_engine):
         """A whitespace-only name on update is rejected by the validator (422)."""
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.put(
                 "/api/companies/5",
                 json={"name": "   "},
@@ -309,7 +309,7 @@ class TestCompanyEndpoints:
         sess.commit()
         sess.close()
 
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.post(
                 "/api/companies",
                 json={"name": "Another", "slug": "dup-slug"},
@@ -331,7 +331,7 @@ class TestCompanyEndpoints:
         b_id = b.id
         sess.close()
 
-        with patch("api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
+        with patch("sp5api.routers.companies._get_orm_session", self._mock_orm(orm_engine)):
             resp = client.put(
                 f"/api/companies/{b_id}",
                 json={"slug": "alpha"},
@@ -341,7 +341,7 @@ class TestCompanyEndpoints:
 
     def test_list_db_error_sanitized_500(self, client, admin_token):
         """A DB failure on list returns a sanitized 500 (no internals leaked)."""
-        with patch("api.routers.companies._get_orm_session", self._boom_orm()):
+        with patch("sp5api.routers.companies._get_orm_session", self._boom_orm()):
             resp = client.get("/api/companies", headers={"X-Auth-Token": admin_token})
             assert resp.status_code == 500
             assert resp.json()["detail"] == "Interner Serverfehler. Bitte versuche es erneut."
@@ -364,7 +364,7 @@ class TestCompanyEndpoints:
                 pass
 
         with patch(
-            "api.routers.companies._get_orm_session",
+            "sp5api.routers.companies._get_orm_session",
             lambda: (_BoomCommitSession(), None),
         ):
             resp = client.post(
@@ -376,13 +376,13 @@ class TestCompanyEndpoints:
 
     def test_get_db_error_sanitized_500(self, client, admin_token):
         """A DB failure on get returns a sanitized 500."""
-        with patch("api.routers.companies._get_orm_session", self._boom_orm()):
+        with patch("sp5api.routers.companies._get_orm_session", self._boom_orm()):
             resp = client.get("/api/companies/5", headers={"X-Auth-Token": admin_token})
             assert resp.status_code == 500
 
     def test_update_db_error_sanitized_500(self, client, admin_token):
         """A DB failure on update returns a sanitized 500."""
-        with patch("api.routers.companies._get_orm_session", self._boom_orm()):
+        with patch("sp5api.routers.companies._get_orm_session", self._boom_orm()):
             resp = client.put(
                 "/api/companies/5",
                 json={"name": "X"},
@@ -392,6 +392,6 @@ class TestCompanyEndpoints:
 
     def test_delete_db_error_sanitized_500(self, client, admin_token):
         """A DB failure on delete returns a sanitized 500."""
-        with patch("api.routers.companies._get_orm_session", self._boom_orm()):
+        with patch("sp5api.routers.companies._get_orm_session", self._boom_orm()):
             resp = client.delete("/api/companies/5", headers={"X-Auth-Token": admin_token})
             assert resp.status_code == 500

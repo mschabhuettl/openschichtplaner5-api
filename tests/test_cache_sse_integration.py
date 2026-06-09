@@ -19,7 +19,7 @@ from starlette.testclient import TestClient
 
 
 def _inject_token(role: str, name: str = None, user_id: int = None) -> str:
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -33,7 +33,7 @@ def _inject_token(role: str, name: str = None, user_id: int = None) -> str:
 
 
 def _remove_token(tok: str) -> None:
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     _sessions.pop(tok, None)
 
@@ -67,7 +67,7 @@ class TestSSEAuth:
         tok = _inject_token("Leser", "sse_test_user")
         try:
             # Verify auth works: calling the dependency directly
-            from api.main import _sessions
+            from sp5api.main import _sessions
 
             assert tok in _sessions
             assert _sessions[tok]["role"] == "Leser"
@@ -172,7 +172,7 @@ class TestSSEBroadcastOnWrite:
 
     def test_broadcast_called_on_absence_create(self, sync_client, app):
         """Nach POST /api/absences muss broadcast() aufgerufen werden."""
-        from api.routers import events as sse_events
+        from sp5api.routers import events as sse_events
 
         employees = sync_client.get("/api/employees").json()
         if not employees:
@@ -193,7 +193,7 @@ class TestSSEBroadcastOnWrite:
 
         with patch.object(sse_events, "broadcast", side_effect=mock_broadcast):
             # Import und patch in absences router auch
-            from api.routers import absences as absence_router
+            from sp5api.routers import absences as absence_router
 
             with patch.object(absence_router, "broadcast", side_effect=mock_broadcast):
                 resp = sync_client.post(
@@ -216,7 +216,7 @@ class TestSSEBroadcastOnWrite:
 
     def test_broadcast_called_on_schedule_write(self, sync_client):
         """Nach POST /api/schedule muss broadcast() aufgerufen werden."""
-        from api.routers import schedule as sched_router
+        from sp5api.routers import schedule as sched_router
 
         employees = sync_client.get("/api/employees").json()
         if not employees:

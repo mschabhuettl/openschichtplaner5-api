@@ -20,7 +20,7 @@ from starlette.testclient import TestClient
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _inject_token(role: str, user_id: int = 901) -> tuple[str, dict]:
-    from api.main import _sessions
+    from sp5api.main import _sessions
     tok = secrets.token_hex(20)
     user = {
         "ID": user_id,
@@ -73,11 +73,11 @@ def _reset_rules_file(tmp_path, monkeypatch):
     """Each test gets a fresh temp rules file so they don't interfere."""
     rules_file = tmp_path / "work_time_rules.json"
     monkeypatch.setattr(
-        "api.routers.work_time_rules._RULES_FILE",
+        "sp5api.routers.work_time_rules._RULES_FILE",
         rules_file,
     )
     monkeypatch.setattr(
-        "api.routers.work_time_rules._DATA_DIR",
+        "sp5api.routers.work_time_rules._DATA_DIR",
         tmp_path,
     )
     yield rules_file
@@ -343,7 +343,7 @@ class TestRuleEngine:
         return MockDB()
 
     def test_no_violations_when_rules_disabled(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         db = self._make_db_mock(
             mashi=[{"EMPLOYEEID": 1, "DATE": "2024-01-01", "SHIFTID": 10}],
             shifts=[{"ID": 10, "DURATION0": 15.0, "STARTTIME": "08:00"}],
@@ -357,7 +357,7 @@ class TestRuleEngine:
         assert violations == []
 
     def test_max_hours_per_day_violation(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         db = self._make_db_mock(
             mashi=[{"EMPLOYEEID": 1, "DATE": "2024-01-15", "SHIFTID": 10}],
             shifts=[{"ID": 10, "DURATION0": 12.0, "STARTTIME": "06:00"}],
@@ -372,7 +372,7 @@ class TestRuleEngine:
         assert "max_hours_per_day" in types
 
     def test_max_hours_per_week_violation(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         # 7 days × 8h = 56h in one week > 48h limit
         entries = []
         shifts_list = []
@@ -391,7 +391,7 @@ class TestRuleEngine:
         assert "max_hours_per_week" in types
 
     def test_min_rest_violation(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         # Shift 1: 2024-01-01 20:00–04:00 (8h), Shift 2: 2024-01-02 07:00–15:00
         # Rest = 3h < 11h required
         mashi = [
@@ -413,7 +413,7 @@ class TestRuleEngine:
         assert "min_rest_hours_between_shifts" in types
 
     def test_sufficient_rest_no_violation(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         # Shift 1: 08:00-16:00, Shift 2 next day: 08:00 → 16h rest > 11h
         mashi = [
             {"EMPLOYEEID": 1, "DATE": "2024-01-01", "SHIFTID": 20},
@@ -431,7 +431,7 @@ class TestRuleEngine:
         assert rest_violations == []
 
     def test_consecutive_days_violation(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         # 7 consecutive days, max is 6
         entries = [{"EMPLOYEEID": 1, "DATE": f"2024-01-{d:02d}", "SHIFTID": 10} for d in range(1, 8)]
         shifts_list = [{"ID": 10, "DURATION0": 8.0, "STARTTIME": "08:00"}]
@@ -446,7 +446,7 @@ class TestRuleEngine:
         assert "max_consecutive_days" in types
 
     def test_violation_has_required_fields(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         mashi = [{"EMPLOYEEID": 1, "DATE": "2024-01-15", "SHIFTID": 10}]
         shifts_list = [{"ID": 10, "DURATION0": 12.0, "STARTTIME": "08:00"}]
         db = self._make_db_mock(mashi=mashi, shifts=shifts_list)
@@ -462,7 +462,7 @@ class TestRuleEngine:
             assert field in v, f"Missing field: {field}"
 
     def test_severity_is_warning_or_error(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         entries = [{"EMPLOYEEID": 1, "DATE": f"2024-01-{d:02d}", "SHIFTID": 10} for d in range(1, 8)]
         shifts_list = [{"ID": 10, "DURATION0": 12.0, "STARTTIME": "08:00"}]
         db = self._make_db_mock(mashi=entries, shifts=shifts_list)
@@ -476,7 +476,7 @@ class TestRuleEngine:
             assert v["severity"] in ("warning", "error"), f"Invalid severity: {v['severity']}"
 
     def test_spshi_hours_counted(self):
-        from api.routers.work_time_rules import _check_employee
+        from sp5api.routers.work_time_rules import _check_employee
         # Special shift: 15h on a single day
         spshi = [{"EMPLOYEEID": 1, "DATE": "2024-01-10", "DURATION": 15.0}]
         db = self._make_db_mock(spshi=spshi)

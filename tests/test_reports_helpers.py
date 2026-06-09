@@ -2,7 +2,7 @@
 conversion, CSV byte decoding (UTF-8-sig with latin-1 fallback), and the
 CSV-upload validation guard (content type + size)."""
 
-import api.routers.reports as reports
+import sp5api.routers.reports as reports
 import pytest
 from fastapi import HTTPException
 

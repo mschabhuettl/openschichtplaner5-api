@@ -7,7 +7,7 @@ placeholder as unset, and otherwise fall back to a random per-process secret
 with an operator warning in production (but not in dev/debug).
 """
 
-from api.dependencies import _resolve_jwt_secret
+from sp5api.dependencies import _resolve_jwt_secret
 
 _PLACEHOLDER = "change-me-in-production-use-openssl-rand-hex-32"
 

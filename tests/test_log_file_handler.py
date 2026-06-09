@@ -5,7 +5,7 @@ filesystem error so a misconfigured LOG_FILE can never break startup.
 
 import os
 
-import api.dependencies as deps
+import sp5api.dependencies as deps
 
 
 def test_creates_parent_dir_and_uses_path(tmp_path):

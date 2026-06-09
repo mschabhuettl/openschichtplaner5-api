@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=77.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openschichtplaner5-api"
+version = "1.1.0"
+description = "REST API of OpenSchichtplaner5 — the FastAPI service layer over libopenschichtplaner5 (sp5lib): auth/2FA, employees, schedule, absences, reports, notifications and more."
+readme = { file = "README.md", content-type = "text/markdown" }
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Matthias Schabhüttl", email = "matthias@matthiasschabhuettl.com" }]
+requires-python = ">=3.11"
+keywords = ["schichtplaner5", "shift-planning", "fastapi", "rest-api", "scheduling"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
+    "Topic :: Office/Business :: Scheduling",
+]
+dependencies = [
+    # 0.136.3 is a malicious release (MAL-2026-4750): it tampers with
+    # pyproject.toml/PKG-INFO to inject an undocumented 'fastar' dependency. Exclude it.
+    "fastapi>=0.104.0,!=0.136.3",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    "starlette>=0.27.0",
+    "anyio>=3.7.0",
+    "httpx>=0.24.0",
+    "python-multipart>=0.0.7",
+    "python-dotenv>=1.0.0",
+    "slowapi>=0.1.9",
+    "fpdf2>=2.7.0",
+    "bcrypt>=4.0.0",
+    "PyJWT>=2.8.0",
+    "pyotp>=2.9.0",
+    "qrcode[pil]>=7.4",
+    "openpyxl>=3.1.0",
+    "psutil>=5.9.0",
+    "Pillow>=10.0.0",
+    "SQLAlchemy>=2.0.0",
+    # Core library (DBF bridge + ORM/sync), maintained in its own repo and
+    # released to PyPI. Importable as `sp5lib`. Same reference style as the
+    # main application uses.
+    "libopenschichtplaner5[postgres]>=1.6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mschabhuettl/openschichtplaner5-api"
+Source = "https://github.com/mschabhuettl/openschichtplaner5-api"
+Changelog = "https://github.com/mschabhuettl/openschichtplaner5-api/blob/main/CHANGELOG.md"
+Issues = "https://github.com/mschabhuettl/openschichtplaner5-api/issues"
+"Main application" = "https://github.com/mschabhuettl/openschichtplaner5"
+"Core library" = "https://github.com/mschabhuettl/libopenschichtplaner5"
+
+[tool.setuptools]
+packages = ["sp5api", "sp5api.routers"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E712",  # == False / == True comparisons — required for SQLAlchemy WHERE clauses
+    "B008",  # do not perform function calls in default arguments (FastAPI Depends pattern)
+    "B904",  # raise-without-from-inside-except — existing codebase, fix incrementally
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "E402"]  # assert False pattern in tests; sys.path manipulation
+"test_smoke.py" = ["E402"]  # sys.path manipulation requires imports after
+"sp5api/main.py" = ["E402"]  # env/bootstrap setup requires imports after
+"sp5api/routers/reports.py" = ["B905"]  # zip() without strict= — existing code

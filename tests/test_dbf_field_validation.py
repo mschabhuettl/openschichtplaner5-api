@@ -115,7 +115,7 @@ def test_pydantic_note_create_rejects_long_text():
     # Ensure api package is importable
     api_path = os.path.join(os.path.dirname(__file__), "..")
     sys.path.insert(0, api_path)
-    from api.routers.misc import NoteCreate
+    from sp5api.routers.misc import NoteCreate
 
     with pytest.raises(ValidationError):
         NoteCreate(date="2026-01-01", text="A" * 126)
@@ -127,7 +127,7 @@ def test_pydantic_note_create_accepts_max_text():
 
     api_path = os.path.join(os.path.dirname(__file__), "..")
     sys.path.insert(0, api_path)
-    from api.routers.misc import NoteCreate
+    from sp5api.routers.misc import NoteCreate
 
     model = NoteCreate(date="2026-01-01", text="Ü" * 125)
     assert len(model.text) == 125
@@ -141,7 +141,7 @@ def test_pydantic_note_create_rejects_long_category():
 
     api_path = os.path.join(os.path.dirname(__file__), "..")
     sys.path.insert(0, api_path)
-    from api.routers.misc import NoteCreate
+    from sp5api.routers.misc import NoteCreate
 
     with pytest.raises(ValidationError):
         NoteCreate(date="2026-01-01", text="ok", category="1234567890")  # 10 chars

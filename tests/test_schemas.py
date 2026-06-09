@@ -5,7 +5,7 @@ declared HIDDEN/EMPLOYEENO/GROUPID/CONTRACTHOURS — fields that never exist on 
 payload and only surfaced as misleading always-null entries in the OpenAPI schema.
 """
 
-from api.schemas import EmployeeResponse, GroupResponse, ShiftResponse
+from sp5api.schemas import EmployeeResponse, GroupResponse, ShiftResponse
 
 
 def test_shift_response_uses_real_keys():

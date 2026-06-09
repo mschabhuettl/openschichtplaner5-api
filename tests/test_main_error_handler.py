@@ -5,7 +5,7 @@ to raise."""
 
 import secrets
 
-import api.main as main
+import sp5api.main as main
 from starlette.testclient import TestClient
 
 

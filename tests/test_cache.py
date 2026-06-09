@@ -3,7 +3,7 @@
 import time
 
 import pytest
-from api import cache
+from sp5api import cache
 
 
 @pytest.fixture(autouse=True)

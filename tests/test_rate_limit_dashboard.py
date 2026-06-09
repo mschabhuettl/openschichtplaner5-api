@@ -23,8 +23,8 @@ class TestRateLimitStore:
         shutil.rmtree(self._tmpdir, ignore_errors=True)
 
     def test_log_and_read_events(self):
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
-            from api.rate_limit_store import get_rate_limit_events, log_rate_limit_event
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from sp5api.rate_limit_store import get_rate_limit_events, log_rate_limit_event
 
             # Log some events
             log_rate_limit_event(
@@ -45,8 +45,8 @@ class TestRateLimitStore:
             assert events[2]["user"] == "Alice"
 
     def test_filter_by_user(self):
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
-            from api.rate_limit_store import get_rate_limit_events, log_rate_limit_event
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from sp5api.rate_limit_store import get_rate_limit_events, log_rate_limit_event
 
             log_rate_limit_event(user="Alice", ip="1.2.3.4", endpoint="/api/a")
             log_rate_limit_event(user="Bob", ip="5.6.7.8", endpoint="/api/b")
@@ -57,8 +57,8 @@ class TestRateLimitStore:
             assert all(e["user"] == "Alice" for e in events)
 
     def test_limit_param(self):
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
-            from api.rate_limit_store import get_rate_limit_events, log_rate_limit_event
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from sp5api.rate_limit_store import get_rate_limit_events, log_rate_limit_event
 
             for i in range(20):
                 log_rate_limit_event(user=f"user{i}", ip="1.1.1.1", endpoint="/api/x")
@@ -67,18 +67,18 @@ class TestRateLimitStore:
             assert len(events) == 5
 
     def test_empty_file(self):
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
-            from api.rate_limit_store import get_rate_limit_events
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from sp5api.rate_limit_store import get_rate_limit_events
 
             events = get_rate_limit_events()
             assert events == []
 
     def test_rotate_events(self):
         with (
-            patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
-            patch("api.rate_limit_store._MAX_EVENTS", 5),
+            patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
+            patch("sp5api.rate_limit_store._MAX_EVENTS", 5),
         ):
-            from api.rate_limit_store import (
+            from sp5api.rate_limit_store import (
                 get_rate_limit_events,
                 log_rate_limit_event,
                 rotate_events,
@@ -113,8 +113,8 @@ class TestRateLimitStoreEdgeCases:
         with open(notadir, "w"):
             pass
         bad_log = os.path.join(notadir, "events.jsonl")
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", bad_log):
-            from api.rate_limit_store import log_rate_limit_event
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", bad_log):
+            from sp5api.rate_limit_store import log_rate_limit_event
 
             # Must not raise despite the unwritable path.
             log_rate_limit_event(user="X", ip="1.1.1.1", endpoint="/api/x")
@@ -136,8 +136,8 @@ class TestRateLimitStoreEdgeCases:
                 )
                 + "\n"
             )
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
-            from api.rate_limit_store import get_rate_limit_events
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from sp5api.rate_limit_store import get_rate_limit_events
 
             events = get_rate_limit_events()
             assert len(events) == 1
@@ -158,25 +158,25 @@ class TestRateLimitStoreEdgeCases:
                 + "\n"
             )
         with (
-            patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
+            patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
             patch("builtins.open", side_effect=OSError("boom")),
         ):
-            from api.rate_limit_store import get_rate_limit_events
+            from sp5api.rate_limit_store import get_rate_limit_events
 
             assert get_rate_limit_events() == []
 
     def test_rotate_no_file_returns_zero(self):
         """Rotating a non-existent log is a no-op."""
         missing = os.path.join(self._tmpdir, "does-not-exist.jsonl")
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", missing):
-            from api.rate_limit_store import rotate_events
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", missing):
+            from sp5api.rate_limit_store import rotate_events
 
             assert rotate_events() == 0
 
     def test_rotate_under_max_returns_zero(self):
         """Rotating below the cap removes nothing."""
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
-            from api.rate_limit_store import log_rate_limit_event, rotate_events
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from sp5api.rate_limit_store import log_rate_limit_event, rotate_events
 
             for i in range(3):
                 log_rate_limit_event(user=f"u{i}", ip="1.1.1.1", endpoint="/api/x")
@@ -187,10 +187,10 @@ class TestRateLimitStoreEdgeCases:
         with open(self._logfile, "w", encoding="utf-8") as f:
             f.write("x\n")
         with (
-            patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
+            patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile),
             patch("builtins.open", side_effect=OSError("boom")),
         ):
-            from api.rate_limit_store import rotate_events
+            from sp5api.rate_limit_store import rotate_events
 
             assert rotate_events() == 0
 
@@ -242,9 +242,9 @@ class TestRateLimitAPI:
 
     def test_admin_endpoint_returns_events(self):
         """Admin can fetch rate-limit events with summary."""
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
             # Import app after patching
-            from api.rate_limit_store import get_rate_limit_events
+            from sp5api.rate_limit_store import get_rate_limit_events
 
             events = get_rate_limit_events()
             assert len(events) == 3
@@ -266,16 +266,16 @@ class TestRateLimitAPI:
 
     def test_filter_by_since(self):
         """Events can be filtered by since parameter."""
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
-            from api.rate_limit_store import get_rate_limit_events
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from sp5api.rate_limit_store import get_rate_limit_events
 
             events = get_rate_limit_events(since="2026-03-28T02:00:00.000Z")
             assert len(events) == 2  # Bob + anonymous
 
     def test_filter_by_until(self):
         """Events can be filtered by until parameter."""
-        with patch("api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
-            from api.rate_limit_store import get_rate_limit_events
+        with patch("sp5api.rate_limit_store._RATE_LIMIT_LOG", self._logfile):
+            from sp5api.rate_limit_store import get_rate_limit_events
 
             events = get_rate_limit_events(until="2026-03-28T01:30:00.000Z")
             assert len(events) == 1  # Alice only

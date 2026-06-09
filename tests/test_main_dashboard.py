@@ -5,7 +5,7 @@ direct coverage; a permissive fake db with minimal data drives them end to end."
 import secrets
 from datetime import date
 
-import api.main as main
+import sp5api.main as main
 from starlette.testclient import TestClient
 
 _TODAY = date.today()

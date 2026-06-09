@@ -6,7 +6,7 @@ fallback, the special-shift path, and the other-employee skip.
 """
 
 import pytest
-from api.routers import overtime
+from sp5api.routers import overtime
 
 
 class _StubDB:

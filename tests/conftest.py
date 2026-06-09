@@ -36,7 +36,7 @@ _REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or (
 
 def _inject_token(role: str, name: str = None) -> str:
     """Inject a session token with the given role. Returns the token."""
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -50,7 +50,7 @@ def _inject_token(role: str, name: str = None) -> str:
 
 
 def _remove_token(tok: str) -> None:
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     _sessions.pop(tok, None)
 
@@ -75,7 +75,7 @@ def test_db_path(tmp_path_factory):
 def patched_db(test_db_path):
     """Session-scoped: sets SP5_DB_PATH and patches api.main.DB_PATH."""
     os.environ["SP5_DB_PATH"] = test_db_path
-    import api.main as main_module
+    import sp5api.main as main_module
 
     original = main_module.DB_PATH
     main_module.DB_PATH = test_db_path
@@ -86,7 +86,7 @@ def patched_db(test_db_path):
 @pytest.fixture(scope="session")
 def app(patched_db):
     """Return the FastAPI app pointed at the test database."""
-    from api.main import app as _app
+    from sp5api.main import app as _app
 
     return _app
 
@@ -95,7 +95,7 @@ def app(patched_db):
 def reset_rate_limiter():
     """Reset slowapi rate limiter storage before each test to avoid cross-test pollution."""
     try:
-        from api.main import limiter
+        from sp5api.main import limiter
 
         limiter.reset()
     except Exception:
@@ -112,7 +112,7 @@ def sync_client(app):
     The token is kept alive by re-injecting it into _sessions on each request
     to survive potential logout calls from other tests.
     """
-    from api.main import _sessions
+    from sp5api.main import _sessions
     from starlette.testclient import TestClient
 
     tok = "SYNC_CLIENT_PERSISTENT_ADMIN_TOKEN"
@@ -153,7 +153,7 @@ def write_db_path(tmp_path):
     shutil.copytree(_REAL_DB_PATH, str(dst))
     db_path = str(dst)
 
-    import api.main as main_module
+    import sp5api.main as main_module
 
     original = main_module.DB_PATH
     main_module.DB_PATH = db_path

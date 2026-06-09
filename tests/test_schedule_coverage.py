@@ -349,7 +349,7 @@ class TestEventsBroadcastWithSubscriber:
         """broadcast() with a real subscriber should schedule put and log debug."""
         import asyncio
 
-        from api.routers.events import _lock, _subscribers, broadcast
+        from sp5api.routers.events import _lock, _subscribers, broadcast
 
         async def run():
             queue = asyncio.Queue()
@@ -374,7 +374,7 @@ class TestEventsBroadcastWithSubscriber:
         """_event_generator should yield connected event first."""
         import asyncio
 
-        from api.routers.events import _event_generator
+        from sp5api.routers.events import _event_generator
 
         async def run():
             queue = asyncio.Queue()

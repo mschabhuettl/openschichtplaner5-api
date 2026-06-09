@@ -30,7 +30,7 @@ def _employee_ids(write_db_path):
 
 
 def _make_client(app, role, name):
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -288,7 +288,7 @@ class TestHistoryEndpoint:
             assert isinstance(data["history"], list)
             assert len(data["history"]) >= 1
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_p, None)
 
     def test_get_history_not_found(self, app, _employee_ids):
@@ -298,7 +298,7 @@ class TestHistoryEndpoint:
             res = planner.get("/api/v1/shifts/swap/99999/history")
             assert res.status_code == 404
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_p, None)
 
     def test_history_grows_after_reject(self, app, _employee_ids):
@@ -324,7 +324,7 @@ class TestHistoryEndpoint:
             statuses = [h["status"] for h in history]
             assert "rejected" in statuses
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_p, None)
 
 
@@ -339,7 +339,7 @@ class TestExpireEndpoint:
             res = reader.post("/api/v1/shifts/swap/expire")
             assert res.status_code in (401, 403)
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_r, None)
 
     def test_expire_endpoint_returns_count(self, app, _employee_ids):
@@ -353,7 +353,7 @@ class TestExpireEndpoint:
             assert "expired_ids" in data
             assert isinstance(data["expired_ids"], list)
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_p, None)
 
 
@@ -366,7 +366,7 @@ class TestEmailNotifications:
         emp_a_id, emp_b_id, _a, _b = _employee_ids
         planner, tok_p = _planner(app)
         try:
-            with patch("api.routers.misc._send_swap_email") as mock_email:
+            with patch("sp5api.routers.misc._send_swap_email") as mock_email:
                 res = planner.post("/api/swap-requests", json={
                     "requester_id": emp_a_id,
                     "requester_date": "2025-07-10",
@@ -377,7 +377,7 @@ class TestEmailNotifications:
                 # _send_swap_email should have been called (even if it's a no-op without SMTP)
                 mock_email.assert_called()
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_p, None)
 
     def test_approve_notifies_both_employees(self, app, _employee_ids):
@@ -393,7 +393,7 @@ class TestEmailNotifications:
             })
             swap_id = res.json()["id"]
 
-            with patch("api.routers.misc._send_swap_email") as mock_email:
+            with patch("sp5api.routers.misc._send_swap_email") as mock_email:
                 res = planner.patch(f"/api/swap-requests/{swap_id}/resolve", json={
                     "action": "approve",
                     "resolved_by": "planer_test",
@@ -401,7 +401,7 @@ class TestEmailNotifications:
                 assert res.status_code == 200
                 assert mock_email.call_count == 2  # both employees notified
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_p, None)
 
     def test_reject_notifies_only_requester(self, app, _employee_ids):
@@ -417,7 +417,7 @@ class TestEmailNotifications:
             })
             swap_id = res.json()["id"]
 
-            with patch("api.routers.misc._send_swap_email") as mock_email:
+            with patch("sp5api.routers.misc._send_swap_email") as mock_email:
                 res = planner.patch(f"/api/swap-requests/{swap_id}/resolve", json={
                     "action": "reject",
                     "reject_reason": "Urlaub nicht genehmigt",
@@ -427,14 +427,14 @@ class TestEmailNotifications:
                 call_kwargs = mock_email.call_args[1]
                 assert call_kwargs["recipient_employee_id"] == emp_a_id
         finally:
-            from api.main import _sessions
+            from sp5api.main import _sessions
             _sessions.pop(tok_p, None)
 
     def test_send_swap_email_with_no_smtp_does_not_raise(self):
         """_send_swap_email falls back gracefully when SMTP not configured."""
         # Patch environment to ensure no SMTP host
         with patch.dict("os.environ", {"SP5_SMTP_HOST": "", "SP5_SMTP_ENABLED": "false"}):
-            from api.routers.misc import _send_swap_email
+            from sp5api.routers.misc import _send_swap_email
             # Should not raise
             _send_swap_email(
                 notification_type="swap_request",

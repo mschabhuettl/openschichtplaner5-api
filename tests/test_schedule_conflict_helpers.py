@@ -2,7 +2,7 @@
 overlapping-shift conflict detection: _parse_time_range, _times_overlap and
 _get_shift_time_range (weekday-specific with STARTEND0 fallback)."""
 
-import api.routers.schedule as sched
+import sp5api.routers.schedule as sched
 
 
 class TestParseTimeRange:

@@ -42,7 +42,7 @@ def _create_schedule(client, payload: dict | None = None) -> dict:
 def isolate_schedules_file(tmp_path, monkeypatch):
     """Point the router at a fresh temp file for every test."""
     store = tmp_path / "export_schedules.json"
-    import api.routers.export_scheduler as mod
+    import sp5api.routers.export_scheduler as mod
 
     monkeypatch.setattr(mod, "_SCHEDULES_FILE", store)
     yield store
@@ -74,7 +74,7 @@ class TestListSchedules:
         assert resp.status_code == 403
 
     def test_list_unauthenticated(self, admin_client):
-        from api.main import app
+        from sp5api.main import app
         from starlette.testclient import TestClient
 
         with TestClient(app, raise_server_exceptions=False) as c:
@@ -231,7 +231,7 @@ class TestRunSchedule:
         monkeypatch.setattr(email_mod, "get_config", lambda: _FakeConfig())
 
         # Also patch the export generation to avoid DB dependency
-        import api.routers.export_scheduler as sched_mod
+        import sp5api.routers.export_scheduler as sched_mod
 
         monkeypatch.setattr(sched_mod, "_generate_export", lambda fmt, gid, month: (b"fake", 5))
 
@@ -251,7 +251,7 @@ class TestRunSchedule:
         """If export generation raises, run should return 500."""
         s = _create_schedule(admin_client)
 
-        import api.routers.export_scheduler as sched_mod
+        import sp5api.routers.export_scheduler as sched_mod
 
         def _failing_export(fmt, gid, month):
             raise RuntimeError("DB unavailable")

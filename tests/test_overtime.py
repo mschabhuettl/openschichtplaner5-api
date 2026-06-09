@@ -27,7 +27,7 @@ def _count_workdays_mon_fri(year: int, month: int) -> int:
 
 def _planer_client(app):
     """Return a TestClient with a Planer token injected."""
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -127,8 +127,8 @@ class TestEmployeeOvertime:
         """Employee with HRSWEEK=0 → expected_hours=0, difference=actual_hours."""
         import unittest.mock as mock
 
-        from api.dependencies import get_db as _get_db
-        from api.main import _sessions
+        from sp5api.dependencies import get_db as _get_db
+        from sp5api.main import _sessions
 
         db = _get_db()
         employees = db.get_employees()
@@ -179,7 +179,7 @@ class TestEmployeeOvertime:
 
     def test_planer_can_access(self, app):
         """Planer role can access the overtime endpoint."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         client, tok = _planer_client(app)
         try:
@@ -308,7 +308,7 @@ class TestOvertimeSummary:
 
     def test_planer_can_access_summary(self, app):
         """Planer can access the summary endpoint."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         client, tok = _planer_client(app)
         try:
@@ -319,7 +319,7 @@ class TestOvertimeSummary:
 
     def test_reader_cannot_access_summary(self, app):
         """Leser (read-only) role should NOT be able to access the summary."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {
@@ -339,7 +339,7 @@ class TestOvertimeSummary:
 
     def test_reader_cannot_access_employee_overtime(self, app):
         """Leser role should NOT be able to access single-employee overtime endpoint."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {

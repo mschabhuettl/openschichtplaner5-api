@@ -23,7 +23,7 @@ def _get_orm_session():
     from sp5lib.orm import get_engine, init_db
     from sp5lib.orm.base import get_session
 
-    import api.main as _main
+    import sp5api.main as _main
 
     # Derive the ORM database path from the DBF DB_PATH
     # The SQLite DB sits alongside the DBF data directory

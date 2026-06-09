@@ -43,7 +43,7 @@ class TestSchedulePdfBasic:
 
     def test_returns_200_with_planer(self, sync_client):
         """Planer role should get a 200 HTML response."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(
@@ -55,7 +55,7 @@ class TestSchedulePdfBasic:
 
     def test_content_type_is_html(self, sync_client):
         """Response must have text/html content-type."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(
@@ -67,7 +67,7 @@ class TestSchedulePdfBasic:
 
     def test_html_contains_doctype(self, sync_client):
         """Response body must start with an HTML doctype."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(
@@ -80,7 +80,7 @@ class TestSchedulePdfBasic:
 
     def test_html_contains_month_year(self, sync_client):
         """HTML must mention the requested month and year."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(
@@ -94,7 +94,7 @@ class TestSchedulePdfBasic:
 
     def test_html_contains_table(self, sync_client):
         """HTML must contain a <table> element for the schedule grid."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(
@@ -107,7 +107,7 @@ class TestSchedulePdfBasic:
 
     def test_html_contains_a4_landscape_css(self, sync_client):
         """HTML must declare A4 landscape page layout for printing."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(
@@ -134,7 +134,7 @@ class TestSchedulePdfAuth:
 
     def test_leser_role_forbidden(self, sync_client):
         """Leser (read-only) role must be rejected with 403."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _leser_token(_sessions)
         resp = sync_client.get(
@@ -202,7 +202,7 @@ class TestSchedulePdfContent:
 
     def test_html_contains_day_numbers(self, sync_client):
         """The schedule table header must include day numbers 1 through 28+."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(
@@ -218,7 +218,7 @@ class TestSchedulePdfContent:
 
     def test_html_contains_print_css(self, sync_client):
         """HTML must contain @media print CSS block."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(
@@ -293,7 +293,7 @@ class TestBuildScheduleHtml:
         ]
 
     def test_renders_grid_with_entries(self):
-        from api.routers.schedule_pdf import _build_schedule_html
+        from sp5api.routers.schedule_pdf import _build_schedule_html
 
         html = _build_schedule_html(2024, 7, None, _StubDB(self._entries()))
         assert html.strip().lower().startswith("<!doctype html")
@@ -303,14 +303,14 @@ class TestBuildScheduleHtml:
         assert "Juli" in html and "2024" in html
 
     def test_group_name_shown_when_group_given(self):
-        from api.routers.schedule_pdf import _build_schedule_html
+        from sp5api.routers.schedule_pdf import _build_schedule_html
 
         groups = [{"ID": 5, "NAME": "Team Nord"}]
         html = _build_schedule_html(2024, 7, 5, _StubDB(self._entries(), groups))
         assert "Team Nord" in html
 
     def test_ignores_bad_dates(self):
-        from api.routers.schedule_pdf import _build_schedule_html
+        from sp5api.routers.schedule_pdf import _build_schedule_html
 
         bad = [
             {
@@ -333,7 +333,7 @@ class TestBuildScheduleHtml:
 
     def test_non_numeric_day_is_skipped(self):
         # A date that's long enough but has a non-numeric day → int() raises → skip.
-        from api.routers.schedule_pdf import _build_schedule_html
+        from sp5api.routers.schedule_pdf import _build_schedule_html
 
         entries = [
             {
@@ -350,7 +350,7 @@ class TestBuildScheduleHtml:
     def test_today_is_highlighted_in_current_month(self):
         from datetime import date
 
-        from api.routers.schedule_pdf import _build_schedule_html
+        from sp5api.routers.schedule_pdf import _build_schedule_html
 
         today = date.today()
         entries = [
@@ -386,7 +386,7 @@ class TestBuildScheduleHtmlNoEntries:
     """When there are no schedule entries, employees come from the roster/group."""
 
     def test_falls_back_to_all_employees(self):
-        from api.routers.schedule_pdf import _build_schedule_html
+        from sp5api.routers.schedule_pdf import _build_schedule_html
 
         stub = _EmpStub([{"ID": 1, "NAME": "Solo", "FIRSTNAME": "Sam"}])
         html = _build_schedule_html(2024, 7, None, stub)
@@ -394,7 +394,7 @@ class TestBuildScheduleHtmlNoEntries:
         assert "Keine Mitarbeiter" not in html
 
     def test_group_filter_restricts_fallback_employees(self):
-        from api.routers.schedule_pdf import _build_schedule_html
+        from sp5api.routers.schedule_pdf import _build_schedule_html
 
         stub = _EmpStub(
             [{"ID": 1, "NAME": "In"}, {"ID": 2, "NAME": "Out"}],
@@ -406,7 +406,7 @@ class TestBuildScheduleHtmlNoEntries:
         assert "Keine Mitarbeiter" not in html
 
     def test_no_employees_shows_no_data_message(self):
-        from api.routers.schedule_pdf import _build_schedule_html
+        from sp5api.routers.schedule_pdf import _build_schedule_html
 
         html = _build_schedule_html(2024, 7, None, _EmpStub([]))
         assert "Keine Mitarbeiter" in html
@@ -414,7 +414,7 @@ class TestBuildScheduleHtmlNoEntries:
 
 class TestSchedulePdfGroupValidation:
     def test_invalid_group_returns_404(self, sync_client):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = _planer_token(_sessions)
         resp = sync_client.get(

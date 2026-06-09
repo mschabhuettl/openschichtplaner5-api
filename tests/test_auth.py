@@ -30,7 +30,7 @@ class TestLogin:
     def test_login_success(self, sync_client: TestClient):
         """Fresh login returns ok=True with a token."""
         # Use a new client to bypass rate-limit tracking on shared client
-        from api.main import app
+        from sp5api.main import app
         from starlette.testclient import TestClient as TC
 
         with TC(app, raise_server_exceptions=True) as c:
@@ -111,7 +111,7 @@ class TestTokenValidation:
 
     def test_logout_and_reuse(self, app):
         """After logout, token should no longer be valid."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         tok = secrets.token_hex(32)
         _sessions[tok] = {

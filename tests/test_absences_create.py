@@ -5,7 +5,7 @@ side effects are patched to no-ops."""
 
 import secrets
 
-import api.routers.absences as absences
+import sp5api.routers.absences as absences
 from starlette.testclient import TestClient
 
 
@@ -37,7 +37,7 @@ class _AbsDB:
 
 
 def _planer_session():
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -51,7 +51,7 @@ def _planer_session():
 
 
 def _client(monkeypatch, db):
-    from api.main import app
+    from sp5api.main import app
 
     monkeypatch.setattr(absences, "get_db", lambda: db)
     monkeypatch.setattr(absences, "create_notification", lambda **kwargs: None)
@@ -69,7 +69,7 @@ class TestCreateAbsence:
         )
 
     def test_warns_about_existing_shift_and_holiday(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _AbsDB(
             schedule_day=[{"employee_id": 5, "kind": "shift", "shift_name": "Frühdienst"}],
@@ -86,7 +86,7 @@ class TestCreateAbsence:
             _sessions.pop(tok, None)
 
     def test_overlap_conflict_returns_409(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _AbsDB(add_exc=ValueError("overlap"))
         tok = _planer_session()
@@ -99,7 +99,7 @@ class TestCreateAbsence:
     def test_side_effect_failures_never_block_creation(self, monkeypatch):
         # Warning lookup, status-file write and notification all blow up, yet the
         # absence is still created (each is wrapped in a swallow-and-continue guard).
-        from api.main import _sessions, app
+        from sp5api.main import _sessions, app
 
         class _BoomWarn(_AbsDB):
             def get_schedule_day(self, date):
@@ -130,7 +130,7 @@ class TestCreateAbsence:
             _sessions.pop(tok, None)
 
     def test_unexpected_db_error_returns_sanitized_500(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _AbsDB(add_exc=RuntimeError("db boom"))
         tok = _planer_session()
@@ -142,7 +142,7 @@ class TestCreateAbsence:
             _sessions.pop(tok, None)
 
     def test_employee_not_found_404(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         class _NoEmp(_AbsDB):
             def get_employee(self, eid):
@@ -156,7 +156,7 @@ class TestCreateAbsence:
             _sessions.pop(tok, None)
 
     def test_leave_type_not_found_404(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         class _NoLt(_AbsDB):
             def get_leave_type(self, ltid):
@@ -194,7 +194,7 @@ class _BulkDB:
 
 
 def _bulk_client(monkeypatch, db):
-    from api.main import app
+    from sp5api.main import app
 
     monkeypatch.setattr(absences, "get_db", lambda: db)
     monkeypatch.setattr(absences, "create_notification", lambda **kwargs: None)
@@ -207,7 +207,7 @@ class TestBulkCreateAbsence:
     _URL = "/api/absences/bulk"
 
     def test_mixed_created_skipped_errors(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _BulkDB(
             [{"ID": 1}, {"ID": 2}, {"ID": 3}],
@@ -230,7 +230,7 @@ class TestBulkCreateAbsence:
             _sessions.pop(tok, None)
 
     def test_all_active_when_no_ids(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _BulkDB([{"ID": 1}, {"ID": 2}])  # all default to "ok"
         tok = _planer_session()
@@ -244,7 +244,7 @@ class TestBulkCreateAbsence:
             _sessions.pop(tok, None)
 
     def test_leave_type_not_found_404(self, monkeypatch):
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         db = _BulkDB([{"ID": 1}], leave_type=False)
         tok = _planer_session()

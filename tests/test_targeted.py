@@ -36,8 +36,8 @@ def tmp_db(tmp_path):
 class TestAuthLogin:
     def test_login_success_mocked(self, write_client):
         """Test successful login path by mocking verify_user_password."""
-        import api.main as main_module
-        import api.routers.auth as auth_module
+        import sp5api.main as main_module
+        import sp5api.routers.auth as auth_module
 
         fake_user = {"ID": 1, "NAME": "Admin", "role": "Admin", "ADMIN": True}
         with (

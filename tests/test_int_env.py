@@ -3,7 +3,7 @@ variables (BRUTE_FORCE_*, SESSION_CLEANUP_INTERVAL_MINUTES). It must fall back
 to the default on missing/invalid/negative input so a typo can't crash startup.
 """
 
-import api.dependencies as deps
+import sp5api.dependencies as deps
 
 
 def test_returns_default_when_unset(monkeypatch):

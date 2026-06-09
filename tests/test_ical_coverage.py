@@ -10,12 +10,12 @@ from starlette.testclient import TestClient
 
 
 def _fresh_client():
-    from api.main import app
+    from sp5api.main import app
     return TestClient(app, raise_server_exceptions=False)
 
 
 def _inject_session(user_id=800, name="testuser", role="Admin", employee_id=None):
-    from api.main import _sessions
+    from sp5api.main import _sessions
     tok = secrets.token_hex(20)
     _sessions[tok] = {
         "ID": user_id,
@@ -30,7 +30,7 @@ def _inject_session(user_id=800, name="testuser", role="Admin", employee_id=None
 
 
 def _cleanup(tok):
-    from api.main import _sessions
+    from sp5api.main import _sessions
     _sessions.pop(tok, None)
 
 
@@ -164,7 +164,7 @@ class TestIcalTokenManagement:
 
     def test_token_no_employee(self):
         """User without employee_id can't create token."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
         tok = secrets.token_hex(20)
         _sessions[tok] = {
             "ID": 999,
@@ -258,7 +258,7 @@ class TestIcalContent:
 
 class TestIcalHelpers:
     def test_parse_time(self):
-        from api.routers.ical import _parse_time
+        from sp5api.routers.ical import _parse_time
         assert _parse_time("08:30") == (8, 30)
         assert _parse_time("8:00") == (8, 0)
         assert _parse_time("23:59") == (23, 59)
@@ -268,14 +268,14 @@ class TestIcalHelpers:
         assert _parse_time("25:00") == (25, 0)  # doesn't validate range
 
     def test_escape_ical(self):
-        from api.routers.ical import _escape_ical
+        from sp5api.routers.ical import _escape_ical
         assert _escape_ical("Hello; World") == "Hello\\; World"
         assert _escape_ical("A, B") == "A\\, B"
         assert _escape_ical("Line\nBreak") == "Line\\nBreak"
         assert _escape_ical("Back\\slash") == "Back\\\\slash"
 
     def test_make_uid(self):
-        from api.routers.ical import _make_uid
+        from sp5api.routers.ical import _make_uid
         uid = _make_uid(1, "2026-03-10", "shift-5")
         assert "@openschichtplaner5" in uid
         assert len(uid) > 20
@@ -285,18 +285,18 @@ class TestIcalHelpers:
     def test_ical_dt(self):
         from datetime import UTC, datetime
 
-        from api.routers.ical import _ical_dt
+        from sp5api.routers.ical import _ical_dt
         dt = datetime(2026, 3, 10, 14, 30, 0, tzinfo=UTC)
         assert _ical_dt(dt) == "20260310T143000Z"
 
     def test_ical_date(self):
         from datetime import date
 
-        from api.routers.ical import _ical_date
+        from sp5api.routers.ical import _ical_date
         assert _ical_date(date(2026, 3, 10)) == "20260310"
 
     def test_build_ical(self):
-        from api.routers.ical import _build_ical
+        from sp5api.routers.ical import _build_ical
         events = [
             {
                 "uid": "test-uid@test",

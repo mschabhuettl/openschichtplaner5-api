@@ -10,7 +10,7 @@ class TestJsonFormatter:
 
     def test_json_output_is_valid(self):
         """Log output must be valid JSON when using _JsonFormatter."""
-        from api.dependencies import _JsonFormatter
+        from sp5api.dependencies import _JsonFormatter
 
         formatter = _JsonFormatter()
         record = logging.LogRecord(
@@ -31,7 +31,7 @@ class TestJsonFormatter:
 
     def test_json_includes_request_id_from_context(self):
         """request_id from contextvars appears in JSON log output."""
-        from api.dependencies import _JsonFormatter, request_id_ctx
+        from sp5api.dependencies import _JsonFormatter, request_id_ctx
 
         formatter = _JsonFormatter()
         token = request_id_ctx.set("test-uuid-1234")
@@ -53,7 +53,7 @@ class TestJsonFormatter:
 
     def test_json_includes_extra_fields(self):
         """Extra fields (method, path, status_code, duration_ms) appear in output."""
-        from api.dependencies import _JsonFormatter
+        from sp5api.dependencies import _JsonFormatter
 
         formatter = _JsonFormatter()
         record = logging.LogRecord(
@@ -78,7 +78,7 @@ class TestJsonFormatter:
 
     def test_json_includes_exception(self):
         """Exception info is included when exc_info is set."""
-        from api.dependencies import _JsonFormatter
+        from sp5api.dependencies import _JsonFormatter
 
         formatter = _JsonFormatter()
         try:
@@ -105,7 +105,7 @@ class TestTextFormatter:
     """Test the human-readable text formatter."""
 
     def test_text_output_not_json(self):
-        from api.dependencies import _TextFormatter
+        from sp5api.dependencies import _TextFormatter
 
         formatter = _TextFormatter()
         record = logging.LogRecord(
@@ -158,7 +158,7 @@ class TestLogLevelConfig:
 
     def test_logger_level_from_env(self):
         """The sp5.api logger should respect SP5_LOG_LEVEL."""
-        from api.dependencies import _logger
+        from sp5api.dependencies import _logger
 
         # Default is INFO or whatever SP5_LOG_LEVEL is set to
         level_name = os.environ.get("SP5_LOG_LEVEL", "INFO").upper()
@@ -167,6 +167,6 @@ class TestLogLevelConfig:
 
     def test_logger_name(self):
         """Logger should be named sp5.api."""
-        from api.dependencies import _logger
+        from sp5api.dependencies import _logger
 
         assert _logger.name == "sp5.api"

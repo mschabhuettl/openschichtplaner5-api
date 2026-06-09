@@ -5,7 +5,7 @@ fake db and direct manipulation of the in-memory lockout / session stores."""
 import time
 from unittest.mock import patch
 
-import api.routers.auth as auth
+import sp5api.routers.auth as auth
 from starlette.testclient import TestClient
 
 _LOGIN = "/api/auth/login"
@@ -28,7 +28,7 @@ class _LoginDB:
 
 
 def _client():
-    from api.main import app
+    from sp5api.main import app
 
     return TestClient(app, raise_server_exceptions=False)
 

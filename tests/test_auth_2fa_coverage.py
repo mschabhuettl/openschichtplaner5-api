@@ -13,13 +13,13 @@ from starlette.testclient import TestClient
 
 def _fresh_client():
     """Fresh TestClient to avoid rate-limit pollution."""
-    from api.main import app
+    from sp5api.main import app
     return TestClient(app, raise_server_exceptions=False)
 
 
 def _inject_session(user_id: int = 800, name: str = "testuser", role: str = "Admin"):
     """Inject a session token and return (token, user_dict)."""
-    from api.main import _sessions
+    from sp5api.main import _sessions
     tok = secrets.token_hex(20)
     user = {
         "ID": user_id,
@@ -33,7 +33,7 @@ def _inject_session(user_id: int = 800, name: str = "testuser", role: str = "Adm
 
 
 def _cleanup_session(tok):
-    from api.main import _sessions
+    from sp5api.main import _sessions
     _sessions.pop(tok, None)
 
 
@@ -437,7 +437,7 @@ class TestLoginEdgeCases:
 
     def test_login_session_limit_eviction(self, write_db_path):
         """When max sessions exceeded, oldest should be evicted."""
-        from api.main import _sessions
+        from sp5api.main import _sessions
 
         # Create many sessions for one user
         user_id = 1

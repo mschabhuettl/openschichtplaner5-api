@@ -20,7 +20,7 @@ import zipfile
 
 def _make_client(app, role: str, user_id: int = None):
     """Return a (client, token) tuple with an injected session for the given role."""
-    from api.main import _sessions
+    from sp5api.main import _sessions
     from starlette.testclient import TestClient
 
     tok = secrets.token_hex(20)
@@ -623,7 +623,7 @@ class TestAuthWorkflow:
         """Abgelaufener Token wird abgelehnt."""
         import time
 
-        from api.main import _sessions
+        from sp5api.main import _sessions
         from starlette.testclient import TestClient
 
         # Abgelaufenen Token direkt einfügen

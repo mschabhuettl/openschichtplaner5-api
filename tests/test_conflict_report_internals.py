@@ -6,7 +6,7 @@ without seeding DBF fixtures."""
 import sys
 from datetime import date
 
-import api.routers.conflict_report as cr
+import sp5api.routers.conflict_report as cr
 
 
 class TestTimeHelpers:

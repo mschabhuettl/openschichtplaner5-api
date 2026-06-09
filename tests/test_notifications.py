@@ -12,7 +12,7 @@ def _make_clients(app, tmp_path, notif_file_path):
     """Return (admin_client, planer_client, employee_client) with fresh notif file."""
     import secrets
 
-    from api.main import _sessions
+    from sp5api.main import _sessions
 
     # Clear notifications
     with open(notif_file_path, "w") as f:
@@ -57,8 +57,8 @@ def _make_clients(app, tmp_path, notif_file_path):
 @pytest.fixture
 def notif_env(app, tmp_path):
     """Fixture: patch _NOTIF_FILE to a temp file, return (admin_c, planer_c, emp_c, notif_path)."""
-    import api.routers.notifications as notif_mod
-    from api.main import _sessions
+    import sp5api.routers.notifications as notif_mod
+    from sp5api.main import _sessions
 
     notif_path = str(tmp_path / "notifications.json")
     orig = notif_mod._NOTIF_FILE
@@ -82,7 +82,7 @@ def notif_env(app, tmp_path):
 class TestCreateNotification:
     def test_creates_notification(self, notif_env):
         _, _, _, notif_path = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         entry = nm.create_notification(type="info", title="Test", message="Hello")
         assert entry["id"] == 1
@@ -91,7 +91,7 @@ class TestCreateNotification:
 
     def test_creates_with_recipient(self, notif_env):
         _, _, _, notif_path = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         entry = nm.create_notification(
             type="warn",
@@ -105,7 +105,7 @@ class TestCreateNotification:
 
     def test_id_increments(self, notif_env):
         _, _, _, notif_path = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e1 = nm.create_notification(type="a", title="a", message="a")
         e2 = nm.create_notification(type="b", title="b", message="b")
@@ -124,7 +124,7 @@ class TestListNotifications:
 
     def test_returns_planner_wide(self, notif_env):
         admin_c, _, _, notif_path = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         nm.create_notification(type="info", title="T", message="M")
         r = admin_c.get("/api/notifications")
@@ -132,7 +132,7 @@ class TestListNotifications:
 
     def test_filter_by_employee_id(self, notif_env):
         admin_c, _, _, notif_path = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         nm.create_notification(
             type="info", title="T", message="M", recipient_employee_id=5
@@ -143,7 +143,7 @@ class TestListNotifications:
 
     def test_unread_only(self, notif_env):
         admin_c, _, _, notif_path = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e = nm.create_notification(type="info", title="T", message="M")
         # mark read via patch
@@ -153,7 +153,7 @@ class TestListNotifications:
 
     def test_non_admin_cannot_see_other_employee_notifs(self, notif_env):
         _, planer_c, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         nm.create_notification(
             type="info", title="T", message="M", recipient_employee_id=99
@@ -164,7 +164,7 @@ class TestListNotifications:
 
     def test_non_admin_can_see_own_notifs(self, notif_env):
         _, planer_c, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         nm.create_notification(
             type="info", title="T", message="M", recipient_employee_id=2
@@ -180,7 +180,7 @@ class TestListNotifications:
 class TestListAllNotifications:
     def test_admin_sees_all(self, notif_env):
         admin_c, _, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         nm.create_notification(type="info", title="T", message="M")
         nm.create_notification(
@@ -197,7 +197,7 @@ class TestListAllNotifications:
 
     def test_unread_only_filter(self, notif_env):
         admin_c, _, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e = nm.create_notification(type="info", title="T", message="M")
         admin_c.patch(f"/api/notifications/{e['id']}/read")
@@ -211,7 +211,7 @@ class TestListAllNotifications:
 class TestMarkRead:
     def test_mark_read(self, notif_env):
         admin_c, _, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e = nm.create_notification(type="info", title="T", message="M")
         r = admin_c.patch(f"/api/notifications/{e['id']}/read")
@@ -225,7 +225,7 @@ class TestMarkRead:
 
     def test_non_admin_cannot_mark_others(self, notif_env):
         admin_c, planer_c, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         # notification for employee 99, planer has ID=2
         e = nm.create_notification(
@@ -236,7 +236,7 @@ class TestMarkRead:
 
     def test_non_admin_can_mark_own(self, notif_env):
         admin_c, planer_c, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e = nm.create_notification(
             type="info", title="T", message="M", recipient_employee_id=2
@@ -251,7 +251,7 @@ class TestMarkRead:
 class TestMarkAllRead:
     def test_mark_all_planner_wide(self, notif_env):
         admin_c, _, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         nm.create_notification(type="info", title="T1", message="M")
         nm.create_notification(type="info", title="T2", message="M")
@@ -261,7 +261,7 @@ class TestMarkAllRead:
 
     def test_mark_all_by_employee(self, notif_env):
         admin_c, _, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         nm.create_notification(
             type="info", title="T", message="M", recipient_employee_id=5
@@ -274,7 +274,7 @@ class TestMarkAllRead:
 
     def test_already_read_not_counted(self, notif_env):
         admin_c, _, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e = nm.create_notification(type="info", title="T", message="M")
         admin_c.patch(f"/api/notifications/{e['id']}/read")
@@ -288,7 +288,7 @@ class TestMarkAllRead:
 class TestDeleteNotification:
     def test_delete_own(self, notif_env):
         admin_c, _, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e = nm.create_notification(type="info", title="T", message="M")
         r = admin_c.delete(f"/api/notifications/{e['id']}")
@@ -302,7 +302,7 @@ class TestDeleteNotification:
 
     def test_non_admin_cannot_delete_others(self, notif_env):
         _, planer_c, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e = nm.create_notification(
             type="info", title="T", message="M", recipient_employee_id=99
@@ -312,7 +312,7 @@ class TestDeleteNotification:
 
     def test_non_admin_can_delete_own(self, notif_env):
         _, planer_c, _, _ = notif_env
-        import api.routers.notifications as nm
+        import sp5api.routers.notifications as nm
 
         e = nm.create_notification(
             type="info", title="T", message="M", recipient_employee_id=2
