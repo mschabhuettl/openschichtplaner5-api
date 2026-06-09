@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-06-10
+
+### Fixed
+
+- The `SP5_DB_PATH` default is now published into the environment
+  (`os.environ.setdefault` in `sp5api.main`, like `SP5_BACKEND_DIR` already
+  was) instead of living only in the module-level `DB_PATH` constant. Without
+  it, `sp5lib.auto_migrate` (which reads `SP5_DB_PATH` itself) and the admin
+  backup endpoints fell back to their own — different — defaults when the
+  variable was unset, so the DBF auto-migration checked a different directory
+  than the API served.
+
 ## [1.1.2] - 2026-06-10
 
 ### Fixed

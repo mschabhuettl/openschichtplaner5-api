@@ -126,11 +126,14 @@ if os.environ.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes"):
     )
 
 # ── Config ──────────────────────────────────────────────────────
-DB_PATH = os.environ.get(
+# setdefault statt get: publiziert den Default ins Environment, damit sp5lib
+# (auto_migrate liest SP5_DB_PATH selbst) und die Admin-Backup-Endpoints
+# denselben Pfad sehen wie die API — sonst driften die Defaults auseinander.
+os.environ.setdefault(
     "SP5_DB_PATH",
-    os.path.join(_backend_dir(), "..", "..", "sp5_db", "Daten"),
+    os.path.normpath(os.path.join(_backend_dir(), "..", "..", "sp5_db", "Daten")),
 )
-DB_PATH = os.path.normpath(DB_PATH)
+DB_PATH = os.path.normpath(os.environ["SP5_DB_PATH"])
 
 # CORS origins from env
 _raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
