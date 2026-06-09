@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .._paths import backend_dir
 from ..dependencies import (
     _logger,
     _sanitize_500,
@@ -697,9 +698,7 @@ def compact_database(_cur_user: dict = Depends(require_admin)):
 
 # ── Frontend Error Reporting ──────────────────────────────────
 
-_FRONTEND_ERRORS_FILE = os.path.join(
-    os.path.dirname(__file__), "..", "..", "data", "frontend_errors.json"
-)
+_FRONTEND_ERRORS_FILE = os.path.join(backend_dir(), "data", "frontend_errors.json")
 
 
 def _load_frontend_errors() -> list:

@@ -1446,7 +1446,7 @@ def get_release_notes():
     """Return CHANGELOG.md content as JSON."""
     import pathlib
 
-    # Project root is 2 levels up from this file (routers/ -> api/ -> backend/ -> project root)
+    # The host app's CHANGELOG.md sits one level above its backend dir
     changelog_path = pathlib.Path(backend_dir()).parent / "CHANGELOG.md"
     try:
         content = changelog_path.read_text(encoding="utf-8")

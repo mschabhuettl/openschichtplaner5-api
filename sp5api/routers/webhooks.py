@@ -13,14 +13,13 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from .._paths import backend_dir
 from ..dependencies import _logger, require_admin
 
 router = APIRouter()
 
 # ── Storage (JSON file, same pattern as frontend_errors) ────────
-_WEBHOOKS_FILE = os.path.join(
-    os.path.dirname(__file__), "..", "..", "data", "webhooks.json"
-)
+_WEBHOOKS_FILE = os.path.join(backend_dir(), "data", "webhooks.json")
 
 VALID_EVENTS = [
     "shift.created",

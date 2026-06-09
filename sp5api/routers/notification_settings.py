@@ -10,13 +10,12 @@ import threading
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from .._paths import backend_dir
 from ..dependencies import require_auth
 
 router = APIRouter()
 
-_SETTINGS_FILE = os.path.join(
-    os.path.dirname(__file__), "..", "..", "data", "notification_settings.json"
-)
+_SETTINGS_FILE = os.path.join(backend_dir(), "data", "notification_settings.json")
 _lock = threading.Lock()
 
 # Default: all event types enabled
