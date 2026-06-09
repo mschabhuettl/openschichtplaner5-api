@@ -6,14 +6,11 @@ name: Release
 # stored API tokens or passwords. The exchange of the short-lived OIDC token
 # is what requires `permissions: id-token: write` on the publishing jobs.
 #
-# Triggers:
-#   * push of a tag matching `v*` (e.g. v1.1.0) -> publish to PyPI
-#   * manual `workflow_dispatch`                -> publish to TestPyPI (dry run)
+# Trigger: push of a tag matching `v*` (e.g. v1.1.0) -> publish to PyPI
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -67,25 +64,3 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
-  publish-testpypi:
-    name: Publish to TestPyPI
-    needs: build
-    runs-on: ubuntu-latest
-    # Manual dry-run publish to TestPyPI.
-    if: github.event_name == 'workflow_dispatch'
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/project/openschichtplaner5-api/
-    permissions:
-      id-token: write   # mandatory for Trusted Publishing (OIDC)
-    steps:
-      - name: Download distributions
-        uses: actions/download-artifact@v5
-        with:
-          name: dist
-          path: dist/
-
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/

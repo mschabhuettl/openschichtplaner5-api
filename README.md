@@ -77,7 +77,6 @@ fixture database.
 
 Tag `vX.Y.Z` and push — the [release workflow](.github/workflows/release.yml) builds
 sdist+wheel and publishes to PyPI via Trusted Publishing (OIDC).
-A manual `workflow_dispatch` publishes to TestPyPI as a dry run.
 
 ## License
 
