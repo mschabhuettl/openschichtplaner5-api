@@ -5,8 +5,9 @@ largest untested chunk; a fake db drives the full computation."""
 
 import secrets
 
-import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
+
+import sp5api.routers.reports as reports
 
 
 def _admin_client(monkeypatch, db):

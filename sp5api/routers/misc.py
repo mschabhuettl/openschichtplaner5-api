@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from .._paths import backend_dir
 from ..dependencies import (
     _sanitize_500,
     get_db,
@@ -1446,7 +1447,7 @@ def get_release_notes():
     import pathlib
 
     # Project root is 2 levels up from this file (routers/ -> api/ -> backend/ -> project root)
-    changelog_path = pathlib.Path(__file__).resolve().parents[3] / "CHANGELOG.md"
+    changelog_path = pathlib.Path(backend_dir()).parent / "CHANGELOG.md"
     try:
         content = changelog_path.read_text(encoding="utf-8")
     except FileNotFoundError:

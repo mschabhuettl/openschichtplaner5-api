@@ -6,9 +6,10 @@ import io
 import os
 import zipfile
 
-import sp5api.routers.admin as admin
 import pytest
 from fastapi import HTTPException
+
+import sp5api.routers.admin as admin
 
 
 def _make_db_dir(tmp_path, complete=True):

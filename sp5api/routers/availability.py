@@ -12,13 +12,14 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .._paths import backend_dir
 from ..dependencies import _logger, get_db, require_planer
 
 router = APIRouter()
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
-_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+_DATA_DIR = os.path.join(backend_dir(), "api", "data")
 _AVAILABILITY_FILE = os.path.join(_DATA_DIR, "availability.json")
 _LOCK = threading.Lock()
 

@@ -74,8 +74,9 @@ class TestListSchedules:
         assert resp.status_code == 403
 
     def test_list_unauthenticated(self, admin_client):
-        from sp5api.main import app
         from starlette.testclient import TestClient
+
+        from sp5api.main import app
 
         with TestClient(app, raise_server_exceptions=False) as c:
             resp = c.get(_BASE)

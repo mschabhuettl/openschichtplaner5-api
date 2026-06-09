@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .. import cache
+from .._paths import backend_dir
 from ..dependencies import (
     _logger,
     _sanitize_500,
@@ -751,7 +752,7 @@ from datetime import datetime as _dt  # noqa: E402
 
 
 def _skills_path() -> str:
-    data_dir = os.path.join(os.path.dirname(__file__), "..", "data")
+    data_dir = os.path.join(backend_dir(), "api", "data")
     os.makedirs(data_dir, exist_ok=True)
     return os.path.join(data_dir, "skills.json")
 

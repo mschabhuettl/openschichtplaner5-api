@@ -16,9 +16,10 @@ os.environ["SP5_DEV_MODE"] = "true"
 
 from unittest.mock import MagicMock, patch
 
+from fastapi.testclient import TestClient
+
 # Import the app AFTER setting env vars
 from sp5api.main import app
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 DEV_AUTH = {"x-auth-token": "__dev_mode__"}  # SP5_DEV_MODE dev token (uses x-auth-token, not Bearer)

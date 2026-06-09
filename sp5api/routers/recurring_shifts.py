@@ -14,13 +14,14 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
+from .._paths import backend_dir
 from ..dependencies import _logger, get_db, require_planer
 
 router = APIRouter()
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
-_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+_DATA_DIR = os.path.join(backend_dir(), "api", "data")
 _RECURRING_FILE = os.path.join(_DATA_DIR, "recurring_shifts.json")
 _LOCK = threading.Lock()
 

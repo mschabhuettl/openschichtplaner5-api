@@ -3,6 +3,7 @@
 from datetime import UTC, date, datetime
 
 import pytest
+
 from sp5api.routers.ical import (
     _build_ical,
     _escape_ical,
@@ -171,9 +172,10 @@ class TestIcalEndpoints:
         """Create a test client with dev mode enabled (no reload)."""
         import os
 
+        from fastapi.testclient import TestClient
+
         import sp5api.dependencies as deps
         from sp5api.main import app
-        from fastapi.testclient import TestClient
 
         old_dev = os.environ.get("SP5_DEV_MODE")
         os.environ["SP5_DEV_MODE"] = "true"
@@ -355,9 +357,10 @@ class TestIcalFeedEndpoints:
         """Create a test client with dev mode enabled (no reload)."""
         import os
 
+        from fastapi.testclient import TestClient
+
         import sp5api.dependencies as deps
         from sp5api.main import app
-        from fastapi.testclient import TestClient
 
         old_dev = os.environ.get("SP5_DEV_MODE")
         os.environ["SP5_DEV_MODE"] = "true"
@@ -526,7 +529,8 @@ class TestGenerateFeedIcal:
 
     def test_feed_nonexistent_employee(self):
         """Feed for nonexistent employee should raise 404."""
-        from sp5api.routers.ical import _generate_feed_ical
         from fastapi import HTTPException
+
+        from sp5api.routers.ical import _generate_feed_ical
         with pytest.raises(HTTPException):
             _generate_feed_ical(999999)

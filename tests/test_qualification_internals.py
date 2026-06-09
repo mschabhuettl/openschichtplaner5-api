@@ -4,8 +4,9 @@ parsed qualifications, so the aggregation loop is driven here with a fake db."""
 
 import secrets
 
-import sp5api.routers.qualification_matrix as qm
 from starlette.testclient import TestClient
+
+import sp5api.routers.qualification_matrix as qm
 
 
 class TestParseQualifications:

@@ -6,8 +6,9 @@ all four at once."""
 
 import secrets
 
-import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
+
+import sp5api.routers.reports as reports
 
 
 class _WarnDB:

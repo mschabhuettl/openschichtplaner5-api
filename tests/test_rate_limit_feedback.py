@@ -12,8 +12,9 @@ if _BACKEND_DIR not in sys.path:
 
 os.environ.setdefault("SP5_DEV_MODE", "true")
 
-from sp5api.main import _rate_limit_exceeded_handler, app  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
+
+from sp5api.main import _rate_limit_exceeded_handler, app  # noqa: E402
 
 
 def _make_exc(detail_str: str) -> RateLimitExceeded:

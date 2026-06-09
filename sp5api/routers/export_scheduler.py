@@ -26,13 +26,14 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from .._paths import backend_dir
 from ..dependencies import require_admin, require_planer
 
 router = APIRouter(tags=["Export Scheduler"])
 
 # ── Storage ────────────────────────────────────────────────────────────────────
 
-_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+_DATA_DIR = Path(backend_dir()) / "data"
 _DATA_DIR.mkdir(parents=True, exist_ok=True)
 _SCHEDULES_FILE = _DATA_DIR / "export_schedules.json"
 

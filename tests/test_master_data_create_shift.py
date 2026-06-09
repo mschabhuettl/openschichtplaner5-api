@@ -4,8 +4,9 @@ Driven with a fake db whose create_shift raises the relevant exception."""
 
 import secrets
 
-import sp5api.routers.master_data as md
 from starlette.testclient import TestClient
+
+import sp5api.routers.master_data as md
 
 
 class _ShiftDB:

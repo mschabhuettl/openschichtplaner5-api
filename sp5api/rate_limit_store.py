@@ -10,9 +10,11 @@ import os
 import threading
 from datetime import UTC, datetime
 
+from ._paths import backend_dir
+
 _RATE_LIMIT_LOG = os.environ.get(
     "SP5_RATE_LIMIT_LOG",
-    os.path.join(os.path.dirname(__file__), "..", "data", "rate_limit_events.jsonl"),
+    os.path.join(backend_dir(), "data", "rate_limit_events.jsonl"),
 )
 _MAX_EVENTS = 10_000
 _lock = threading.Lock()

@@ -5,8 +5,9 @@ direct coverage; a permissive fake db with minimal data drives them end to end."
 import secrets
 from datetime import date
 
-import sp5api.main as main
 from starlette.testclient import TestClient
+
+import sp5api.main as main
 
 _TODAY = date.today()
 _PREFIX = f"{_TODAY.year:04d}-{_TODAY.month:02d}"

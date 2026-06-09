@@ -5,8 +5,9 @@ session + fake db."""
 
 import secrets
 
-import sp5api.routers.misc as misc
 from starlette.testclient import TestClient
+
+import sp5api.routers.misc as misc
 
 
 class _SelfDB:

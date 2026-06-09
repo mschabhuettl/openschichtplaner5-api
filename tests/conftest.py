@@ -112,8 +112,9 @@ def sync_client(app):
     The token is kept alive by re-injecting it into _sessions on each request
     to survive potential logout calls from other tests.
     """
-    from sp5api.main import _sessions
     from starlette.testclient import TestClient
+
+    from sp5api.main import _sessions
 
     tok = "SYNC_CLIENT_PERSISTENT_ADMIN_TOKEN"
     _sessions[tok] = {

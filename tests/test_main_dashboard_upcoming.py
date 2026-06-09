@@ -5,8 +5,9 @@ there are no future-dated holidays) and the birthdays-this-week computation."""
 import secrets
 from datetime import date
 
-import sp5api.main as main
 from starlette.testclient import TestClient
+
+import sp5api.main as main
 
 _TODAY = date.today()
 

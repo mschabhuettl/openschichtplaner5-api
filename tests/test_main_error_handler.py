@@ -5,8 +5,9 @@ to raise."""
 
 import secrets
 
-import sp5api.main as main
 from starlette.testclient import TestClient
+
+import sp5api.main as main
 
 
 def test_unhandled_exception_returns_sanitized_500(monkeypatch):

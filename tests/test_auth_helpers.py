@@ -6,8 +6,9 @@ change-own-password wrong-old-password 403.
 """
 
 import pytest
-from sp5api.routers.auth import _validate_password_strength
 from fastapi import HTTPException
+
+from sp5api.routers.auth import _validate_password_strength
 
 
 class TestValidatePasswordStrength:

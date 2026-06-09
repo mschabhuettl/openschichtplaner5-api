@@ -1,7 +1,8 @@
 """Security Audit Round 6 — XSS Prevention & HTML Injection Tests"""
 
-from sp5api.main import app
 from fastapi.testclient import TestClient
+
+from sp5api.main import app
 
 
 class TestXSSPrevention:

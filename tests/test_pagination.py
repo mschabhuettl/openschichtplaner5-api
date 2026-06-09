@@ -1,7 +1,8 @@
 """Tests for backend pagination on list endpoints."""
 
-from sp5api.schemas import paginate
 from starlette.testclient import TestClient
+
+from sp5api.schemas import paginate
 
 
 class TestPaginateHelper:

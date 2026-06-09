@@ -5,9 +5,10 @@ resolution, the role guards, session invalidation and audit-log resilience."""
 import time
 from unittest.mock import MagicMock, patch
 
-import sp5api.dependencies as deps
 import pytest
 from fastapi import HTTPException
+
+import sp5api.dependencies as deps
 
 
 def _future() -> float:

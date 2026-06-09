@@ -13,12 +13,13 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from .._paths import backend_dir
 from ..dependencies import require_admin, require_planer
 from .events import broadcast
 
 router = APIRouter()
 
-_NOTIF_FILE = os.path.join(os.path.dirname(__file__), "..", "notifications.json")
+_NOTIF_FILE = os.path.join(backend_dir(), "api", "notifications.json")
 _lock = threading.Lock()
 
 

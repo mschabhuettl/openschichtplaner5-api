@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .._paths import backend_dir
 from ..dependencies import (
     _sanitize_500,
     get_db,
@@ -475,7 +476,7 @@ def run_annual_close(body: AnnualCloseBody, _cur_user: dict = Depends(require_ad
 
 import json as _json  # noqa: E402
 
-_STATUS_FILE = os.path.join(os.path.dirname(__file__), "..", "absence_status.json")
+_STATUS_FILE = os.path.join(backend_dir(), "api", "absence_status.json")
 
 
 def _load_absence_status() -> dict:

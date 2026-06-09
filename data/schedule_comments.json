@@ -1,0 +1,74 @@
+[
+  {
+    "id": 10,
+    "date": "2025-01-15",
+    "group_id": 42,
+    "text": "Group 42 note",
+    "author": "write_admin",
+    "created_at": "2026-06-09T19:55:47.725523+00:00"
+  },
+  {
+    "id": 11,
+    "date": "2025-03-10",
+    "group_id": 0,
+    "text": "March comment",
+    "author": "write_admin",
+    "created_at": "2026-06-09T19:55:47.844517+00:00"
+  },
+  {
+    "id": 12,
+    "date": "2025-06-15",
+    "group_id": 1,
+    "text": "Team A meeting day",
+    "author": "write_admin",
+    "created_at": "2026-06-09T19:55:47.963083+00:00"
+  },
+  {
+    "id": 13,
+    "date": "2025-07-01",
+    "group_id": 5,
+    "text": "Updated note",
+    "author": "write_admin",
+    "created_at": "2026-06-09T19:55:48.172987+00:00"
+  },
+  {
+    "id": 14,
+    "date": "2025-10-20",
+    "group_id": 3,
+    "text": "Author test",
+    "author": "write_admin",
+    "created_at": "2026-06-09T19:55:48.378933+00:00"
+  },
+  {
+    "id": 15,
+    "date": "2025-11-05",
+    "group_id": 2,
+    "text": "Timestamp test",
+    "author": "write_admin",
+    "created_at": "2026-06-09T19:55:48.495120+00:00"
+  },
+  {
+    "id": 16,
+    "date": "2025-08-10",
+    "group_id": 0,
+    "text": "Protected note",
+    "author": "write_admin",
+    "created_at": "2026-06-09T19:55:48.849947+00:00"
+  },
+  {
+    "id": 17,
+    "date": "2025-05-01",
+    "group_id": 10,
+    "text": "Labor Day",
+    "author": "admin",
+    "created_at": "2026-06-09T19:55:49.290218+00:00"
+  },
+  {
+    "id": 18,
+    "date": "2025-05-02",
+    "group_id": 7,
+    "text": "Second",
+    "author": "b",
+    "created_at": "2026-06-09T19:55:49.299983+00:00"
+  }
+]

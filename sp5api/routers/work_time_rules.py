@@ -17,6 +17,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from .._paths import backend_dir
 from ..dependencies import (
     _logger,
     get_db,
@@ -28,7 +29,7 @@ router = APIRouter(prefix="/api/work-time-rules", tags=["work-time-rules"])
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
-_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+_DATA_DIR = Path(backend_dir()) / "data"
 _RULES_FILE = _DATA_DIR / "work_time_rules.json"
 
 _DEFAULT_RULES: dict[str, Any] = {

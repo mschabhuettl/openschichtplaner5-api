@@ -1,7 +1,6 @@
 """FastAPI application for OpenSchichtplaner5."""
 
 import os
-import sys
 import threading
 import time as _startup_time_module
 from collections import deque
@@ -9,13 +8,13 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
-# Tell the libopenschichtplaner5 (sp5lib) package where this app's backend root is,
-# so it can locate backend/data, backend/api/data and the Alembic dir even when
-# installed standalone in site-packages. Computed relative to this file
-# (api/main.py → api/ → backend/). setdefault so an explicit env override wins.
-os.environ.setdefault(
-    "SP5_BACKEND_DIR", os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
+from ._paths import backend_dir as _backend_dir
+
+# Pin the host backend root (where libopenschichtplaner5/sp5lib and this package
+# locate data/, api/data and the Alembic dir) before anything imports sp5lib.
+# backend_dir() honours an existing SP5_BACKEND_DIR; setdefault publishes the
+# fallback so both packages agree even when installed in site-packages.
+os.environ.setdefault("SP5_BACKEND_DIR", _backend_dir())
 
 _APP_START_TIME = _startup_time_module.time()
 
@@ -88,10 +87,7 @@ class _Metrics:
 _metrics = _Metrics()
 
 # Load .env file if present
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
-
-# Add parent dir to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+load_dotenv(os.path.join(_backend_dir(), ".env"))
 
 
 from datetime import UTC
@@ -132,7 +128,7 @@ if os.environ.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes"):
 # ── Config ──────────────────────────────────────────────────────
 DB_PATH = os.environ.get(
     "SP5_DB_PATH",
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "sp5_db", "Daten"),
+    os.path.join(_backend_dir(), "..", "..", "sp5_db", "Daten"),
 )
 DB_PATH = os.path.normpath(DB_PATH)
 
@@ -1086,10 +1082,7 @@ def root():
 @app.get("/", include_in_schema=False)
 async def frontend_root():
     """Serve the React frontend."""
-    _dist = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
-    )
-    index = os.path.join(_dist, "index.html")
+    index = os.path.join(_FRONTEND_DIST, "index.html")
     if os.path.exists(index):
         return FileResponse(index)
     return {"service": "OpenSchichtplaner5 API", "version": _API_VERSION}
@@ -1682,8 +1675,10 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
 
 
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
-_FRONTEND_DIST = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+# Built SPA to serve at "/" — override with SP5_FRONTEND_DIST; if the directory
+# is absent the API runs in API-only mode.
+_FRONTEND_DIST = os.environ.get("SP5_FRONTEND_DIST") or os.path.normpath(
+    os.path.join(_backend_dir(), "..", "frontend", "dist")
 )
 
 if os.path.isdir(_FRONTEND_DIST):

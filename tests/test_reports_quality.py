@@ -4,8 +4,9 @@ score/grade and the findings list. Driven with a fake db."""
 
 import secrets
 
-import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
+
+import sp5api.routers.reports as reports
 
 _PREFIX = "2026-01"
 

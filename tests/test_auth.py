@@ -30,8 +30,9 @@ class TestLogin:
     def test_login_success(self, sync_client: TestClient):
         """Fresh login returns ok=True with a token."""
         # Use a new client to bypass rate-limit tracking on shared client
-        from sp5api.main import app
         from starlette.testclient import TestClient as TC
+
+        from sp5api.main import app
 
         with TC(app, raise_server_exceptions=True) as c:
             res = c.post(

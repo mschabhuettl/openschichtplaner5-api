@@ -5,8 +5,9 @@ fake db and direct manipulation of the in-memory lockout / session stores."""
 import time
 from unittest.mock import patch
 
-import sp5api.routers.auth as auth
 from starlette.testclient import TestClient
+
+import sp5api.routers.auth as auth
 
 _LOGIN = "/api/auth/login"
 

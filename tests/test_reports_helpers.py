@@ -2,9 +2,10 @@
 conversion, CSV byte decoding (UTF-8-sig with latin-1 fallback), and the
 CSV-upload validation guard (content type + size)."""
 
-import sp5api.routers.reports as reports
 import pytest
 from fastapi import HTTPException
+
+import sp5api.routers.reports as reports
 
 
 class TestIntToRgb:

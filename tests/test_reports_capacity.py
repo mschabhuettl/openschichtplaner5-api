@@ -4,8 +4,9 @@ conflict flag) which the fixtures don't populate. Driven with a fake db."""
 
 import secrets
 
-import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
+
+import sp5api.routers.reports as reports
 
 _MONDAY = "2026-01-05"  # a Monday (weekday 0)
 

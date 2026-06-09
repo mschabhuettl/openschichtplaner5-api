@@ -6,8 +6,9 @@ while valid rows import. Driven with a fake db."""
 import io
 import secrets
 
-import sp5api.routers.reports as reports
 from starlette.testclient import TestClient
+
+import sp5api.routers.reports as reports
 
 
 class _ImportDB:

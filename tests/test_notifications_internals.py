@@ -29,8 +29,9 @@ class TestEmailBridge:
     """_try_send_email resolves the recipient and sends, tolerating failures."""
 
     def _patches(self, *, configured=True, employee=None, send=None):
-        from sp5api.routers import reports
         from sp5lib import email_service
+
+        from sp5api.routers import reports
 
         cfg = MagicMock(is_configured=configured)
         db = MagicMock()
@@ -98,8 +99,9 @@ class TestEmailBridge:
         send.assert_not_called()
 
     def test_swallows_exceptions(self):
-        import sp5api.routers.notifications as notif
         from sp5lib import email_service
+
+        import sp5api.routers.notifications as notif
 
         # get_config blowing up must not propagate out of the bridge.
         with patch.object(email_service, "get_config", side_effect=RuntimeError("boom")):

@@ -5,8 +5,9 @@ side effects are patched to no-ops."""
 
 import secrets
 
-import sp5api.routers.absences as absences
 from starlette.testclient import TestClient
+
+import sp5api.routers.absences as absences
 
 
 class _AbsDB:

@@ -1,8 +1,9 @@
 """Tests for security headers, CSP, and CSRF protection (Q024 + Q054)."""
 
 import pytest
-from sp5api.main import app
 from httpx import ASGITransport, AsyncClient
+
+from sp5api.main import app
 
 
 @pytest.fixture

@@ -100,8 +100,9 @@ class TestTokenLifecycle:
         return tok
 
     def test_token_create_get_feed_revoke(self, write_db_path):
-        from sp5api.main import _sessions, app
         from starlette.testclient import TestClient
+
+        from sp5api.main import _sessions, app
 
         tok = self._session(40)  # employee 40 exists in the fixtures
         try:

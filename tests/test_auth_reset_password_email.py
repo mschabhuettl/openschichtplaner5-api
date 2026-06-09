@@ -39,8 +39,9 @@ def _planer_session():
 
 
 def _setup(monkeypatch, employees, configured=True):
-    from sp5api.routers import auth as auth_router
     from sp5lib import email_service
+
+    from sp5api.routers import auth as auth_router
 
     monkeypatch.setattr(auth_router, "get_db", lambda: _ResetDB(employees))
     monkeypatch.setattr(

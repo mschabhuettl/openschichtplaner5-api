@@ -6,8 +6,9 @@ shared prefix list, otherwise headers and metrics silently disagree. These tests
 pin the single source of truth and its observable behaviour.
 """
 
-import sp5api.main as main
 from starlette.testclient import TestClient
+
+import sp5api.main as main
 
 
 def test_shared_prefix_constant_exists():

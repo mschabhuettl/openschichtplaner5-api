@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .. import cache
+from .._paths import backend_dir
 from ..dependencies import (
     _logger,
     _sanitize_500,
@@ -419,7 +420,7 @@ def activate_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
 # ── Employee Photo Upload ─────────────────────────────────────
 
 _PHOTOS_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "uploads", "photos"
+    backend_dir(), "api", "uploads", "photos"
 )
 
 
