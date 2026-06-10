@@ -82,8 +82,33 @@ def get_statistics(
         None, description="Month (1-12), defaults to current month"
     ),
     group_id: int | None = Query(None, description="Filter by group ID"),
+    date_from: str | None = Query(
+        None, alias="from", description="Freier Auswertungszeitraum: Start (YYYY-MM-DD)"
+    ),
+    date_to: str | None = Query(
+        None, alias="to", description="Freier Auswertungszeitraum: Ende (YYYY-MM-DD)"
+    ),
 ):
     from datetime import date as _date
+
+    # Freier Auswertungszeitraum [von, bis] (Spec 3.9.1) hat Vorrang
+    if date_from is not None or date_to is not None:
+        if date_from is None or date_to is None:
+            raise HTTPException(
+                status_code=400, detail="'from' und 'to' müssen gemeinsam angegeben werden"
+            )
+        try:
+            von = _date.fromisoformat(date_from)
+            bis = _date.fromisoformat(date_to)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="Invalid date format, please use YYYY-MM-DD"
+            )
+        if von > bis:
+            raise HTTPException(status_code=400, detail="'from' muss <= 'to' sein")
+        return get_db().get_statistics(
+            group_id=group_id, date_from=date_from, date_to=date_to
+        )
 
     if year is None:
         year = _date.today().year
