@@ -565,15 +565,22 @@ class TestExtracharges:
         assert SP5Database._time_str_to_minutes("00:30") == 30
         assert SP5Database._time_str_to_minutes("invalid") is None
 
-    def test_is_validday_active(self):
-        """Verify is validday active."""
-        from sp5lib.database import SP5Database
+    def test_validdays_mask_parsing(self):
+        """Verify VALIDDAYS weekday mask parsing (Spec §3.8.2 Nr. 6).
 
-        SP5Database.__new__(SP5Database)
-        # '1111100' = Mon-Fri active, Sat-Sun not
-        assert SP5Database._is_validday_active("1111100", 0) is True  # Monday
-        assert SP5Database._is_validday_active("1111100", 5) is False  # Saturday
-        assert SP5Database._is_validday_active("", 0) is True  # empty = all days
+        Die Maske ist ein space-separierter ASCII-String ("0 0 0 0 0 0 1");
+        die frühere Hilfsfunktion _is_validday_active indizierte den String
+        direkt (Parity-Befund 7, Sonntags-Totalausfall) und wurde durch
+        sp5lib.calculations.parse_day_mask ersetzt.
+        """
+        from sp5lib.calculations import parse_day_mask
+
+        mask = parse_day_mask("1 1 1 1 1 0 0", 7)  # Mon-Fri active, Sat-Sun not
+        assert mask[0] is True  # Monday
+        assert mask[5] is False  # Saturday
+        sunday_only = parse_day_mask("0 0 0 0 0 0 1", 7)
+        assert sunday_only[6] is True  # Sunday
+        assert parse_day_mask("", 7) == (False,) * 7  # empty = no days
 
     def test_interval_overlap_minutes(self):
         """Verify interval overlap minutes."""
@@ -617,10 +624,23 @@ class TestLeaveEntitlements:
         result = real_db.get_leave_balance_group(2024, groups[0]["ID"])
         assert isinstance(result, list)
 
-    def test_get_default_entitlement(self, real_db):
-        """Verify get default entitlement."""
-        result = real_db._get_default_entitlement()
-        assert isinstance(result, (int, float))
+    def test_no_default_entitlement_without_record(self, real_db):
+        """Ohne 5LEAEN-Satz gibt es keinen erfundenen Default-Anspruch.
+
+        Spec §3.7.1: Ansprüche existieren je (MA × Jahr × Art) als
+        5LEAEN-Satz; das Original zeigt ohne Satz keinen Anspruch. Der
+        frühere lib-Default (_get_default_entitlement, 25 Tage) war eine
+        Erfindung (Parity-Befund 11) und wurde entfernt.
+        """
+        emps = real_db.get_employees()
+        if not emps:
+            pytest.skip("No employees")
+        emp_id = emps[0]["ID"]
+        year = 1999  # Jahr ohne Anspruchssätze in der Fixture-DB
+        assert not real_db.get_leave_entitlements(year=year, employee_id=emp_id)
+        balance = real_db.get_leave_balance(emp_id, year)
+        assert balance["entitlement"] == 0.0
+        assert balance["has_custom_entitlement"] is False
 
 
 # ─── Database: Holiday Bans ───────────────────────────────────────────────────
