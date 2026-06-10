@@ -2931,7 +2931,6 @@ def get_warnings(
     - conflict: Shift + absence conflict for an employee
     """
     import calendar as _cal
-    from collections import defaultdict
     from datetime import date as _date
 
     today = _date.today()
@@ -2967,17 +2966,14 @@ def get_warnings(
         else:
             next_year, next_month = year, month + 1
 
-        next_prefix = f"{next_year:04d}-{next_month:02d}"
-        next_month_mashi = [
-            r for r in db._read("MASHI") if r.get("DATE", "").startswith(next_prefix)
-        ]
-        next_month_spshi = [
-            r
-            for r in db._read("SPSHI")
-            if r.get("DATE", "").startswith(next_prefix) and r.get("TYPE", 0) == 0
-        ]
+        # Fassade statt Roh-Read: zyklusgeplante Monate gelten als geplant (B-2)
+        next_month_planned = sum(
+            1
+            for e in db.get_schedule(year=next_year, month=next_month)
+            if e["kind"] in ("shift", "special_shift")
+        )
 
-        if len(next_month_mashi) + len(next_month_spshi) == 0:
+        if next_month_planned == 0:
             month_names_de = [
                 "Januar",
                 "Februar",
@@ -3029,69 +3025,32 @@ def get_warnings(
     except Exception:
         pass
 
-    # ── 3. Besetzung unter Minimum ───────────────────────────────
+    # ── 3. Besetzung unter Minimum (Spec 3.9.4 via Fassade) ──────
+    # db.get_utilization: 5SHDEM je Tagindex (Ft=7), 5SPDEM-Override,
+    # MA-distinct-Zählung je Gruppe inkl. expandierter 5CYASS (B-2/D5).
     try:
-        staffing_req = db.get_staffing_requirements()
-        shift_reqs = staffing_req.get("shift_requirements", [])
-
-        if shift_reqs:
-            num_days = _cal.monthrange(year, month)[1]
-            prefix = f"{year:04d}-{month:02d}"
-
-            # Collect all schedule entries for the month once
-            all_mashi = [
-                r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)
-            ]
-            all_spshi = [
-                r
-                for r in db._read("SPSHI")
-                if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0
-            ]
-
-            for day_num in range(1, num_days + 1):
-                from datetime import datetime as _datetime
-
-                check_date = _datetime(year, month, day_num).date()
-                check_str = check_date.isoformat()
-                weekday = check_date.weekday()  # 0=Mon
-
-                # Count by shift
-                actual_by_shift: dict = defaultdict(int)
-                for r in all_mashi:
-                    if r.get("DATE", "") == check_str:
-                        sid = r.get("SHIFTID")
-                        if sid:
-                            actual_by_shift[sid] += 1
-                for r in all_spshi:
-                    if r.get("DATE", "") == check_str:
-                        sid = r.get("SHIFTID")
-                        if sid:
-                            actual_by_shift[sid] += 1
-
-                for req in shift_reqs:
-                    if req.get("weekday") != weekday:
-                        continue
-                    min_req = req.get("min", 0) or 0
-                    if min_req == 0:
-                        continue
-                    shift_id = req.get("shift_id")
-                    actual = actual_by_shift.get(shift_id, 0)
-                    if actual < min_req:
-                        shift_name = req.get("shift_name") or req.get(
-                            "shift_short", "Schicht"
-                        )
-                        warnings.append(
-                            {
-                                "id": make_id(),
-                                "type": "understaffing",
-                                "severity": "error",
-                                "title": f"Unterbesetzung: {shift_name} am {check_str}",
-                                "message": f"Am {check_date.strftime('%d.%m.%Y')} fehlen {min_req - actual} Mitarbeiter für {shift_name} (Ist: {actual}, Soll: {min_req}).",
-                                "link": "/schedule",
-                                "link_label": "Zum Dienstplan",
-                                "date": check_str,
-                            }
-                        )
+        shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
+        for day in db.get_utilization(year, month):
+            for cell in day["cells"]:
+                if cell["status"] != "under":
+                    continue
+                shift = shifts_map.get(cell["shift_id"], {})
+                shift_name = shift.get("NAME") or shift.get("SHORTNAME") or "Schicht"
+                check_date = _date.fromisoformat(day["date"])
+                missing = cell["min"] - cell["assigned"]
+                warnings.append(
+                    {
+                        "id": make_id(),
+                        "type": "understaffing",
+                        "severity": "error",
+                        "title": f"Unterbesetzung: {shift_name} am {day['date']}",
+                        "message": f"Am {check_date.strftime('%d.%m.%Y')} fehlen {missing} Mitarbeiter für {shift_name} (Ist: {cell['assigned']}, Soll: {cell['min']}).",
+                        "link": "/schedule",
+                        "link_label": "Zum Dienstplan",
+                        "date": day["date"],
+                        "group_id": cell["group_id"],
+                    }
+                )
     except Exception:
         pass
 

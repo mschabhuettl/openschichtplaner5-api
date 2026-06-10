@@ -1220,9 +1220,11 @@ def get_dashboard_summary(
     by_shift.sort(key=lambda x: -x["count"])
 
     # ── Shifts + absences this month ─────────────────────────
-    mashi_count = sum(1 for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix))
-    spshi_count = sum(1 for r in db._read("SPSHI") if r.get("DATE", "").startswith(prefix))
-    total_shifts_scheduled = mashi_count + spshi_count
+    # Fassade statt Roh-Read: enthält expandierte 5CYASS-Zyklusdienste (B-2)
+    month_entries = db.get_schedule(year=year, month=month)
+    total_shifts_scheduled = sum(
+        1 for e in month_entries if e["kind"] in ("shift", "special_shift")
+    )
 
     # Count working days for coverage %
     num_days = _cal.monthrange(year, month)[1]
@@ -1593,16 +1595,16 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
     employees = db.get_employees(include_hidden=False)
     total_employees = len(employees)
 
-    # Active shifts (distinct shifts used in MASHI for requested month)
-    year_str = f"{req_year:04d}-{req_month:02d}"
+    # Active shifts for requested month — via Fassade (inkl. expandierter
+    # 5CYASS-Zyklusdienste, B-2) statt Roh-Read auf 5MASHI
+    month_entries = db.get_schedule(year=req_year, month=req_month)
     shifts_used_ids = set()
     shifts_this_month = 0
-    for r in db._read("MASHI"):
-        if r.get("DATE", "").startswith(year_str):
+    for e in month_entries:
+        if e["kind"] == "shift":
             shifts_this_month += 1
-            sid = r.get("SHIFTID")
-            if sid:
-                shifts_used_ids.add(sid)
+            if e.get("shift_id"):
+                shifts_used_ids.add(e["shift_id"])
 
     # Vacation days used this year (leave type ENTITLED=1)
     lt_map = {lt["ID"]: lt for lt in db.get_leave_types(include_hidden=True)}
@@ -1615,17 +1617,17 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
         if r.get("DATE", "").startswith(year_prefix) and r.get("LEAVETYPID") in vacation_ids
     )
 
-    # Coverage bars: per day of requested month
+    # Coverage bars: per day of requested month (Fassade, inkl. Zyklusdienste)
     num_days = _cal.monthrange(req_year, req_month)[1]
     day_counts: dict = {d: 0 for d in range(1, num_days + 1)}
-    for r in db._read("MASHI"):
-        d = r.get("DATE", "")
-        if d.startswith(year_str):
-            try:
-                day_num = int(d[8:10])
-                day_counts[day_num] = day_counts.get(day_num, 0) + 1
-            except (ValueError, IndexError):
-                pass
+    for e in month_entries:
+        if e["kind"] != "shift":
+            continue
+        try:
+            day_num = int(e.get("date", "")[8:10])
+            day_counts[day_num] = day_counts.get(day_num, 0) + 1
+        except (ValueError, IndexError):
+            pass
 
     coverage_by_day = []
     for day_num in range(1, num_days + 1):

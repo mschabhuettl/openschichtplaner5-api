@@ -55,6 +55,19 @@ class _DashDB:
             return [{"DATE": _TODAY_STR, "EMPLOYEEID": 1, "LEAVETYPID": 1, "LEAVETYPEID": 1}]
         return []
 
+    def get_schedule(self, year, month, group_id=None):
+        # Fassaden-Shape (B-2): Dashboards zählen jetzt über get_schedule
+        return [
+            {
+                "employee_id": 1,
+                "date": _TODAY_STR,
+                "kind": "shift",
+                "shift_id": 1,
+                "workplace_id": None,
+                "leave_type_id": None,
+            }
+        ]
+
     def get_statistics(self, year, month, group_id=None):
         return [
             {

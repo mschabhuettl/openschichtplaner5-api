@@ -12,16 +12,39 @@ import sp5api.routers.reports as reports
 
 
 class _WarnDB:
-    def _read(self, name):
-        return []  # no schedule entries → next month unplanned + understaffing
+    def get_schedule(self, year, month, group_id=None):
+        return []  # no schedule entries → next month unplanned
+
+    def get_shifts(self, include_hidden=True):
+        return [{"ID": 1, "NAME": "Früh", "SHORTNAME": "F"}]
 
     def get_statistics(self, year, month):
         return [{"employee_name": "Max Muster", "employee_id": 1, "overtime_hours": 25.0}]
 
-    def get_staffing_requirements(self):
-        return {
-            "shift_requirements": [{"weekday": 0, "min": 2, "shift_id": 1, "shift_name": "Früh"}]
-        }
+    def get_utilization(self, year, month, group_id=None):
+        # Spec 3.9.4 (B-2/D5): Unterbesetzung kommt aus der Fassade
+        return [
+            {
+                "day": 6,
+                "date": "2020-01-06",
+                "scheduled_count": 0,
+                "required_count": 2,
+                "required_min": 2,
+                "required_max": 5,
+                "status": "under",
+                "cells": [
+                    {
+                        "group_id": 10,
+                        "shift_id": 1,
+                        "min": 2,
+                        "max": 5,
+                        "assigned": 0,
+                        "status": "under",
+                        "source": "SHDEM",
+                    }
+                ],
+            }
+        ]
 
     def get_schedule_conflicts(self, year, month):
         return [
