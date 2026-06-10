@@ -65,18 +65,25 @@ def get_staffing(
 # ── Schedule Coverage (Personalbedarf-Ampel) ─────────────────
 @router.get(
     "/api/schedule/coverage", tags=["Schedule"], summary="Schedule coverage analysis",
-    description="Return daily coverage analysis (ok/low/critical) for a given month.",
+    description=(
+        "Return daily coverage analysis against the real staffing demand "
+        "(5SHDEM weekly demand per day index incl. holiday slot, overridden by "
+        "5SPDEM date-specific demand; Spec 3.9.4). "
+        "Status per day: under | ok | over | none (none = no demand defined)."
+    ),
 )
 def get_schedule_coverage(
     year: int = Query(..., description="Year (YYYY)"),
     month: int = Query(..., description="Month (1-12)"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
 ):
-    """Return daily coverage status for the given month.
-    Each day: { day, scheduled_count, required_count, status: ok|low|critical }
-    """
-    import calendar as _cal
-    from collections import defaultdict
+    """Return daily coverage status for the given month (Spec 3.9.4).
 
+    Each day: { day, date, scheduled_count, required_count, required_min,
+    required_max, status: under|ok|over|none, cells: [...] }.
+    Days without any defined demand report status "none" and
+    required_count=None instead of the former hard-coded requirement of 3.
+    """
     if not (1 <= month <= 12):
         raise HTTPException(
             status_code=400, detail="Invalid month: must be between 1 and 12"
@@ -87,59 +94,7 @@ def get_schedule_coverage(
             detail="Invalid year: must be between 2000 and 2100",
         )
 
-    db = get_db()
-    num_days = _cal.monthrange(year, month)[1]
-    prefix = f"{year:04d}-{month:02d}"
-
-    # Try DADEM / SHDEM for required staff — both empty in most DBs
-    # Use per-day required count (default: 3 = "ok" threshold, 2 = "low")
-    required_count = 3  # "ok" if scheduled >= 3, "low" if == 2, "critical" if < 2
-
-    # Count distinct employees scheduled per day (MASHI = regular shifts)
-    day_emp_sets: dict = defaultdict(set)
-    for r in db._read("MASHI"):
-        d = r.get("DATE", "")
-        if d.startswith(prefix):
-            try:
-                day_num = int(d[8:10])
-                emp_id = r.get("EMPLOYEEID")
-                if emp_id:
-                    day_emp_sets[day_num].add(emp_id)
-            except (ValueError, IndexError):
-                pass
-
-    # Also count SPSHI type=0 (Sonderdienste, not deviations)
-    for r in db._read("SPSHI"):
-        d = r.get("DATE", "")
-        if d.startswith(prefix) and r.get("TYPE", 0) == 0:
-            try:
-                day_num = int(d[8:10])
-                emp_id = r.get("EMPLOYEEID")
-                if emp_id:
-                    day_emp_sets[day_num].add(emp_id)
-            except (ValueError, IndexError):
-                pass
-
-    result = []
-    for day in range(1, num_days + 1):
-        scheduled = len(day_emp_sets.get(day, set()))
-        diff = scheduled - required_count
-        if diff >= 0:
-            status = "ok"
-        elif diff == -1:
-            status = "low"
-        else:
-            status = "critical"
-        result.append(
-            {
-                "day": day,
-                "scheduled_count": scheduled,
-                "required_count": required_count,
-                "status": status,
-            }
-        )
-
-    return result
+    return get_db().get_utilization(year, month, group_id=group_id)
 
 
 # ── Day schedule ─────────────────────────────────────────────

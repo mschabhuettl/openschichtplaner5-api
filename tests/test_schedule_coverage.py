@@ -19,6 +19,64 @@ class TestScheduleCoverage:
         if data:
             assert "day" in data[0]
             assert "status" in data[0]
+            assert "scheduled_count" in data[0]
+            assert "required_count" in data[0]
+
+    def test_coverage_no_demand_is_none(self, sync_client: TestClient):
+        """Spec 3.9.4 (C-4): ohne 5SHDEM/5SPDEM-Bedarf gibt es keine Ampel —
+        status 'none' und required_count None statt hartkodiertem Bedarf 3."""
+        res = sync_client.get("/api/schedule/coverage?year=2026&month=1")
+        assert res.status_code == 200
+        for day in res.json():
+            assert day["status"] == "none"
+            assert day["required_count"] is None
+            assert day["cells"] == []
+
+    def test_coverage_against_real_demand(self, write_client: TestClient):
+        """Spec 3.9.4 Nr. 8/9 (C-4): Bedarf je Gruppe × Schichtart × Tagindex
+        aus 5SHDEM; ist<min ⇒ under, ist>max ⇒ over, sonst ok."""
+        from sp5api.dependencies import get_db
+
+        db = get_db()
+        group = next(
+            g for g in db.get_groups() if db.get_group_members(g["ID"])
+        )
+        shift_id = db.get_shifts()[0]["ID"]
+        res = write_client.post(
+            "/api/staffing-requirements",
+            json={
+                "shift_id": shift_id,
+                "weekday": 0,  # Montag (Tagindex 0)
+                "min": 1,
+                "max": 999,
+                "group_id": group["ID"],
+            },
+        )
+        assert res.status_code == 200
+
+        res = write_client.get("/api/schedule/coverage?year=2026&month=1")
+        assert res.status_code == 200
+        from datetime import date as _date
+
+        members = set(db.get_group_members(group["ID"]))
+        schedule = db.get_schedule(2026, 1)
+        for day in res.json():
+            d = _date.fromisoformat(day["date"])
+            if d.weekday() != 0:
+                assert day["status"] == "none"
+                continue
+            assert day["required_count"] == 1
+            cell = day["cells"][0]
+            assert (cell["group_id"], cell["shift_id"]) == (group["ID"], shift_id)
+            assigned = {
+                e["employee_id"]
+                for e in schedule
+                if e["date"] == day["date"]
+                and e.get("shift_id") == shift_id
+                and e["employee_id"] in members
+            }
+            assert cell["assigned"] == len(assigned)
+            assert day["status"] == ("under" if len(assigned) < 1 else "ok")
 
     def test_coverage_invalid_month(self, sync_client: TestClient):
         """Verify coverage invalid month."""
