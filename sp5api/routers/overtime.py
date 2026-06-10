@@ -3,10 +3,13 @@
 Endpoints:
   GET /api/employees/{id}/overtime?year=YYYY&month=MM
   GET /api/overtime/summary?year=YYYY&month=MM&group_id=X
-"""
 
-import calendar
-from datetime import datetime
+Soll-/Ist-Stunden kommen aus der lib-Fassade (db.get_statistics bzw.
+db.get_employee_stats_month, Spec Kap. 3.3/3.4): CALCBASE-Dispatcher,
+Feiertage/WORKDAYS-Maske, tagindexkorrekte DURATION, 5SPSHI-Ersetzung,
+expandierte 5CYASS, Abwesenheits-Anrechnung (3.5) und 5BOOK-Konten (3.6).
+``contract_hours`` bleibt als HRSWEEK-Anzeige aus 5EMPL erhalten.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -17,75 +20,6 @@ from ..dependencies import (
 )
 
 router = APIRouter()
-
-
-# ── Helper ────────────────────────────────────────────────────────────────────
-
-
-def _count_working_days_mon_fri(year: int, month: int) -> int:
-    """Count Mon-Fri days in a given month (no holiday adjustments)."""
-    num_days = calendar.monthrange(year, month)[1]
-    return sum(
-        1
-        for d in range(1, num_days + 1)
-        if datetime(year, month, d).weekday() < 5
-    )
-
-
-def _calc_overtime(
-    emp: dict,
-    year: int,
-    month: int,
-    shifts_map: dict,
-) -> dict:
-    """Calculate overtime stats for a single employee in a given month.
-
-    Returns a dict with:
-      - contract_hours   (weekly hours from HRSWEEK)
-      - expected_hours   (contract_hours * working_days / 5)
-      - actual_hours     (sum of shift durations)
-      - difference       (actual - expected)
-      - shifts_count
-    """
-    contract_hours = float(emp.get("HRSWEEK") or 0)
-
-    working_days = _count_working_days_mon_fri(year, month)
-    expected_hours = round(contract_hours * working_days / 5, 2) if contract_hours else 0.0
-
-    db = get_db()
-    prefix = f"{year:04d}-{month:02d}"
-    emp_id = emp["ID"]
-
-    actual_hours = 0.0
-    shifts_count = 0
-
-    for r in db._read("MASHI"):
-        d = r.get("DATE", "")
-        if d and d.startswith(prefix) and r.get("EMPLOYEEID") == emp_id:
-            sid = r.get("SHIFTID")
-            hrs = 0.0
-            if sid and sid in shifts_map:
-                hrs = float(shifts_map[sid].get("DURATION0", 0) or 0)
-            actual_hours += hrs
-            shifts_count += 1
-
-    for r in db._read("SPSHI"):
-        d = r.get("DATE", "")
-        if d and d.startswith(prefix) and r.get("EMPLOYEEID") == emp_id:
-            hrs = float(r.get("DURATION", 0) or 0)
-            actual_hours += hrs
-            shifts_count += 1
-
-    actual_hours = round(actual_hours, 2)
-    difference = round(actual_hours - expected_hours, 2)
-
-    return {
-        "contract_hours": contract_hours,
-        "expected_hours": expected_hours,
-        "actual_hours": actual_hours,
-        "difference": difference,
-        "shifts_count": shifts_count,
-    }
 
 
 # ── Single employee ───────────────────────────────────────────────────────────
@@ -116,9 +50,7 @@ def get_employee_overtime(
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
 
-    shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
-
-    stats = _calc_overtime(emp, year, month, shifts_map)
+    stats = db.get_employee_stats_month(emp_id, year, month)
 
     return {
         "employee_id": emp_id,
@@ -126,7 +58,11 @@ def get_employee_overtime(
         "employee_short": emp.get("SHORTNAME", ""),
         "year": year,
         "month": month,
-        **stats,
+        "contract_hours": float(emp.get("HRSWEEK") or 0),
+        "expected_hours": stats.get("target_hours", 0.0),
+        "actual_hours": stats.get("actual_hours", 0.0),
+        "difference": stats.get("difference", 0.0),
+        "shifts_count": stats.get("shifts_count", 0),
     }
 
 
@@ -154,28 +90,29 @@ def get_overtime_summary(
         raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
 
     db = get_db()
-    employees = db.get_employees(include_hidden=False)
+    hrsweek = {
+        e["ID"]: float(e.get("HRSWEEK") or 0)
+        for e in db.get_employees(include_hidden=False)
+    }
 
-    if group_id is not None:
-        member_ids = set(db.get_group_members(group_id))
-        employees = [e for e in employees if e["ID"] in member_ids]
-        if not employees:
-            # Return empty list with metadata rather than 404 — group may have no members
-            _logger.debug("Overtime summary: group %d has no active members", group_id)
+    rows = db.get_statistics(year, month, group_id=group_id)
+    if group_id is not None and not rows:
+        # Return empty list with metadata rather than 404 — group may have no members
+        _logger.debug("Overtime summary: group %d has no active members", group_id)
 
-    shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
-
-    result = []
-    for emp in employees:
-        stats = _calc_overtime(emp, year, month, shifts_map)
-        result.append(
-            {
-                "employee_id": emp["ID"],
-                "employee_name": f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", "),
-                "employee_short": emp.get("SHORTNAME", ""),
-                **stats,
-            }
-        )
+    result = [
+        {
+            "employee_id": r["employee_id"],
+            "employee_name": r["employee_name"],
+            "employee_short": r["employee_short"],
+            "contract_hours": hrsweek.get(r["employee_id"], 0.0),
+            "expected_hours": r["target_hours"],
+            "actual_hours": r["actual_hours"],
+            "difference": r["overtime_hours"],
+            "shifts_count": r["shifts_count"],
+        }
+        for r in rows
+    ]
 
     # Sort by difference descending (most overtime first)
     result.sort(key=lambda x: x["difference"], reverse=True)

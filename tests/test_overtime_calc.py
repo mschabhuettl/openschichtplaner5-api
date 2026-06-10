@@ -1,58 +1,76 @@
-"""Unit tests for the _calc_overtime helper in api.routers.overtime.
+"""Wert-Tests für die Overtime-Endpoints (Parity-Gap A-1).
 
-Drives the MASHI/SPSHI hour-summation branches directly via a stub db (the helper
-calls get_db() internally), covering the shift-duration lookup, the unknown-shift
-fallback, the special-shift path, and the other-employee skip.
+Die früheren Tests pinnten die entfernte api-eigene Formel
+``HRSWEEK * MoFr-Tage / 5`` (Helfer _calc_overtime/_count_working_days_mon_fri).
+Seit A-1 delegieren beide Routen an die lib-Fassade; die Tests prüfen jetzt die
+Spec-Semantik (Spec §3.3/§3.4): Routen-Werte == Fassaden-Werte, und der
+normative Fall Dez. 2014 (CALCBASE=0, HRSDAY 7,7, Mo-Fr, Ft 25./26.12.)
+liefert 161,7 Sollstunden statt der alten 177,1.
 """
 
 import pytest
-
-from sp5api.routers import overtime
-
-
-class _StubDB:
-    def __init__(self, mashi, spshi):
-        self._mashi = mashi
-        self._spshi = spshi
-
-    def _read(self, table):
-        if table == "MASHI":
-            return self._mashi
-        if table == "SPSHI":
-            return self._spshi
-        return []
+from starlette.testclient import TestClient
 
 
-def test_calc_overtime_sums_mashi_and_spshi(monkeypatch):
-    emp = {"ID": 5, "HRSWEEK": 40}
-    mashi = [
-        {"DATE": "2024-03-04", "EMPLOYEEID": 5, "SHIFTID": 1},   # known shift → 8h
-        {"DATE": "2024-03-05", "EMPLOYEEID": 5, "SHIFTID": 99},  # unknown shift → 0h
-        {"DATE": "2024-03-06", "EMPLOYEEID": 6, "SHIFTID": 1},   # other employee → skipped
-        {"DATE": "", "EMPLOYEEID": 5, "SHIFTID": 1},             # empty date → skipped
-    ]
-    spshi = [{"DATE": "2024-03-07", "EMPLOYEEID": 5, "DURATION": 6.0}]
-    shifts_map = {1: {"DURATION0": 8.0}}
-    monkeypatch.setattr(overtime, "get_db", lambda: _StubDB(mashi, spshi))
+def _facade_db():
+    from sp5api.dependencies import get_db
 
-    res = overtime._calc_overtime(emp, 2024, 3, shifts_map)
-
-    assert res["contract_hours"] == 40.0
-    assert res["shifts_count"] == 3          # 2 MASHI (emp 5) + 1 SPSHI
-    assert res["actual_hours"] == 14.0       # 8 + 0 + 6
-    assert res["expected_hours"] > 0
-    assert res["difference"] == round(14.0 - res["expected_hours"], 2)
+    return get_db()
 
 
-def test_calc_overtime_zero_contract(monkeypatch):
-    """No HRSWEEK → expected 0, and no matching records → actual 0."""
-    monkeypatch.setattr(overtime, "get_db", lambda: _StubDB([], []))
-    res = overtime._calc_overtime({"ID": 1, "HRSWEEK": 0}, 2024, 3, {})
-    assert res["expected_hours"] == 0.0
-    assert res["actual_hours"] == 0.0
-    assert res["shifts_count"] == 0
+def test_summary_matches_facade_statistics(sync_client: TestClient):
+    """Spec §3.3/§3.4: Summary delegiert an db.get_statistics (keine Eigenformel)."""
+    year, month = 2026, 1
+    res = sync_client.get(f"/api/overtime/summary?year={year}&month={month}")
+    assert res.status_code == 200
+    by_id = {e["employee_id"]: e for e in res.json()["employees"]}
+
+    stats = _facade_db().get_statistics(year, month)
+    assert stats, "Fixture-DB hat Mitarbeiter"
+    for s in stats:
+        row = by_id[s["employee_id"]]
+        assert row["expected_hours"] == pytest.approx(s["target_hours"])
+        assert row["actual_hours"] == pytest.approx(s["actual_hours"])
+        assert row["difference"] == pytest.approx(s["overtime_hours"])
+        assert row["shifts_count"] == s["shifts_count"]
 
 
-@pytest.mark.parametrize("year,month,expected", [(2024, 3, 21), (2024, 2, 21)])
-def test_count_working_days_mon_fri(year, month, expected):
-    assert overtime._count_working_days_mon_fri(year, month) == expected
+def test_employee_overtime_matches_facade_month_stats(sync_client: TestClient):
+    """Spec §3.3/§3.4: Einzel-MA-Route delegiert an db.get_employee_stats_month."""
+    db = _facade_db()
+    emp = db.get_employees()[0]
+    year, month = 2026, 1
+    res = sync_client.get(f"/api/employees/{emp['ID']}/overtime?year={year}&month={month}")
+    assert res.status_code == 200
+    data = res.json()
+
+    mo = db.get_employee_stats_month(emp["ID"], year, month)
+    assert data["expected_hours"] == pytest.approx(mo["target_hours"])
+    assert data["actual_hours"] == pytest.approx(mo["actual_hours"])
+    assert data["difference"] == pytest.approx(mo["difference"])
+    assert data["shifts_count"] == mo["shifts_count"]
+    assert data["contract_hours"] == pytest.approx(float(emp.get("HRSWEEK") or 0))
+
+
+def test_normative_december_2014_target(sync_client: TestClient):
+    """Spec §3.3.3: Dez. 2014, CALCBASE=0, Mo-Fr, Ft 25./26.12. ⇒ 161,7 h.
+
+    Die alte api-Formel lieferte 177,1 (23 MoFr-Tage * 38,5 / 5) — der
+    Regressionsfall aus parity-api.md (A-1).
+    """
+    db = _facade_db()
+    emp = next(
+        e
+        for e in db.get_employees()
+        if int(e.get("CALCBASE") or 0) == 0
+        and float(e.get("HRSDAY") or 0) == pytest.approx(7.7)
+        and (e.get("WORKDAYS") or "").startswith("1 1 1 1 1 0 0")
+    )
+    res = sync_client.get(f"/api/employees/{emp['ID']}/overtime?year=2014&month=12")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["expected_hours"] == pytest.approx(161.7)
+    assert data["expected_hours"] != pytest.approx(177.1)
+    assert data["difference"] == pytest.approx(
+        round(data["actual_hours"] - data["expected_hours"], 2), abs=0.011
+    )

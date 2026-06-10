@@ -8,21 +8,18 @@ Covers:
   - Edge case: no contract hours (HRSWEEK=0)
   - Edge case: leap-year February (2024-02)
   - Group summary filtering
+
+Soll-Stunden folgen seit A-1 der Spec-Semantik (§3.3, CALCBASE/Feiertage)
+statt der alten api-Formel HRSWEEK*MoFr/5 — Erwartungswerte kommen daher
+aus /api/statistics (lib-Fassade), nicht aus einer Eigenrechnung.
 """
 
-import calendar
 import secrets
-from datetime import datetime
 
 import pytest
 from starlette.testclient import TestClient
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-
-def _count_workdays_mon_fri(year: int, month: int) -> int:
-    num_days = calendar.monthrange(year, month)[1]
-    return sum(1 for d in range(1, num_days + 1) if datetime(year, month, d).weekday() < 5)
 
 
 def _planer_client(app):
@@ -93,18 +90,18 @@ class TestEmployeeOvertime:
         )
 
     def test_expected_hours_formula(self, sync_client: TestClient):
-        """expected_hours == contract_hours * working_days_in_month / 5."""
+        """expected_hours == target_hours der lib-Fassade (Spec §3.3, CALCBASE)."""
         res = sync_client.get("/api/v1/employees")
         employees = res.json()
         if not employees:
             pytest.skip("No employees in DB")
         emp_id = employees[0]["ID"]
-        year, month = 2024, 4  # April 2024: 22 working days
+        year, month = 2024, 4
         r = sync_client.get(f"/api/v1/employees/{emp_id}/overtime?year={year}&month={month}")
         assert r.status_code == 200
         d = r.json()
-        working_days = _count_workdays_mon_fri(year, month)
-        expected = round(d["contract_hours"] * working_days / 5, 2) if d["contract_hours"] else 0.0
+        stats = sync_client.get(f"/api/v1/statistics?year={year}&month={month}").json()
+        expected = next(s["target_hours"] for s in stats if s["employee_id"] == emp_id)
         assert abs(d["expected_hours"] - expected) < 0.01, (
             f"expected_hours mismatch: {d['expected_hours']} vs {expected}"
         )
@@ -124,7 +121,8 @@ class TestEmployeeOvertime:
         assert d["shifts_count"] == 0
 
     def test_no_contract_hours_expected_is_zero(self, app):
-        """Employee with HRSWEEK=0 → expected_hours=0, difference=actual_hours."""
+        """Employee ohne Stundenparameter → expected_hours=0 (Spec §3.3: CALCBASE=0
+        rechnet Arbeitstage*HRSDAY, daher müssen HRSDAY und HRSWEEK 0 sein)."""
         import unittest.mock as mock
 
         from sp5api.dependencies import get_db as _get_db
@@ -137,7 +135,7 @@ class TestEmployeeOvertime:
 
         emp = employees[0]
         emp_id = emp["ID"]
-        patched_emp = {**emp, "HRSWEEK": 0}
+        patched_emp = {**emp, "HRSWEEK": 0, "HRSDAY": 0, "HRSMONTH": 0, "HRSTOTAL": 0}
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {"ID": 803, "NAME": "test_admin_no_hrs", "role": "Admin", "ADMIN": True, "RIGHTS": 255}
@@ -157,19 +155,18 @@ class TestEmployeeOvertime:
         assert abs(d["difference"] - d["actual_hours"]) < 0.01
 
     def test_leap_year_february(self, sync_client: TestClient):
-        """Feb 2024 (leap year, 29 days) — expected_hours calculated correctly."""
+        """Feb 2024 (leap year, 29 days) — expected_hours nach Spec §3.3 (Fassade)."""
         res = sync_client.get("/api/v1/employees")
         employees = res.json()
         if not employees:
             pytest.skip("No employees in DB")
         emp_id = employees[0]["ID"]
-        # 2024-02: leap year Feb has 29 days, 21 working days (Mon-Fri)
+        # 2024-02: leap year Feb has 29 days
         r = sync_client.get(f"/api/v1/employees/{emp_id}/overtime?year=2024&month=2")
         assert r.status_code == 200
         d = r.json()
-        working_days = _count_workdays_mon_fri(2024, 2)
-        assert working_days == 21  # Sanity-check the fixture
-        expected = round(d["contract_hours"] * 21 / 5, 2) if d["contract_hours"] else 0.0
+        stats = sync_client.get("/api/v1/statistics?year=2024&month=2").json()
+        expected = next(s["target_hours"] for s in stats if s["employee_id"] == emp_id)
         assert abs(d["expected_hours"] - expected) < 0.01
 
     def test_nonexistent_employee_returns_404(self, sync_client: TestClient):
@@ -293,18 +290,20 @@ class TestOvertimeSummary:
             assert e["shifts_count"] == 0
 
     def test_summary_leap_year_february(self, sync_client: TestClient):
-        """Summary for Feb 2024 (leap year) returns correct working_days calculation."""
+        """Summary für Feb 2024 (leap year): Werte == Fassaden-Statistik (Spec §3.3)."""
         r = sync_client.get("/api/v1/overtime/summary?year=2024&month=2")
         assert r.status_code == 200
         data = r.json()
-        # Verify expected_hours uses 21 working days for Feb 2024
+        stats = {
+            s["employee_id"]: s
+            for s in sync_client.get("/api/v1/statistics?year=2024&month=2").json()
+        }
         for e in data["employees"]:
-            if e["contract_hours"] > 0:
-                expected = round(e["contract_hours"] * 21 / 5, 2)
-                assert abs(e["expected_hours"] - expected) < 0.01, (
-                    f"Expected hours mismatch for {e['employee_name']}: "
-                    f"{e['expected_hours']} vs {expected}"
-                )
+            s = stats[e["employee_id"]]
+            assert abs(e["expected_hours"] - s["target_hours"]) < 0.01, (
+                f"Expected hours mismatch for {e['employee_name']}: "
+                f"{e['expected_hours']} vs {s['target_hours']}"
+            )
 
     def test_planer_can_access_summary(self, app):
         """Planer can access the summary endpoint."""
