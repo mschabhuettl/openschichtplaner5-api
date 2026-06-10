@@ -585,115 +585,24 @@ async def backup_restore(
     "/api/admin/compact",
     tags=["Admin"],
     summary="Compact database (PACK)",
-    description="Rewrite all .DBF files to remove physically deleted records (equivalent to dBASE PACK). Files are exclusively locked during the operation. Requires Admin role.",
+    description=(
+        "Rewrite all .DBF files to remove physically deleted records "
+        "(equivalent to dBASE PACK, Spec 1.14). Delegates to the lib "
+        "(sp5lib.dbf_writer.pack_table): files are exclusively locked, the "
+        "-L change journals are zapped (Spec D-74) and stale CDX indexes are "
+        "deleted (Spec D-14). Requires Admin role."
+    ),
 )
 def compact_database(_cur_user: dict = Depends(require_admin)):
-    """
-    Compact all .DBF files in SP5_DB_PATH by rewriting them without deleted records.
-    Deleted records have 0x2A ('*') as the first byte of their data row.
-    Each file is exclusively locked during the operation to prevent concurrent corruption.
-    Returns a summary of files processed and records removed.
-    """
-    import fcntl as _fcntl
-    import struct as _struct
-    from datetime import date as _date
-
-    db_path = os.environ.get("SP5_DB_PATH", "")
-    if not db_path or not os.path.isdir(db_path):
+    """Compact the database via the lib facade (SP5Database.compact_database)."""
+    db = get_db()
+    if not hasattr(db, "compact_database"):
         raise HTTPException(
-            status_code=500,
-            detail=f"SP5_DB_PATH not set or not a directory: {db_path!r}",
+            status_code=501,
+            detail="Komprimieren wird nur vom DBF-Backend unterstützt",
         )
-
-    dbf_files = [f for f in os.listdir(db_path) if f.upper().endswith(".DBF")]
-    results: list = []
-    total_removed = 0
-
-    for fname in sorted(dbf_files):
-        fpath = os.path.join(db_path, fname)
-        try:
-            # Open for read+write and hold an exclusive lock for the entire
-            # read-modify-write cycle to prevent concurrent write corruption.
-            with open(fpath, "r+b") as f:
-                _fcntl.flock(f.fileno(), _fcntl.LOCK_EX)
-                try:
-                    raw = f.read()
-
-                    if len(raw) < 32:
-                        results.append(
-                            {"file": fname, "skipped": "too small / corrupt"}
-                        )
-                        continue
-
-                    # Parse DBF header
-                    num_records = _struct.unpack_from("<I", raw, 4)[0]
-                    header_size = _struct.unpack_from("<H", raw, 8)[0]
-                    record_size = _struct.unpack_from("<H", raw, 10)[0]
-
-                    if record_size == 0:
-                        results.append({"file": fname, "skipped": "record_size=0"})
-                        continue
-
-                    # Separate header bytes from record area
-                    header_bytes = bytearray(raw[:header_size])
-                    records_area = raw[header_size:]
-
-                    # Remove trailing EOF marker for processing
-                    if records_area and records_area[-1] == 0x1A:
-                        records_area = records_area[:-1]
-
-                    # Split into individual records and filter out deleted ones
-                    active_records = []
-                    deleted_count = 0
-                    for i in range(num_records):
-                        start = i * record_size
-                        end = start + record_size
-                        if end > len(records_area):
-                            break
-                        rec = records_area[start:end]
-                        if rec[0:1] == b"\x2a":  # deleted marker
-                            deleted_count += 1
-                        else:
-                            active_records.append(rec)
-
-                    if deleted_count == 0:
-                        results.append(
-                            {"file": fname, "removed": 0, "active": len(active_records)}  # type: ignore[dict-item]
-                        )
-                        continue
-
-                    # Update header: new record count + today's date
-                    today = _date.today()
-                    header_bytes[1] = today.year % 100
-                    header_bytes[2] = today.month
-                    header_bytes[3] = today.day
-                    _struct.pack_into("<I", header_bytes, 4, len(active_records))
-
-                    # Write compacted file (truncate then rewrite)
-                    f.seek(0)
-                    f.truncate()
-                    f.write(bytes(header_bytes))
-                    for rec in active_records:
-                        f.write(rec)
-                    f.write(b"\x1a")  # EOF marker
-                    f.flush()
-                finally:
-                    _fcntl.flock(f.fileno(), _fcntl.LOCK_UN)
-
-            total_removed += deleted_count
-            results.append(
-                {"file": fname, "removed": deleted_count, "active": len(active_records)}  # type: ignore[dict-item]
-            )
-
-        except Exception as e:
-            results.append({"file": fname, "error": str(e)})
-
-    return {
-        "ok": True,
-        "files_processed": len(results),
-        "total_records_removed": total_removed,
-        "details": results,
-    }
+    result = db.compact_database()
+    return {"ok": True, **result}
 
 
 # ── Frontend Error Reporting ──────────────────────────────────
