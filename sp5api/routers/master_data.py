@@ -583,14 +583,51 @@ def create_extracharge(
 
 @router.get(
     "/api/extracharges/summary", tags=["Statistics"], summary="Extra charges summary",
-    description="Return summarized extra charges overview.",
+    description=(
+        "Return summarized extra charges overview for a month (year/month) or "
+        "a free evaluation period (from/to, Spec 3.9.1)."
+    ),
 )
 def get_extracharges_summary(
-    year: int = Query(...),
-    month: int = Query(...),
+    year: int | None = Query(None),
+    month: int | None = Query(None),
     employee_id: int | None = Query(None),
+    date_from: str | None = Query(
+        None, alias="from", description="Freier Auswertungszeitraum: Start (YYYY-MM-DD)"
+    ),
+    date_to: str | None = Query(
+        None, alias="to", description="Freier Auswertungszeitraum: Ende (YYYY-MM-DD)"
+    ),
 ):
-    """Calculate surcharge hours per ExtraCharge rule for a given month."""
+    """Calculate surcharge hours per ExtraCharge rule (month or free period)."""
+    if date_from is not None or date_to is not None:
+        from datetime import date as _date
+
+        if date_from is None or date_to is None:
+            raise HTTPException(
+                status_code=400, detail="'from' und 'to' müssen gemeinsam angegeben werden"
+            )
+        try:
+            von = _date.fromisoformat(date_from)
+            bis = _date.fromisoformat(date_to)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="Invalid date format, please use YYYY-MM-DD"
+            )
+        if von > bis:
+            raise HTTPException(status_code=400, detail="'from' muss <= 'to' sein")
+        try:
+            return get_db().calculate_extracharge_hours(
+                employee_id=employee_id, date_from=date_from, date_to=date_to
+            )
+        except Exception as e:
+            raise _sanitize_500(e)
+
+    if year is None or month is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Entweder year+month oder from+to angeben",
+        )
     try:
         result = get_db().calculate_extracharge_hours(year, month, employee_id)
         return result

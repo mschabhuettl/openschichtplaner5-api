@@ -397,30 +397,25 @@ def get_shift_statistics(
             m = 12
             y -= 1
     periods.reverse()
-    period_set = set(periods)
 
     shift_month_counts: dict = defaultdict(lambda: defaultdict(int))
     emp_shift_counts: dict = defaultdict(lambda: defaultdict(int))
 
-    for r in db._read("MASHI"):
-        d = r.get("DATE", "")
-        if not d or len(d) < 7:
-            continue
-        try:
-            ry = int(d[0:4])
-            rm = int(d[5:7])
-        except (ValueError, IndexError):
-            continue
-        if (ry, rm) not in period_set:
-            continue
-        eid = r.get("EMPLOYEEID")
-        if member_ids is not None and eid not in member_ids:
-            continue
-        sid = r.get("SHIFTID")
-        if not sid:
-            continue
-        shift_month_counts[sid][(ry, rm)] += 1
-        emp_shift_counts[eid][sid] += 1
+    # Einteilungen je Schichtart (Spec 3.9.3 Nr. 4, Gap C-5): über die
+    # Fassade statt rohem 5MASHI — enthält expandierte 5CYASS-Zyklusdienste
+    # (kind == "shift"); Sonderdienste zählen wie bisher nicht mit.
+    for ry, rm in periods:
+        for e in db.get_schedule(year=ry, month=rm):
+            if e.get("kind") != "shift":
+                continue
+            eid = e.get("employee_id")
+            if member_ids is not None and eid not in member_ids:
+                continue
+            sid = e.get("shift_id")
+            if not sid:
+                continue
+            shift_month_counts[sid][(ry, rm)] += 1
+            emp_shift_counts[eid][sid] += 1
 
     def categorize_shift(s: dict) -> str:
         start = s.get("FROM0") or ""
