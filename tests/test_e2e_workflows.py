@@ -341,6 +341,10 @@ class TestAutoplanerWorkflow:
         assert "skipped_restriction" in gen_data
         assert "message" in gen_data
 
+        # Cleanup: eine offene (END-lose) Zyklus-Zuweisung würde sonst in der
+        # Session-DB für alle Folgemonate Dienste erzeugen (B-2-Expansion)
+        planer_client.delete(f"/api/shift-cycles/assign/{emp_id}")
+
     def test_wish_create_and_list(self, app, patched_db):
         """Schichtwunsch anlegen und in Liste sehen."""
         client, _ = _make_client(app, "Planer")

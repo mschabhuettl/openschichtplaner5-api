@@ -298,14 +298,20 @@ class TestRouterIntegration:
             "employee_id": emp_id, "cycle_id": cid, "start_date": "2026-03-02"
         })
 
-        # Generate (dry_run)
-        resp = sync_client.post("/api/schedule/generate", json={
-            "year": 2026, "month": 3, "dry_run": True
-        })
-        assert resp.status_code == 200
-        data = resp.json()
+        try:
+            # Generate (dry_run)
+            resp = sync_client.post("/api/schedule/generate", json={
+                "year": 2026, "month": 3, "dry_run": True
+            })
+            assert resp.status_code == 200
+            data = resp.json()
 
-        # New fields present
-        assert "skipped_availability" in data
-        assert "skipped_hours_limit" in data
-        assert "message" in data
+            # New fields present
+            assert "skipped_availability" in data
+            assert "skipped_hours_limit" in data
+            assert "message" in data
+        finally:
+            # Cleanup: eine offene (END-lose) Zyklus-Zuweisung würde sonst in
+            # der Session-DB für alle Folgemonate Dienste erzeugen (B-2)
+            sync_client.delete(f"/api/shift-cycles/assign/{emp_id}")
+            sync_client.delete(f"/api/shift-cycles/{cid}")
