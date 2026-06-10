@@ -345,6 +345,47 @@ def set_leave_entitlement(
         raise _sanitize_500(e)
 
 
+class LeaveForfeitBody(BaseModel):
+    cutoff_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Stichtag (YYYY-MM-DD)")
+    group_id: int | None = Field(None, gt=0)
+    dry_run: bool = Field(False, description="True = nur Vorschau, kein Schreiben")
+
+    @field_validator("cutoff_date")
+    @classmethod
+    def validate_cutoff(cls, v: str) -> str:
+        from datetime import date as _d
+
+        try:
+            _d.fromisoformat(v)
+        except ValueError:
+            raise ValueError("cutoff_date must be a valid date in YYYY-MM-DD format")
+        return v
+
+
+@router.post(
+    "/api/leave-entitlements/forfeit",
+    tags=["Absences"],
+    summary="Resturlaub zum Stichtag verfallen lassen",
+    description=(
+        "Stichtags-Verfall (Spec 3.7.3 / Dialog 5.17): kürzt je Mitarbeiter und "
+        "anspruchsverbundener Abwesenheitsart den 5LEAEN-REST des Stichtagsjahres "
+        "auf den Verbrauch bis einschließlich Stichtag (nie erhöhen). "
+        "Mit dry_run=true werden die Kürzungen nur als Vorschau geliefert. "
+        "Requires Admin role."
+    ),
+)
+def forfeit_leave_rest(body: LeaveForfeitBody, _cur_user: dict = Depends(require_admin)):
+    try:
+        result = get_db().forfeit_rest(
+            cutoff_date=body.cutoff_date,
+            group_id=body.group_id,
+            dry_run=body.dry_run,
+        )
+        return {"ok": True, **result}
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
 @router.get(
     "/api/leave-balance", tags=["Absences"], summary="Get employee leave balance",
     description="Return the leave balance (entitlement vs. used) for a specific employee and year.",
