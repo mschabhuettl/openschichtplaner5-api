@@ -342,7 +342,12 @@ def _generate_schedule_overview(year: int, month: int, filters: dict, fmt: str) 
 
 
 def _generate_overtime_report(year: int, month: int, filters: dict, fmt: str) -> tuple[bytes, str]:
-    """Generate an overtime/underhours summary report."""
+    """Generate an overtime/underhours summary report.
+
+    Soll/Ist/Differenz aus der lib-Fassade db.get_statistics (Spec §3.3/§3.4)
+    statt der alten api-Formel HRSWEEK*MoFr/5 (deren Ist-Spalte zudem das
+    nicht existierende Feld ``duration_hours`` las und konstant 0,0 lieferte).
+    """
     from ..dependencies import get_db
     db = get_db()
 
@@ -353,28 +358,24 @@ def _generate_overtime_report(year: int, month: int, filters: dict, fmt: str) ->
         employees = [e for e in employees if e["ID"] in member_ids]
     employees.sort(key=lambda x: x.get("POSITION", 0))
 
-    num_days = _calendar.monthrange(year, month)[1]
-    working_days = sum(
-        1 for d in range(1, num_days + 1)
-        if _dt(year, month, d).weekday() < 5
-    )
+    stats = {
+        s["employee_id"]: s
+        for s in db.get_statistics(year, month, group_id=group_id)
+    }
 
     rows = []
     for emp in employees:
-        emp_id = emp["ID"]
-        entries = db.get_schedule(year=year, month=month, group_id=None)
-        emp_entries = [e for e in entries if e.get("employee_id") == emp_id]
-        contract_hours = float(emp.get("HRSWEEK") or 0)
-        expected_hours = round(contract_hours * working_days / 5, 2) if contract_hours else 0.0
-        actual_hours = sum(float(e.get("duration_hours", 0) or 0) for e in emp_entries)
+        s = stats.get(emp["ID"], {})
+        expected_hours = float(s.get("target_hours", 0.0))
+        actual_hours = float(s.get("actual_hours", 0.0))
         rows.append({
             "Mitarbeiter": f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", "),
             "Kürzel": emp.get("SHORTNAME", ""),
-            "Vertragl. Std/Woche": contract_hours,
+            "Vertragl. Std/Woche": float(emp.get("HRSWEEK") or 0),
             "Soll-Stunden": expected_hours,
-            "Ist-Stunden": round(actual_hours, 2),
-            "Differenz": round(actual_hours - expected_hours, 2),
-            "Schichten": len(emp_entries),
+            "Ist-Stunden": actual_hours,
+            "Differenz": float(s.get("overtime_hours", round(actual_hours - expected_hours, 2))),
+            "Schichten": int(s.get("shifts_count", 0)),
         })
 
     filename = f"ueberstunden_{year:04d}-{month:02d}.{fmt}"

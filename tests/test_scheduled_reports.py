@@ -686,6 +686,18 @@ class TestGenerateReport:
         mock_db.get_absences.return_value = [
             {"type_name": "Urlaub", "days": 2},
         ]
+        # Spec §3.3/§3.4 (A-2): Overtime-Report bezieht Soll/Ist aus get_statistics
+        mock_db.get_statistics.return_value = [
+            {
+                "employee_id": "EMP1",
+                "employee_name": "Müller, Hans",
+                "employee_short": "HM",
+                "target_hours": 161.7,
+                "actual_hours": 8.0,
+                "overtime_hours": -153.7,
+                "shifts_count": 1,
+            },
+        ]
 
         with patch("sp5api.dependencies.get_db", return_value=mock_db):
             yield
@@ -718,12 +730,24 @@ class TestGenerateReport:
         assert isinstance(data, bytes)
 
     def test_generate_overtime_csv(self):
+        """Spec §3.3/§3.4 (A-2): Spalten kommen aus db.get_statistics —
+        Ist-Stunden darf nicht mehr konstant 0,0 sein (totes duration_hours)."""
+        import csv as _csv
+        import io as _io
+
         from sp5api.routers.scheduled_reports import _generate_overtime_report
 
         data, filename = _generate_overtime_report(2025, 1, {}, "csv")
         assert isinstance(data, bytes)
         assert "ueberstunden" in filename
-        assert b"M" in data
+        rows = list(_csv.DictReader(_io.StringIO(data.decode("utf-8-sig"))))
+        assert len(rows) == 1
+        row = rows[0]
+        assert float(row["Soll-Stunden"]) == pytest.approx(161.7)
+        assert float(row["Ist-Stunden"]) == pytest.approx(8.0)
+        assert float(row["Differenz"]) == pytest.approx(-153.7)
+        assert int(row["Schichten"]) == 1
+        assert float(row["Vertragl. Std/Woche"]) == pytest.approx(40.0)
 
     def test_generate_overtime_xlsx(self):
         from sp5api.routers.scheduled_reports import _generate_overtime_report
@@ -992,3 +1016,33 @@ class TestLoadReportsCorruptFile:
         bad.write_text("not json{", encoding="utf-8")
         with patch.object(sr, "_REPORTS_FILE", bad):
             assert sr._load_reports() == []
+
+
+class TestOvertimeReportRealDB:
+    """Regression A-2 gegen die Fixture-DB: Ist-Stunden nicht konstant 0."""
+
+    def test_overtime_report_real_values(self, patched_db):
+        import csv as _csv
+        import io as _io
+
+        from sp5api.dependencies import get_db
+        from sp5api.routers.scheduled_reports import _generate_overtime_report
+
+        year, month = 2026, 1  # Fixture-DB hat 5MASHI-Daten in 2026-01
+        data, _filename = _generate_overtime_report(year, month, {}, "csv")
+        rows = list(_csv.DictReader(_io.StringIO(data.decode("utf-8-sig"))))
+        assert rows
+
+        stats = {
+            s["employee_name"]: s for s in get_db().get_statistics(year, month)
+        }
+        assert any(float(r["Ist-Stunden"]) > 0 for r in rows), (
+            "Ist-Stunden konstant 0 — totes duration_hours-Feld (Gap A-2)"
+        )
+        for r in rows:
+            s = stats.get(r["Mitarbeiter"])
+            if s is None:
+                continue
+            assert float(r["Soll-Stunden"]) == pytest.approx(s["target_hours"])
+            assert float(r["Ist-Stunden"]) == pytest.approx(s["actual_hours"])
+            assert float(r["Differenz"]) == pytest.approx(s["overtime_hours"])
