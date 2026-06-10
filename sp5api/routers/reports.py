@@ -96,6 +96,40 @@ def get_statistics(
     return get_db().get_statistics(year, month, group_id=group_id)
 
 
+# ── Personaltabelle (Spec 3.9.2/3.9.3) ───────────────────────
+@router.get(
+    "/api/personnel-table",
+    tags=["Statistics"],
+    summary="Personaltabelle (Spec 3.9.2/3.9.3)",
+    description=(
+        "Return the personnel table over a free evaluation period [from, to].\n\n"
+        "Standard columns per employee (Ist-/Sollstunden, Saldo, Arbeitszeit, "
+        "Abwesenheit bezahlt, Sonntag/Feiertag-Diensttage, Sonderdienste) plus "
+        "dynamic columns: assignments per shift type and absence days per leave "
+        "type. If the period covers exactly one calendar year, entitled leave "
+        "types additionally report taken/remaining (Spec 3.9.3 Nr. 6).\n\n"
+        "**Required role:** Leser"
+    ),
+)
+def get_personnel_table(
+    date_from: str = Query(..., alias="from", description="Start (YYYY-MM-DD)"),
+    date_to: str = Query(..., alias="to", description="Ende (YYYY-MM-DD)"),
+    group_id: int | None = Query(None, description="Filter by group ID"),
+):
+    from datetime import date as _date
+
+    try:
+        von = _date.fromisoformat(date_from)
+        bis = _date.fromisoformat(date_to)
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail="Invalid date format, please use YYYY-MM-DD"
+        )
+    if von > bis:
+        raise HTTPException(status_code=400, detail="'from' muss <= 'to' sein")
+    return get_db().get_personnel_table(date_from, date_to, group_id=group_id)
+
+
 # ── Year Summary ────────────────────────────
 @router.get(
     "/api/statistics/year-summary",
