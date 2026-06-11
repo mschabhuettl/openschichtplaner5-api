@@ -7,7 +7,7 @@
 #      SECRET_KEY=$(openssl rand -hex 32)
 #   3. docker compose up --build
 #
-# Build-Arg LIB_SOURCE (Default: Git-main der Library) ist per .env
+# Build-Arg LIB_SOURCE (Default: PyPI-Pin der Library) ist per .env
 # überschreibbar — die aktuellen Versionen sind nicht auf PyPI.
 # ==============================================================================
 services:
@@ -15,7 +15,7 @@ services:
     build:
       context: .
       args:
-        LIB_SOURCE: ${LIB_SOURCE:-git+https://github.com/mschabhuettl/libopenschichtplaner5.git@main}
+        LIB_SOURCE: ${LIB_SOURCE:-libopenschichtplaner5[postgres]==1.7.0}
     image: openschichtplaner5-api:latest
     ports:
       - "8000:8000"

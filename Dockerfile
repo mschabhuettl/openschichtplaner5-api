@@ -4,11 +4,10 @@
 # Builder installiert das Paket + libopenschichtplaner5 in ein venv; das
 # Runtime-Image (slim, non-root, ohne Build-Tools) übernimmt nur das venv.
 #
-# Build-Arg LIB_SOURCE: pip-Requirement für die Library. Die aktuellen
-# Versionen (lib 1.7.0 / api 1.2.0) sind NICHT auf PyPI — Default ist daher
-# der Git-main-Stand. Override-Beispiele:
-#   --build-arg LIB_SOURCE=git+https://github.com/mschabhuettl/libopenschichtplaner5.git@v1.7.0
-#   --build-arg LIB_SOURCE="libopenschichtplaner5[postgres]==1.7.0"   (sobald auf PyPI)
+# Build-Arg LIB_SOURCE: pip-Requirement für die Library. Default ist der
+# PyPI-Pin (reproduzierbare Builds). Override-Beispiele:
+#   --build-arg LIB_SOURCE=git+https://github.com/mschabhuettl/libopenschichtplaner5.git@main   (Entwicklungs-Stand)
+#   --build-arg LIB_SOURCE="libopenschichtplaner5[postgres]==1.8.0"   (künftige Version)
 #
 # ENV-Defaults (Runtime):
 #   SP5_DB_PATH=/app/data        Verzeichnis der 5*.DBF-Dateien (Volume mounten!)
@@ -31,13 +30,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-ARG LIB_SOURCE=git+https://github.com/mschabhuettl/libopenschichtplaner5.git@main
+ARG LIB_SOURCE="libopenschichtplaner5[postgres]==1.7.0"
 
 WORKDIR /build
 COPY pyproject.toml README.md LICENSE ./
 COPY sp5api/ sp5api/
 
-# Library zuerst aus LIB_SOURCE (Git-main statt PyPI), psycopg2-binary für das
+# Library zuerst aus LIB_SOURCE (PyPI-Pin), psycopg2-binary für das
 # [postgres]-Extra; danach erfüllt die installierte Version die
 # libopenschichtplaner5[postgres]>=…-Abhängigkeit des API-Pakets.
 RUN pip install --no-cache-dir "${LIB_SOURCE}" psycopg2-binary && \
