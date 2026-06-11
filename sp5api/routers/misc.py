@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from .._paths import backend_dir
 from ..dependencies import (
     _sanitize_500,
+    enforce_wpast,
     get_db,
     limiter,
     require_admin,
@@ -833,6 +834,23 @@ def resolve_swap_request(
         raise HTTPException(
             status_code=400, detail="action muss 'approve' oder 'reject' sein"
         )
+    if body.action == "approve":
+        # WPAST vor der Auflösung prüfen: die Genehmigung führt Plan-Writes
+        # auf beiden Tausch-Daten aus (auch im Cross-Date-Zweig).
+        pending = next(
+            (
+                e
+                for e in get_db().get_swap_requests(status="pending")
+                if e.get("id") == swap_id
+            ),
+            None,
+        )
+        if pending is not None:
+            enforce_wpast(
+                _cur_user,
+                pending.get("requester_date"),
+                pending.get("partner_date"),
+            )
     entry = get_db().resolve_swap_request(
         swap_id,
         body.action,
@@ -851,13 +869,16 @@ def resolve_swap_request(
         par_date = entry["partner_date"]
 
         if req_date == par_date:
-            # Same-date swap: use existing swap_shifts helper
+            # Same-date swap: use existing swap_shifts helper.
+            # Der auflösende Benutzer wird durchgereicht — sein WPAST-Flag
+            # gilt für den ausgeführten Tausch.
             swap_result = swap_shifts(
                 SwapShiftsRequest(
                     employee_id_1=requester_id,
                     employee_id_2=partner_id,
                     dates=[req_date],
-                )
+                ),
+                _cur_user,
             )
         else:
             # Cross-date swap:

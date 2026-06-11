@@ -417,6 +417,47 @@ class TestWpastEnforcement:
             _sessions.pop(priv, None)
             _sessions.pop(restricted, None)
 
+    def test_wpast_false_blocks_swap_request_approval(self, client):
+        """Die Genehmigung eines Tauschs in der Vergangenheit ist ein
+        Plan-Write — WPAST greift VOR der Auflösung (Anfrage bleibt pending)."""
+        from sp5api.main import _sessions
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        priv = _inject(name="swap_priv")
+        restricted = _inject(WPAST=False, name="swap_restricted")
+        try:
+            created = client.post(
+                "/api/swap-requests",
+                json={
+                    "requester_id": 40,
+                    "requester_date": yesterday,
+                    "partner_id": 41,
+                    "partner_date": yesterday,
+                    "note": "WPAST-Test",
+                },
+                headers=_h(priv),
+            )
+            assert created.status_code == 200, created.text
+            swap_id = created.json()["id"]
+
+            resp = client.patch(
+                f"/api/swap-requests/{swap_id}/resolve",
+                json={"action": "approve", "resolved_by": "restricted"},
+                headers=_h(restricted),
+            )
+            assert resp.status_code == 403 and "WPAST" in resp.text
+
+            # Anfrage ist NICHT aufgelöst worden — Reject zum Aufräumen klappt
+            cleanup = client.patch(
+                f"/api/swap-requests/{swap_id}/resolve",
+                json={"action": "reject", "resolved_by": "priv"},
+                headers=_h(priv),
+            )
+            assert cleanup.status_code == 200, cleanup.text
+        finally:
+            _sessions.pop(priv, None)
+            _sessions.pop(restricted, None)
+
     def test_wpast_false_allows_future_bulk_writes(self, client):
         from sp5api.main import _sessions
 
