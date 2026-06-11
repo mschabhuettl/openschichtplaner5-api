@@ -582,11 +582,16 @@ def annual_close_preview(
     year: int = Query(...),
     group_id: int | None = Query(None),
     max_carry_forward_days: float = Query(10),
+    keep_entitlements: bool = Query(
+        False,
+        description="Dialog-Option 'Urlaubsansprüche bleiben im Folgejahr gleich' (R6.8-4)",
+    ),
 ):
     return get_db().get_annual_close_preview(
         year=year,
         group_id=group_id,
         carry_forward_days=max_carry_forward_days,
+        keep_entitlements=keep_entitlements,
     )
 
 
@@ -594,15 +599,20 @@ class AnnualCloseBody(BaseModel):
     year: int = Field(..., ge=2000, le=2100)
     group_id: int | None = Field(None, gt=0)
     max_carry_forward_days: float | None = Field(10, ge=0, le=366)
+    # Dialog-Option "Urlaubsansprüche bleiben im Folgejahr gleich" (R6.8-4):
+    # ENTITLEMNT des abgeschlossenen Jahres wird ins Folgejahr kopiert, auch
+    # Arten ohne CARRYFWD werden (mit REST=0) fortgeschrieben.
+    keep_entitlements: bool = False
 
 
-@router.post("/api/annual-close", tags=["Absences"], summary="Execute annual close", description="Execute the annual closing (Jahresabschluss) — carry forward balances to next year. Requires Admin role.")
+@router.post("/api/annual-close", tags=["Absences"], summary="Execute annual close", description="Execute the annual closing (Jahresabschluss) — carry forward balances to next year. keep_entitlements = Dialog-Option 'Urlaubsansprüche bleiben im Folgejahr gleich' (R6.8-4). Requires Admin role.")
 def run_annual_close(body: AnnualCloseBody, _cur_user: dict = Depends(require_admin)):
     try:
         result = get_db().run_annual_close(
             year=body.year,
             group_id=body.group_id,
             carry_forward_days=body.max_carry_forward_days or 10,
+            keep_entitlements=body.keep_entitlements,
         )
         return {"ok": True, **result}
     except Exception as e:
