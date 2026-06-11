@@ -5,6 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Docker builds install the library from PyPI by default
+  (`libopenschichtplaner5[postgres]==1.7.0`, pinned); building against the
+  development state remains possible via the `LIB_SOURCE` build argument.
+- Tests resolve their data directory uniformly via `SP5_REAL_DB`, falling back
+  to the bundled `tests/fixtures/` database.
+
+### Documentation
+
+- Standalone Docker operation (single container, DBF directory mounted to
+  `/app/data`, configuration via `.env`) is documented in the README; PyPI is
+  the recommended installation path.
+- README slimmed down to the essentials; detailed guides (endpoints,
+  permissions, environment reference) move to the
+  [project wiki](https://github.com/mschabhuettl/openschichtplaner5-api/wiki).
+- `docs/architecture.md` updated to the 1.2.0 state (route inventory,
+  permission enforcement, current verification figures).
+
 ## [1.2.0] - 2026-06-11
 
 Parity pass against the original Schichtplaner5 (spec chapter 3/9) plus the
@@ -41,6 +62,15 @@ calculation facade — the API no longer carries its own arithmetic.
   (`POST/PUT/DELETE /api/einsatzplan*`, deviation) and the booking writes
   (`POST/DELETE /api/bookings*`) — for ID-based updates/deletes the date of
   the stored record counts.
+- Production multi-stage Docker image (slim runtime, non-root user,
+  `HEALTHCHECK` on `/api/health`) plus a `docker-compose.yml` for local
+  operation.
+
+### Changed
+
+- The minimum required library version is
+  `libopenschichtplaner5[postgres]>=1.7.0` — the release that introduces the
+  calculation facade this version delegates to.
 
 ### Fixed
 
@@ -68,6 +98,8 @@ calculation facade — the API no longer carries its own arithmetic.
   `STARTEND0` instead of the nonexistent `FROM0` field.
 - iCal feeds use the holiday time slot `STARTEND7` on holidays.
 - `/api/admin/compact` delegates to `SP5Database.compact_database`.
+- `/api/health` and `/api/version` report the real installed package version
+  (`importlib.metadata`) instead of a hard-coded `1.0.0`.
 
 ### Deprecated
 

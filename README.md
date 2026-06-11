@@ -18,6 +18,11 @@ calculation facade — the API carries no arithmetic of its own.
 > package is **`sp5api`** (mirroring `libopenschichtplaner5` → `sp5lib`).
 > It was extracted from the main app's `backend/api/` with full git history.
 
+📖 **Detailed documentation lives in the
+[project wiki](https://github.com/mschabhuettl/openschichtplaner5-api/wiki)** —
+endpoint overview, auth & permissions, full environment reference, deployment
+guides. Architecture notes are in [docs/architecture.md](docs/architecture.md).
+
 ## What's inside
 
 | Module | Purpose |
@@ -31,22 +36,22 @@ calculation facade — the API carries no arithmetic of its own.
 ## Permissions
 
 Roles (`Leser` < `Planer` < `Admin`) gate read/write access; on top of that the
-granular **5USER rights of the original (spec 9.6)** are enforced per write
-route and exposed as a `permissions` object on `GET /api/auth/me`:
-`WDUTIES` (schedule writes), `WABSENCES`, `WOVERTIMES` (hour bookings),
-`WNOTES`, `WDEVIATION`, `WCYCLEASS`, `WSWAPONLY` (duty swap), `ADDEMPL`
-(opt-in employee creation) and `WPAST` — `WPAST=0` blocks every write with a
-date in the past, including the bulk routes (`/api/schedule/bulk`,
-`/bulk-group`, `/copy-week`, `/swap`), Einsatzplan and booking writes (for
-ID-based updates/deletes the stored record's date counts). The built-in
-`Admin` account and the last remaining administrator cannot be demoted or
-deleted.
+granular **5USER rights of the original** (`WDUTIES`, `WABSENCES`, `WOVERTIMES`,
+`WNOTES`, `WDEVIATION`, `WCYCLEASS`, `WSWAPONLY`, `ADDEMPL`, `WPAST`) are
+enforced per write route and exposed as a `permissions` object on
+`GET /api/auth/me`; `WPAST=0` blocks every write with a date in the past, bulk
+routes included. The built-in `Admin` account and the last remaining
+administrator cannot be demoted or deleted. Full details:
+[wiki → Auth & Permissions](https://github.com/mschabhuettl/openschichtplaner5-api/wiki).
 
 ## Installation
 
 ```bash
 pip install openschichtplaner5-api
 ```
+
+Prefer containers? See [Docker](#docker) below — the image runs standalone
+without a local Python environment.
 
 ## Running
 
@@ -59,15 +64,14 @@ SP5_DB_PATH=/path/to/SP5/Daten python -m uvicorn sp5api.main:app --host 0.0.0.0 
 | Variable | Default | Purpose |
 |---|---|---|
 | `SP5_DB_PATH` | *(set it!)* | Directory with the Schichtplaner5 `.DBF` files |
-| `SP5_BACKEND_DIR` | package parent dir | Host-app resource root: `<dir>/data`, `<dir>/api/data`, `<dir>/api/uploads`, alembic config. Shared contract with `sp5lib` — set it in installed deployments |
-| `SP5_FRONTEND_DIST` | `<SP5_BACKEND_DIR>/../frontend/dist` | Built SPA to serve at `/` (skipped if absent → API-only mode) |
-| `SP5_JWT_SECRET` / `SECRET_KEY` | random per process | JWT signing secret |
-| `SP5_DEV_MODE` | off | Dev bypass token — never in production |
-| `ALLOWED_ORIGINS` | localhost:5173/8000 | CORS origins (comma-separated) |
+| `SP5_JWT_SECRET` / `SECRET_KEY` | random per process | JWT signing secret — set it in production |
+| `SP5_BACKEND_DIR` | package parent dir | Resource root (`data/`, `api/data/`, uploads), shared contract with `sp5lib` — set it in installed deployments |
 | `DB_BACKEND` / `DATABASE_URL` | `dbf` | Switch to the PostgreSQL mirror (via `sp5lib`) |
 
-The full list (rate limits, brute-force lockout, SMTP, logging, password policy …) is
-documented in the main app's [`.env.example`](https://github.com/mschabhuettl/openschichtplaner5/blob/main/.env.example).
+Everything else (SPA serving, CORS, rate limits, brute-force lockout, SMTP,
+logging, password policy …) is covered by the
+[wiki → environment reference](https://github.com/mschabhuettl/openschichtplaner5-api/wiki)
+and the main app's [`.env.example`](https://github.com/mschabhuettl/openschichtplaner5/blob/main/.env.example).
 
 ### Docker
 
