@@ -3,7 +3,7 @@
 import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .._paths import backend_dir
@@ -11,6 +11,7 @@ from ..dependencies import (
     _sanitize_500,
     enforce_wpast,
     get_db,
+    limiter,
     require_admin,
     require_planer,
     require_role,
@@ -478,7 +479,10 @@ class LeaveForfeitBody(BaseModel):
         "Requires Admin role."
     ),
 )
-def forfeit_leave_rest(body: LeaveForfeitBody, _cur_user: dict = Depends(require_admin)):
+@limiter.limit("5/minute")
+def forfeit_leave_rest(
+    request: Request, body: LeaveForfeitBody, _cur_user: dict = Depends(require_admin)
+):
     try:
         result = get_db().forfeit_rest(
             cutoff_date=body.cutoff_date,

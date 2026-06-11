@@ -138,7 +138,9 @@ def get_statistics(
         "**Required role:** Leser"
     ),
 )
+@limiter.limit("10/minute")
 def get_personnel_table(
+    request: Request,
     date_from: str = Query(..., alias="from", description="Start (YYYY-MM-DD)"),
     date_to: str = Query(..., alias="to", description="Ende (YYYY-MM-DD)"),
     group_id: int | None = Query(None, description="Filter by group ID"),
