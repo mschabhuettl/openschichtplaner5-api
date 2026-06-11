@@ -968,6 +968,8 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_writ
     If shift_id is null the entry is deleted; otherwise created or overwritten."""
     from datetime import datetime as _dt2
 
+    enforce_wpast(_cur_user, *(entry.date for entry in body.entries))
+
     created = 0
     updated = 0
     deleted = 0
@@ -1031,6 +1033,8 @@ def bulk_group_assign(body: BulkGroupAssignBody, _cur_user: dict = Depends(requi
     """Assign one shift to a group of employees across a date range."""
     from datetime import datetime as _dt3
     from datetime import timedelta
+
+    enforce_wpast(_cur_user, body.date_from)
 
     if not body.group_id and not body.employee_ids:
         raise HTTPException(status_code=400, detail="group_id oder employee_ids muss angegeben werden")
@@ -1106,6 +1110,14 @@ def bulk_group_assign(body: BulkGroupAssignBody, _cur_user: dict = Depends(requi
 # ── Einsatzplan Write (SPSHI) ────────────────────────────────
 
 
+def _spshi_entry_date(db, entry_id: int) -> str | None:
+    """DATE eines bestehenden SPSHI-Satzes (für den WPAST-Check), sonst None."""
+    for r in db._read("SPSHI"):
+        if r.get("ID") == entry_id:
+            return r.get("DATE")
+    return None
+
+
 class EinsatzplanCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
@@ -1161,6 +1173,7 @@ def create_einsatzplan_entry(
             status_code=400,
             detail="Invalid date format, please use YYYY-MM-DD",
         )
+    enforce_wpast(_cur_user, body.date)
     db = get_db()
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(
@@ -1198,6 +1211,8 @@ def update_einsatzplan_entry(
     entry_id: int, body: EinsatzplanUpdate, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
     """Update an existing SPSHI entry."""
+    db = get_db()
+    enforce_wpast(_cur_user, _spshi_entry_date(db, entry_id))
     data = {k: v for k, v in body.model_dump().items() if v is not None}
     # Map frontend keys to DBF field names
     key_map = {
@@ -1213,7 +1228,7 @@ def update_einsatzplan_entry(
     }
     mapped = {key_map.get(k, k.upper()): v for k, v in data.items()}
     try:
-        result = get_db().update_spshi_entry(entry_id, mapped)
+        result = db.update_spshi_entry(entry_id, mapped)
         return {"ok": True, "record": result}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -1229,8 +1244,10 @@ def update_einsatzplan_entry(
 )
 def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_write("WDUTIES"))):
     """Delete a SPSHI entry by ID."""
+    db = get_db()
+    enforce_wpast(_cur_user, _spshi_entry_date(db, entry_id))
     try:
-        count = get_db().delete_spshi_entry_by_id(entry_id)
+        count = db.delete_spshi_entry_by_id(entry_id)
         if count == 0:
             raise HTTPException(status_code=404, detail="SPSHI entry not found")
         return {"ok": True, "deleted": entry_id}
@@ -1257,6 +1274,7 @@ def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_wr
             status_code=400,
             detail="Invalid date format, please use YYYY-MM-DD",
         )
+    enforce_wpast(_cur_user, body.date)
     db = get_db()
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(
@@ -1379,6 +1397,8 @@ def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_write
     """Swap schedule entries (shifts + absences) between two employees for the given dates."""
     from datetime import datetime as _dt3
 
+    enforce_wpast(_cur_user, *body.dates)
+
     from sp5lib.dbf_reader import get_table_fields
     from sp5lib.dbf_writer import find_all_records
 
@@ -1498,6 +1518,7 @@ class CopyWeekRequest(BaseModel):
 )
 def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_write("WDUTIES"))):
     """Copy one employee's schedule entries (shifts + absences) for given dates to one or more target employees."""
+    enforce_wpast(_cur_user, *body.dates)
     db = get_db()
     if not body.dates or not body.target_employee_ids:
         raise HTTPException(

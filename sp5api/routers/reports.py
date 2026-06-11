@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from ..dependencies import (
     _sanitize_500,
+    enforce_wpast,
     get_db,
     limiter,
     require_admin,
@@ -2009,6 +2010,7 @@ def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_write(
         )
     if body.type not in (0, 1):
         raise HTTPException(status_code=400, detail="type must be 0 (Ist) or 1 (Soll)")
+    enforce_wpast(_cur_user, body.date)
     try:
         result = get_db().create_booking(
             employee_id=body.employee_id,
@@ -2033,8 +2035,14 @@ def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_write(
     },
 )
 def delete_booking(booking_id: int, _cur_user: dict = Depends(require_write("WOVERTIMES"))):
+    db = get_db()
+    # WPAST: das Datum des bestehenden Buchungssatzes zählt
+    booking_date = next(
+        (r.get("DATE") for r in db._read("BOOK") if r.get("ID") == booking_id), None
+    )
+    enforce_wpast(_cur_user, booking_date)
     try:
-        count = get_db().delete_booking(booking_id)
+        count = db.delete_booking(booking_id)
         if count == 0:
             raise HTTPException(status_code=404, detail="Buchung nicht gefunden")
         return {"ok": True, "deleted": booking_id}

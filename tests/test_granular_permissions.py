@@ -333,6 +333,115 @@ class TestWpastEnforcement:
         finally:
             _sessions.pop(tok, None)
 
+    def test_wpast_false_blocks_bulk_routes(self, client):
+        """Sammelrouten prüfen WPAST je Eintrags-Datum (Phase 6)."""
+        from sp5api.main import _sessions
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        tok = _inject(WPAST=False)
+        try:
+            for url, body in [
+                ("/api/schedule/bulk",
+                 # ein zulässiger + ein Vergangenheits-Eintrag → kompletter 403
+                 {"entries": [
+                     {"employee_id": 40, "date": tomorrow, "shift_id": 1},
+                     {"employee_id": 40, "date": yesterday, "shift_id": 1},
+                 ]}),
+                ("/api/schedule/bulk-group",
+                 {"employee_ids": [40], "shift_id": 1,
+                  "date_from": yesterday, "date_to": tomorrow}),
+                ("/api/schedule/copy-week",
+                 {"source_employee_id": 40, "dates": [yesterday],
+                  "target_employee_ids": [41]}),
+                ("/api/schedule/swap",
+                 {"employee_id_1": 40, "employee_id_2": 41, "dates": [yesterday]}),
+                ("/api/einsatzplan",
+                 {"employee_id": 40, "date": yesterday}),
+                ("/api/einsatzplan/deviation",
+                 {"employee_id": 40, "date": yesterday}),
+                ("/api/bookings",
+                 {"employee_id": 40, "date": yesterday, "type": 0, "value": 1.5}),
+            ]:
+                resp = client.post(url, json=body, headers=_h(tok))
+                assert resp.status_code == 403, f"{url}: {resp.status_code} {resp.text}"
+                assert "WPAST" in resp.text, url
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_wpast_false_blocks_writes_on_past_records(self, client):
+        """Update/Delete per ID: das Datum des bestehenden Satzes zählt."""
+        from sp5api.main import _sessions
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        priv = _inject(name="wpast_priv")  # ohne Flag → unbeschränkt
+        restricted = _inject(WPAST=False, name="wpast_restricted")
+        try:
+            # Einsatzplan-Eintrag in der Vergangenheit anlegen (unbeschränkt)
+            created = client.post(
+                "/api/einsatzplan",
+                json={"employee_id": 40, "date": yesterday, "name": "WPAST-Test"},
+                headers=_h(priv),
+            )
+            assert created.status_code == 200, created.text
+            spshi_id = created.json()["record"]["ID"]
+
+            resp = client.put(
+                f"/api/einsatzplan/{spshi_id}",
+                json={"name": "geändert"},
+                headers=_h(restricted),
+            )
+            assert resp.status_code == 403 and "WPAST" in resp.text
+            resp = client.delete(f"/api/einsatzplan/{spshi_id}", headers=_h(restricted))
+            assert resp.status_code == 403 and "WPAST" in resp.text
+            # Aufräumen (unbeschränkt)
+            assert client.delete(
+                f"/api/einsatzplan/{spshi_id}", headers=_h(priv)
+            ).status_code == 200
+
+            # Buchung in der Vergangenheit anlegen (unbeschränkt)
+            created = client.post(
+                "/api/bookings",
+                json={"employee_id": 40, "date": yesterday, "type": 0, "value": 1.0},
+                headers=_h(priv),
+            )
+            assert created.status_code == 200, created.text
+            booking_id = created.json()["record"]["id"]
+
+            resp = client.delete(f"/api/bookings/{booking_id}", headers=_h(restricted))
+            assert resp.status_code == 403 and "WPAST" in resp.text
+            assert client.delete(
+                f"/api/bookings/{booking_id}", headers=_h(priv)
+            ).status_code == 200
+        finally:
+            _sessions.pop(priv, None)
+            _sessions.pop(restricted, None)
+
+    def test_wpast_false_allows_future_bulk_writes(self, client):
+        from sp5api.main import _sessions
+
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+        tok = _inject(WPAST=False)
+        try:
+            shift_id = client.get("/api/shifts", headers=_h(tok)).json()[0]["ID"]
+            resp = client.post(
+                "/api/schedule/bulk",
+                json={"entries": [
+                    {"employee_id": 40, "date": tomorrow, "shift_id": shift_id}
+                ]},
+                headers=_h(tok),
+            )
+            assert resp.status_code == 200, resp.text
+            # Aufräumen über dieselbe Route (Zukunft, erlaubt)
+            resp = client.post(
+                "/api/schedule/bulk",
+                json={"entries": [{"employee_id": 40, "date": tomorrow, "shift_id": None}]},
+                headers=_h(tok),
+            )
+            assert resp.status_code == 200, resp.text
+        finally:
+            _sessions.pop(tok, None)
+
     def test_wpast_false_allows_future_writes(self, client):
         from sp5api.main import _sessions
 
