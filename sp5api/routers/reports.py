@@ -358,6 +358,8 @@ def get_sickness_statistics(
         "- `shift_usage`: per-shift monthly counts and totals\n"
         "- `employee_distribution`: per-employee shift counts by category\n"
         "- `category_totals`: global counts by category (Früh/Spät/Nacht/Sonstige)\n\n"
+        "Die Früh/Spät/Nacht-Kategorisierung (Startstunde aus STARTEND0, "
+        "Namens-Fallback) ist eine api-Erweiterung ohne Original-Pendant.\n\n"
         "**Required role:** Leser"
     ),
 )
@@ -419,18 +421,23 @@ def get_shift_statistics(
             emp_shift_counts[eid][sid] += 1
 
     def categorize_shift(s: dict) -> str:
-        start = s.get("FROM0") or ""
-        if start and isinstance(start, str) and ":" in start:
-            try:
-                hour = int(start.split(":")[0])
-                if 4 <= hour < 11:
-                    return "Früh"
-                elif 11 <= hour < 18:
-                    return "Spät"
-                elif hour >= 18 or hour < 4:
-                    return "Nacht"
-            except ValueError:
-                pass
+        """Früh/Spät/Nacht-Heuristik — api-Erweiterung ohne Original-Pendant
+        (das Original kennt nur Diensttage-Zähler je Tagindex, Spec 3.4.5).
+        Startstunde des ersten STARTEND0-Fensters (das frühere FROM0-Feld
+        existiert in 5SHIFT nicht — Befund D10), sonst Namens-Matching."""
+        from sp5lib import calculations as calc
+
+        windows = [
+            w for w in calc.parse_startend(str(s.get("STARTEND0") or "")) if w != (0, 0)
+        ]
+        if windows:
+            hour = windows[0][0] // 60
+            if 4 <= hour < 11:
+                return "Früh"
+            elif 11 <= hour < 18:
+                return "Spät"
+            else:  # hour >= 18 or hour < 4
+                return "Nacht"
         name = (s.get("NAME", "") or "").upper()
         short = (s.get("SHORTNAME", "") or "").upper()
         if "FRÜH" in name or "FRUH" in name or short in ("F", "FR"):
@@ -3087,17 +3094,28 @@ def get_warnings(
     "/api/fairness",
     tags=["Statistics"],
     summary="Fairness analysis",
-    description="Calculate fairness scores for weekend, night, and holiday shift distribution across employees.",
+    description=(
+        "Calculate fairness scores for weekend, night, sunday and holiday "
+        "duty-day distribution across employees.\n\n"
+        "Gezählt werden Diensttage (Spec 3.4.5 Nr. 14/15): je Tag mit "
+        "mindestens einem Dienst; ein Dienst an einem Sonntag, der zugleich "
+        "Feiertag ist, zählt in `sunday` UND `holiday`. Geplante Dienste an "
+        "Abwesenheitstagen zählen mit. `weekend` (Sa+So) und die "
+        "Nacht-Heuristik (`night`, Startstunde >= 20 oder < 6 aus STARTEND0) "
+        "sind api-Erweiterungen ohne Original-Pendant."
+    ),
 )
 def get_fairness_score(
     year: int = Query(..., description="Year"),
     group_id: int | None = Query(None, description="Filter by group"),
 ):
     """
-    Calculates the fairness score: How evenly are weekend, night
-    und Feiertagsschichten unter den Mitarbeitern verteilt?
+    Calculates the fairness score: How evenly are weekend, night,
+    Sonntags- und Feiertags-Diensttage unter den Mitarbeitern verteilt?
     """
     import math
+
+    from sp5lib import calculations as calc
 
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -3114,17 +3132,13 @@ def get_fairness_score(
             if d:
                 holiday_dates.add(str(d)[:10])
 
-    # Identify "night" shifts: start hour >= 20 or end hour <= 6
+    # api-Erweiterung "Nacht": Start des ersten STARTEND0-Fensters >= 20 / < 6
     def is_night(shift):
-        t = shift.get("STARTEND0", "")
-        if not t or "-" not in t:
+        windows = calc.parse_startend(str(shift.get("STARTEND0") or ""))
+        if not windows:
             return False
-        start = t.split("-")[0].strip()
-        try:
-            h = int(start.split(":")[0])
-            return h >= 20 or h < 6
-        except Exception:
-            return False
+        h = windows[0][0] // 60
+        return h >= 20 or h < 6
 
     night_shift_ids = {sid for sid, s in shifts_map.items() if is_night(s)}
 
@@ -3134,55 +3148,43 @@ def get_fairness_score(
         entries = db.get_schedule(year=year, month=month, group_id=group_id)
         all_entries.extend(entries)
 
-    # Build per-employee absence date sets to exclude absence days from shift counts
-    # (planned shifts on sick/absence days must not count as worked shifts for fairness)
-    emp_absence_dates: dict[int, set] = {}
-    for entry in all_entries:
-        if entry.get("kind") == "absence":
-            eid = entry.get("employee_id")
-            if eid is not None:
-                emp_absence_dates.setdefault(eid, set()).add(
-                    str(entry.get("date", ""))[:10]
-                )
-
-    # Count per employee
-    stats: dict[int, dict] = {}
-    for emp in employees:
-        eid = emp["ID"]
-        stats[eid] = {
-            "employee_id": eid,
-            "name": f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip(),
-            "shortname": emp.get("SHORTNAME", ""),
-            "total": 0,
-            "weekend": 0,
-            "night": 0,
-            "holiday": 0,
-        }
-
+    # Diensttage je MA sammeln (Spec 3.4.5: Tage, nicht Einträge; Dienste an
+    # Abwesenheitstagen zählen mit — keine Absence-Unterdrückung, Befund D10)
+    emp_duty_days: dict[int, set] = {}
+    emp_night_days: dict[int, set] = {}
+    known_ids = {emp["ID"] for emp in employees}
     for entry in all_entries:
         eid = entry.get("employee_id")
-        if eid not in stats:
+        if eid not in known_ids:
             continue
-        if entry.get("kind") != "shift":
-            continue
-        # Skip: employee is absent on this day — don't count planned shift
-        date_str_check = str(entry.get("date", ""))[:10]
-        if date_str_check in emp_absence_dates.get(eid, set()):
+        if entry.get("kind") not in ("shift", "special_shift"):
             continue
         date_str = str(entry.get("date", ""))[:10]
         try:
             d = date.fromisoformat(date_str)
         except Exception:
             continue
-        weekday = d.weekday()  # 0=Mo … 6=So
-        stats[eid]["total"] += 1
-        if weekday >= 5:
-            stats[eid]["weekend"] += 1
-        shift_id = entry.get("shift_id")
-        if shift_id in night_shift_ids:
-            stats[eid]["night"] += 1
-        if date_str in holiday_dates:
-            stats[eid]["holiday"] += 1
+        emp_duty_days.setdefault(eid, set()).add(d)
+        if entry.get("shift_id") in night_shift_ids:
+            emp_night_days.setdefault(eid, set()).add(d)
+
+    # Count per employee
+    stats: dict[int, dict] = {}
+    for emp in employees:
+        eid = emp["ID"]
+        duty_days = emp_duty_days.get(eid, set())
+        stats[eid] = {
+            "employee_id": eid,
+            "name": f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip(),
+            "shortname": emp.get("SHORTNAME", ""),
+            "total": len(duty_days),
+            "weekend": sum(1 for d in duty_days if d.weekday() >= 5),
+            "night": len(emp_night_days.get(eid, set())),
+            # Original-Zähler (3.4.5 Nr. 15): So-Dienst an einem Feiertag
+            # zählt in Sonntag UND Feiertag
+            "sunday": sum(1 for d in duty_days if d.weekday() == 6),
+            "holiday": sum(1 for d in duty_days if d.isoformat() in holiday_dates),
+        }
 
     result = [v for v in stats.values() if v["total"] > 0]
     if not result:
