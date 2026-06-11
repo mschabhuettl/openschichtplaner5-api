@@ -98,7 +98,8 @@ def get_staffing_requirements(
 
 class StaffingRequirementSet(BaseModel):
     shift_id: int = Field(..., gt=0)
-    weekday: int = Field(..., ge=0, le=6)
+    # Tagindex nach Spec D-34: 0=Montag … 6=Sonntag, 7=Feiertag
+    weekday: int = Field(..., ge=0, le=7)
     min: int = Field(..., ge=0, le=1000)
     max: int = Field(..., ge=0, le=1000)
     group_id: int = Field(..., gt=0)
@@ -156,6 +157,8 @@ class ShiftCreate(BaseModel):
     STARTEND5: str | None = None
     STARTEND6: str | None = None
     STARTEND7: str | None = None
+    # R5.5-15: keine Arbeitszeitzuschläge berechnen (5SHIFT.NOEXTRA)
+    NOEXTRA: bool = False
     HIDE: bool = False
 
 
@@ -173,15 +176,18 @@ class ShiftUpdate(BaseModel):
     DURATION5: float | None = Field(None, ge=0.0, le=24.0)
     DURATION6: float | None = Field(None, ge=0.0, le=24.0)
     DURATION7: float | None = Field(None, ge=0.0, le=24.0)
-    STARTEND0: str | None = Field(None, max_length=20)
-    STARTEND1: str | None = Field(None, max_length=20)
-    STARTEND2: str | None = Field(None, max_length=20)
-    STARTEND3: str | None = Field(None, max_length=20)
-    STARTEND4: str | None = Field(None, max_length=20)
-    STARTEND5: str | None = Field(None, max_length=20)
-    STARTEND6: str | None = Field(None, max_length=20)
-    STARTEND7: str | None = Field(None, max_length=20)
+    # D-31: bis zu 3 Zeiträume "HH:MM-HH:MM ..." je Tagestyp → DBF-Feld C 36
+    STARTEND0: str | None = Field(None, max_length=36)
+    STARTEND1: str | None = Field(None, max_length=36)
+    STARTEND2: str | None = Field(None, max_length=36)
+    STARTEND3: str | None = Field(None, max_length=36)
+    STARTEND4: str | None = Field(None, max_length=36)
+    STARTEND5: str | None = Field(None, max_length=36)
+    STARTEND6: str | None = Field(None, max_length=36)
+    STARTEND7: str | None = Field(None, max_length=36)
     POSITION: int | None = None
+    # R5.5-15: keine Arbeitszeitzuschläge berechnen (5SHIFT.NOEXTRA)
+    NOEXTRA: bool | None = None
     HIDE: bool | None = None
 
 
