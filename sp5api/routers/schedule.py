@@ -514,51 +514,31 @@ class ScheduleEntryCreate(BaseModel):
         return v
 
 
-def _parse_time_range(startend: str):
-    """Parse a 'HH:MM-HH:MM' string into (start_minutes, end_minutes) from midnight.
+def _startend_windows(value: str) -> list[tuple[int, int]]:
+    """Parse a STARTEND string into (start_min, end_min) windows via calc.
 
-    Returns None if the string cannot be parsed.
-    Handles overnight shifts where end < start by adding 24h to end.
+    Bis zu drei Teilfenster (Spec 3.8.3 Nr. 10); Tageswechsel-Konvention
+    D-30: Ende <= Start ⇒ +24h. Leere/unlesbare Werte und Null-Fenster
+    (00:00-00:00 = nicht definiert) liefern keine Fenster.
     """
-    if not startend or "-" not in startend:
-        return None
-    parts = startend.strip().split("-")
-    if len(parts) != 2:
-        return None
-    try:
-        sh, sm = parts[0].strip().split(":")
-        eh, em = parts[1].strip().split(":")
-        start_min = int(sh) * 60 + int(sm)
-        end_min = int(eh) * 60 + int(em)
-        if end_min <= start_min:
-            end_min += 24 * 60  # overnight shift
-        return (start_min, end_min)
-    except (ValueError, IndexError):
-        return None
+    from sp5lib import calculations as calc
+
+    windows = calc.parse_startend(str(value or ""))
+    return [(s, e if e > s else e + 1440) for s, e in windows if (s, e) != (0, 0)]
 
 
-def _times_overlap(range_a, range_b) -> bool:
-    """Check if two (start_min, end_min) ranges overlap."""
-    if range_a is None or range_b is None:
-        return False
-    return range_a[0] < range_b[1] and range_b[0] < range_a[1]
+def _shift_time_windows(shift: dict, day_idx: int) -> list[tuple[int, int]]:
+    """Zeitfenster eines Dienstes am Tagindex (0=Mo..6=So, 7=Ft, D-34).
 
-
-def _get_shift_time_range(shift: dict, weekday_index: int):
-    """Get the time range for a shift on a specific weekday (0=Mon..6=Sun).
-
-    Falls back to STARTEND0 if the weekday-specific field is empty.
+    Leerer Tagesslot = keine Zeiten definiert (Spec 3.4.3 Nr. 6) —
+    kein Fallback auf STARTEND0 (Befund D9).
     """
-    # Try weekday-specific time first
-    key = f"STARTEND{weekday_index}"
-    val = (shift.get(key, "") or "").strip()
-    if val and "-" in val:
-        result = _parse_time_range(val)
-        if result:
-            return result
-    # Fall back to STARTEND0 (Monday / default)
-    val0 = (shift.get("STARTEND0", "") or "").strip()
-    return _parse_time_range(val0)
+    return _startend_windows(shift.get(f"STARTEND{day_idx}", ""))
+
+
+def _windows_overlap(a: list[tuple[int, int]], b: list[tuple[int, int]]) -> bool:
+    """True if any window pair of the two lists overlaps."""
+    return any(x[0] < y[1] and y[0] < x[1] for x in a for y in b)
 
 
 @router.post(
@@ -589,9 +569,15 @@ def create_schedule_entry(
             status_code=404, detail=f"Schicht {body.shift_id} nicht gefunden"
         )
 
+    from sp5lib import calculations as calc
+
     entry_date = _date.fromisoformat(body.date)
-    iso_wd = entry_date.isoweekday()  # 1=Mon, 7=Sun
-    weekday_index = iso_wd - 1  # 0=Mon, 6=Sun (for STARTEND0..STARTEND6)
+    iso_wd = entry_date.isoweekday()  # 1=Mon, 7=Sun (RESTR check below)
+    # Tagindex für STARTEND-Lookups: 7 an Feiertagen (D-34), sonst 0=Mo..6=So
+    try:
+        day_idx = calc.day_index(entry_date, calc.holiday_calendar(db._read("HOLID")))
+    except Exception:
+        day_idx = entry_date.weekday()
 
     # ── Conflict Check 1: Duplicate assignment (same employee + same shift + same date) ──
     try:
@@ -620,15 +606,15 @@ def create_schedule_entry(
 
     # ── Conflict Check 2: Overlapping shifts (time-based) ──
     try:
-        new_time_range = _get_shift_time_range(new_shift, weekday_index)
-        if new_time_range and existing_entries:
+        new_windows = _shift_time_windows(new_shift, day_idx)
+        if new_windows and existing_entries:
             for _, rec in existing_entries:
                 existing_shift_id = rec.get("SHIFTID")
                 if existing_shift_id:
                     existing_shift = db.get_shift(existing_shift_id)
                     if existing_shift:
-                        existing_range = _get_shift_time_range(existing_shift, weekday_index)
-                        if _times_overlap(new_time_range, existing_range):
+                        existing_windows = _shift_time_windows(existing_shift, day_idx)
+                        if _windows_overlap(new_windows, existing_windows):
                             raise HTTPException(
                                 status_code=409,
                                 detail={
@@ -650,11 +636,10 @@ def create_schedule_entry(
         spshi_entries = find_all_records(
             spshi_path, spshi_fields, EMPLOYEEID=body.employee_id, DATE=body.date
         )
-        if new_time_range and spshi_entries:
+        if new_windows and spshi_entries:
             for _, rec in spshi_entries:
-                spshi_startend = (rec.get("STARTEND", "") or "").strip()
-                spshi_range = _parse_time_range(spshi_startend)
-                if _times_overlap(new_time_range, spshi_range):
+                spshi_windows = _startend_windows(rec.get("STARTEND", ""))
+                if _windows_overlap(new_windows, spshi_windows):
                     spshi_name = rec.get("NAME", "Sonderdienst")
                     raise HTTPException(
                         status_code=409,

@@ -10,26 +10,32 @@ import sp5api.routers.conflict_report as cr
 
 
 class TestTimeHelpers:
-    def test_parse_time_str(self):
-        assert cr._parse_time_str("06:30") == 390
-        assert cr._parse_time_str("") is None
-        assert cr._parse_time_str("not-a-time") is None
+    """STARTEND-Parsing über calc statt privatem Einzelfenster-Parser (D9)."""
 
-    def test_parse_startend(self):
-        assert cr._parse_startend("06:00-14:00") == (360, 840)
-        assert cr._parse_startend("no-dash-here") is None
-        assert cr._parse_startend("06:00-bad") is None
-        # overnight wraps past midnight
-        assert cr._parse_startend("22:00-06:00") == (1320, 1800)
+    def test_multi_window(self):
+        # bis zu drei Teilfenster (3.8.3 Nr. 10)
+        shift = {"STARTEND0": "06:00-10:00 12:00-16:00"}
+        assert cr._shift_time_windows(shift, 0) == [(360, 600), (720, 960)]
 
-    def test_shift_time_range(self):
-        # weekday-specific key wins
-        shift = {"STARTEND0": "06:00-14:00", "STARTEND2": "13:00-21:00"}
-        assert cr._shift_time_range(shift, 2) == (780, 1260)
-        # falls back to STARTEND0 when the weekday key is empty
-        assert cr._shift_time_range({"STARTEND0": "06:00-14:00"}, 3) == (360, 840)
-        # no usable time data → None
-        assert cr._shift_time_range({}, 0) is None
+    def test_overnight_wraps(self):
+        # Tageswechsel-Konvention D-30: Ende <= Start ⇒ +24h
+        assert cr._shift_time_windows({"STARTEND2": "22:00-06:00"}, 2) == [(1320, 1800)]
+
+    def test_no_fallback_to_startend0(self):
+        # leerer Tagesslot = keine Zeiten definiert (3.4.3 Nr. 6) — kein Fallback
+        assert cr._shift_time_windows({"STARTEND0": "06:00-14:00"}, 3) == []
+
+    def test_holiday_index_7(self):
+        shift = {"STARTEND0": "06:00-14:00", "STARTEND7": "08:00-12:00"}
+        assert cr._shift_time_windows(shift, 7) == [(480, 720)]
+
+    def test_no_time_data(self):
+        assert cr._shift_time_windows({}, 0) == []
+
+    def test_windows_overlap(self):
+        assert cr._windows_overlap([(360, 600)], [(540, 720)]) is True
+        assert cr._windows_overlap([(360, 600), (720, 960)], [(600, 720)]) is False
+        assert cr._windows_overlap([], [(540, 720)]) is False
 
 
 class _FakeDB:
@@ -149,6 +155,63 @@ class TestDetectConflicts:
         # Only employee 1 (the member) yields a conflict, on the invalid date
         assert all(c["employee_id"] == 1 for c in conflicts if c["type"] != "understaffed")
         assert any(c["date"] == "2026-02-30" and c["type"] == "double_booked" for c in conflicts)
+
+    def test_holiday_uses_index_7(self):
+        """Am Feiertag zählen die STARTEND7-Zeiten (D-34), nicht der Wochentagsslot."""
+        employees = [{"ID": 1, "FIRSTNAME": "Anna", "NAME": "Berg"}]
+        shifts = [
+            # Mittwochs disjunkt, am Feiertag identisch
+            {"ID": 1, "NAME": "A", "STARTEND2": "06:00-14:00", "STARTEND7": "08:00-16:00"},
+            {"ID": 2, "NAME": "B", "STARTEND2": "14:00-22:00", "STARTEND7": "08:00-16:00"},
+        ]
+        mashi = [
+            {"EMPLOYEEID": 1, "DATE": "2026-03-04", "SHIFTID": 1},  # Mittwoch
+            {"EMPLOYEEID": 1, "DATE": "2026-03-04", "SHIFTID": 2},
+        ]
+
+        def _db(holid):
+            return _FakeDB(
+                {"MASHI": mashi, "SPSHI": [], "HOLID": holid},
+                employees, shifts, [{"ID": 10, "NAME": "Team"}], {10: [1]},
+            )
+
+        # Ohne Feiertag: disjunkte Fenster → kein Zeitkonflikt
+        no_hol = cr._detect_conflicts(_db([]), date(2026, 3, 1), date(2026, 3, 31), None)
+        assert not [c for c in no_hol if c["type"] in ("overlap", "double_booked")]
+
+        # Mit Feiertag: STARTEND7 identisch → double_booked
+        hol = cr._detect_conflicts(
+            _db([{"DATE": "2026-03-04", "INTERVAL": 0}]),
+            date(2026, 3, 1), date(2026, 3, 31), None,
+        )
+        assert any(c["type"] == "double_booked" for c in hol)
+
+    def test_multi_window_shifts_compared_per_window(self):
+        """Mehrteilige Dienste: Vergleich je Teilfenster statt Parser-Ausfall."""
+        employees = [{"ID": 1, "FIRSTNAME": "Anna", "NAME": "Berg"}]
+        shifts = [
+            {"ID": 1, "NAME": "Geteilt", "STARTEND0": "06:00-10:00 12:00-16:00"},
+            {"ID": 2, "NAME": "Mittag", "STARTEND0": "10:00-12:00"},
+            {"ID": 3, "NAME": "Vormittag", "STARTEND0": "09:00-11:00"},
+        ]
+
+        def _db(other_sid):
+            mashi = [
+                {"EMPLOYEEID": 1, "DATE": "2026-03-02", "SHIFTID": 1},  # Montag
+                {"EMPLOYEEID": 1, "DATE": "2026-03-02", "SHIFTID": other_sid},
+            ]
+            return _FakeDB(
+                {"MASHI": mashi, "SPSHI": []},
+                employees, shifts, [{"ID": 10, "NAME": "Team"}], {10: [1]},
+            )
+
+        # Lückendienst passt exakt zwischen die Teilfenster → kein Konflikt
+        fits = cr._detect_conflicts(_db(2), date(2026, 3, 1), date(2026, 3, 31), None)
+        assert not [c for c in fits if c["type"] in ("overlap", "double_booked")]
+
+        # Überschneidung mit dem ersten Teilfenster → overlap
+        clash = cr._detect_conflicts(_db(3), date(2026, 3, 1), date(2026, 3, 31), None)
+        assert any(c["type"] == "overlap" for c in clash)
 
     def test_tolerates_spshi_read_error(self):
         class _BoomSPSHI(_FakeDB):

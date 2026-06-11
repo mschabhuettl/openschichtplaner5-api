@@ -29,51 +29,23 @@ router = APIRouter()
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 
-def _parse_time_str(t: str) -> int | None:
-    """Parse 'HH:MM' → minutes from midnight.  Returns None on failure."""
-    if not t:
-        return None
-    try:
-        h, m = t.strip().split(":")
-        return int(h) * 60 + int(m)
-    except (ValueError, AttributeError):
-        return None
+def _shift_time_windows(shift: dict, day_idx: int) -> list[tuple[int, int]]:
+    """Zeitfenster eines Dienstes am Tagindex (0=Mo..6=So, 7=Ft, D-34).
 
-
-def _parse_startend(startend: str) -> tuple[int, int] | None:
-    """Parse 'HH:MM-HH:MM' → (start_min, end_min).
-
-    Returns None if unparseable.  Handles overnight shifts.
+    Dedupliziertes STARTEND-Parsing über calc (Befund D9): bis zu drei
+    Teilfenster (Spec 3.8.3 Nr. 10), Tageswechsel-Konvention D-30
+    (Ende <= Start ⇒ +24h). Leerer Tagesslot = keine Zeiten definiert
+    (3.4.3 Nr. 6) — kein Fallback auf STARTEND0.
     """
-    if not startend or "-" not in startend:
-        return None
-    parts = startend.strip().split("-", 1)
-    if len(parts) != 2:
-        return None
-    start = _parse_time_str(parts[0])
-    end = _parse_time_str(parts[1])
-    if start is None or end is None:
-        return None
-    if end <= start:
-        end += 24 * 60  # overnight
-    return (start, end)
+    from sp5lib import calculations as calc
+
+    windows = calc.parse_startend(str(shift.get(f"STARTEND{day_idx}") or ""))
+    return [(s, e if e > s else e + 1440) for s, e in windows if (s, e) != (0, 0)]
 
 
-def _ranges_overlap(a: tuple[int, int], b: tuple[int, int]) -> bool:
-    return a[0] < b[1] and b[0] < a[1]
-
-
-def _shift_time_range(shift: dict, weekday: int) -> tuple[int, int] | None:
-    """Return (start_min, end_min) for a shift on a given weekday (0=Mon)."""
-    key = f"STARTEND{weekday}"
-    val = (shift.get(key) or "").strip()
-    if val and "-" in val:
-        r = _parse_startend(val)
-        if r:
-            return r
-    # fallback to STARTEND0
-    val0 = (shift.get("STARTEND0") or "").strip()
-    return _parse_startend(val0)
+def _windows_overlap(a: list[tuple[int, int]], b: list[tuple[int, int]]) -> bool:
+    """True if any window pair of the two lists overlaps."""
+    return any(x[0] < y[1] and y[0] < x[1] for x in a for y in b)
 
 
 def _date_range(from_date: date, to_date: date) -> list[date]:
@@ -91,11 +63,17 @@ def _detect_conflicts(
     group_id: int | None,
 ) -> list[dict]:
     """Run all conflict checks and return a list of conflict dicts."""
+    from sp5lib import calculations as calc
+
     conflicts: list[dict] = []
 
     # ── load reference data ──────────────────────────────────────────────────
     employees = {e["ID"]: e for e in db.get_employees(include_hidden=False)}
     shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
+    try:
+        holidays = calc.holiday_calendar(db._read("HOLID"))
+    except Exception:
+        holidays = {}
 
     # group membership filter
     if group_id is not None:
@@ -155,18 +133,18 @@ def _detect_conflicts(
         emp = employees[eid]
         emp_name = f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip()
 
-        # determine weekday for time lookups
+        # determine day index for time lookups (7 on holidays, D-34)
         try:
             d_obj = date.fromisoformat(date_str)
-            wd = d_obj.weekday()  # 0=Mon
+            idx = calc.day_index(d_obj, holidays)
         except ValueError:
-            wd = 0
+            idx = 0
 
-        # build list of (shift_id, time_range_or_None)
+        # build list of (shift_id, time_windows)
         shift_ranges = []
         for sid in shift_ids:
             s = shifts_map.get(sid)
-            tr = _shift_time_range(s, wd) if s else None
+            tr = _shift_time_windows(s, idx) if s else []
             shift_ranges.append((sid, tr))
 
         # pairwise checks
@@ -186,9 +164,9 @@ def _detect_conflicts(
                             report_gid = gid
                             break
 
-                if range_a is not None and range_b is not None:
-                    if range_a[0] == range_b[0] and range_a[1] == range_b[1]:
-                        # Identical time range = double_booked
+                if range_a and range_b:
+                    if sorted(range_a) == sorted(range_b):
+                        # Identical time windows = double_booked
                         conflicts.append({
                             "type": "double_booked",
                             "date": date_str,
@@ -201,7 +179,7 @@ def _detect_conflicts(
                             ),
                             "severity": "error",
                         })
-                    elif _ranges_overlap(range_a, range_b):
+                    elif _windows_overlap(range_a, range_b):
                         conflicts.append({
                             "type": "overlap",
                             "date": date_str,

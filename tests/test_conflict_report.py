@@ -281,27 +281,27 @@ class TestDoubleBooingDetection:
 
     def test_double_booked_has_error_severity(self, tmp_db):
         """double_booked conflicts must have severity='error'."""
-        from sp5api.routers.conflict_report import _ranges_overlap
+        from sp5api.routers.conflict_report import _windows_overlap
 
-        # Create a synthetic double_booked scenario by checking _ranges_overlap
-        # with identical ranges
-        r1 = (360, 840)  # 06:00-14:00
-        r2 = (360, 840)  # 06:00-14:00 — same → same time
-        assert _ranges_overlap(r1, r2) is True
+        # Create a synthetic double_booked scenario by checking _windows_overlap
+        # with identical window lists
+        r1 = [(360, 840)]  # 06:00-14:00
+        r2 = [(360, 840)]  # 06:00-14:00 — same → same time
+        assert _windows_overlap(r1, r2) is True
 
     def test_overlapping_ranges_detected(self):
         """Two overlapping time ranges are detected."""
-        from sp5api.routers.conflict_report import _ranges_overlap
-        r1 = (360, 840)   # 06:00-14:00
-        r2 = (600, 1080)  # 10:00-18:00
-        assert _ranges_overlap(r1, r2) is True
+        from sp5api.routers.conflict_report import _windows_overlap
+        r1 = [(360, 840)]   # 06:00-14:00
+        r2 = [(600, 1080)]  # 10:00-18:00
+        assert _windows_overlap(r1, r2) is True
 
     def test_non_overlapping_ranges(self):
         """Adjacent (touching) ranges do NOT overlap."""
-        from sp5api.routers.conflict_report import _ranges_overlap
-        r1 = (360, 840)   # 06:00-14:00
-        r2 = (840, 1320)  # 14:00-22:00
-        assert _ranges_overlap(r1, r2) is False
+        from sp5api.routers.conflict_report import _windows_overlap
+        r1 = [(360, 840)]   # 06:00-14:00
+        r2 = [(840, 1320)]  # 14:00-22:00
+        assert _windows_overlap(r1, r2) is False
 
 
 class TestUnderstaffedDetection:
@@ -537,48 +537,47 @@ class TestAuth:
 # ─────────────────────────────────────────────────────────────
 
 
-class TestParseStartend:
+class TestShiftTimeWindows:
     def test_valid_daytime_range(self):
-        from sp5api.routers.conflict_report import _parse_startend
-        result = _parse_startend("06:00-14:00")
-        assert result == (360, 840)
+        from sp5api.routers.conflict_report import _shift_time_windows
+        assert _shift_time_windows({"STARTEND0": "06:00-14:00"}, 0) == [(360, 840)]
 
     def test_overnight_shift(self):
-        from sp5api.routers.conflict_report import _parse_startend
-        result = _parse_startend("22:00-06:00")
-        assert result is not None
-        s, e = result
-        assert s == 1320  # 22*60
-        assert e == 1800  # 30*60 (06:00 + 24h)
+        from sp5api.routers.conflict_report import _shift_time_windows
+        # Tageswechsel-Konvention D-30: Ende <= Start => +24h
+        assert _shift_time_windows({"STARTEND0": "22:00-06:00"}, 0) == [(1320, 1800)]
 
-    def test_invalid_returns_none(self):
-        from sp5api.routers.conflict_report import _parse_startend
-        assert _parse_startend("") is None
-        assert _parse_startend(None) is None
-        assert _parse_startend("not-a-time") is None
-        assert _parse_startend("12:00") is None  # no range separator
+    def test_invalid_returns_empty(self):
+        from sp5api.routers.conflict_report import _shift_time_windows
+        assert _shift_time_windows({"STARTEND0": ""}, 0) == []
+        assert _shift_time_windows({"STARTEND0": None}, 0) == []
+        assert _shift_time_windows({"STARTEND0": "not-a-time"}, 0) == []
+        assert _shift_time_windows({"STARTEND0": "12:00"}, 0) == []  # no range separator
 
-    def test_afternoon_range(self):
-        from sp5api.routers.conflict_report import _parse_startend
-        result = _parse_startend("14:00-22:00")
-        assert result == (840, 1320)
+    def test_multi_window(self):
+        from sp5api.routers.conflict_report import _shift_time_windows
+        # bis zu drei Teilfenster (Spec 3.8.3 Nr. 10)
+        assert _shift_time_windows({"STARTEND0": "06:00-10:00 14:00-22:00"}, 0) == [
+            (360, 600),
+            (840, 1320),
+        ]
 
 
-class TestRangesOverlap:
+class TestWindowsOverlap:
     def test_overlap_yes(self):
-        from sp5api.routers.conflict_report import _ranges_overlap
-        assert _ranges_overlap((360, 840), (600, 1080)) is True
+        from sp5api.routers.conflict_report import _windows_overlap
+        assert _windows_overlap([(360, 840)], [(600, 1080)]) is True
 
     def test_touching_no_overlap(self):
-        from sp5api.routers.conflict_report import _ranges_overlap
+        from sp5api.routers.conflict_report import _windows_overlap
         # touching at 840 — NOT overlapping (open interval)
-        assert _ranges_overlap((360, 840), (840, 1320)) is False
+        assert _windows_overlap([(360, 840)], [(840, 1320)]) is False
 
     def test_no_overlap(self):
-        from sp5api.routers.conflict_report import _ranges_overlap
-        assert _ranges_overlap((360, 600), (700, 900)) is False
+        from sp5api.routers.conflict_report import _windows_overlap
+        assert _windows_overlap([(360, 600)], [(700, 900)]) is False
 
     def test_contained_overlaps(self):
-        from sp5api.routers.conflict_report import _ranges_overlap
+        from sp5api.routers.conflict_report import _windows_overlap
         # inner range is fully inside outer range
-        assert _ranges_overlap((300, 1200), (400, 700)) is True
+        assert _windows_overlap([(300, 1200)], [(400, 700)]) is True
