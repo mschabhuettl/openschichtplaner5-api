@@ -28,10 +28,11 @@ class _AbsDB:
     def get_holiday_dates(self, year):
         return self._holidays
 
-    def add_absence(self, eid, date, ltid):
+    def add_absence(self, eid, date, ltid, interval=0, start=0, end=0):
+        # V-3: create_absence reicht interval/start/end als Kwargs durch
         if self._add_exc:
             raise self._add_exc
-        return {"ID": 1}
+        return {"ID": 1, "INTERVAL": interval, "START": start, "END": end}
 
     def log_action(self, **kwargs):
         pass
@@ -185,7 +186,8 @@ class _BulkDB:
     def get_employees(self, include_hidden=False):
         return self._employees
 
-    def add_absence(self, eid, date, ltid):
+    def add_absence(self, eid, date, ltid, interval=0, start=0, end=0):
+        # V-3: Signatur an die erweiterte lib-Fassade angepasst
         b = self._behavior.get(eid, "ok")
         if b == "skip":
             raise ValueError("already exists")

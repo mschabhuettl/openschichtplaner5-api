@@ -60,7 +60,27 @@ def delete_absence_only(
 
 
 # ── Write: absence ───────────────────────────────────────────
-class AbsenceCreate(BaseModel):
+class _AbsenceIntervalMixin(BaseModel):
+    """Teiltagsmodus (Spec 3.5.2/D-54): 0=ganzer Tag, 1=Vormittag,
+    2=Nachmittag, 3=stundenweise mit start_time/end_time (Minuten ab
+    Mitternacht; end <= start = rechnerischer Tageswechsel)."""
+
+    interval: int = Field(0, ge=0, le=3, description="0=ganz, 1=vorm., 2=nachm., 3=stundenweise")
+    start_time: int = Field(0, ge=0, le=1440, description="Minuten ab Mitternacht (nur interval=3)")
+    end_time: int = Field(0, ge=0, le=1440, description="Minuten ab Mitternacht (nur interval=3)")
+
+    @model_validator(mode="after")
+    def validate_interval_times(self):
+        if self.interval == 3 and self.start_time == self.end_time:
+            # weder start < end noch Tageswechsel (end < start)
+            raise ValueError(
+                "Bei interval=3 muss start_time < end_time sein "
+                "(oder end_time < start_time für einen Tageswechsel)"
+            )
+        return self
+
+
+class AbsenceCreate(_AbsenceIntervalMixin):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     leave_type_id: int = Field(..., gt=0)
@@ -75,6 +95,11 @@ class AbsenceCreate(BaseModel):
         except ValueError:
             raise ValueError("Date must be a valid date in YYYY-MM-DD format")
         return v
+
+
+class AbsenceUpdate(_AbsenceIntervalMixin):
+    leave_type_id: int | None = Field(None, gt=0)
+    interval: int | None = Field(None, ge=0, le=3)
 
 
 @router.get(
@@ -154,7 +179,14 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
         pass  # Never block creation due to warning check errors
 
     try:
-        result = db.add_absence(body.employee_id, body.date, body.leave_type_id)
+        result = db.add_absence(
+            body.employee_id,
+            body.date,
+            body.leave_type_id,
+            interval=body.interval,
+            start=body.start_time,
+            end=body.end_time,
+        )
         broadcast(
             "absence_changed", {"employee_id": body.employee_id, "date": body.date}
         )
@@ -198,6 +230,70 @@ def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer
         return {"ok": True, "record": result, "warnings": warnings}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.put(
+    "/api/absences/{employee_id}/{date}",
+    tags=["Absences"],
+    summary="Update absence",
+    description=(
+        "Update the absence entry for an employee on a date: leave type and/or "
+        "Teiltagsmodus (interval 0=ganz, 1=vormittags, 2=nachmittags, "
+        "3=stundenweise mit start_time/end_time in Minuten). Requires Planer role."
+    ),
+)
+def update_absence(
+    employee_id: int,
+    date: str,
+    body: AbsenceUpdate,
+    _cur_user: dict = Depends(require_planer),
+):
+    try:
+        from datetime import datetime as _dtt
+
+        _dtt.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail="Invalid date format, please use YYYY-MM-DD"
+        )
+    db = get_db()
+    if body.leave_type_id is not None and db.get_leave_type(body.leave_type_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Abwesenheitstyp {body.leave_type_id} nicht gefunden",
+        )
+    try:
+        result = db.update_absence(
+            employee_id,
+            date,
+            leave_type_id=body.leave_type_id,
+            interval=body.interval,
+            start=body.start_time,
+            end=body.end_time,
+        )
+        broadcast("absence_changed", {"employee_id": employee_id, "date": date})
+        db.log_action(
+            user=_cur_user.get("NAME", "?"),
+            action="UPDATE",
+            entity="absence",
+            entity_id=employee_id,
+            details=f"Absence for employee {employee_id} on {date} updated",
+            new_value={
+                "employee_id": employee_id,
+                "date": date,
+                "leave_type_id": body.leave_type_id,
+                "interval": body.interval,
+                "start_time": body.start_time,
+                "end_time": body.end_time,
+            },
+            user_id=_cur_user.get("ID"),
+        )
+        return {"ok": True, "record": result}
+    except ValueError as e:
+        status = 404 if "not found" in str(e) else 400
+        raise HTTPException(status_code=status, detail=str(e))
     except Exception as e:
         raise _sanitize_500(e)
 
