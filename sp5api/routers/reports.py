@@ -3240,13 +3240,17 @@ def get_capacity_forecast(
 ):
     """Return per-day capacity forecast for a month.
 
+    api-Erweiterung ohne Original-Pendant (verfügbare-Köpfe-Prognose):
+    "abwesend ⇒ nicht einsetzbar" ist bewusste Erweiterungs-Semantik; die
+    Bedarfslinie kommt aus den echten 5SHDEM/5SPDEM-Regeln (db.get_utilization,
+    Spec 3.9.4), die Einteilung inkl. expandierter 5CYASS aus db.get_schedule.
+
     Each day:
-    - scheduled_count: employees with a shift entry
+    - scheduled_count: employees with a shift entry (and no absence that day)
     - absent_count: employees with an absence
-    - net_count: scheduled_count (absences are typically already subtracted from schedule)
     - absent_employees: list of {id, name, absence_type}
-    - required_min: minimum requirement from staffing requirements
-    - coverage_status: ok | low | critical | unknown
+    - required_min: Summe der 5SHDEM/5SPDEM-Minima des Tages (0 = kein Bedarf)
+    - coverage_status: ok | low | critical | unplanned
     - conflict_flag: True if absent_count is unusually high relative to total employees
     """
     import calendar as _cal
@@ -3259,7 +3263,6 @@ def get_capacity_forecast(
 
     db = get_db()
     num_days = _cal.monthrange(year, month)[1]
-    prefix = f"{year:04d}-{month:02d}"
 
     # Get all employees (optionally filtered by group)
     all_employees = db.get_employees()
@@ -3292,30 +3295,13 @@ def get_capacity_forecast(
         for lt in leave_types_list
     }
 
-    # Get staffing requirements for minimum thresholds
-    staffing_req = db.get_staffing_requirements()
-    shift_reqs = staffing_req.get("shift_requirements", [])
+    # Echte Bedarfslinie je Tag (5SHDEM/5SPDEM je Tagindex inkl. Ft=7)
+    util_by_day = {
+        u["day"]: u for u in db.get_utilization(year, month, group_id=group_id)
+    }
 
-    # Build per-weekday minimum: max(min) across all shifts for that weekday
-    min_by_weekday: dict = {}
-    for req in shift_reqs:
-        wd = req.get("weekday", -1)
-        m = req.get("min", 0) or 0
-        if wd >= 0:
-            min_by_weekday[wd] = max(min_by_weekday.get(wd, 0), m)
-
-    # Read schedule entries for the month
-    all_mashi = [r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)]
-    all_spshi = [
-        r
-        for r in db._read("SPSHI")
-        if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0
-    ]
-
-    # Read absences for the month
-    all_absences = [
-        r for r in db._read("ABSEN") if r.get("DATE", "").startswith(prefix)
-    ]
+    # Einteilung/Abwesenheiten über die Fassade (inkl. 5CYASS-Expansion)
+    entries = db.get_schedule(year, month)
 
     # Per-day aggregation
     day_scheduled: dict = defaultdict(set)  # day -> set of emp_ids
@@ -3323,61 +3309,32 @@ def get_capacity_forecast(
 
     # Build absence set per employee-day first (to exclude from scheduled count)
     absent_emp_days: set = set()  # (employee_id, day)
-    for r in all_absences:
-        d = r.get("DATE", "")
-        if d.startswith(prefix):
-            try:
-                day = int(d[8:10])
-                eid = r.get("EMPLOYEEID")
-                if eid:
-                    absent_emp_days.add((eid, day))
-            except (ValueError, IndexError):
-                pass
+    for e in entries:
+        if e.get("kind") != "absence":
+            continue
+        eid = e.get("employee_id")
+        if eid not in emp_by_id:
+            continue
+        day = int(e["date"][8:10])
+        absent_emp_days.add((eid, day))
+        day_absent[day].append(
+            {
+                "id": eid,
+                "name": emp_name_by_id.get(eid, f"MA {eid}"),
+                "absence_type": leave_label_by_id.get(e.get("leave_type_id"), "Abw"),
+            }
+        )
 
-    for r in all_mashi:
-        d = r.get("DATE", "")
-        if d.startswith(prefix):
-            try:
-                day = int(d[8:10])
-                eid = r.get("EMPLOYEEID")
-                if eid and eid in emp_by_id:
-                    # Don't count as scheduled if employee is absent on this day
-                    if (eid, day) not in absent_emp_days:
-                        day_scheduled[day].add(eid)
-            except (ValueError, IndexError):
-                pass
-
-    for r in all_spshi:
-        d = r.get("DATE", "")
-        if d.startswith(prefix):
-            try:
-                day = int(d[8:10])
-                eid = r.get("EMPLOYEEID")
-                if eid and eid in emp_by_id:
-                    # Don't count as scheduled if employee is absent on this day
-                    if (eid, day) not in absent_emp_days:
-                        day_scheduled[day].add(eid)
-            except (ValueError, IndexError):
-                pass
-
-    for r in all_absences:
-        d = r.get("DATE", "")
-        if d.startswith(prefix):
-            try:
-                day = int(d[8:10])
-                eid = r.get("EMPLOYEEID")
-                if eid and eid in emp_by_id:
-                    lt_id = r.get("LEAVETYPID") or r.get("LEAVETYPEID", 0)
-                    lt_label = leave_label_by_id.get(lt_id, "Abw")
-                    day_absent[day].append(
-                        {
-                            "id": eid,
-                            "name": emp_name_by_id.get(eid, f"MA {eid}"),
-                            "absence_type": lt_label,
-                        }
-                    )
-            except (ValueError, IndexError):
-                pass
+    for e in entries:
+        if e.get("kind") not in ("shift", "special_shift"):
+            continue
+        eid = e.get("employee_id")
+        if eid not in emp_by_id:
+            continue
+        day = int(e["date"][8:10])
+        # Don't count as scheduled if employee is absent on this day
+        if (eid, day) not in absent_emp_days:
+            day_scheduled[day].add(eid)
 
     result = []
     for day in range(1, num_days + 1):
@@ -3390,7 +3347,8 @@ def get_capacity_forecast(
         absent_list = day_absent.get(day, [])
         absent_count = len(absent_list)
 
-        required_min = min_by_weekday.get(weekday, 0)
+        # Summe der definierten Tages-Minima; 0 = kein Bedarf gepflegt
+        required_min = util_by_day.get(day, {}).get("required_count") or 0
 
         # Coverage status
         if required_min > 0:
@@ -3465,6 +3423,10 @@ def get_capacity_year(
 ):
     """Return per-month capacity summary for a full year (for heatmap).
 
+    api-Erweiterung ohne Original-Pendant; Einteilung und Bedarfslinie kommen
+    aus db.get_utilization (5SHDEM/5SPDEM je Tagindex inkl. Ft=7, Einteilung
+    inkl. expandierter 5CYASS — Spec 3.9.4).
+
     Each month:
     - avg_staffing: average daily staffing (planned days only)
     - ok_days, low_days, critical_days, unplanned_days
@@ -3472,7 +3434,6 @@ def get_capacity_year(
     - worst_status: overall month status
     """
     import calendar as _cal
-    from collections import defaultdict
 
     db = get_db()
     all_employees = db.get_employees()
@@ -3483,82 +3444,22 @@ def get_capacity_year(
         ]
     total_emp = len(all_employees)
 
-    def _eid(e):
-        return e.get("id") or e.get("ID")
-
-    emp_by_id = {_eid(e): e for e in all_employees}
-
-    staffing_req = db.get_staffing_requirements()
-    shift_reqs = staffing_req.get("shift_requirements", [])
-    min_by_weekday: dict = {}
-    for req in shift_reqs:
-        wd = req.get("weekday", -1)
-        m = req.get("min", 0) or 0
-        if wd >= 0:
-            min_by_weekday[wd] = max(min_by_weekday.get(wd, 0), m)
-
     months_result = []
     for month in range(1, 13):
-        import datetime as _dt
-
         num_days = _cal.monthrange(year, month)[1]
-        prefix = f"{year:04d}-{month:02d}"
-
-        all_mashi = [
-            r for r in db._read("MASHI") if r.get("DATE", "").startswith(prefix)
-        ]
-        all_spshi = [
-            r
-            for r in db._read("SPSHI")
-            if r.get("DATE", "").startswith(prefix) and r.get("TYPE", 0) == 0
-        ]
-        all_absences = [
-            r for r in db._read("ABSEN") if r.get("DATE", "").startswith(prefix)
-        ]
-
-        day_scheduled: dict = defaultdict(set)
-        day_absent: dict = defaultdict(int)
-
-        for r in all_mashi:
-            d = r.get("DATE", "")
-            if d.startswith(prefix):
-                try:
-                    day = int(d[8:10])
-                    eid = r.get("EMPLOYEEID")
-                    if eid and eid in emp_by_id:
-                        day_scheduled[day].add(eid)
-                except (ValueError, IndexError):
-                    pass
-
-        for r in all_spshi:
-            d = r.get("DATE", "")
-            if d.startswith(prefix):
-                try:
-                    day = int(d[8:10])
-                    eid = r.get("EMPLOYEEID")
-                    if eid and eid in emp_by_id:
-                        day_scheduled[day].add(eid)
-                except (ValueError, IndexError):
-                    pass
-
-        for r in all_absences:
-            d = r.get("DATE", "")
-            if d.startswith(prefix):
-                try:
-                    day = int(d[8:10])
-                    day_absent[day] += 1
-                except (ValueError, IndexError):
-                    pass
+        util_by_day = {
+            u["day"]: u for u in db.get_utilization(year, month, group_id=group_id)
+        }
 
         ok_days = low_days = critical_days = unplanned_days = 0
         staffing_sum = 0
         planned_days = 0
 
         for day in range(1, num_days + 1):
-            check_date = _dt.date(year, month, day)
-            weekday = check_date.weekday()
-            scheduled = len(day_scheduled.get(day, set()))
-            required_min = min_by_weekday.get(weekday, 0)
+            util = util_by_day.get(day, {})
+            scheduled = util.get("scheduled_count", 0)
+            # Summe der definierten Tages-Minima; 0 = kein Bedarf gepflegt
+            required_min = util.get("required_count") or 0
 
             if required_min > 0:
                 diff = scheduled - required_min

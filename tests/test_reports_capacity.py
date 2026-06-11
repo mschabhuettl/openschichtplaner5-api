@@ -21,21 +21,45 @@ class _CapDB:
     def get_leave_types(self):
         return [{"ID": 1, "SHORTNAME": "U"}]
 
-    def get_staffing_requirements(self):
-        return {"shift_requirements": [{"weekday": 0, "min": 3}]}  # Monday needs 3
+    def get_schedule(self, year, month, group_id=None):
+        if (year, month) != (2026, 1):
+            return []
+        return [
+            {"employee_id": 1, "date": _MONDAY, "kind": "shift", "shift_id": 1},
+            {"employee_id": 2, "date": _MONDAY, "kind": "shift", "shift_id": 1},
+            # 5CYASS-expandierter Zyklusdienst am Di — Roh-MASHI-Leser übersehen ihn
+            {
+                "employee_id": 3,
+                "date": "2026-01-06",
+                "kind": "shift",
+                "source": "cycle",
+                "shift_id": 1,
+            },
+            {"employee_id": 3, "date": _MONDAY, "kind": "absence", "leave_type_id": 1},
+            {"employee_id": 4, "date": _MONDAY, "kind": "absence", "leave_type_id": 1},
+        ]
 
-    def _read(self, name):
-        if name == "MASHI":
-            return [
-                {"DATE": _MONDAY, "EMPLOYEEID": 1, "SHIFTID": 1},
-                {"DATE": _MONDAY, "EMPLOYEEID": 2, "SHIFTID": 1},
-            ]
-        if name == "ABSEN":
-            return [
-                {"DATE": _MONDAY, "EMPLOYEEID": 3, "LEAVETYPID": 1},
-                {"DATE": _MONDAY, "EMPLOYEEID": 4, "LEAVETYPID": 1},
-            ]
-        return []  # SPSHI etc.
+    def get_utilization(self, year, month, group_id=None):
+        import calendar
+
+        result = []
+        for day in range(1, calendar.monthrange(year, month)[1] + 1):
+            iso = f"{year:04d}-{month:02d}-{day:02d}"
+            # echter 5SHDEM-Bedarf nur am Montag 2026-01-05: min=3
+            required = 3 if iso == _MONDAY else None
+            result.append(
+                {
+                    "day": day,
+                    "date": iso,
+                    "scheduled_count": 0,
+                    "required_count": required,
+                    "required_min": required,
+                    "required_max": required,
+                    "status": "under" if required else "none",
+                    "cells": [],
+                }
+            )
+        return result
 
 
 def _admin_client(monkeypatch, db):
@@ -70,6 +94,11 @@ def test_capacity_forecast_computes_coverage_and_conflict(monkeypatch):
 
         # days with no schedule and no requirement → "unplanned"
         assert data["summary"]["unplanned_count"] >= 1
+
+        # D6-Repro: Zyklusdienste (5CYASS) zählen als geplant — der alte
+        # Roh-MASHI-Leser hätte am Di 0 Eingeteilte gemeldet
+        tuesday = next(d for d in data["days"] if d["date"] == "2026-01-06")
+        assert tuesday["scheduled_count"] == 1
     finally:
         _sessions.pop(tok, None)
 

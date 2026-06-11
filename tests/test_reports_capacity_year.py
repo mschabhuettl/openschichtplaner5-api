@@ -16,17 +16,40 @@ class _CapYearDB:
     def get_group_members(self, gid):
         return [1, 2, 3, 4]
 
-    def get_staffing_requirements(self):
-        return {"shift_requirements": [{"weekday": 0, "min": 3}]}  # Monday needs 3
+    def get_utilization(self, year, month, group_id=None):
+        import calendar
 
-    def _read(self, name):
-        if name == "MASHI":
-            # 2 employees on Monday 2026-01-05 → below the Monday minimum of 3
-            return [
-                {"DATE": "2026-01-05", "EMPLOYEEID": 1},
-                {"DATE": "2026-01-05", "EMPLOYEEID": 2},
-            ]
-        return []
+        result = []
+        for day in range(1, calendar.monthrange(year, month)[1] + 1):
+            iso = f"{year:04d}-{month:02d}-{day:02d}"
+            if iso == "2026-01-05":
+                # 2 eingeteilt (inkl. 5CYASS) unter echtem 5SHDEM-Minimum 3
+                result.append(
+                    {
+                        "day": day,
+                        "date": iso,
+                        "scheduled_count": 2,
+                        "required_count": 3,
+                        "required_min": 3,
+                        "required_max": 4,
+                        "status": "under",
+                        "cells": [],
+                    }
+                )
+            else:
+                result.append(
+                    {
+                        "day": day,
+                        "date": iso,
+                        "scheduled_count": 0,
+                        "required_count": None,
+                        "required_min": None,
+                        "required_max": None,
+                        "status": "none",
+                        "cells": [],
+                    }
+                )
+        return result
 
 
 def _admin_client(monkeypatch, db):
@@ -64,5 +87,9 @@ def test_capacity_year_aggregates_per_month(monkeypatch):
         assert january["avg_staffing"] >= 0
         assert january["worst_status"] in ("ok", "low", "critical", "unplanned")
         assert 0 <= january["coverage_pct"] <= 100
+        # D6-Repro: der echte 5SHDEM-Bedarf (min 3, 2 eingeteilt) macht den
+        # Montag zum "low"-Tag — die alte erfundene Wochentags-Aggregation
+        # aus get_staffing_requirements wird nicht mehr befragt
+        assert january["low_days"] == 1
     finally:
         _sessions.pop(tok, None)
