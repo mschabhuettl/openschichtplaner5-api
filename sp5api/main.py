@@ -847,7 +847,12 @@ app.include_router(orm_mirror.router)
 
 # ── Routes ──────────────────────────────────────────────────────
 
-_API_VERSION = "1.0.0"
+try:
+    from importlib.metadata import version as _pkg_version
+
+    _API_VERSION = _pkg_version("openschichtplaner5-api")
+except Exception:  # editable/source runs without installed metadata
+    _API_VERSION = "1.2.0"
 
 
 def _format_uptime(seconds: float) -> str:
