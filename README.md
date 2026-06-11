@@ -77,15 +77,29 @@ Production-ready multi-stage image (slim runtime, non-root, `HEALTHCHECK` on
 ```bash
 # local operation: DBF dir + optional .env (SECRET_KEY!), see docker-compose.yml
 SP5_DBF_DIR=/path/to/SP5/Daten docker compose up --build
-
-# plain build + run
-docker build -t openschichtplaner5-api .
-docker run --rm -p 8000:8000 -v /path/to/SP5/Daten:/app/data openschichtplaner5-api
 ```
 
-The current versions (lib 1.7.0 / api 1.2.0) are **not on PyPI** — the build
-installs the library from Git `main` by default. Override via build arg, e.g.
-`--build-arg LIB_SOURCE="libopenschichtplaner5[postgres]==1.7.0"` once released:
+Standalone, without compose — mount the DBF directory to `/app/data` and pass
+the environment via `.env` (at minimum `SECRET_KEY`, see
+[Key environment variables](#key-environment-variables)):
+
+```bash
+docker build -t openschichtplaner5-api .
+
+echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
+docker run -d --name sp5-api -p 8000:8000 \
+  -v /path/to/SP5/Daten:/app/data \
+  --env-file .env \
+  openschichtplaner5-api
+
+# health check
+curl http://localhost:8000/api/health
+# → {"status":"healthy","checks":{"db":"ok",...},"version":"1.2.0",...}
+```
+
+The build installs the library from PyPI by default
+(`libopenschichtplaner5[postgres]==1.7.0`). To build against a different
+state, override the build arg:
 
 ```bash
 docker build --build-arg LIB_SOURCE=git+https://github.com/mschabhuettl/libopenschichtplaner5.git@main .

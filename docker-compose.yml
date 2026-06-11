@@ -8,7 +8,7 @@
 #   3. docker compose up --build
 #
 # Build-Arg LIB_SOURCE (Default: PyPI-Pin der Library) ist per .env
-# überschreibbar — die aktuellen Versionen sind nicht auf PyPI.
+# überschreibbar, z. B. auf git+https://…@main.
 # ==============================================================================
 services:
   api:
