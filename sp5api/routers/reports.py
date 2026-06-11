@@ -3636,7 +3636,6 @@ def get_quality_report(
 ):
     """Monthly quality report: staffing, hours compliance, conflicts, score."""
     import calendar as _cal
-    from collections import defaultdict
 
     if not (1 <= month <= 12):
         raise HTTPException(
@@ -3645,70 +3644,20 @@ def get_quality_report(
 
     db = get_db()
     num_days = _cal.monthrange(year, month)[1]
-    prefix = f"{year:04d}-{month:02d}"
     month_name = _cal.month_name[month]
 
     # ── Mitarbeiter laden ───────────────────────────────────────────────────
     employees = {e["ID"]: e for e in db._read("EMPL") if not e.get("HIDE", 0)}
     active_emp_ids = set(employees.keys())
 
-    # ── Schicht-Definitionen (Stunden) ──────────────────────────────────────
-    shifts_by_id: dict = {}
-    for s in db._read("SHIFT"):
-        sid = s.get("ID")
-        if sid:
-            # Stunden = Dauer in h; DURATION in Minuten oder schon Stunden?
-            dur_min = s.get("DURATION", 0)  # meist Minuten
-            shifts_by_id[sid] = s.get(
-                "HOURS", dur_min / 60.0 if dur_min > 60 else dur_min
-            )
+    # ── Tages-Besetzungs-Check (Spec 3.9.4 via Fassade) ─────────────────────
+    # db.get_utilization: echter 5SHDEM/5SPDEM-Bedarf je Tagindex (Ft=7),
+    # MA-distinct-Zählung inkl. expandierter 5CYASS (vgl. /api/warnings).
+    util_by_day = {u["day"]: u for u in db.get_utilization(year, month)}
 
-    # ── Geplante Schichten (MASHI) ───────────────────────────────────────────
-    day_emp_sets: dict = defaultdict(set)
-    emp_actual_hours: dict = defaultdict(float)
-    emp_shifts_count: dict = defaultdict(int)
-    for r in db._read("MASHI"):
-        d = r.get("DATE", "")
-        if d.startswith(prefix):
-            eid = r.get("EMPLOYEEID")
-            if eid and eid in active_emp_ids:
-                try:
-                    day_num = int(d[8:10])
-                    day_emp_sets[day_num].add(eid)
-                    emp_shifts_count[eid] += 1
-                    sid = r.get("SHIFTID")
-                    hrs = shifts_by_id.get(sid, 8.0) if sid else 8.0
-                    emp_actual_hours[eid] += hrs
-                except (ValueError, IndexError):
-                    pass
-
-    # ── Abwesenheiten (ABSEN) ────────────────────────────────────────────────
-    emp_absence_days: dict = defaultdict(int)
-    emp_vacation_days: dict = defaultdict(int)
-    emp_sick_days: dict = defaultdict(int)
-    try:
-        leave_types = {lt["ID"]: lt for lt in db._read("LEAVETYP")}
-    except Exception:
-        leave_types = {}
-    for r in db._read("ABSEN"):
-        d = r.get("DATE", "")
-        if d.startswith(prefix):
-            eid = r.get("EMPLOYEEID")
-            if eid and eid in active_emp_ids:
-                emp_absence_days[eid] += 1
-                lt_id = r.get("LEAVETYPEID")
-                lt = leave_types.get(lt_id, {})
-                name = (lt.get("NAME") or lt.get("SHORTNAME") or "").lower()
-                if "urlaub" in name or "vacation" in name or "holiday" in name:
-                    emp_vacation_days[eid] += 1
-                elif "krank" in name or "sick" in name:
-                    emp_sick_days[eid] += 1
-
-    # ── Tages-Besetzungs-Check ───────────────────────────────────────────────
-    required_min = max(2, len(active_emp_ids) // 8)  # dynamisch
     coverage_days = []
     critical_days = []
-    low_days = []
+    low_days: list = []  # mit echtem Bedarf gibt es keine Zwischenstufe mehr
     ok_days = []
     unplanned_days = []
 
@@ -3716,20 +3665,19 @@ def get_quality_report(
         date_obj = f"{year:04d}-{month:02d}-{day:02d}"
         wd = _cal.weekday(year, month, day)  # 0=Mon
         is_weekend = wd >= 5
-        scheduled = len(day_emp_sets.get(day, set()))
+        util = util_by_day.get(day, {})
+        scheduled = util.get("scheduled_count", 0)
+        required = util.get("required_count")  # None ⇒ kein Bedarf definiert
 
-        if scheduled == 0 and not is_weekend:
-            status = "unplanned"
-            unplanned_days.append(day)
-        elif scheduled >= required_min:
-            status = "ok"
-            ok_days.append(day)
-        elif scheduled == required_min - 1:
-            status = "low"
-            low_days.append(day)
-        else:
+        if util.get("status") == "under":
             status = "critical"
             critical_days.append(day)
+        elif scheduled == 0 and not is_weekend:
+            status = "unplanned"
+            unplanned_days.append(day)
+        else:
+            status = "ok"
+            ok_days.append(day)
 
         coverage_days.append(
             {
@@ -3738,10 +3686,16 @@ def get_quality_report(
                 "weekday": wd,
                 "is_weekend": is_weekend,
                 "scheduled": scheduled,
-                "required": required_min,
+                "required": required,
                 "status": status,
             }
         )
+
+    # Anzeige-Kennzahl: höchster definierter Tagesbedarf (0 = kein Bedarf gepflegt)
+    required_min = max(
+        (d["required"] for d in coverage_days if d["required"] is not None),
+        default=0,
+    )
 
     # ── Hours Compliance (via get_statistics for correct hours calculation) ──
     hours_issues = []
