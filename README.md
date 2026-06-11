@@ -8,7 +8,11 @@ a pip-installable FastAPI service over
 [**libopenschichtplaner5**](https://github.com/mschabhuettl/libopenschichtplaner5) (`sp5lib`),
 serving shift-planning data from the original *Schichtplaner5* FoxPro `.DBF` files or the
 SQLite/PostgreSQL mirror: auth/2FA with JWT sessions, employees, schedule, absences,
-reports/exports, notifications (SSE), webhooks, iCal feeds and more.
+reports/exports (incl. the original personnel table via `GET /api/personnel-table` and
+statistics over a free evaluation period), leave-entitlement administration
+(`POST /api/leave-entitlements/forfeit`, annual close), notifications (SSE), webhooks,
+iCal feeds and more. All Soll/Ist/demand figures are computed by the `sp5lib`
+calculation facade — the API carries no arithmetic of its own.
 
 > **Import name:** the distribution is `openschichtplaner5-api`, but the importable
 > package is **`sp5api`** (mirroring `libopenschichtplaner5` → `sp5lib`).
@@ -23,6 +27,20 @@ reports/exports, notifications (SSE), webhooks, iCal feeds and more.
 | `sp5api.dependencies` | Session store, JWT, rate limiting, logging, DB wiring |
 | `sp5api.schemas` / `sp5api.types` | Pydantic models / type aliases |
 | `sp5api.cache` / `sp5api.rate_limit_store` | Response caching, rate-limit event log |
+
+## Permissions
+
+Roles (`Leser` < `Planer` < `Admin`) gate read/write access; on top of that the
+granular **5USER rights of the original (spec 9.6)** are enforced per write
+route and exposed as a `permissions` object on `GET /api/auth/me`:
+`WDUTIES` (schedule writes), `WABSENCES`, `WOVERTIMES` (hour bookings),
+`WNOTES`, `WDEVIATION`, `WCYCLEASS`, `WSWAPONLY` (duty swap), `ADDEMPL`
+(opt-in employee creation) and `WPAST` — `WPAST=0` blocks every write with a
+date in the past, including the bulk routes (`/api/schedule/bulk`,
+`/bulk-group`, `/copy-week`, `/swap`), Einsatzplan and booking writes (for
+ID-based updates/deletes the stored record's date counts). The built-in
+`Admin` account and the last remaining administrator cannot be demoted or
+deleted.
 
 ## Installation
 

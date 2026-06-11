@@ -5,6 +5,83 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-06-11
+
+Parity pass against the original Schichtplaner5 (spec chapter 3/9) plus the
+follow-up cleanup: all Soll/Ist/demand figures now come from the `sp5lib`
+calculation facade — the API no longer carries its own arithmetic.
+
+### Added
+
+- `GET /api/personnel-table` — the original "Personaltabelle" over a free
+  evaluation period `from`/`to` (spec 3.9.2/3.9.3): standard columns per
+  employee (actual/nominal hours, balance, paid absence, Sunday/holiday duty
+  days, special duties) plus dynamic per-shift and per-leave-type columns;
+  entitled leave types report taken/remaining for exact calendar years.
+  Rate-limited 10/minute.
+- `POST /api/leave-entitlements/forfeit` — cutoff-date forfeiture of remaining
+  leave (spec 3.7.3, dialog 5.17) with `dry_run` preview. Admin only,
+  rate-limited 5/minute.
+- `GET /api/statistics` accepts a free evaluation period `from`/`to`
+  (spec 3.9.1) in addition to year/month.
+- Partial-day absences (`interval`) via `POST`/`PUT /api/absences` (spec 3.5),
+  half holidays and following-year holidays via `POST`/`PUT /api/holidays`
+  (spec 3.2), `keep_entitlements` flag on the annual-close routes (spec 3.7.2).
+- Shift requests: `NOEXTRA` and up to three `STARTEND` work-time windows per
+  day index incl. holiday index 7; `5SHDEM` demand accepts day index 7.
+- **Granular 5USER permissions (spec 9.6)**: `/api/auth/me` exposes a
+  `permissions` object and every write route enforces its flag — `WDUTIES`
+  (schedule), `WABSENCES`, `WOVERTIMES` (bookings), `WNOTES`, `WDEVIATION`,
+  `WCYCLEASS`, `WSWAPONLY` (swap), `ADDEMPL` (opt-in employee creation).
+  The built-in `Admin` account (ID 251) and the last remaining administrator
+  are protected against demotion/deletion.
+- **WPAST past-write protection on bulk routes**: `WPAST=0` now also blocks
+  past dates on `POST /api/schedule/bulk` (per entry), `/bulk-group`,
+  `/copy-week`, `/swap` (per date), the Einsatzplan writes
+  (`POST/PUT/DELETE /api/einsatzplan*`, deviation) and the booking writes
+  (`POST/DELETE /api/bookings*`) — for ID-based updates/deletes the date of
+  the stored record counts.
+
+### Fixed
+
+- Overtime endpoints (`/api/employees/{id}/overtime`, `/api/overtime/summary`)
+  and the scheduled overtime report delegate to the lib facade — the two
+  API-private nominal-hours formulas (`HRSWEEK·MoFr/5`) and the dead
+  actual-hours field (constantly 0.0 in the emailed report) are gone.
+- `/api/schedule/coverage`, `/api/warnings` (understaffing) and
+  `/api/capacity-forecast`/`-year` evaluate real `5SHDEM`/`5SPDEM` demand per
+  day index (holiday = 7) with distinct-employee counting and cycle-planned
+  duties (5CYASS) included, instead of invented head counts.
+- `/api/quality-report` computes staffing via the facade instead of
+  nonexistent DBF fields (`HOURS`, `DURATION`, `LEAVETYPEID`).
+- Work-time-rules checks (ArbZG extension) run on the spec data basis:
+  hours per day index, `5SPSHI` replaces the normal duty instead of being
+  added, cycle-planned employees are visible, and rest-time checks use the
+  real `STARTEND` windows instead of a guessed 08:00 start.
+- Conflict checks (`POST /api/schedule`, conflict report) parse `STARTEND`
+  via the lib: up to three windows, holiday index 7, and an empty day slot
+  no longer falls back to `STARTEND0`.
+- `/api/fairness` counts duty days per the original counters (Sunday and
+  holiday columns incl. double counting, new `sunday` field) and no longer
+  suppresses planned duties on absence days; `/api/statistics/shifts`
+  derives its (API-invented, now documented) Früh/Spät/Nacht heuristic from
+  `STARTEND0` instead of the nonexistent `FROM0` field.
+- iCal feeds use the holiday time slot `STARTEND7` on holidays.
+- `/api/admin/compact` delegates to `SP5Database.compact_database`.
+
+### Deprecated
+
+- `max_carry_forward_days` on the annual-close endpoints is a documented
+  no-op (the spec knows no carry-forward cap; the lib ignores the value).
+
+### Known issues
+
+- `RESTR.WEEKDAY` is still written/read with the legacy convention
+  "0 = all days, 1=Mon…7=Sun" by both this API and `sp5lib`'s cycle
+  generation, while the original uses the day index 0=Mon…6=Sun, 7=holiday
+  (D-34). Fixing it requires a coordinated lib+API change plus a data
+  migration for API-written records — tracked as divergence D8.
+
 ## [1.1.3] - 2026-06-10
 
 ### Fixed
