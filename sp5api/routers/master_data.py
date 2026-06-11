@@ -367,7 +367,13 @@ def hide_leave_type(
 class HolidayCreate(BaseModel):
     DATE: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     NAME: str = Field(..., min_length=1, max_length=200)
-    INTERVAL: int = 0
+    # 5HOLID.INTERVAL (Spec 3.2.1 Nr. 3): 0 = ganztägig, 1/2 = halber Feiertag.
+    # UNSICHER: Zuordnung 1=Vormittag/2=Nachmittag aus der Zuschlags-Disassembly
+    # plausibel, datenseitig unbestätigt (Beispiel-DB enthält nur INTERVAL=0).
+    INTERVAL: int = Field(0, ge=0, le=2)
+    # "auch in den Folgejahren" (Spec 3.2.1 Nr. 4 / Dialog 5.16): legt
+    # zusätzliche Datumssätze für die nächsten 9 Jahre an.
+    repeat_years: bool = False
 
     @field_validator("DATE")
     @classmethod
@@ -384,14 +390,17 @@ class HolidayCreate(BaseModel):
 class HolidayUpdate(BaseModel):
     DATE: str | None = None
     NAME: str | None = None
-    INTERVAL: int | None = None
+    INTERVAL: int | None = Field(None, ge=0, le=2)
 
 
-@router.post("/api/holidays", tags=["Events"], summary="Create holiday", description="Create a new public holiday entry. Requires Admin role.")
+@router.post("/api/holidays", tags=["Events"], summary="Create holiday", description="Create a new public holiday entry. INTERVAL: 0=ganztägig, 1/2=halber Feiertag (Spec 3.2.1 Nr. 3, UNSICHER). repeat_years=true legt den Termin zusätzlich für die nächsten 9 Jahre an. Requires Admin role.")
 def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)):
     # DATE and NAME validation handled by Pydantic model
     try:
-        result = get_db().create_holiday(body.model_dump())
+        result = get_db().create_holiday(
+            body.model_dump(exclude={"repeat_years"}),
+            repeat_years=9 if body.repeat_years else 0,
+        )
         cache.invalidate("holidays:")
         return {"ok": True, "record": result}
     except Exception as e:
