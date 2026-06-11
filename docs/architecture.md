@@ -1,10 +1,6 @@
 # Architektur: openschichtplaner5-api (`sp5api`)
 
-> Stand: 2026-06-10, Paketversion 1.1.3. Erstellt aus vollständiger Quellcode-Lektüre
-> (alle Module unter `sp5api/`, `pyproject.toml`, Tests, CI, README/CHANGELOG).
-> Verifikation: Routentabelle per App-Import gedumpt (311 API-Routen + 4 Doc-Routen),
-> `ruff check .` sauber, Testsuite **2574 passed, 6 skipped** (lokaler Lauf gegen
-> `tests/fixtures/`).
+> Stand: 2026-06-10 (Paketversion 1.1.3).
 
 ---
 
@@ -555,15 +551,11 @@ In diesem Checkout dient der Repo-Root selbst als `SP5_BACKEND_DIR`
 
 **Altlasten (aus der Monorepo-Extraktion):**
 
-12. `tests/conftest.py:14-21` injiziert `backend/venv/lib/python3.13/site-packages`
-    in `sys.path` und prüft den hartkodierten Pfad
-    `/home/claw/.openclaw/workspace/sp5_db/Daten` als „echte“ DB — beides Relikte
-    der alten Umgebung, im Standalone-Repo tot.
-13. `api/uploads/photos/40.webp`, `41.webp` sind eingecheckte Foto-Uploads
+12. `api/uploads/photos/40.webp`, `41.webp` sind eingecheckte Foto-Uploads
     (Runtime-State als Fixture-Seed); ebenso liegen zwei komplette Backup-ZIPs
     unter `tests/backups/`. Funktional ok, aber nirgends als Fixtures dokumentiert
     (README erwähnt nur `data/`-Seeds).
-14. `openschichtplaner5_api.egg-info/` liegt im Arbeitsverzeichnis (untracked,
+13. `openschichtplaner5_api.egg-info/` liegt im Arbeitsverzeichnis (untracked,
     `.gitignore` greift) — reines lokales Build-Artefakt.
 
 **Kleinigkeiten:** `_TZ_VIENNA` in `ical.py` ist fix UTC+1 (keine CEST-Umschaltung;
