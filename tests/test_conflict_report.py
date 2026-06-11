@@ -39,11 +39,7 @@ if _BACKEND_DIR not in sys.path:
 if os.path.isdir(_VENV_SITE) and _VENV_SITE not in sys.path:
     sys.path.insert(0, _VENV_SITE)
 
-_REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or (
-    "/home/claw/.openclaw/workspace/sp5_db/Daten"
-    if os.path.isdir("/home/claw/.openclaw/workspace/sp5_db/Daten")
-    else _FIXTURES_DIR
-)
+_REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or _FIXTURES_DIR
 
 
 # ─────────────────────────────────────────────────────────────

@@ -813,10 +813,8 @@ class TestEinsatzplanDeviation:
 
 import shutil  # noqa: E402
 
-_REAL_DB_PATH = (
-    "/home/claw/.openclaw/workspace/sp5_db/Daten"
-    if os.path.isdir("/home/claw/.openclaw/workspace/sp5_db/Daten")
-    else os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
+_REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "fixtures"
 )
 
 

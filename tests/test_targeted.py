@@ -14,10 +14,8 @@ _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 
-_REAL_DB_PATH = (
-    "/home/claw/.openclaw/workspace/sp5_db/Daten"
-    if os.path.isdir("/home/claw/.openclaw/workspace/sp5_db/Daten")
-    else os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
+_REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "fixtures"
 )
 
 

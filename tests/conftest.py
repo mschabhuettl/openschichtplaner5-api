@@ -5,31 +5,20 @@ Shared test fixtures for OpenSchichtplaner5 backend tests.
 import os
 import secrets
 import shutil
-import sys
 
 import pytest
 
-# ── Python path setup ──────────────────────────────────────────────────────────
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_VENV_SITE_PACKAGES = os.path.join(
-    _BACKEND_DIR, "venv", "lib", "python3.13", "site-packages"
-)
-if _BACKEND_DIR not in sys.path:
-    sys.path.insert(0, _BACKEND_DIR)
-if os.path.isdir(_VENV_SITE_PACKAGES) and _VENV_SITE_PACKAGES not in sys.path:
-    sys.path.insert(0, _VENV_SITE_PACKAGES)
 
 # sp5lib (libopenschichtplaner5) locates backend/data & backend/api/data via this.
 os.environ.setdefault("SP5_BACKEND_DIR", _BACKEND_DIR)
 
 # ── Real DBF data source ───────────────────────────────────────────────────────
+# Set SP5_REAL_DB to point the suite at a real Schichtplaner5 database;
+# otherwise the bundled fixtures are used.
 _FIXTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 
-_REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or (
-    "/home/claw/.openclaw/workspace/sp5_db/Daten"
-    if os.path.isdir("/home/claw/.openclaw/workspace/sp5_db/Daten")
-    else _FIXTURES_DIR
-)
+_REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or _FIXTURES_DIR
 
 # ── Session token helpers ──────────────────────────────────────────────────────
 

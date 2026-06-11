@@ -22,11 +22,7 @@ if os.path.isdir(_VENV_SITE_PACKAGES) and _VENV_SITE_PACKAGES not in sys.path:
 
 _FIXTURES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 
-_REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or (
-    "/home/claw/.openclaw/workspace/sp5_db/Daten"
-    if os.path.isdir("/home/claw/.openclaw/workspace/sp5_db/Daten")
-    else _FIXTURES_DIR
-)
+_REAL_DB_PATH = os.environ.get("SP5_REAL_DB") or _FIXTURES_DIR
 
 # ─────────────────────────────────────────────────────────────
 # Fixtures
