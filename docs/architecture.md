@@ -1,6 +1,10 @@
 # Architektur: openschichtplaner5-api (`sp5api`)
 
-> Stand: 2026-06-10 (Paketversion 1.1.3).
+> Stand: 2026-06-12 (Paketversion 1.2.0).
+>
+> Notation: „Spec n.n“-Verweise in Code-Kommentaren, OpenAPI-Beschreibungen und
+> CHANGELOG beziehen sich auf Kapitel/Regeln der projektinternen
+> Verhaltensspezifikation des originalen Schichtplaner5-Dateiformats.
 
 ---
 
@@ -20,23 +24,26 @@ Es wurde mit voller Git-Historie aus `backend/api/` der Hauptanwendung extrahier
 Es gibt **keine CLI** (kein `[project.scripts]` in `pyproject.toml`); der einzige
 Einstiegspunkt ist die ASGI-App `sp5api.main:app`
 (`python -m uvicorn sp5api.main:app`), plus `python sp5api/main.py` als Dev-Shortcut.
+Für den Container-Betrieb liegen ein Multi-Stage-`Dockerfile` (Build-Default:
+Lib aus PyPI gepinnt, Git-`main` als `LIB_SOURCE`-Override) und eine
+`docker-compose.yml` bei (README §Docker).
 
 ### 1.2 Modulübersicht
 
 | Modul | LOC | Aufgabe |
 |---|---:|---|
-| `sp5api/main.py` | 1707 | FastAPI-App: Lifespan (Auto-Migration, Auto-Backup, Cleanup-Task, Report-Scheduler), 6 Middlewares, Exception-Handler, Health/Metrics/Version/Stats, 4 Dashboard-Endpoints, SPA-Serving, Router-Registrierung |
-| `sp5api/dependencies.py` | 480 | Strukturiertes JSON/Text-Logging (RotatingFileHandler), JWT-Erzeugung/-Prüfung, In-Memory-Session-Store, Brute-Force-Lockout, Rollen-Dependencies (`require_auth/planer/admin/role`), slowapi-Limiter, `get_db()`-Backend-Weiche, Audit-Log (JSON-Lines) |
+| `sp5api/main.py` | 1714 | FastAPI-App: Lifespan (Auto-Migration, Auto-Backup, Cleanup-Task, Report-Scheduler), 6 Middlewares, Exception-Handler, Health/Metrics/Version/Stats, 4 Dashboard-Endpoints, SPA-Serving, Router-Registrierung |
+| `sp5api/dependencies.py` | 564 | Strukturiertes JSON/Text-Logging (RotatingFileHandler), JWT-Erzeugung/-Prüfung, In-Memory-Session-Store, Brute-Force-Lockout, Rollen-Dependencies (`require_auth/planer/admin/role`), granulare 5USER-Schreibrechte (`require_write(*flags)`, `require_addempl`), slowapi-Limiter, `get_db()`-Backend-Weiche, Audit-Log (JSON-Lines) |
 | `sp5api/_paths.py` | 23 | `backend_dir()`: Ressourcen-Root via `SP5_BACKEND_DIR` (gleicher Vertrag wie `sp5lib`), Fallback = Repo-/Paket-Elternverzeichnis |
 | `sp5api/cache.py` | 75 | TTL-In-Memory-Cache (Thread-safe, kein Redis), `get/put/invalidate/clear/stats/get_or_set` |
 | `sp5api/rate_limit_store.py` | 116 | 429-Events als JSON-Lines (`data/rate_limit_events.jsonl`), Query + Rotation (max. 10 000) |
 | `sp5api/schemas.py` | 129 | Pydantic-Response-Modelle (`extra="allow"`-FlexModels für DBF-Durchreichung), generisches `PaginatedResponse[T]` + `paginate()` |
 | `sp5api/types.py` | 20 | Reine Typ-Aliase (`DBFRow`, `EmployeeRecord`, …) |
-| `sp5api/routers/` | ~15 800 | 25 Domänen-Router (siehe §2) |
+| `sp5api/routers/` | ~17 700 | 26 Domänen-Router (siehe §2) |
 
-Größte Router: `reports.py` (4306 LOC), `schedule.py` (1657), `misc.py` (1455),
-`master_data.py` (978), `employees.py` (975), `absences.py` (861), `admin.py` (841),
-`scheduled_reports.py` (840), `auth.py` (729).
+Größte Router: `reports.py` (4187 LOC), `schedule.py` (1624), `misc.py` (1477),
+`master_data.py` (1030), `absences.py` (1030), `employees.py` (976),
+`scheduled_reports.py` (841), `auth.py` (833), `admin.py` (750).
 
 ### 1.3 Schichten
 
@@ -54,7 +61,7 @@ Middleware-Stack (Ausführungsreihenfolge, außen → innen):
    → CORS → GZip → SlowAPI (Rate Limiting)
    │
    ▼
-Router (sp5api/routers/*) — Rollenprüfung via Depends(require_*)
+Router (sp5api/routers/*) — Rollen-/Rechteprüfung via Depends(require_* / require_write)
    │
    ▼
 Persistenz (drei parallel genutzte Wege):
@@ -74,7 +81,8 @@ in `_sessions` (Revocation-Support). Token-Transport mit Priorität
 `SP5Database.get_schedule()` liest `5MASHI/5SPSHI/5ABSEN` u. a. DBF-Tabellen →
 JSON-Antwort; Stammdaten-GETs erhalten `Cache-Control: private, max-age=60`.
 
-**Schreib-Datenfluss:** Router validiert (Pydantic) → `db.add_schedule_entry()` etc.
+**Schreib-Datenfluss:** Router validiert (Pydantic) und prüft Schreibrechte
+(granulare 5USER-W*-Flags, `WPAST`-Vergangenheitsschutz) → `db.add_schedule_entry()` etc.
 (DBF-Write via `sp5lib.dbf_writer`) → `cache.invalidate()` → `events.broadcast()`
 (SSE an alle Clients) → ggf. `notifications.create_notification()` (+ optional
 E-Mail via `sp5lib.email_service`) → ChangelogMiddleware schreibt `db.log_action()`.
@@ -112,10 +120,12 @@ publiziert, damit sp5lib denselben Pfad sieht), `SP5_BACKEND_DIR` (Ressourcen-Ro
   via Middleware-Rewrite `/api/v1/...` (empfohlen). Unversionierte Aufrufe erhalten
   `Deprecation: true`, `Sunset` (+365 Tage) und `Link: successor-version`.
 
-### 2.2 HTTP-Endpoints (vollständig, 311 Routen; Präfix `/api` ≡ `/api/v1`)
+### 2.2 HTTP-Endpoints (vollständig, 313 Routen unter `/api`; Präfix `/api` ≡ `/api/v1`)
 
 **Legende Rollen:** P=öffentlich (kein Token), L=Leser (jeder eingeloggte User),
-PL=Planer+, A=Admin. Quelle in Klammern = Routerdatei.
+PL=Planer+, A=Admin. Quelle in Klammern = Routerdatei. Schreibrouten erzwingen
+zusätzlich die granularen 5USER-Rechte (W*-Flags, siehe §3); `WPAST=0` blockiert
+jede Schreiboperation mit Datum in der Vergangenheit.
 
 #### Health / System / Dashboard (`main.py`)
 
@@ -132,7 +142,7 @@ PL=Planer+, A=Admin. Quelle in Klammern = Routerdatei.
 | GET | `/api/dashboard/today` | L | Heute im Dienst / abwesend, Wochenpeak |
 | GET | `/api/dashboard/upcoming` | L | Nächste Feiertage, Geburtstage der Woche |
 | GET | `/api/dashboard/stats` | L | Monats-KPIs, Coverage pro Tag, Mitarbeiter-Ranking |
-| GET | `/` + `/{full_path:path}` | P | SPA-Serving (index.html-Fallback; unbekannte `/api/*` → 404) |
+| GET | `/` + `/{full_path:path}` | P | SPA-Serving (index.html-Fallback; unbekannte `/api/*` → 404; Catch-all nur bei vorhandenem Frontend-Build) |
 
 #### Auth, Users & 2FA (`auth.py`)
 
@@ -140,7 +150,7 @@ PL=Planer+, A=Admin. Quelle in Klammern = Routerdatei.
 |---|---|---|---|
 | POST | `/api/auth/login` | P (Rate-Limit `RATE_LIMIT_LOGIN`, Lockout 5 Fehlversuche/15 min pro Username) | Login gegen 5USER.DBF; bei aktiviertem TOTP zweistufig (`requires_2fa: true` ohne `totp_code`); setzt HttpOnly-Cookie `sp5_token` (SameSite=strict, Secure außer Dev) + JWT im Body |
 | POST | `/api/auth/logout` | P | Session-Invalidierung (Cookie oder Header), Cookie-Löschung |
-| GET | `/api/auth/me` | L | Aktueller Benutzer |
+| GET | `/api/auth/me` | L | Aktueller Benutzer inkl. `permissions`-Objekt (granulare 5USER-Rechte) |
 | POST | `/api/auth/change-password` | L (5/min) | Eigenes Passwort ändern (altes Passwort nötig; andere Sessions werden revoked) |
 | GET | `/api/users` | A | Benutzerliste |
 | POST | `/api/users` | A | Benutzer anlegen (Rollen Admin/Planer/Leser; Passwort-Policy) |
@@ -174,7 +184,7 @@ disable/get_status`). Alle sicherheitsrelevanten Aktionen schreiben ins Audit-Lo
 |---|---|---|
 | GET | `/api/employees` | L (Filter `include_hidden`, `group_id`, Pagination) |
 | GET | `/api/employees/{emp_id}` | L |
-| POST | `/api/employees` | A |
+| POST | `/api/employees` | A oder explizites `ADDEMPL`-Recht |
 | PUT | `/api/employees/{emp_id}` | A |
 | DELETE | `/api/employees/{emp_id}` | A (Soft-Delete = verstecken) |
 | PUT | `/api/employees/{emp_id}/activate` | A (Reaktivieren) |
@@ -202,7 +212,7 @@ disable/get_status`). Alle sicherheitsrelevanten Aktionen schreiben ins Audit-Lo
 |---|---|---|
 | GET | `/api/schedule` | L (Monatsplan; Gruppe optional) |
 | GET | `/api/schedule/day` · `/week` · `/year` | L |
-| GET | `/api/schedule/coverage` | L (Besetzungsanalyse) |
+| GET | `/api/schedule/coverage` | L (Besetzungsanalyse gegen echten Bedarf: 5SHDEM je Tagindex inkl. Feiertags-Slot, datumsbezogen von 5SPDEM überschrieben; je Tag `scheduled_count`/`required_min`/`required_max` und Status `under`/`ok`/`over`/`none`) |
 | GET | `/api/schedule/conflicts` | L (Konflikterkennung) |
 | POST | `/api/schedule` | PL (Eintrag anlegen: Schicht/Abwesenheit; Konflikt-/Restriktions-Checks) |
 | DELETE | `/api/schedule/{employee_id}/{date}` | PL |
@@ -237,6 +247,7 @@ disable/get_status`). Alle sicherheitsrelevanten Aktionen schreiben ins Audit-Lo
 | GET | `/api/absences/stats/group/{group_id}` | PL |
 | GET | `/api/absences/stats/overview` | PL |
 | GET/POST | `/api/leave-entitlements` | L/PL (Urlaubsanspruch, 5LEAEN) |
+| POST | `/api/leave-entitlements/forfeit` | A (5/min; Stichtags-Verfall von Resturlaub mit `dry_run`-Vorschau) |
 | GET | `/api/leave-balance`, `/api/leave-balance/group` | L (Resturlaub) |
 | GET/POST | `/api/holiday-bans`, DELETE `/{ban_id}` | L/A (Urlaubssperren, 5HOBAN) |
 | GET | `/api/annual-close/preview` | A (Jahresabschluss-Vorschau) |
@@ -252,7 +263,7 @@ disable/get_status`). Alle sicherheitsrelevanten Aktionen schreiben ins Audit-Lo
 | GET/POST | `/api/workplaces`, PUT/DELETE `/{wp_id}` | L/A |
 | GET | `/api/workplaces/{wp_id}/employees` | L |
 | POST/DELETE | `/api/workplaces/{wp_id}/employees/{employee_id}` | A |
-| GET/POST | `/api/extracharges`, PUT/DELETE `/{xc_id}`, GET `/summary` | L/A (Zuschläge, 5XCHAR) |
+| GET/POST | `/api/extracharges`, PUT/DELETE `/{xc_id}`, GET `/summary` | L/A (Zuschläge, 5XCHAR; `/summary` für Monat `year`/`month` oder freien Zeitraum `from`/`to`) |
 | GET/POST | `/api/staffing-requirements` | L/PL (Personalbedarf, 5SHDEM) |
 | GET/POST | `/api/staffing-requirements/special`, PUT/DELETE `/{record_id}` | L/PL (5SPDEM) |
 | GET/POST | `/api/skills`, PUT/DELETE `/{skill_id}` | L/A (JSON-Store `data/skills.json`) |
@@ -263,7 +274,8 @@ disable/get_status`). Alle sicherheitsrelevanten Aktionen schreiben ins Audit-Lo
 
 | Methode | Pfad | Rolle | Format |
 |---|---|---|---|
-| GET | `/api/statistics` | L | Monatsstatistik (Soll/Ist/Überstunden je Mitarbeiter) |
+| GET | `/api/statistics` | L | Statistik je Mitarbeiter (Soll/Ist/Überstunden) für Monat `year`/`month` oder freien Auswertungszeitraum `from`/`to` |
+| GET | `/api/personnel-table` | L (10/min) | Personaltabelle über freien Zeitraum `from`/`to`: Standardspalten (Ist/Soll, Saldo, bezahlte Abwesenheit, Sonn-/Feiertags-Diensttage, Sonderdienste) + dynamische Spalten je Schichtart/Abwesenheitsart; deckt der Zeitraum genau ein Kalenderjahr ab, zusätzlich genommen/Rest je anspruchsverbundener Urlaubsart |
 | GET | `/api/statistics/year-summary` | L | |
 | GET | `/api/statistics/employee/{emp_id}` | L | |
 | GET | `/api/statistics/sickness` | L | Krankenstand |
@@ -327,7 +339,7 @@ disable/get_status`). Alle sicherheitsrelevanten Aktionen schreiben ins Audit-Lo
 | GET | `/api/backup/download` | A (Live-ZIP der DBF/FPT/CDX-Dateien) |
 | GET | `/api/backup/sqlite` | A (Export als SQLite via `sp5lib.sqlite_adapter`) |
 | POST | `/api/backup/restore` | A (ZIP-Upload, Validierung Pflichtdateien) |
-| POST | `/api/admin/compact` | A (DBF PACK) |
+| POST | `/api/admin/compact` | A (DBF PACK — delegiert an `SP5Database.compact_database`: Exklusiv-Lock, Journal-Zap, Löschen stale CDX-Indizes) |
 | POST | `/api/errors` | P (10/min; Frontend-Error-Reports → `data/frontend_errors.json`, max. 500) |
 | GET | `/api/admin/frontend-errors` | A |
 | GET | `/api/admin/rate-limits` | A (429-Event-Dashboard aus `rate_limit_store`) |
@@ -388,13 +400,22 @@ sowie Read-only-Listen: `/shifts`, `/leave-types`, `/workplaces`,
 
 ## 3. Feature-Inventur (IST-Stand)
 
-**Vollständig implementiert und getestet** (2574 Tests, Coverage-Gate 70 % in CI):
+**Vollständig implementiert und getestet** (2664 Tests, Coverage-Gate 70 % in CI):
 
 - **Auth-Stack:** JWT (HS256) + serverseitiger Session-Store mit Revocation,
   HttpOnly-Cookie + Header + Query-Token, Rollenhierarchie Leser/Planer/Admin,
   Brute-Force-Lockout, Session-Limit pro User (Eviction), Passwort-Policy (ENV),
   TOTP-2FA inkl. QR-Setup, Backup-Codes und Admin-Reset, Audit-Log (JSON-Lines),
   Dev-Mode-Token.
+- **Granulare 5USER-Rechte:** `/api/auth/me` liefert ein `permissions`-Objekt;
+  jede Schreibroute erzwingt ihr Flag — `WDUTIES` (Dienstplan), `WABSENCES`,
+  `WOVERTIMES` (Stundenbuchungen), `WNOTES`, `WDEVIATION`, `WCYCLEASS`,
+  `WSWAPONLY` (Diensttausch), `ADDEMPL` (Opt-in: Mitarbeiter anlegen) sowie
+  `WPAST` — `WPAST=0` blockiert Schreiboperationen mit Vergangenheitsdatum,
+  auch auf den Sammelrouten (`bulk`, `bulk-group`, `copy-week`, `swap`,
+  Einsatzplan- und Buchungs-Writes; bei ID-basierten Updates/Deletes zählt das
+  Datum des gespeicherten Satzes). Das eingebaute `Admin`-Konto und der letzte
+  verbleibende Administrator sind gegen Herabstufung/Löschung geschützt.
 - **Komplette CRUD-Abdeckung** der SP5-Domäne: Mitarbeiter (inkl. Foto-Upload/WebP,
   Soft-Delete), Gruppen + Mitgliedschaften, Schichten, Abwesenheits-/Urlaubsarten,
   Feiertage, Arbeitsplätze, Zuschläge, Personalbedarf (regulär + speziell),
@@ -403,12 +424,16 @@ sowie Read-only-Listen: `/shifts`, `/leave-types`, `/workplaces`,
   und Restriktionsprüfung, Bulk/Bulk-Group, Wochen-Templates (capture/apply),
   Copy-Week, Schichttausch, Schichtzyklen inkl. Zuweisungen/Ausnahmen und
   Auto-Generierung, Einsatzplan mit Abweichungserfassung, Tageskommentare.
-- **Abwesenheits-Workflow:** Anträge (auch Selfservice), Genehmigungsstatus
-  (approve/reject mit Benachrichtigung), Urlaubskonto/Resturlaub, Urlaubssperren,
-  Jahresabschluss mit Vorschau.
-- **Reporting/Analytics:** Monats-/Jahresstatistik, Zeitkonto (3 Endpoints),
-  Krankenstand, Burnout-Radar, Fairness, Kapazitätsprognose (Monat + Jahr),
-  Qualitätsreport, Warnungen, Verfügbarkeitsmatrix, Simulation, Konfliktreport.
+- **Abwesenheits-Workflow:** Anträge (auch Selfservice, inkl. Teiltags-Intervall),
+  Genehmigungsstatus (approve/reject mit Benachrichtigung), Urlaubskonto/Resturlaub,
+  Urlaubssperren, Stichtags-Verfall von Resturlaub (mit `dry_run`-Vorschau),
+  Jahresabschluss mit Vorschau und `keep_entitlements`-Option.
+- **Reporting/Analytics:** Monats-/Jahresstatistik (auch über freie
+  Auswertungszeiträume `from`/`to`), Personaltabelle des Originals mit
+  dynamischen Spalten, Zeitkonto (3 Endpoints), Krankenstand, Burnout-Radar,
+  Fairness, Kapazitätsprognose (Monat + Jahr), Qualitätsreport, Warnungen,
+  Verfügbarkeitsmatrix, Simulation, Konfliktreport — alle Soll/Ist/Bedarfs-Zahlen
+  kommen aus der `sp5lib`-Berechnungsfassade, die API rechnet nicht selbst.
 - **Exporte:** CSV/HTML/XLSX (Dienstplan, Statistik, Mitarbeiter, Abwesenheiten,
   Konflikte), echtes PDF nur für den Monatsabschluss (fpdf2); 9 CSV-Importe;
   Backup als ZIP und SQLite; HTML-Druckansicht des Plans.
@@ -435,14 +460,16 @@ sowie Read-only-Listen: `/shifts`, `/leave-types`, `/workplaces`,
 ```
 openschichtplaner5 (App)          openschichtplaner5-api (dieses Repo)     libopenschichtplaner5 (Lib)
   backend/requirements.txt          pyproject.toml                            PyPI: libopenschichtplaner5
-  ├── openschichtplaner5-api>=1.1.1 ──► sp5api                                ▲
-  └── libopenschichtplaner5[postgres]>=1.6.0   └── libopenschichtplaner5[postgres]>=1.6.0 ──┘ (Import: sp5lib)
+  ├── openschichtplaner5-api>=1.2.0 ──► sp5api                                ▲
+  └── libopenschichtplaner5[postgres]>=1.7.0   └── libopenschichtplaner5[postgres]>=1.7.0 ──┘ (Import: sp5lib)
 ```
 
 **Konsumiert (downstream → upstream):**
 
-- Dieses Repo hängt in `pyproject.toml` von **`libopenschichtplaner5[postgres]>=1.6.0`**
-  (PyPI-Release) ab, importiert als `sp5lib`. Genutzte Lib-Oberfläche:
+- Dieses Repo hängt in `pyproject.toml` von **`libopenschichtplaner5[postgres]>=1.7.0`**
+  (PyPI-Release) ab, importiert als `sp5lib` — 1.7.0 ist die Untergrenze, weil die
+  Berechnungsfassade (`get_personnel_table`, `forfeit_rest`, Bedarfs-/Statistik-
+  rechnungen) dort eingeführt wurde. Genutzte Lib-Oberfläche:
   - `sp5lib.database.SP5Database` — die zentrale Fassade (~60 verwendete Methoden:
     `get_employees/get_schedule*/add_absence/verify_user_password/totp_*/
     create_ical_token/get_swap_requests/log_action/...`), instanziiert in
@@ -466,11 +493,10 @@ openschichtplaner5 (App)          openschichtplaner5-api (dieses Repo)     libop
 **Konsumiert von (upstream → downstream):**
 
 - Die Hauptanwendung `openschichtplaner5` pinnt in `backend/requirements.txt`
-  **`openschichtplaner5-api>=1.1.1`** und zusätzlich direkt
-  `libopenschichtplaner5[postgres]>=1.6.0`; ihr `Dockerfile`/`start.sh` setzen
-  `SP5_BACKEND_DIR` und starten `uvicorn sp5api.main:app`. (Hinweis: das
-  Meta-Workspace-Dokument spricht von „git deps (@main)“ — tatsächlich verdrahtet
-  ist aktuell der **PyPI-Versions-Pin**.)
+  **`openschichtplaner5-api>=1.2.0`** und zusätzlich direkt
+  `libopenschichtplaner5[postgres]>=1.7.0` (PyPI-Releases); ihr
+  `Dockerfile`/`start.sh` setzen `SP5_BACKEND_DIR` und starten
+  `uvicorn sp5api.main:app`.
 
 **Release-Workflow (PyPI):** Tag `vX.Y.Z` pushen → `.github/workflows/release.yml`
 baut sdist+wheel (`python -m build`, `twine check --strict`) und publiziert via
@@ -483,7 +509,7 @@ Entwicklung gegen den lokalen Lib-Stand via
 `pip install -e . -e "../libopenschichtplaner5[postgres]"` (README §Development).
 In diesem Checkout dient der Repo-Root selbst als `SP5_BACKEND_DIR`
 (`data/`, `api/data/` sind eingecheckte Runtime-State-Seeds für die Tests;
-`tests/fixtures/` enthält eine komplette DBF-Fixture-Datenbank mit 26 Tabellen).
+`tests/fixtures/` enthält eine komplette DBF-Fixture-Datenbank mit 30 Tabellen).
 
 ---
 
@@ -511,16 +537,18 @@ In diesem Checkout dient der Repo-Root selbst als `SP5_BACKEND_DIR`
 
 **Konsistenz/Architektur:**
 
-4. **Dreifacher Versions-Drift:** `pyproject.toml` = 1.1.3,
-   `FastAPI(version="1.1.0")` (`main.py:307`), `_API_VERSION = "1.0.0"`
-   (`main.py:850`, von `/api/version` und `/api/health` ausgeliefert). Keine der
-   drei Stellen wird aus den anderen abgeleitet.
-5. **Lib-Fassade wird umgangen:** 37× `db._read(...)` und 8× `db._table(...)`
+4. **Versions-Drift (Rest):** `/api/version` und `/api/health` melden seit 1.2.0
+   die echte Paketversion (`importlib.metadata`, `main.py:853`), aber der
+   `FastAPI(...)`-Konstruktor trägt weiterhin ein hartes `version="1.1.0"`
+   (`main.py:307`) — die OpenAPI-Doku zeigt damit eine veraltete Versionsnummer.
+5. **Lib-Fassade wird umgangen:** 20× `db._read(...)` und 8× `db._table(...)`
    (private Methoden der `SP5Database`) plus direkte
    `sp5lib.dbf_writer.find_all_records`-Zugriffe — konzentriert in
-   `reports.py` (17), `schedule.py` (9), `work_time_rules.py` (7), `main.py` (6).
-   Das koppelt die API eng an Lib-Interna und unterläuft die PostgreSQL-Abstraktion
-   (Raw-DBF-Lesen funktioniert im PG-Backend nur, soweit die Fassade es emuliert).
+   `schedule.py` (9), `work_time_rules.py` (8), `reports.py` (3),
+   `conflict_report.py` (3). Seit 1.2.0 deutlich reduziert (Dashboards, Coverage,
+   Statistiken laufen über die Fassade), aber nicht beseitigt. Das koppelt die API
+   an Lib-Interna und unterläuft die PostgreSQL-Abstraktion (Raw-DBF-Lesen
+   funktioniert im PG-Backend nur, soweit die Fassade es emuliert).
 6. **Zweierlei Persistenz-Welten:** Neben den DBF-Tabellen existieren ~14
    JSON-Dokumentstores (`webhooks.json`, `availability.json`,
    `recurring_shifts.json`, `work_time_rules.json`, `export_schedules.json`,
@@ -530,10 +558,10 @@ In diesem Checkout dient der Repo-Root selbst als `SP5_BACKEND_DIR`
    (`data/` vs. `api/` vs. `api/data/`) und nur prozesslokalem Locking.
 7. **Single-Process-Annahmen:** Session-Store, SSE-Subscriber-Registry, Metriken,
    TTL-Cache und Failed-Login-Tracking sind In-Memory-Dicts — explizit dokumentiert
-   (`dependencies.py:209`), aber damit sind Multi-Worker-Deployments
+   (`dependencies.py`), aber damit sind Multi-Worker-Deployments
    (uvicorn `--workers > 1`) funktional ausgeschlossen (Sessions/SSE brechen).
-8. **`routers/__init__.py` listet nur 9 der 25 Router**; `main.py` importiert alle
-   25 direkt. Harmlos, aber das `__all__` suggeriert eine falsche Paket-Oberfläche.
+8. **`routers/__init__.py` listet nur 9 der 26 Router**; `main.py` importiert alle
+   26 direkt. Harmlos, aber das `__all__` suggeriert eine falsche Paket-Oberfläche.
 9. **Doppelte/überlappende Endpoints:** `/api/overtime-summary` (reports.py) vs.
    `/api/overtime/summary` (overtime.py); CSV-Import doppelt als
    `/api/employees/import-csv` und `/api/import/employees`;
@@ -542,11 +570,11 @@ In diesem Checkout dient der Repo-Root selbst als `SP5_BACKEND_DIR`
 **Sicherheits-Auffälligkeiten (klein, aber konkret):**
 
 10. **`/api/metrics` ist öffentlich für alle**, obwohl Summary/Docstring
-    („No authentication required **when called from localhost**“, `main.py:1020 ff.`)
+    („No authentication required **when called from localhost**“, `main.py:1026 ff.`)
     eine Localhost-Beschränkung suggerieren — `is_local` wird nur berechnet und im
     Response-Feld `local_request` zurückgegeben, nicht durchgesetzt. Exponiert
     u. a. `active_sessions` und Fehlerraten anonym.
-11. `_generate_temp_password` (`auth.py:339`) nutzt `random` statt `secrets` —
+11. `_generate_temp_password` (`auth.py:396`) nutzt `random` statt `secrets` —
     für ein per E-Mail verschicktes Temp-Passwort wäre CSPRNG angemessen.
 
 **Altlasten (aus der Monorepo-Extraktion):**
@@ -572,6 +600,6 @@ werden Events mit +01:00 erzeugt — im Sommer eine Stunde versetzt);
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]" -e "../libopenschichtplaner5[postgres]"
 ruff check .          # sauber
-pytest                # 2574 passed, 6 skipped (~63 s)
+pytest                # 2664 passed, 6 skipped (~90 s)
 SP5_DB_PATH=tests/fixtures python -m uvicorn sp5api.main:app  # API-only-Modus
 ```
