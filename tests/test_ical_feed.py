@@ -9,16 +9,6 @@ from datetime import date
 import sp5api.routers.ical as ical
 
 
-class TestParseTime:
-    def test_valid(self):
-        assert ical._parse_time("06:30") == (6, 30)
-
-    def test_empty_or_malformed(self):
-        assert ical._parse_time("") is None  # guard: falsy
-        assert ical._parse_time("not-a-time") is None  # guard: no colon
-        assert ical._parse_time("ab:cd") is None  # has colon but non-numeric → except
-
-
 class _FakeDB:
     def __init__(self, employee, schedule):
         self._employee = employee

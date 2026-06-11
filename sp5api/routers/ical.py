@@ -50,15 +50,38 @@ def _escape_ical(text: str) -> str:
     )
 
 
-def _parse_time(time_str: str) -> tuple[int, int] | None:
-    """Parse 'HH:MM' or 'H:MM' to (hour, minute) tuple."""
-    if not time_str or ":" not in time_str:
+def _shift_times_for_day(
+    shift: dict, entry_date: date, holidays: dict
+) -> tuple[tuple[int, int], tuple[int, int]] | None:
+    """Erstes STARTEND-Zeitfenster der Schicht für das Datum.
+
+    Slot-Auswahl über den Tagindex 0=Mo..6=So, 7=Feiertag (D-34) — an
+    Feiertagen gelten die STARTEND7-Zeiten. Leerer Slot = kein Zeitfenster
+    auf diesem Tagindex (3.4.3 Nr. 6) ⇒ None (All-Day-Fallback des Aufrufers).
+    """
+    from sp5lib import calculations as calc
+
+    idx = calc.day_index(entry_date, holidays)
+    windows = calc.parse_startend(shift.get(f"STARTEND{idx}") or "")
+    if not windows:
         return None
+    start_min, end_min = windows[0]
+    start_min %= 1440
+    end_min %= 1440  # "…-00:00" ⇒ Mitternachtsübergang (der Aufrufer addiert 1 Tag)
+    return (
+        (start_min // 60, start_min % 60),
+        (end_min // 60, end_min % 60),
+    )
+
+
+def _holiday_calendar(db) -> dict:
+    """5HOLID als date→INTERVAL-Kalender für die Tagindex-Wahl."""
+    from sp5lib import calculations as calc
+
     try:
-        parts = time_str.strip().split(":")
-        return (int(parts[0]), int(parts[1]))
-    except (ValueError, IndexError):
-        return None
+        return calc.holiday_calendar(db._read("HOLID"))
+    except Exception:
+        return {}
 
 
 def _build_ical(
@@ -209,6 +232,9 @@ def _generate_ical_response(
     leave_types = db.get_leave_types()
     leave_map = {lt["ID"]: lt for lt in leave_types}
 
+    # Feiertage für die Tagindex-Wahl (STARTEND7 an Feiertagen, D-34)
+    holidays = _holiday_calendar(db)
+
     # Build iCal events
     events: list[dict] = []
 
@@ -223,8 +249,6 @@ def _generate_ical_response(
             entry_date = date.fromisoformat(date_str)
         except ValueError:
             continue
-
-        weekday = entry_date.weekday()  # 0=Monday
 
         if kind in ("shift", "special_shift"):
             shift_id = entry.get("shift_id")
@@ -244,49 +268,45 @@ def _generate_ical_response(
             summary = shift_short or shift_name or "Schicht"
             description = shift_name if shift_name != summary else ""
 
-            # Try to get start/end times from shift definition
-            times_by_day = shift.get("TIMES_BY_WEEKDAY", {})
-            day_times = times_by_day.get(weekday)
+            # Schichtzeiten je Tagindex (Feiertag ⇒ STARTEND7, D-34)
+            day_times = _shift_times_for_day(shift, entry_date, holidays)
 
-            if day_times and day_times.get("start") and day_times.get("end"):
-                start_parsed = _parse_time(day_times["start"])
-                end_parsed = _parse_time(day_times["end"])
+            if day_times:
+                (start_h, start_m), (end_h, end_m) = day_times
+                dt_start = datetime(
+                    entry_date.year,
+                    entry_date.month,
+                    entry_date.day,
+                    start_h,
+                    start_m,
+                    tzinfo=_TZ_VIENNA,
+                ).astimezone(UTC)
 
-                if start_parsed and end_parsed:
-                    dt_start = datetime(
-                        entry_date.year,
-                        entry_date.month,
-                        entry_date.day,
-                        start_parsed[0],
-                        start_parsed[1],
-                        tzinfo=_TZ_VIENNA,
-                    ).astimezone(UTC)
+                dt_end = datetime(
+                    entry_date.year,
+                    entry_date.month,
+                    entry_date.day,
+                    end_h,
+                    end_m,
+                    tzinfo=_TZ_VIENNA,
+                ).astimezone(UTC)
 
-                    dt_end = datetime(
-                        entry_date.year,
-                        entry_date.month,
-                        entry_date.day,
-                        end_parsed[0],
-                        end_parsed[1],
-                        tzinfo=_TZ_VIENNA,
-                    ).astimezone(UTC)
+                # Handle overnight shifts
+                if dt_end <= dt_start:
+                    dt_end += timedelta(days=1)
 
-                    # Handle overnight shifts
-                    if dt_end <= dt_start:
-                        dt_end += timedelta(days=1)
-
-                    events.append(
-                        {
-                            "uid": _make_uid(employee_id, date_str, f"shift-{shift_id}"),
-                            "dtstart": _ical_dt(dt_start),
-                            "dtend": _ical_dt(dt_end),
-                            "summary": summary,
-                            "description": description,
-                            "categories": "Schicht",
-                            "all_day": False,
-                        }
-                    )
-                    continue
+                events.append(
+                    {
+                        "uid": _make_uid(employee_id, date_str, f"shift-{shift_id}"),
+                        "dtstart": _ical_dt(dt_start),
+                        "dtend": _ical_dt(dt_end),
+                        "summary": summary,
+                        "description": description,
+                        "categories": "Schicht",
+                        "all_day": False,
+                    }
+                )
+                continue
 
             # Fallback: all-day event if no times available
             next_day = entry_date + timedelta(days=1)
@@ -366,6 +386,8 @@ def _generate_feed_ical(employee_id: int, months_back: int = 1, months_ahead: in
     shifts_map = {s["ID"]: s for s in shifts}
     leave_types = db.get_leave_types()
     leave_map = {lt["ID"]: lt for lt in leave_types}
+    # Feiertage für die Tagindex-Wahl (STARTEND7 an Feiertagen, D-34)
+    holidays = _holiday_calendar(db)
 
     # Build rolling window of months
     today = date.today()
@@ -399,8 +421,6 @@ def _generate_feed_ical(employee_id: int, months_back: int = 1, months_ahead: in
             except ValueError:
                 continue
 
-            weekday = entry_date.weekday()
-
             if kind in ("shift", "special_shift"):
                 shift_id = entry.get("shift_id")
                 shift = shifts_map.get(shift_id, {}) if shift_id else {}
@@ -417,34 +437,31 @@ def _generate_feed_ical(employee_id: int, months_back: int = 1, months_ahead: in
                 summary = shift_short or shift_name or "Schicht"
                 description = shift_name if shift_name != summary else ""
 
-                # Try to get times
-                times_by_day = shift.get("TIMES_BY_WEEKDAY", {})
-                day_times = times_by_day.get(weekday)
+                # Schichtzeiten je Tagindex (Feiertag ⇒ STARTEND7, D-34)
+                day_times = _shift_times_for_day(shift, entry_date, holidays)
 
-                if day_times and day_times.get("start") and day_times.get("end"):
-                    start_parsed = _parse_time(day_times["start"])
-                    end_parsed = _parse_time(day_times["end"])
-                    if start_parsed and end_parsed:
-                        dt_start = datetime(
-                            entry_date.year, entry_date.month, entry_date.day,
-                            start_parsed[0], start_parsed[1], tzinfo=_TZ_VIENNA,
-                        ).astimezone(UTC)
-                        dt_end = datetime(
-                            entry_date.year, entry_date.month, entry_date.day,
-                            end_parsed[0], end_parsed[1], tzinfo=_TZ_VIENNA,
-                        ).astimezone(UTC)
-                        if dt_end <= dt_start:
-                            dt_end += timedelta(days=1)
-                        events.append({
-                            "uid": _make_uid(employee_id, date_str, f"shift-{shift_id}"),
-                            "dtstart": _ical_dt(dt_start),
-                            "dtend": _ical_dt(dt_end),
-                            "summary": summary,
-                            "description": description,
-                            "categories": "Schicht",
-                            "all_day": False,
-                        })
-                        continue
+                if day_times:
+                    (start_h, start_m), (end_h, end_m) = day_times
+                    dt_start = datetime(
+                        entry_date.year, entry_date.month, entry_date.day,
+                        start_h, start_m, tzinfo=_TZ_VIENNA,
+                    ).astimezone(UTC)
+                    dt_end = datetime(
+                        entry_date.year, entry_date.month, entry_date.day,
+                        end_h, end_m, tzinfo=_TZ_VIENNA,
+                    ).astimezone(UTC)
+                    if dt_end <= dt_start:
+                        dt_end += timedelta(days=1)
+                    events.append({
+                        "uid": _make_uid(employee_id, date_str, f"shift-{shift_id}"),
+                        "dtstart": _ical_dt(dt_start),
+                        "dtend": _ical_dt(dt_end),
+                        "summary": summary,
+                        "description": description,
+                        "categories": "Schicht",
+                        "all_day": False,
+                    })
+                    continue
 
                 # Fallback: all-day
                 next_day = entry_date + timedelta(days=1)

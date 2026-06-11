@@ -257,16 +257,6 @@ class TestIcalContent:
 
 
 class TestIcalHelpers:
-    def test_parse_time(self):
-        from sp5api.routers.ical import _parse_time
-        assert _parse_time("08:30") == (8, 30)
-        assert _parse_time("8:00") == (8, 0)
-        assert _parse_time("23:59") == (23, 59)
-        assert _parse_time("") is None
-        assert _parse_time(None) is None
-        assert _parse_time("invalid") is None
-        assert _parse_time("25:00") == (25, 0)  # doesn't validate range
-
     def test_escape_ical(self):
         from sp5api.routers.ical import _escape_ical
         assert _escape_ical("Hello; World") == "Hello\\; World"

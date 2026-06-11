@@ -10,7 +10,7 @@ from sp5api.routers.ical import (
     _ical_date,
     _ical_dt,
     _make_uid,
-    _parse_time,
+    _shift_times_for_day,
 )
 
 # ── Unit tests for helper functions ──────────────────────────────
@@ -77,20 +77,40 @@ class TestEscapeIcal:
         assert _escape_ical("a;b,c\nd") == "a\\;b\\,c\\nd"
 
 
-class TestParseTime:
-    def test_valid(self):
-        assert _parse_time("08:00") == (8, 0)
-        assert _parse_time("14:30") == (14, 30)
-        assert _parse_time("0:00") == (0, 0)
+class TestShiftTimesForDay:
+    """D12-Repro: Slot-Wahl per Tagindex 0..6, Feiertag ⇒ STARTEND7 (D-34)."""
 
-    def test_invalid(self):
-        assert _parse_time("") is None
-        assert _parse_time("abc") is None
-        assert _parse_time(None) is None  # type: ignore[arg-type]
+    SHIFT = {
+        "STARTEND0": "06:00-14:00",
+        "STARTEND1": "06:00-14:00",
+        "STARTEND2": "06:00-14:00",
+        "STARTEND3": "06:00-14:00",
+        "STARTEND4": "06:00-14:00",
+        "STARTEND5": "",
+        "STARTEND6": "",
+        "STARTEND7": "10:00-13:00",
+    }
 
-    def test_edge_cases(self):
-        assert _parse_time("23:59") == (23, 59)
-        assert _parse_time("6:00") == (6, 0)
+    def test_weekday_uses_weekday_slot(self):
+        # Mo 2026-01-05, kein Feiertag
+        times = _shift_times_for_day(self.SHIFT, date(2026, 1, 5), {})
+        assert times == ((6, 0), (14, 0))
+
+    def test_holiday_uses_startend7(self):
+        # 2026-01-06 (Hl. Drei Könige) als Feiertag ⇒ STARTEND7-Zeiten,
+        # nicht die Di-Zeiten 06:00-14:00 (alte TIMES_BY_WEEKDAY-Lücke)
+        holidays = {date(2026, 1, 6): 0}
+        times = _shift_times_for_day(self.SHIFT, date(2026, 1, 6), holidays)
+        assert times == ((10, 0), (13, 0))
+
+    def test_empty_slot_means_no_time_window(self):
+        # Sa-Slot leer ⇒ None (All-Day-Fallback), KEIN Rückfall auf STARTEND0
+        assert _shift_times_for_day(self.SHIFT, date(2026, 1, 3), {}) is None
+
+    def test_midnight_end_wraps(self):
+        shift = {"STARTEND0": "12:00-00:00"}
+        times = _shift_times_for_day(shift, date(2026, 1, 5), {})
+        assert times == ((12, 0), (0, 0))  # Aufrufer addiert bei end<=start 1 Tag
 
 
 class TestBuildIcal:
@@ -282,15 +302,15 @@ class TestIcalTokenDb:
     """Test iCal token CRUD in the database layer."""
 
     @pytest.fixture
-    def db(self):
-        """Create a database instance pointing at the test DB."""
-        import os
-        db_path = os.environ.get("SP5_DB_PATH") or os.environ.get(
-            "DB_PATH",
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures"),
-        )
+    def db(self, patched_db):
+        """DB-Instanz auf der Session-Temp-Kopie (patched_db).
+
+        Vorher wurde SP5_DB_PATH roh aus der Umgebung gelesen — beim
+        Einzellauf der Datei zeigte der von sp5api.main publizierte Default
+        auf ein nicht existierendes Verzeichnis (FileNotFoundError beim
+        Token-Schreiben); im Gesamtlauf maskierte patched_db das zufällig."""
         from sp5lib.database import SP5Database
-        database = SP5Database(db_path)
+        database = SP5Database(patched_db)
         # Clean up any leftover test tokens
         yield database
         # Cleanup
