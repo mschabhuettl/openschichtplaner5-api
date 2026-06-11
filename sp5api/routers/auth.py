@@ -159,11 +159,32 @@ def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
         raise _sanitize_500(e, "create_user")
 
 
+# ── G-3: Schutz des eingebauten Admin-Kontos (Spec 9.3 Nr. 3) ──
+# Das Konto "Admin" (ID 251) ist weder lösch- noch umbenennbar, und der
+# letzte verbliebene Administrator darf nicht gelöscht/herabgestuft werden.
+_PROTECTED_ADMIN_ID = 251
+
+
+def _find_user(db, user_id: int) -> dict | None:
+    return next((u for u in db.get_users() if u.get("ID") == user_id), None)
+
+
+def _is_protected_admin(user: dict) -> bool:
+    return user.get("ID") == _PROTECTED_ADMIN_ID or (
+        (user.get("NAME") or "").strip().lower() == "admin" and user.get("ADMIN")
+    )
+
+
+def _is_last_admin(db, user_id: int) -> bool:
+    admins = [u for u in db.get_users() if u.get("ADMIN")]
+    return len(admins) == 1 and admins[0].get("ID") == user_id
+
+
 @router.put(
     "/api/users/{user_id}",
     tags=["Users"],
     summary="Update user",
-    description="Update an existing API user. Requires Admin role.",
+    description="Update an existing API user. Requires Admin role. Das Konto 'Admin' (ID 251) kann weder umbenannt noch herabgestuft werden; der letzte Administrator kann nicht herabgestuft werden (Spec 9.3 Nr. 3).",
 )
 def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_admin)):
     data = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -173,6 +194,29 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
         )
     if "PASSWORD" in data:
         _validate_password_strength(data["PASSWORD"])
+    # ── G-3 Guards (Spec 9.3 Nr. 3) ─────────────────────────────
+    target = _find_user(get_db(), user_id)
+    if target is not None:
+        if _is_protected_admin(target):
+            if "NAME" in data and data["NAME"].strip() != (target.get("NAME") or "").strip():
+                raise HTTPException(
+                    status_code=403,
+                    detail="Das Administrator-Konto 'Admin' kann nicht umbenannt werden",
+                )
+            if data.get("role") not in (None, "Admin"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Das Administrator-Konto 'Admin' kann nicht herabgestuft werden",
+                )
+        elif (
+            target.get("ADMIN")
+            and data.get("role") not in (None, "Admin")
+            and _is_last_admin(get_db(), user_id)
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Der letzte verbliebene Administrator kann nicht herabgestuft werden",
+            )
     try:
         result = get_db().update_user(user_id, data)
         _logger.warning(
@@ -202,10 +246,23 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
     "/api/users/{user_id}",
     tags=["Users"],
     summary="Delete user",
-    description="Soft-delete (hide) an API user. Requires Admin role.",
+    description="Soft-delete (hide) an API user. Requires Admin role. Das Konto 'Admin' (ID 251) und der letzte verbliebene Administrator können nicht gelöscht werden (Spec 9.3 Nr. 3).",
 )
 def delete_user(user_id: int, _admin: dict = Depends(require_admin)):
     try:
+        # ── G-3 Guards (Spec 9.3 Nr. 3) ─────────────────────────
+        target = _find_user(get_db(), user_id)
+        if target is not None:
+            if _is_protected_admin(target):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Das Administrator-Konto 'Admin' kann nicht gelöscht werden",
+                )
+            if target.get("ADMIN") and _is_last_admin(get_db(), user_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Der letzte verbliebene Administrator kann nicht gelöscht werden",
+                )
         count = get_db().delete_user(user_id)
         if count == 0:
             raise HTTPException(
