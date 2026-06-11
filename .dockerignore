@@ -1,0 +1,63 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Virtual envs
+.venv
+venv
+env
+
+# Caches / build artifacts
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+*.egg-info
+build
+dist
+htmlcov
+.coverage
+coverage.xml
+
+# Tests / Docs / Skripte (nicht Teil des Runtime-Images)
+tests
+test_smoke.py
+pytest.ini
+docs
+scripts
+
+# Laufzeit-State des lokalen Checkouts — nie ins Image (das Dockerfile
+# kopiert nur die getrackten Seeds explizit)
+backups
+api/uploads
+api/absence_status.json
+api/notifications.json
+api/data/availability.json
+api/data/recurring_shifts.json
+data/changelog.json
+data/export_schedules.json
+data/frontend_errors.json
+data/rate_limit_events.jsonl
+data/schedule_comments.json
+data/scheduled_reports.json
+data/swap_requests.json
+data/webhooks.json
+data/work_time_rules.json
+
+# Niemals Datenbankdaten oder Secrets ins Image
+*.DBF
+*.dbf
+.env
+*.env
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+
+# Docker selbst
+Dockerfile
+docker-compose*.yml
+.dockerignore

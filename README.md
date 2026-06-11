@@ -69,6 +69,28 @@ SP5_DB_PATH=/path/to/SP5/Daten python -m uvicorn sp5api.main:app --host 0.0.0.0 
 The full list (rate limits, brute-force lockout, SMTP, logging, password policy …) is
 documented in the main app's [`.env.example`](https://github.com/mschabhuettl/openschichtplaner5/blob/main/.env.example).
 
+### Docker
+
+Production-ready multi-stage image (slim runtime, non-root, `HEALTHCHECK` on
+`/api/health`, `EXPOSE 8000`; `SP5_DB_PATH=/app/data`, `SP5_BACKEND_DIR=/app/backend`):
+
+```bash
+# local operation: DBF dir + optional .env (SECRET_KEY!), see docker-compose.yml
+SP5_DBF_DIR=/path/to/SP5/Daten docker compose up --build
+
+# plain build + run
+docker build -t openschichtplaner5-api .
+docker run --rm -p 8000:8000 -v /path/to/SP5/Daten:/app/data openschichtplaner5-api
+```
+
+The current versions (lib 1.7.0 / api 1.2.0) are **not on PyPI** — the build
+installs the library from Git `main` by default. Override via build arg, e.g.
+`--build-arg LIB_SOURCE="libopenschichtplaner5[postgres]==1.7.0"` once released:
+
+```bash
+docker build --build-arg LIB_SOURCE=git+https://github.com/mschabhuettl/libopenschichtplaner5.git@main .
+```
+
 ## Development
 
 ```bash
