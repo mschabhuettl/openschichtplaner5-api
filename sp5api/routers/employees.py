@@ -14,6 +14,7 @@ from ..dependencies import (
     _logger,
     _sanitize_500,
     get_db,
+    require_addempl,
     require_admin,
 )
 from ..schemas import GroupResponse, paginate
@@ -248,9 +249,9 @@ class EmployeeUpdate(BaseModel):
     "/api/employees",
     tags=["Employees"],
     summary="Create employee",
-    description="Create a new employee record. Requires Admin role.",
+    description="Create a new employee record. Requires Admin role or the granular ADDEMPL right ('neue Mitarbeiter erfassen', Spec 9.5.3).",
 )
-def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_admin)):
+def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_addempl)):
     # Validation handled by Pydantic Field constraints and validators
     try:
         db = get_db()

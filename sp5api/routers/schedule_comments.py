@@ -7,7 +7,7 @@ from ..dependencies import (
     _sanitize_500,
     get_db,
     require_auth,
-    require_planer,
+    require_write,
 )
 
 router = APIRouter()
@@ -56,7 +56,7 @@ def list_schedule_comments(
 )
 def create_schedule_comment(
     body: ScheduleCommentCreate,
-    cur_user: dict = Depends(require_planer),
+    cur_user: dict = Depends(require_write("WNOTES")),
 ):
     # Validate date
     try:
@@ -86,7 +86,7 @@ def create_schedule_comment(
 )
 def delete_schedule_comment(
     comment_id: int,
-    _cur_user: dict = Depends(require_planer),
+    _cur_user: dict = Depends(require_write("WNOTES")),
 ):
     try:
         deleted = get_db().delete_schedule_comment(comment_id)

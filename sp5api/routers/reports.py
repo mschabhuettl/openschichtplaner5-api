@@ -20,6 +20,7 @@ from ..dependencies import (
     require_admin,
     require_auth,
     require_planer,
+    require_write,
 )
 
 _logger = _logging.getLogger("sp5api")
@@ -1989,7 +1990,7 @@ class BookingCreate(BaseModel):
         401: {"description": "Not authenticated"},
     },
 )
-def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer)):
+def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_write("WOVERTIMES"))):
     try:
         from datetime import datetime
 
@@ -2024,7 +2025,7 @@ def create_booking(body: BookingCreate, _cur_user: dict = Depends(require_planer
         401: {"description": "Not authenticated"},
     },
 )
-def delete_booking(booking_id: int, _cur_user: dict = Depends(require_planer)):
+def delete_booking(booking_id: int, _cur_user: dict = Depends(require_write("WOVERTIMES"))):
     try:
         count = get_db().delete_booking(booking_id)
         if count == 0:
@@ -2064,7 +2065,7 @@ class CarryForwardSet(BaseModel):
     summary="Set carry-forward saldo",
     description="Set carry-forward hours for an employee. Requires Planer role.",
 )
-def set_carry_forward(body: CarryForwardSet, _cur_user: dict = Depends(require_planer)):
+def set_carry_forward(body: CarryForwardSet, _cur_user: dict = Depends(require_write("WOVERTIMES"))):
     try:
         result = get_db().set_carry_forward(
             employee_id=body.employee_id,

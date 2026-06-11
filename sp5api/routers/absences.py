@@ -9,10 +9,12 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from .._paths import backend_dir
 from ..dependencies import (
     _sanitize_500,
+    enforce_wpast,
     get_db,
     require_admin,
     require_planer,
     require_role,
+    require_write,
 )
 from ..schemas import paginate
 from .events import broadcast
@@ -28,7 +30,7 @@ router = APIRouter()
     description="Remove the absence record for an employee on a specific date. Shifts on that day are preserved. Requires Planer role.",
 )
 def delete_absence_only(
-    employee_id: int, date: str, _cur_user: dict = Depends(require_planer)
+    employee_id: int, date: str, _cur_user: dict = Depends(require_write("WABSENCES"))
 ):
     """Delete only absence entries (ABSEN) for an employee on a date, leaving shifts intact."""
     try:
@@ -40,6 +42,7 @@ def delete_absence_only(
             status_code=400,
             detail="Invalid date format, please use YYYY-MM-DD",
         )
+    enforce_wpast(_cur_user, date)
     try:
         db = get_db()
         count = db.delete_absence_only(employee_id, date)
@@ -134,8 +137,11 @@ def get_all_group_assignments():
     summary="Create absence",
     description="Add an absence entry for an employee on a date. Requires Planer role.",
 )
-def create_absence(body: AbsenceCreate, _cur_user: dict = Depends(require_planer)):
+def create_absence(
+    body: AbsenceCreate, _cur_user: dict = Depends(require_write("WABSENCES"))
+):
     # Date validation handled by Pydantic model
+    enforce_wpast(_cur_user, body.date)
     db = get_db()
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(
@@ -248,7 +254,7 @@ def update_absence(
     employee_id: int,
     date: str,
     body: AbsenceUpdate,
-    _cur_user: dict = Depends(require_planer),
+    _cur_user: dict = Depends(require_write("WABSENCES")),
 ):
     try:
         from datetime import datetime as _dtt
@@ -258,6 +264,7 @@ def update_absence(
         raise HTTPException(
             status_code=400, detail="Invalid date format, please use YYYY-MM-DD"
         )
+    enforce_wpast(_cur_user, date)
     db = get_db()
     if body.leave_type_id is not None and db.get_leave_type(body.leave_type_id) is None:
         raise HTTPException(
@@ -329,9 +336,10 @@ class BulkAbsenceCreate(BaseModel):
     description="Add the same absence type for multiple (or all active) employees on one date in a single request. Requires Planer role.",
 )
 def bulk_create_absence(
-    body: BulkAbsenceCreate, _cur_user: dict = Depends(require_planer)
+    body: BulkAbsenceCreate, _cur_user: dict = Depends(require_write("WABSENCES"))
 ):
     """Add an absence entry for multiple employees (or all active) on one date."""
+    enforce_wpast(_cur_user, body.date)
     db = get_db()
     if db.get_leave_type(body.leave_type_id) is None:
         raise HTTPException(

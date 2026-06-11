@@ -13,6 +13,7 @@ from ..dependencies import (
     require_admin,
     require_auth,
     require_planer,
+    require_write,
 )
 from ..schemas import paginate
 from .events import broadcast
@@ -68,7 +69,7 @@ class NoteCreate(BaseModel):
     summary="Add note",
     description="Create a new shift note. Requires Planer role.",
 )
-def add_note(body: NoteCreate, _cur_user: dict = Depends(require_planer)):
+def add_note(body: NoteCreate, _cur_user: dict = Depends(require_write("WNOTES"))):
     try:
         from datetime import datetime
 
@@ -111,7 +112,7 @@ class NoteUpdate(BaseModel):
     description="Update the text or date of an existing shift note. Requires Planer role.",
 )
 def update_note(
-    note_id: int, body: NoteUpdate, _cur_user: dict = Depends(require_planer)
+    note_id: int, body: NoteUpdate, _cur_user: dict = Depends(require_write("WNOTES"))
 ):
     if body.date is not None:
         try:
@@ -150,7 +151,7 @@ def update_note(
     summary="Delete note",
     description="Permanently delete a shift note by ID. Requires Planer role.",
 )
-def delete_note(note_id: int, _cur_user: dict = Depends(require_planer)):
+def delete_note(note_id: int, _cur_user: dict = Depends(require_write("WNOTES"))):
     try:
         count = get_db().delete_note(note_id)
         broadcast("note_deleted", {"note_id": note_id})

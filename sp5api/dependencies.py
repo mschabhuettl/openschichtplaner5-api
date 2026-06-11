@@ -376,6 +376,90 @@ def require_planer(user: dict | None = Depends(get_current_user)) -> dict:
     return user
 
 
+# ── Granulare 5USER-Schreibrechte (Spec 9.6, Parity G-1) ─────────
+
+
+def _has_write_flag(user: dict, flag: str) -> bool:
+    """True, wenn das granulare 5USER-Flag dem Benutzer das Schreiben erlaubt.
+
+    Admin-Rolle ⇒ immer True. Fehlt das Flag im Session-Dict (Legacy-
+    Sessions, Test-Fixtures), gilt es als erlaubt — die Rollenprüfung
+    (mind. Planer) bleibt davon unberührt. Nur ein explizit gesetztes,
+    falsy Flag sperrt.
+    """
+    if user.get("role") == "Admin":
+        return True
+    val = user.get(flag)
+    return True if val is None else bool(val)
+
+
+def require_write(*flags: str):
+    """Factory: mind. Planer-Rolle UND eines der granularen Schreib-Flags
+    (z. B. WDUTIES, WABSENCES; Diensttausch: WDUTIES oder WSWAPONLY)."""
+
+    def _dep(user: dict | None = Depends(get_current_user)) -> dict:
+        if user is None:
+            raise HTTPException(status_code=401, detail="Nicht angemeldet")
+        if _ROLE_LEVEL.get(user.get("role", "Leser"), 1) < 2:
+            raise HTTPException(
+                status_code=403, detail="Mindestrolle 'Planer' erforderlich"
+            )
+        if not any(_has_write_flag(user, f) for f in flags):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Keine Schreibberechtigung ({'/'.join(flags)})",
+            )
+        return user
+
+    return _dep
+
+
+def require_addempl(user: dict | None = Depends(get_current_user)) -> dict:
+    """Mitarbeiter anlegen: Admin oder explizites ADDEMPL-Flag.
+
+    ADDEMPL ist laut Spec 9.5.3 Nr. 2.1 ein Opt-in ("neue Mitarbeiter
+    erfassen") — anders als die W*-Flags wird es daher nur bei explizit
+    gesetztem Flag gewährt.
+    """
+    if user is None:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    if user.get("role") == "Admin":
+        return user
+    if _ROLE_LEVEL.get(user.get("role", "Leser"), 1) >= 2 and bool(
+        user.get("ADDEMPL")
+    ):
+        return user
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "Mitarbeiter anlegen erfordert Admin oder das Recht "
+            "'neue Mitarbeiter erfassen' (ADDEMPL)"
+        ),
+    )
+
+
+def enforce_wpast(user: dict, *dates: str | None) -> None:
+    """Vergangenheits-Schreibschutz (5USER.WPAST, Spec 9.6).
+
+    WPAST explizit 0 ⇒ Schreibzugriffe mit Datum < heute → 403.
+    Admin und Sessions ohne Flag sind unbeschränkt.
+    """
+    if _has_write_flag(user, "WPAST"):
+        return
+    from datetime import date as _date
+
+    today = _date.today().isoformat()
+    for d in dates:
+        if d and d < today:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Änderungen in der Vergangenheit sind für diesen "
+                    "Benutzer gesperrt (WPAST)"
+                ),
+            )
+
+
 def get_db():
     """Get a database connection using the configured backend.
 

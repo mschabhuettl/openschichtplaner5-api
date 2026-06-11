@@ -6,10 +6,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..dependencies import (
     _sanitize_500,
+    enforce_wpast,
     get_db,
     limiter,
     require_admin,
     require_planer,
+    require_write,
 )
 from .events import broadcast
 
@@ -211,7 +213,7 @@ class CycleAssignBody(BaseModel):
     summary="Assign employee to shift cycle",
     description="Assign an employee to a shift rotation cycle. Requires Planer role.",
 )
-def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer)):
+def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_write("WCYCLEASS"))):
     # start_date format already validated by Pydantic pattern; also parse for calendar validity
     try:
         from datetime import datetime
@@ -246,7 +248,7 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_planer
     description="Remove an employee from their assigned shift cycle. Requires Planer role.",
 )
 def remove_cycle_assignment(
-    employee_id: int, _cur_user: dict = Depends(require_planer)
+    employee_id: int, _cur_user: dict = Depends(require_write("WCYCLEASS"))
 ):
     try:
         count = get_db().remove_cycle_assignment(employee_id)
@@ -479,7 +481,7 @@ def delete_template(template_id: int, _cur_user: dict = Depends(require_planer))
 def apply_template(
     template_id: int,
     body: TemplateApplyRequest,
-    _cur_user: dict = Depends(require_planer),
+    _cur_user: dict = Depends(require_write("WDUTIES")),
 ):
     """Apply a schedule template to a target week."""
     db = get_db()
@@ -566,9 +568,11 @@ def _get_shift_time_range(shift: dict, weekday_index: int):
     description="Assign a shift to an employee on a specific date. Requires Planer role.",
 )
 def create_schedule_entry(
-    body: ScheduleEntryCreate, _cur_user: dict = Depends(require_planer)
+    body: ScheduleEntryCreate, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
     from datetime import date as _date
+
+    enforce_wpast(_cur_user, body.date)
 
     from sp5lib.dbf_reader import get_table_fields
     from sp5lib.dbf_writer import find_all_records
@@ -755,7 +759,7 @@ def create_schedule_entry(
     description="Remove a scheduled shift for an employee on a specific date (YYYY-MM-DD). Requires Planer role.",
 )
 def delete_schedule_entry(
-    employee_id: int, date: str, _cur_user: dict = Depends(require_planer)
+    employee_id: int, date: str, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
     try:
         from datetime import datetime
@@ -766,6 +770,7 @@ def delete_schedule_entry(
             status_code=400,
             detail="Invalid date format, please use YYYY-MM-DD",
         )
+    enforce_wpast(_cur_user, date)
     try:
         db = get_db()
         count = db.delete_schedule_entry(employee_id, date)
@@ -798,7 +803,7 @@ def delete_schedule_entry(
     description="Remove only the shift entry for an employee on a given date, leaving absences intact. Requires Planer role.",
 )
 def delete_shift_only(
-    employee_id: int, date: str, _cur_user: dict = Depends(require_planer)
+    employee_id: int, date: str, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
     """Delete only shift entries (MASHI/SPSHI) for an employee on a date, leaving absences intact."""
     try:
@@ -810,6 +815,7 @@ def delete_shift_only(
             status_code=400,
             detail="Invalid date format, please use YYYY-MM-DD",
         )
+    enforce_wpast(_cur_user, date)
     try:
         count = get_db().delete_shift_only(employee_id, date)
         return {"ok": True, "deleted": count}
@@ -835,7 +841,7 @@ class ScheduleGenerateRequest(BaseModel):
 )
 @limiter.limit("10/minute")
 def generate_schedule(
-    request: Request, body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_planer)
+    request: Request, body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
     """Generate (or preview) schedule entries for a month based on cycle assignments.
     dry_run=True: returns preview without writing.
@@ -972,7 +978,7 @@ class BulkScheduleBody(BaseModel):
     summary="Bulk schedule operations",
     description="Create, update, or delete multiple schedule entries in a single request. If `shift_id` is null the entry is deleted. Requires Planer role.",
 )
-def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_planer)):
+def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_write("WDUTIES"))):
     """Bulk create/update/delete schedule entries in a single request.
     If shift_id is null the entry is deleted; otherwise created or overwritten."""
     from datetime import datetime as _dt2
@@ -1036,7 +1042,7 @@ class BulkGroupAssignBody(BaseModel):
     summary="Bulk assign shift to group",
     description="Assign a shift to all members of a group (or explicit employee list) for a date range. Requires Planer role.",
 )
-def bulk_group_assign(body: BulkGroupAssignBody, _cur_user: dict = Depends(require_planer)):
+def bulk_group_assign(body: BulkGroupAssignBody, _cur_user: dict = Depends(require_write("WDUTIES"))):
     """Assign one shift to a group of employees across a date range."""
     from datetime import datetime as _dt3
     from datetime import timedelta
@@ -1158,7 +1164,7 @@ class DeviationCreate(BaseModel):
     description="Create a Sonderdienst (special duty) entry. Requires Planer role.",
 )
 def create_einsatzplan_entry(
-    body: EinsatzplanCreate, _cur_user: dict = Depends(require_planer)
+    body: EinsatzplanCreate, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
     """Create a Sonderdienst entry in SPSHI (TYPE=0)."""
     try:
@@ -1204,7 +1210,7 @@ def create_einsatzplan_entry(
     description="Update an existing deployment plan entry. Requires Planer role.",
 )
 def update_einsatzplan_entry(
-    entry_id: int, body: EinsatzplanUpdate, _cur_user: dict = Depends(require_planer)
+    entry_id: int, body: EinsatzplanUpdate, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
     """Update an existing SPSHI entry."""
     data = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -1236,7 +1242,7 @@ def update_einsatzplan_entry(
     summary="Delete deployment plan entry",
     description="Delete a SPSHI entry by ID.",
 )
-def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_planer)):
+def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_write("WDUTIES"))):
     """Delete a SPSHI entry by ID."""
     try:
         count = get_db().delete_spshi_entry_by_id(entry_id)
@@ -1255,7 +1261,7 @@ def delete_einsatzplan_entry(entry_id: int, _cur_user: dict = Depends(require_pl
     summary="Record deployment deviation",
     description="Create an Arbeitszeitabweichung entry in SPSHI (TYPE=1).",
 )
-def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_planer)):
+def create_deviation(body: DeviationCreate, _cur_user: dict = Depends(require_write("WDEVIATION"))):
     """Create an Arbeitszeitabweichung entry in SPSHI (TYPE=1)."""
     try:
         from datetime import datetime
@@ -1340,7 +1346,7 @@ def get_cycle_exceptions(
     description="Set a cycle exception for a specific date. Requires Planer role.",
 )
 def set_cycle_exception(
-    body: CycleExceptionSet, _cur_user: dict = Depends(require_planer)
+    body: CycleExceptionSet, _cur_user: dict = Depends(require_write("WCYCLEASS"))
 ):
     """Set a cycle exception for a specific date."""
     try:
@@ -1362,7 +1368,7 @@ def set_cycle_exception(
     description="Delete a cycle exception by ID. Requires Planer role.",
 )
 def delete_cycle_exception(
-    exception_id: int, _cur_user: dict = Depends(require_planer)
+    exception_id: int, _cur_user: dict = Depends(require_write("WCYCLEASS"))
 ):
     """Delete a cycle exception by ID."""
     count = get_db().delete_cycle_exception(exception_id)
@@ -1384,7 +1390,7 @@ class SwapShiftsRequest(BaseModel):
     summary="Swap shifts between employees",
     description="Exchange schedule entries (shifts and absences) between two employees for the specified dates. Requires Planer role.",
 )
-def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_planer)):
+def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_write("WDUTIES", "WSWAPONLY"))):
     """Swap schedule entries (shifts + absences) between two employees for the given dates."""
     from datetime import datetime as _dt3
 
@@ -1505,7 +1511,7 @@ class CopyWeekRequest(BaseModel):
     summary="Copy week schedule",
     description="Copy a source employee's schedule entries for given dates to one or more target employees. Use `skip_existing=false` to overwrite. Requires Planer role.",
 )
-def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_planer)):
+def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_write("WDUTIES"))):
     """Copy one employee's schedule entries (shifts + absences) for given dates to one or more target employees."""
     db = get_db()
     if not body.dates or not body.target_employee_ids:

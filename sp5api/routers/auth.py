@@ -559,10 +559,57 @@ def login(request: Request, body: LoginBody):
     return response
 
 
-@router.get("/api/auth/me", tags=["Auth"], summary="Current user info", description="Return the current authenticated user's info.")
+# Granulare 5USER-Flags (Spec 9.6) → permissions-Schlüssel; Reihenfolge/Namen
+# wie sp5lib.database.SP5Database._USER_PERMISSION_FIELDS.
+_PERMISSION_FIELDS = {
+    "wduties": "WDUTIES",
+    "wabsences": "WABSENCES",
+    "wovertimes": "WOVERTIMES",
+    "wnotes": "WNOTES",
+    "wdeviation": "WDEVIATION",
+    "wcycleass": "WCYCLEASS",
+    "wswaponly": "WSWAPONLY",
+    "wpast": "WPAST",
+    "addempl": "ADDEMPL",
+    "showabs": "SHOWABS",
+    "shownotes": "SHOWNOTES",
+    "showstats": "SHOWSTATS",
+    "backup": "BACKUP",
+}
+
+
+def _user_permissions(user: dict) -> dict:
+    """permissions-Objekt für /api/auth/me (G-1): aus dem 5USER-Record,
+    Admin ⇒ alles True. Fallback für Sessions ohne 5USER-Satz (Dev-Mode,
+    Test-Fixtures): Session-Flags, fehlende Flags nach Rollen-Default."""
+    if user.get("role") == "Admin":
+        return dict.fromkeys(_PERMISSION_FIELDS, True)
+    try:
+        perms = get_db().get_user_permissions(user.get("ID"))
+    except Exception:
+        perms = None
+    if perms is not None:
+        return perms
+    # Rollen-Defaults: Schreib-Flags für Planer, Anzeige-Flags an,
+    # Opt-ins (wswaponly/addempl/backup) aus
+    is_writer = user.get("role") == "Planer"
+    defaults = {
+        key: is_writer if field.startswith("W") and field != "WSWAPONLY" else False
+        for key, field in _PERMISSION_FIELDS.items()
+    }
+    defaults.update({"showabs": True, "shownotes": True, "showstats": True})
+    return {
+        key: bool(user[field]) if user.get(field) is not None else defaults[key]
+        for key, field in _PERMISSION_FIELDS.items()
+    }
+
+
+@router.get("/api/auth/me", tags=["Auth"], summary="Current user info", description="Return the current authenticated user's info incl. the granular 5USER write/display permissions (Spec 9.6).")
 def me(user: dict = Depends(require_auth)):
     """Return the current authenticated user's info."""
-    return {k: v for k, v in user.items() if k != "expires_at"}
+    info = {k: v for k, v in user.items() if k != "expires_at"}
+    info["permissions"] = _user_permissions(user)
+    return info
 
 
 @router.post(
