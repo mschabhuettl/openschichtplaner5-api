@@ -53,17 +53,13 @@ def _anon_client(app) -> TestClient:
 
 # ── Mock DB helpers ───────────────────────────────────────────────────────────
 
-def _make_mashi_entries(employee_id: int, dates_hours: list[tuple[str, float, int | None]]) -> list[dict]:
-    """Build MASHI-like records. dates_hours: [(date_str, hours, shift_id), ...]"""
-    records = []
-    for d, _, sid in dates_hours:
-        records.append({"EMPLOYEEID": employee_id, "DATE": d, "SHIFTID": sid})
-    return records
-
-
-def _make_shifts(entries: list[tuple[int, float]]) -> list[dict]:
-    """Build SHIFT records: [(shift_id, duration_hours), ...]"""
-    return [{"ID": sid, "DURATION0": dur, "STARTTIME": "08:00"} for sid, dur in entries]
+def _spec_shift(sid: int, start: str, end: str, hours: float) -> dict:
+    """Spec-shaped 5SHIFT record: STARTEND/DURATION je Tagindex 0..6."""
+    rec: dict = {"ID": sid}
+    for i in range(7):
+        rec[f"STARTEND{i}"] = f"{start}-{end}"
+        rec[f"DURATION{i}"] = hours
+    return rec
 
 
 # ── Fixture: temp rules file ───────────────────────────────────────────────────
@@ -346,7 +342,7 @@ class TestRuleEngine:
         from sp5api.routers.work_time_rules import _check_employee
         db = self._make_db_mock(
             mashi=[{"EMPLOYEEID": 1, "DATE": "2024-01-01", "SHIFTID": 10}],
-            shifts=[{"ID": 10, "DURATION0": 15.0, "STARTTIME": "08:00"}],
+            shifts=[_spec_shift(10, "08:00", "23:00", 15.0)],
         )
         rules = {
             "max_hours_per_day": 10, "max_hours_per_week": 48,
@@ -360,7 +356,7 @@ class TestRuleEngine:
         from sp5api.routers.work_time_rules import _check_employee
         db = self._make_db_mock(
             mashi=[{"EMPLOYEEID": 1, "DATE": "2024-01-15", "SHIFTID": 10}],
-            shifts=[{"ID": 10, "DURATION0": 12.0, "STARTTIME": "06:00"}],
+            shifts=[_spec_shift(10, "06:00", "18:00", 12.0)],
         )
         rules = {
             "max_hours_per_day": 10, "max_hours_per_week": 48,
@@ -379,7 +375,7 @@ class TestRuleEngine:
         for day in range(1, 8):
             d = f"2024-01-{day:02d}"
             entries.append({"EMPLOYEEID": 1, "DATE": d, "SHIFTID": 10})
-        shifts_list.append({"ID": 10, "DURATION0": 8.0, "STARTTIME": "08:00"})
+        shifts_list.append(_spec_shift(10, "08:00", "16:00", 8.0))
         db = self._make_db_mock(mashi=entries, shifts=shifts_list)
         rules = {
             "max_hours_per_day": 24, "max_hours_per_week": 48,
@@ -399,8 +395,8 @@ class TestRuleEngine:
             {"EMPLOYEEID": 1, "DATE": "2024-01-02", "SHIFTID": 21},
         ]
         shifts_list = [
-            {"ID": 20, "DURATION0": 8.0, "STARTTIME": "20:00"},
-            {"ID": 21, "DURATION0": 8.0, "STARTTIME": "07:00"},
+            _spec_shift(20, "20:00", "04:00", 8.0),
+            _spec_shift(21, "07:00", "15:00", 8.0),
         ]
         db = self._make_db_mock(mashi=mashi, shifts=shifts_list)
         rules = {
@@ -419,7 +415,7 @@ class TestRuleEngine:
             {"EMPLOYEEID": 1, "DATE": "2024-01-01", "SHIFTID": 20},
             {"EMPLOYEEID": 1, "DATE": "2024-01-02", "SHIFTID": 20},
         ]
-        shifts_list = [{"ID": 20, "DURATION0": 8.0, "STARTTIME": "08:00"}]
+        shifts_list = [_spec_shift(20, "08:00", "16:00", 8.0)]
         db = self._make_db_mock(mashi=mashi, shifts=shifts_list)
         rules = {
             "max_hours_per_day": 24, "max_hours_per_week": 200,
@@ -434,7 +430,7 @@ class TestRuleEngine:
         from sp5api.routers.work_time_rules import _check_employee
         # 7 consecutive days, max is 6
         entries = [{"EMPLOYEEID": 1, "DATE": f"2024-01-{d:02d}", "SHIFTID": 10} for d in range(1, 8)]
-        shifts_list = [{"ID": 10, "DURATION0": 8.0, "STARTTIME": "08:00"}]
+        shifts_list = [_spec_shift(10, "08:00", "16:00", 8.0)]
         db = self._make_db_mock(mashi=entries, shifts=shifts_list)
         rules = {
             "max_hours_per_day": 24, "max_hours_per_week": 200,
@@ -448,7 +444,7 @@ class TestRuleEngine:
     def test_violation_has_required_fields(self):
         from sp5api.routers.work_time_rules import _check_employee
         mashi = [{"EMPLOYEEID": 1, "DATE": "2024-01-15", "SHIFTID": 10}]
-        shifts_list = [{"ID": 10, "DURATION0": 12.0, "STARTTIME": "08:00"}]
+        shifts_list = [_spec_shift(10, "08:00", "20:00", 12.0)]
         db = self._make_db_mock(mashi=mashi, shifts=shifts_list)
         rules = {
             "max_hours_per_day": 10, "max_hours_per_week": 48,
@@ -464,7 +460,7 @@ class TestRuleEngine:
     def test_severity_is_warning_or_error(self):
         from sp5api.routers.work_time_rules import _check_employee
         entries = [{"EMPLOYEEID": 1, "DATE": f"2024-01-{d:02d}", "SHIFTID": 10} for d in range(1, 8)]
-        shifts_list = [{"ID": 10, "DURATION0": 12.0, "STARTTIME": "08:00"}]
+        shifts_list = [_spec_shift(10, "08:00", "20:00", 12.0)]
         db = self._make_db_mock(mashi=entries, shifts=shifts_list)
         rules = {
             "max_hours_per_day": 10, "max_hours_per_week": 48,

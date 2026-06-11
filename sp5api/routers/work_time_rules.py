@@ -16,6 +16,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sp5lib import calculations as calc
 
 from .._paths import backend_dir
 from ..dependencies import (
@@ -88,133 +89,100 @@ class CheckResult(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
-def _get_shift_duration(db, shift_id: int | None) -> float:
-    """Return duration (hours) of a shift by its ID."""
-    if not shift_id:
-        return 0.0
-    for s in db._read("SHIFT"):
-        if s.get("ID") == shift_id:
-            return float(s.get("DURATION0") or s.get("DURATION") or 0)
-    return 0.0
+def _employee_plan(
+    db, employee_id: int, from_date: date, to_date: date
+) -> tuple[list[tuple[date, dict]], list[tuple[date, dict]], list[tuple[date, dict]]]:
+    """Plan-Quellen eines Mitarbeiters (Spec 3.4.2): 5MASHI, 5CYASS, 5SPSHI.
 
-
-def _get_shifts_map(db) -> dict[int, float]:
-    """Return {shift_id: duration_hours} for all shifts."""
-    result: dict[int, float] = {}
-    for s in db._read("SHIFT"):
-        sid = s.get("ID")
-        if sid is not None:
-            result[int(sid)] = float(s.get("DURATION0") or s.get("DURATION") or 0)
-    return result
-
-
-def _collect_work_days(db, employee_id: int, from_date: date, to_date: date) -> dict[date, float]:
-    """Return {day: total_hours} for an employee over a date range."""
-    shifts_map = _get_shifts_map(db)
-    day_hours: dict[date, float] = {}
-
-    from_str = from_date.isoformat()
-    to_str = to_date.isoformat()
-
-    # MASHI: regular shift assignments
-    for r in db._read("MASHI"):
-        if r.get("EMPLOYEEID") != employee_id:
-            continue
-        d_str = (r.get("DATE") or "")[:10]
-        if not d_str or d_str < from_str or d_str > to_str:
-            continue
-        try:
-            d = date.fromisoformat(d_str)
-        except ValueError:
-            continue
-        sid = r.get("SHIFTID")
-        hrs = float(shifts_map.get(sid, 0)) if sid else 0.0
-        day_hours[d] = day_hours.get(d, 0.0) + hrs
-
-    # SPSHI: special shifts
-    for r in db._read("SPSHI"):
-        if r.get("EMPLOYEEID") != employee_id:
-            continue
-        d_str = (r.get("DATE") or "")[:10]
-        if not d_str or d_str < from_str or d_str > to_str:
-            continue
-        try:
-            d = date.fromisoformat(d_str)
-        except ValueError:
-            continue
-        hrs = float(r.get("DURATION") or 0)
-        day_hours[d] = day_hours.get(d, 0.0) + hrs
-
-    return day_hours
-
-
-def _collect_shift_times(db, employee_id: int, from_date: date, to_date: date) -> list[dict]:
-    """Return list of {date, start_hour, end_hour} for all shifts of an employee.
-
-    Used for rest-time checks. Falls back to 0-based hours when time is unknown.
+    Zyklusdienste werden — wie in der lib-Fassade — von 5MASHI-Einträgen am
+    selben Tag verdrängt (Materialisierungs-Override).
     """
-    from_str = from_date.isoformat()
-    to_str = to_date.isoformat()
-    shifts_map_full: dict[int, dict] = {}
-    for s in db._read("SHIFT"):
-        sid = s.get("ID")
-        if sid is not None:
-            shifts_map_full[int(sid)] = s
 
-    entries = []
-
-    def _parse_time(val) -> float | None:
-        """Convert HH:MM or decimal hours string to float hours, or None."""
-        if val is None:
-            return None
-        v = str(val).strip()
-        if ":" in v:
-            parts = v.split(":")
+    def _dated(rows) -> list[tuple[date, dict]]:
+        out = []
+        for r in rows:
+            if r.get("EMPLOYEEID") != employee_id:
+                continue
             try:
-                return int(parts[0]) + int(parts[1]) / 60
-            except ValueError:
-                return None
-        try:
-            return float(v)
-        except ValueError:
-            return None
+                d = calc.to_date(r.get("DATE"))
+            except ValueError:  # defektes DBF-Datum → überspringen
+                continue
+            if d is not None and from_date <= d <= to_date:
+                out.append((d, r))
+        return out
 
-    for r in db._read("MASHI"):
-        if r.get("EMPLOYEEID") != employee_id:
-            continue
-        d_str = (r.get("DATE") or "")[:10]
-        if not d_str or d_str < from_str or d_str > to_str:
-            continue
-        try:
-            d = date.fromisoformat(d_str)
-        except ValueError:
-            continue
-        sid = r.get("SHIFTID")
-        shift_info = shifts_map_full.get(sid, {}) if sid else {}
-        start_h = _parse_time(shift_info.get("STARTTIME") or shift_info.get("START"))
-        dur = float(shift_info.get("DURATION0") or shift_info.get("DURATION") or 0)
-        if start_h is None:
-            start_h = 8.0  # default assumption
-        end_h = start_h + dur
-        entries.append({"date": d, "start_hour": start_h, "end_hour": end_h, "duration": dur})
+    manual = _dated(db._read("MASHI"))
+    special = _dated(db._read("SPSHI"))
+    cycle_recs = calc.expand_cycle_assignments(
+        [r for r in db._read("CYASS") if r.get("EMPLOYEEID") == employee_id],
+        cycles=db._read("CYCLE"),
+        cycle_entries=db._read("CYENT"),
+        cycle_exceptions=db._read("CYEXC"),
+        von=from_date,
+        bis=to_date,
+    )
+    manual_days = {d for d, _r in manual}
+    cycle = []
+    for r in cycle_recs:
+        d = calc.to_date(r.get("DATE"))
+        if d is not None and d not in manual_days:
+            cycle.append((d, r))
+    return manual, cycle, special
 
-    for r in db._read("SPSHI"):
-        if r.get("EMPLOYEEID") != employee_id:
-            continue
-        d_str = (r.get("DATE") or "")[:10]
-        if not d_str or d_str < from_str or d_str > to_str:
-            continue
-        try:
-            d = date.fromisoformat(d_str)
-        except ValueError:
-            continue
-        start_h = 8.0
-        dur = float(r.get("DURATION") or 0)
-        end_h = start_h + dur
-        entries.append({"date": d, "start_hour": start_h, "end_hour": end_h, "duration": dur})
 
-    entries.sort(key=lambda e: (e["date"], e["start_hour"]))
-    return entries
+def _collect_day_data(
+    db, employee_id: int, from_date: date, to_date: date
+) -> tuple[dict[date, float], list[dict]]:
+    """Tagesstunden und Dienstblöcke (echte Zeiten) eines Mitarbeiters.
+
+    Spec-Basis statt erfundener Felder (Befund D7): Stunden je Tag über
+    DURATION[Ft?7:wd] (3.4.3 Nr. 5/6), 5SPSHI mit SHIFTID ersetzt den
+    Normaldienst (3.4.4 Nr. 12), zyklusgeplante MA über 5CYASS-Expansion
+    (3.4.2). Zeitblöcke aus STARTEND[Ft?7:wd] bzw. 5SPSHI.STARTEND (bis zu
+    drei Teilfenster, Tageswechsel bei Ende <= Start, D-30/D-31); je Dienst
+    ein Block über die Spannweite seiner Fenster — Dienste ohne definierte
+    Zeiten liefern keinen Block.
+    """
+    holidays = calc.holiday_calendar(db._read("HOLID"))
+    shifts_by_id = {
+        int(s["ID"]): s for s in db._read("SHIFT") if s.get("ID") is not None
+    }
+    manual, cycle, special = _employee_plan(db, employee_id, from_date, to_date)
+    replaced = {d for d, r in special if int(r.get("SHIFTID") or 0)}
+
+    day_hours: dict[date, float] = {}
+    blocks: list[dict] = []
+
+    def _add_block(d: date, windows: list[tuple[int, int]]) -> None:
+        spans = [(s, e if e > s else e + 1440) for s, e in windows if (s, e) != (0, 0)]
+        if not spans:
+            return
+        base = datetime.combine(d, datetime.min.time())
+        blocks.append(
+            {
+                "date": d,
+                "start": base + timedelta(minutes=min(s for s, _ in spans)),
+                "end": base + timedelta(minutes=max(e for _, e in spans)),
+            }
+        )
+
+    for d, r in (*manual, *cycle):
+        if d in replaced:
+            continue
+        shift = shifts_by_id.get(int(r.get("SHIFTID") or 0))
+        if shift is None:
+            continue
+        day_hours[d] = day_hours.get(d, 0.0) + calc.shift_hours_on_day(
+            shift, d, holidays
+        )
+        idx = calc.day_index(d, holidays)
+        _add_block(d, calc.parse_startend(str(shift.get(f"STARTEND{idx}") or "")))
+    for d, r in special:
+        day_hours[d] = day_hours.get(d, 0.0) + float(r.get("DURATION") or 0.0)
+        _add_block(d, calc.parse_startend(str(r.get("STARTEND") or "")))
+
+    blocks.sort(key=lambda b: (b["start"], b["end"]))
+    return day_hours, blocks
 
 
 def _check_employee(
@@ -235,7 +203,7 @@ def _check_employee(
     min_rest = float(rules.get("min_rest_hours_between_shifts", 11))
     max_consec = int(rules.get("max_consecutive_days", 6))
 
-    day_hours = _collect_work_days(db, employee_id, from_date, to_date)
+    day_hours, shift_blocks = _collect_day_data(db, employee_id, from_date, to_date)
 
     # ── Max hours per day ─────────────────────────────────────────
     for d, hrs in sorted(day_hours.items()):
@@ -273,14 +241,9 @@ def _check_employee(
             })
 
     # ── Min rest between shifts ───────────────────────────────────
-    shift_entries = _collect_shift_times(db, employee_id, from_date, to_date)
-    for i in range(1, len(shift_entries)):
-        prev = shift_entries[i - 1]
-        curr = shift_entries[i]
+    for prev, curr in zip(shift_blocks, shift_blocks[1:], strict=False):
         # Calculate actual rest in hours between end of prev and start of curr
-        prev_end_dt = datetime.combine(prev["date"], datetime.min.time()) + timedelta(hours=prev["end_hour"])
-        curr_start_dt = datetime.combine(curr["date"], datetime.min.time()) + timedelta(hours=curr["start_hour"])
-        rest_hours = (curr_start_dt - prev_end_dt).total_seconds() / 3600
+        rest_hours = (curr["start"] - prev["end"]).total_seconds() / 3600
         if 0 < rest_hours < min_rest:
             violations.append({
                 "type": "min_rest_hours_between_shifts",
