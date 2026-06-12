@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Login restored.** The token issued by `/api/auth/login` now also works as a
+  standard `Authorization: Bearer` header (previously only the cookie /
+  X-Auth-Token were accepted, so API clients got 401). Login no longer rejects
+  empty/short passwords, so original 5USER accounts authenticate with their
+  existing (MD5) password. Shift-restriction conflict checks use the original
+  day index (0=Mon..6=Sun, 7=holiday) instead of "0=all, 1=Mon..7=Sun (ISO)".
+
+### Added
+
+- Demo-user bootstrap: `admin` / `planer` / `leser` (password `Test1234`,
+  roles Admin/Planer/Leser) are seeded on startup in dev mode or with
+  `SP5_SEED_DEMO_USERS=1` (never in a default production deployment).
+- `GET /api/schedule/eligible-replacements`: replacement candidates filtered by
+  group, employment period, availability and shift restriction.
+
 ### Added
 
 - `prepare-release` workflow (manual dispatch): bumps the version, cuts the
