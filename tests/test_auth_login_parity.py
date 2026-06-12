@@ -9,18 +9,50 @@ Covers:
   * the demo-user bootstrap (admin/planer/leser, Test1234) and role enforcement.
 """
 
+import hashlib
+import json
+import os
+
 import pytest
 from starlette.testclient import TestClient
 
 
+def _force_md5_only(db, user_id: int, password: str) -> None:
+    """Set a user's DIGEST to MD5(password) and drop any bcrypt sidecar entry.
+
+    Makes the original-account (MD5) login path deterministic regardless of
+    test ordering — other tests in the shared session DB may set a bcrypt
+    password on the same account.
+    """
+    from sp5lib.dbf_reader import get_table_fields
+    from sp5lib.dbf_writer import find_all_records, update_record
+
+    path = db._table("USER")
+    fields = get_table_fields(path)
+    for idx, _rec in find_all_records(path, fields, ID=user_id):
+        update_record(path, fields, idx, {"DIGEST": hashlib.md5(password.encode()).digest()})
+        break
+    bpath = db._bcrypt_path()
+    if os.path.exists(bpath):
+        with open(bpath) as fh:
+            data = json.load(fh)
+        if data.pop(str(user_id), None) is not None:
+            with open(bpath, "w") as fh:
+                json.dump(data, fh)
+
+
 @pytest.fixture
 def fresh_client(app, test_db_path):
-    """A plain TestClient that performs real logins (no injected token)."""
+    """A plain TestClient that performs real logins (no injected token).
+
+    Deterministic accounts: 'Admin' (251) gets the original empty-password MD5
+    digest, 'Schmidt' (252) MD5('1') — both MD5-only (no bcrypt sidecar).
+    """
     from sp5api.dependencies import get_db
 
     db = get_db()
-    # Known-password accounts on the writable copy: original 'Admin' keeps its
-    # empty password; give 'Schmidt' a short and another a strong password.
+    _force_md5_only(db, 251, "")
+    _force_md5_only(db, 252, "1")
     yield TestClient(app), db
 
 

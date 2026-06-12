@@ -47,3 +47,4 @@ AGENTS.md
 /data/webhooks.json
 /data/work_time_rules.json
 /backups/
+*_BCRYPT.json
