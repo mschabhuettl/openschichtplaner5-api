@@ -3,11 +3,26 @@ name: Update PyPI Pins
 # Zieht den PyPI-Pin der Library (LIB_SOURCE) in Dockerfile und
 # docker-compose.yml auf die jeweils neueste veröffentlichte Version
 # nach und committet direkt auf main. Ohne Versionsänderung passiert nichts.
+#
+# Mit dem optionalen Input expected_lib wartet der Workflow, bis PyPI
+# mindestens diese Version meldet — direkt nach einem Release kann der
+# JSON-Endpunkt wegen CDN-Propagation noch die Vorgängerversion liefern.
 
 on:
   schedule:
-    - cron: '0 2 * * 1'  # Jeden Montag 02:00 UTC
+    - cron: '0 2 * * *'  # Täglich 02:00 UTC
   workflow_dispatch:
+    inputs:
+      expected_lib:
+        description: 'Mindestversion von libopenschichtplaner5 — wartet auf PyPI-CDN-Propagation (optional)'
+        type: string
+        required: false
+        default: ''
+  # Vorbereitete Kopplung: kann nach einem Library-Release per
+  # repository_dispatch (event_type update-pins) angestoßen werden;
+  # expected_lib wird dann aus client_payload.expected_lib gelesen.
+  repository_dispatch:
+    types: [update-pins]
 
 permissions:
   contents: write
@@ -19,9 +34,28 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Neueste PyPI-Version ermitteln und Pin nachziehen
+        env:
+          EXPECTED_LIB: ${{ inputs.expected_lib || github.event.client_payload.expected_lib || '' }}
         run: |
           set -euo pipefail
-          LIB_VER=$(curl -fsSL https://pypi.org/pypi/libopenschichtplaner5/json | jq -r .info.version)
+          version_ge() {  # $1 >= $2 ?
+            [[ "$(printf '%s\n' "$2" "$1" | sort -V | head -1)" == "$2" ]]
+          }
+          # PyPI-CDN-Lag: nach einem Release liefert der JSON-Endpunkt u. U.
+          # noch die alte Version — mit expected_lib bis ~3 Min (15-s-Schritte)
+          # warten, bis mindestens die erwartete Version gemeldet wird.
+          for attempt in $(seq 1 12); do
+            LIB_VER=$(curl -fsSL https://pypi.org/pypi/libopenschichtplaner5/json | jq -r .info.version)
+            if [[ -z "${EXPECTED_LIB}" ]] || version_ge "${LIB_VER}" "${EXPECTED_LIB}"; then
+              break
+            fi
+            echo "PyPI meldet ${LIB_VER}, erwartet >= ${EXPECTED_LIB} — warte 15 s (Versuch ${attempt}/12) ..."
+            sleep 15
+          done
+          if [[ -n "${EXPECTED_LIB}" ]] && ! version_ge "${LIB_VER}" "${EXPECTED_LIB}"; then
+            echo "::error::PyPI liefert nach ~3 Minuten weiterhin ${LIB_VER} (< ${EXPECTED_LIB}) — CDN-Propagation abwarten und erneut starten."
+            exit 1
+          fi
           echo "PyPI: libopenschichtplaner5 ${LIB_VER}"
           if ! [[ "${LIB_VER}" =~ ^[0-9] ]]; then
             echo "::error::PyPI-Versionsabfrage lieferte keine gültige Version"
