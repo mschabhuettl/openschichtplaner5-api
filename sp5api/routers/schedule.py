@@ -29,6 +29,11 @@ def get_schedule(
     year: int = Query(..., description="Year"),
     month: int = Query(..., description="Month (1-12)"),
     group_id: int | None = Query(None, description="Filter by group ID"),
+    plan: str = Query(
+        "ist",
+        description="Soll-/Istplan-Sicht (Spec 4.12): 'ist' (Vorgabe), 'soll' "
+        "oder 'both' (beide Pläne für die 2-/3-Zeilen-Ansicht)",
+    ),
     abs_mode: int = Depends(absence_visibility_mode),
 ):
     if not (1 <= month <= 12):
@@ -40,8 +45,12 @@ def get_schedule(
             status_code=400,
             detail="Invalid year: must be between 2000 and 2100",
         )
+    if plan not in ("ist", "soll", "both"):
+        raise HTTPException(
+            status_code=400, detail="plan muss 'ist', 'soll' oder 'both' sein"
+        )
     db = get_db()
-    entries = db.get_schedule(year=year, month=month, group_id=group_id)
+    entries = db.get_schedule(year=year, month=month, group_id=group_id, plan=plan)
     return db.apply_absence_visibility(entries, abs_mode)
 
 
@@ -513,6 +522,8 @@ class ScheduleEntryCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     shift_id: int = Field(..., gt=0)
+    # Soll-/Istplan (Spec 4.12): 0=Istplan (Vorgabe), 1=Sollplan-Zielvorgabe
+    schedule_type: int = Field(0, ge=0, le=1)
 
     @field_validator("date")
     @classmethod
@@ -597,6 +608,13 @@ def create_schedule_entry(
         existing_entries = find_all_records(
             filepath, fields, EMPLOYEEID=body.employee_id, DATE=body.date
         )
+        # Soll-/Istplan (Spec 4.12): nur Einträge derselben Planart kollidieren —
+        # ein Sollplan-Ziel und ein Istplan-Eintrag dürfen am selben Tag bestehen.
+        existing_entries = [
+            (idx, rec)
+            for idx, rec in existing_entries
+            if int(rec.get("TYPE") or 0) == body.schedule_type
+        ]
         for _, rec in existing_entries:
             if rec.get("SHIFTID") == body.shift_id:
                 raise HTTPException(
@@ -727,7 +745,10 @@ def create_schedule_entry(
         pass  # RESTR check is best-effort; don't block scheduling on unexpected errors
 
     try:
-        result = db.add_schedule_entry(body.employee_id, body.date, body.shift_id)
+        result = db.add_schedule_entry(
+            body.employee_id, body.date, body.shift_id,
+            schedule_type=body.schedule_type,
+        )
         broadcast(
             "schedule_changed", {"employee_id": body.employee_id, "date": body.date}
         )

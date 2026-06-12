@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Soll-/Istplan (Spec 4.12): `GET /api/schedule?plan=ist|soll|both` wählt die
+  Plansicht; `POST /api/schedule` akzeptiert `schedule_type` (0=Ist, 1=Soll). Die
+  Duplikat-/Überlappungsprüfung ist planart-bewusst (Soll- und Ist-Eintrag dürfen
+  am selben Tag bestehen).
 - Abwesenheits-Anonymisierung (Spec 9.5.2 Nr. 2.1, D-67): `/api/schedule`,
   `/api/schedule/day`, `/api/schedule/week` und der Dienstplan-Druck wenden den
   SHOWABS-Modus des angemeldeten Benutzers an — vollständig (0), anonymisiert (1,
