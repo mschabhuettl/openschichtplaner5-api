@@ -68,6 +68,47 @@ def get_holidays(year: int | None = None):
     return result
 
 
+# ── Manuelle Stammdaten-Sortierung (POSITION, Spec 5.1 Nr. 4) ──
+
+_REORDER_CACHE_PREFIX = {
+    "employees": "employees:",
+    "shifts": "shifts:",
+    "groups": "groups:",
+    "leave_types": "leave_types:",
+    "workplaces": "workplaces:",
+}
+
+
+class ReorderBody(BaseModel):
+    ordered_ids: list[int] = Field(..., min_length=1, max_length=5000)
+
+
+@router.post(
+    "/api/reorder/{entity}",
+    tags=["Master Data"],
+    summary="Reorder master data manually",
+    description="Vergibt die manuelle Sortierung (POSITION) für eine Stammdaten-"
+    "Liste in der übergebenen Reihenfolge. entity: employees, shifts, groups, "
+    "leave_types oder workplaces. Erfordert Planer-Rolle.",
+)
+def reorder_master_data(
+    entity: str, body: ReorderBody, _cur_user: dict = Depends(require_planer)
+):
+    if entity not in _REORDER_CACHE_PREFIX:
+        raise HTTPException(
+            status_code=400,
+            detail="entity muss employees, shifts, groups, leave_types oder workplaces sein",
+        )
+    try:
+        n = get_db().reorder(entity, body.ordered_ids)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise _sanitize_500(e)
+    cache.invalidate(_REORDER_CACHE_PREFIX[entity])
+    return {"ok": True, "updated": n}
+
+
 # ── Staffing Requirements ─────────────────────────────────────
 
 

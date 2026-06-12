@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `POST /api/reorder/{entity}` (entity = employees|shifts|groups|leave_types|
+  workplaces): manuelle, programmweite Stammdaten-Sortierung (POSITION, Spec 5.1
+  Nr. 4); Planer-Rolle; invalidiert den Listen-Cache. Erfordert lib >=1.11.0.
+
 ## [1.4.0] - 2026-06-12
 
 ### Changed
