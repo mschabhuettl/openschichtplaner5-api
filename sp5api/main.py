@@ -295,6 +295,16 @@ async def lifespan(app: FastAPI):
 
     # Startup DB accessibility check
     _check_db_files_on_startup(DB_PATH)
+    # Demo-user bootstrap (dev/stack only, gated by SP5_SEED_DEMO_USERS)
+    try:
+        from .demo_users import demo_seeding_enabled, ensure_demo_users
+
+        if demo_seeding_enabled():
+            from .dependencies import get_db
+
+            ensure_demo_users(get_db())
+    except Exception as _exc:
+        _logger.warning("Demo-user bootstrap failed: %s", _exc)
     # Auto-backup on startup (only if last backup > 24h old)
     try:
         from .routers.admin import create_auto_backup
@@ -670,9 +680,12 @@ async def auth_middleware(request: Request, call_next):
     if path.startswith("/api/ical/feed/"):
         return await call_next(request)
     # SSE endpoint also accepts token as query param (EventSource doesn't support headers)
-    # Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
+    # Priority: Authorization: Bearer → X-Auth-Token header → sp5_token cookie → ?token=
+    _authz = request.headers.get("authorization")
+    _bearer = _authz[7:].strip() if _authz and _authz[:7].lower() == "bearer " else None
     token = (
-        request.headers.get("x-auth-token")
+        _bearer
+        or request.headers.get("x-auth-token")
         or request.cookies.get("sp5_token")
         or request.query_params.get("token")
     )

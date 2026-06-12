@@ -110,7 +110,11 @@ class UserUpdate(BaseModel):
 
 class LoginBody(BaseModel):
     username: str = Field(..., min_length=1, max_length=100)
-    password: str = Field(..., min_length=1, max_length=200)
+    # No minimum length: accounts created by the original Schichtplaner5 may
+    # carry an empty or short password (the original allows it). Password
+    # strength is enforced only when a password is *set* (CreateUserBody /
+    # ChangePasswordBody / _validate_password_strength), never on login.
+    password: str = Field(..., max_length=200)
     totp_code: str | None = Field(None, max_length=20)
 
 

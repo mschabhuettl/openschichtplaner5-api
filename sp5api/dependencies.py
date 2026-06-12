@@ -313,18 +313,34 @@ def _get_session_from_token(token: str) -> dict | None:
     return None
 
 
+def _bearer_token(authorization: str | None) -> str | None:
+    """Extract the token from an ``Authorization: Bearer <token>`` header."""
+    if isinstance(authorization, str) and authorization[:7].lower() == "bearer ":
+        return authorization[7:].strip() or None
+    return None
+
+
 def get_current_user(
     request: Request,
     x_auth_token: str | None = Header(None),
+    authorization: str | None = Header(None),
 ) -> dict | None:
     """Return user dict for the given token, or None.
 
-    Priority: X-Auth-Token header → sp5_token cookie → ?token= query param
-    (query param kept for SSE connections where EventSource cannot set headers).
+    Priority: Authorization: Bearer → X-Auth-Token header → sp5_token cookie
+    → ?token= query param (query param kept for SSE connections where
+    EventSource cannot set headers). The token issued by ``/api/auth/login`` is
+    therefore usable both as an HttpOnly cookie (the SPA) and as a standard
+    Bearer token (API clients).
 
     Supports both legacy hex tokens and signed JWT tokens.
     """
-    token = x_auth_token or request.cookies.get("sp5_token") or request.query_params.get("token")
+    token = (
+        _bearer_token(authorization)
+        or x_auth_token
+        or request.cookies.get("sp5_token")
+        or request.query_params.get("token")
+    )
     if not token:
         return None
 
