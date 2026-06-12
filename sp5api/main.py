@@ -241,12 +241,31 @@ def _check_db_files_on_startup(db_path: str) -> None:
         )
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    import asyncio
+def _run_startup_auto_migration() -> None:
+    """Auto-Migration beim Start (delegiert an sp5lib.auto_migrate).
 
-    # ── Auto-migration on startup ──────────────────────────────
+    Standalone-Betrieb im PG-Modus: der Alembic-Baum lebt im App-Repo
+    (backend/alembic[.ini]) und ist im api-Paket/-Image bewusst nicht
+    enthalten — eine Kopie würde gegenüber dem App-Repo driften. Das
+    Initialschema legt sp5lib beim Verbinden ohnehin per ORM-create_all an;
+    Alembic wird erst für künftige Schema-Deltas gebraucht. Fehlt alembic.ini
+    am SP5_BACKEND_DIR, wird daher sauber übersprungen statt mit
+    „No script_location“ zu scheitern (siehe README, PostgreSQL-Abschnitt).
+    """
     try:
+        from sp5lib.db_config import BACKEND_POSTGRESQL, get_db_backend
+
+        alembic_ini = os.path.join(_backend_dir(), "alembic.ini")
+        if get_db_backend() == BACKEND_POSTGRESQL and not os.path.isfile(alembic_ini):
+            _logger.info(
+                "Startup auto-migration skipped: no Alembic tree (%s missing). "
+                "The initial PostgreSQL schema is created by the ORM; for future "
+                "schema migrations point SP5_BACKEND_DIR at a directory containing "
+                "alembic.ini + alembic/ (see README).",
+                alembic_ini,
+            )
+            return
+
         from sp5lib.auto_migrate import run_startup_migration
 
         migration_result = run_startup_migration()
@@ -265,6 +284,14 @@ async def lifespan(app: FastAPI):
             _logger.info("Startup auto-migration: no migrations needed")
     except Exception as _exc:
         _logger.warning("Startup auto-migration error: %s", _exc)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    import asyncio
+
+    # ── Auto-migration on startup ──────────────────────────────
+    _run_startup_auto_migration()
 
     # Startup DB accessibility check
     _check_db_files_on_startup(DB_PATH)

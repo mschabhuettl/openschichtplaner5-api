@@ -110,6 +110,18 @@ state, override the build arg:
 docker build --build-arg LIB_SOURCE=git+https://github.com/mschabhuettl/libopenschichtplaner5.git@main .
 ```
 
+### PostgreSQL mode (standalone)
+
+With `DB_BACKEND=postgresql` and `DATABASE_URL` set, the API runs against the
+PostgreSQL mirror. The initial schema is created automatically by the ORM
+(`sp5lib`) on first connect — no Alembic tree is required. The Alembic
+migration tree lives in the main application repo (`backend/alembic`) and is
+intentionally not bundled with this package (a copy would drift), so the
+startup auto-migration is skipped with an info log when no `alembic.ini` is
+found. To apply future schema migrations in a standalone deployment, point
+`SP5_BACKEND_DIR` at a directory containing `alembic.ini` + `alembic/` (e.g. a
+checkout of the main app's `backend/`).
+
 ## Development
 
 ```bash

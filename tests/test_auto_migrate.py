@@ -351,3 +351,49 @@ class TestMigrationStatusEndpoint:
         assert "backend" in data
         assert "auto_migrate_enabled" in data
         assert "up_to_date" in data
+
+
+# ── Startup guard (api-side) ──────────────────────────────────
+
+
+class TestStartupAutoMigrationGuard:
+    """sp5api.main._run_startup_auto_migration: PG-Modus ohne Alembic-Baum
+    wird sauber übersprungen (ein Info-Log) statt mit 'No script_location'
+    zu scheitern; mit Baum bzw. im DBF-Modus läuft die Migration normal."""
+
+    def test_pg_without_alembic_tree_skips_with_info(self, tmp_path, monkeypatch, caplog):
+        from sp5api import main as sp5_main
+
+        monkeypatch.setenv("DB_BACKEND", "postgresql")
+        monkeypatch.setenv("SP5_BACKEND_DIR", str(tmp_path))  # no alembic.ini here
+        with patch("sp5lib.auto_migrate.run_startup_migration") as run_mock:
+            with caplog.at_level("INFO", logger="sp5api"):
+                sp5_main._run_startup_auto_migration()
+        run_mock.assert_not_called()
+        skips = [r for r in caplog.records if "no Alembic tree" in r.getMessage()]
+        assert len(skips) == 1 and skips[0].levelname == "INFO"
+        assert not [r for r in caplog.records if r.levelname in ("WARNING", "ERROR")]
+
+    def test_pg_with_alembic_tree_runs_migration(self, tmp_path, monkeypatch):
+        from sp5api import main as sp5_main
+
+        monkeypatch.setenv("DB_BACKEND", "postgresql")
+        monkeypatch.setenv("SP5_BACKEND_DIR", str(tmp_path))
+        (tmp_path / "alembic.ini").write_text("[alembic]\n")
+        result = MigrationResult()
+        result.skipped = True
+        result.skip_reason = "test"
+        with patch("sp5lib.auto_migrate.run_startup_migration", return_value=result) as run_mock:
+            sp5_main._run_startup_auto_migration()
+        run_mock.assert_called_once()
+
+    def test_dbf_mode_runs_migration(self, monkeypatch):
+        from sp5api import main as sp5_main
+
+        monkeypatch.setenv("DB_BACKEND", "dbf")
+        result = MigrationResult()
+        result.skipped = True
+        result.skip_reason = "test"
+        with patch("sp5lib.auto_migrate.run_startup_migration", return_value=result) as run_mock:
+            sp5_main._run_startup_auto_migration()
+        run_mock.assert_called_once()
