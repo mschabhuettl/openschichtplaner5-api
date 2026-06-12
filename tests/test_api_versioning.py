@@ -46,6 +46,21 @@ class TestApiVersioning:
         data = res.json()
         assert "service" in data
 
+    def test_openapi_version_matches_package(self, sync_client):
+        """OpenAPI info.version must come from the package metadata, not a hardcoded string."""
+        try:
+            from importlib.metadata import version
+
+            expected = version("openschichtplaner5-api")
+        except Exception:
+            expected = "1.2.0"
+        res = sync_client.get("/api/v1/openapi.json")
+        assert res.status_code == 200
+        info_version = res.json()["info"]["version"]
+        assert info_version == expected
+        # No drift between OpenAPI schema and the /api/v1/version endpoint
+        assert info_version == sync_client.get("/api/v1/version").json()["version"]
+
     def test_unversioned_still_works(self, sync_client):
         """GET /api/version should still work for backward compat."""
         res = sync_client.get("/api/version")

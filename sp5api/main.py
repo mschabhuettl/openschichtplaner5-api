@@ -135,6 +135,14 @@ os.environ.setdefault(
 )
 DB_PATH = os.path.normpath(os.environ["SP5_DB_PATH"])
 
+# Paketversion — einzige Quelle für FastAPI(version=…), /api/version & Co.
+try:
+    from importlib.metadata import version as _pkg_version
+
+    _API_VERSION = _pkg_version("openschichtplaner5-api")
+except Exception:  # editable/source runs without installed metadata
+    _API_VERSION = "1.2.0"
+
 # CORS origins from env
 _raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()] or [
@@ -304,7 +312,7 @@ app = FastAPI(
         "- **Planer** – can write schedules and absences\n"
         "- **Admin** – full access including user and master-data management\n"
     ),
-    version="1.1.0",
+    version=_API_VERSION,
     openapi_tags=_OPENAPI_TAGS,
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
@@ -846,13 +854,6 @@ app.include_router(orm_mirror.router)
 
 
 # ── Routes ──────────────────────────────────────────────────────
-
-try:
-    from importlib.metadata import version as _pkg_version
-
-    _API_VERSION = _pkg_version("openschichtplaner5-api")
-except Exception:  # editable/source runs without installed metadata
-    _API_VERSION = "1.2.0"
 
 
 def _format_uptime(seconds: float) -> str:
