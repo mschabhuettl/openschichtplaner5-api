@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-12
+
 ### Changed
 
 - Library-Untergrenze auf `libopenschichtplaner5>=1.11.0` angehoben (reorder);

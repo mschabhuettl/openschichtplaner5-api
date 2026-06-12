@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openschichtplaner5-api"
-version = "1.4.0"
+version = "1.5.0"
 description = "REST API of OpenSchichtplaner5 — the FastAPI service layer over libopenschichtplaner5 (sp5lib): auth/2FA, employees, schedule, absences, reports, notifications and more."
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "MIT"
