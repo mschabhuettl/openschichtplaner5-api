@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Abwesenheits-Anonymisierung (Spec 9.5.2 Nr. 2.1, D-67): `/api/schedule`,
+  `/api/schedule/day`, `/api/schedule/week` und der Dienstplan-Druck wenden den
+  SHOWABS-Modus des angemeldeten Benutzers an — vollständig (0), anonymisiert (1,
+  Einheitsdarstellung aus 5USETT) oder ausgeblendet (2). Admins sehen immer
+  vollständig. Neuer `absence_visibility_mode`-Dependency; `/api/auth/me` liefert
+  `showabs_mode`; `PUT /api/v1/users/{id}` akzeptiert das dreiwertige `SHOWABS`.
+
 ## [1.3.0] - 2026-06-12
 
 ### Fixed

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..dependencies import (
     _sanitize_500,
+    absence_visibility_mode,
     enforce_wpast,
     get_db,
     limiter,
@@ -28,6 +29,7 @@ def get_schedule(
     year: int = Query(..., description="Year"),
     month: int = Query(..., description="Month (1-12)"),
     group_id: int | None = Query(None, description="Filter by group ID"),
+    abs_mode: int = Depends(absence_visibility_mode),
 ):
     if not (1 <= month <= 12):
         raise HTTPException(
@@ -38,7 +40,9 @@ def get_schedule(
             status_code=400,
             detail="Invalid year: must be between 2000 and 2100",
         )
-    return get_db().get_schedule(year=year, month=month, group_id=group_id)
+    db = get_db()
+    entries = db.get_schedule(year=year, month=month, group_id=group_id)
+    return db.apply_absence_visibility(entries, abs_mode)
 
 
 @router.get("/api/cycles", tags=["Schedule"], summary="List schedule cycles", description="Return all configured schedule cycles.")
@@ -104,6 +108,7 @@ def get_schedule_coverage(
 def get_schedule_day(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     group_id: int | None = Query(None),
+    abs_mode: int = Depends(absence_visibility_mode),
 ):
     try:
         from datetime import datetime
@@ -114,7 +119,10 @@ def get_schedule_day(
             status_code=400,
             detail="Invalid date format, please use YYYY-MM-DD",
         )
-    return get_db().get_schedule_day(date, group_id=group_id)
+    db = get_db()
+    return db.apply_absence_visibility(
+        db.get_schedule_day(date, group_id=group_id), abs_mode
+    )
 
 
 # ── Week schedule ────────────────────────────────────────────
@@ -122,6 +130,7 @@ def get_schedule_day(
 def get_schedule_week(
     date: str = Query(..., description="Any date within the target week (YYYY-MM-DD)"),
     group_id: int | None = Query(None),
+    abs_mode: int = Depends(absence_visibility_mode),
 ):
     try:
         from datetime import datetime
@@ -132,7 +141,10 @@ def get_schedule_week(
             status_code=400,
             detail="Invalid date format, please use YYYY-MM-DD",
         )
-    return get_db().get_schedule_week(date, group_id=group_id)
+    db = get_db()
+    return db.apply_absence_visibility(
+        db.get_schedule_week(date, group_id=group_id), abs_mode
+    )
 
 
 # ── Year overview ────────────────────────────────────────────

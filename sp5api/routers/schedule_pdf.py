@@ -13,7 +13,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
-from ..dependencies import get_db, require_planer
+from ..dependencies import absence_visibility_mode, get_db, require_planer
 
 router = APIRouter()
 
@@ -30,13 +30,16 @@ def _build_schedule_html(
     month: int,
     group_id: int | None,
     db,
+    abs_mode: int = 0,
 ) -> str:
     """Build a print-friendly HTML page with the schedule table."""
     num_days = calendar.monthrange(year, month)[1]
     month_name = _MONTH_NAMES_DE[month - 1]
 
-    # Fetch schedule entries
-    entries = db.get_schedule(year=year, month=month, group_id=group_id)
+    # Fetch schedule entries (SHOWABS-Sichtbarkeit des Druckenden anwenden)
+    entries = db.apply_absence_visibility(
+        db.get_schedule(year=year, month=month, group_id=group_id), abs_mode
+    )
 
     # Fetch group name if group_id given
     group_name = ""
@@ -371,6 +374,7 @@ def get_schedule_pdf(
     month: int = Query(..., description="Month (1-12)", ge=1, le=12),
     group_id: int | None = Query(None, description="Filter by group ID"),
     _cur_user: dict = Depends(require_planer),
+    abs_mode: int = Depends(absence_visibility_mode),
 ):
     """Return a print-optimized HTML schedule for the given month.
 
@@ -397,7 +401,9 @@ def get_schedule_pdf(
                 status_code=404, detail=f"Gruppe {group_id} nicht gefunden"
             )
 
-    html = _build_schedule_html(year=year, month=month, group_id=group_id, db=db)
+    html = _build_schedule_html(
+        year=year, month=month, group_id=group_id, db=db, abs_mode=abs_mode
+    )
     return HTMLResponse(
         content=html,
         status_code=200,

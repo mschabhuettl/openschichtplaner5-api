@@ -356,6 +356,18 @@ def require_auth(user: dict | None = Depends(get_current_user)) -> dict:
     return user
 
 
+def absence_visibility_mode(user: dict | None = Depends(get_current_user)) -> int:
+    """SHOWABS-Modus des aktuellen Benutzers (Spec 9.5.2 Nr. 2.1, D-67):
+    0=vollständig, 1=anonymisiert, 2=gar nicht. Admin/anonyme Anfrage ⇒ 0."""
+    if user is None or user.get("role") == "Admin":
+        return 0
+    try:
+        mode = int(user.get("SHOWABS_MODE") or 0)
+    except (TypeError, ValueError):
+        mode = 0
+    return mode if mode in (0, 1, 2) else 0
+
+
 def require_role(min_role: str):
     """Factory: returns a dependency that requires at least min_role."""
 

@@ -99,6 +99,9 @@ class UserUpdate(BaseModel):
     DESCRIP: str | None = Field(None, max_length=500)
     PASSWORD: str | None = Field(None, min_length=6, max_length=200)
     role: str | None = Field(None, pattern=r"^(Admin|Planer|Leser)$")
+    # SHOWABS dreiwertig (Spec 9.5.2 Nr. 2.1): 0=vollständig, 1=anonymisiert,
+    # 2=gar nicht — Abwesenheits-Sichtbarkeit dieses Benutzers.
+    SHOWABS: int | None = Field(None, ge=0, le=2)
 
     @field_validator("NAME")
     @classmethod
@@ -670,6 +673,11 @@ def me(user: dict = Depends(require_auth)):
     """Return the current authenticated user's info."""
     info = {k: v for k, v in user.items() if k != "expires_at"}
     info["permissions"] = _user_permissions(user)
+    # SHOWABS-Modus (dreiwertig) explizit, damit das Frontend den
+    # Anonymisierungs-/Ausblend-Zustand kennt (Spec 9.5.2, D-67)
+    info["showabs_mode"] = 0 if user.get("role") == "Admin" else int(
+        user.get("SHOWABS_MODE") or 0
+    )
     return info
 
 
