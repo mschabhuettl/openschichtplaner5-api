@@ -729,7 +729,10 @@ def create_schedule_entry(
 
     # ── Conflict Check 4: RESTR restrictions ──
     # RESTR.WEEKDAY is the original day index (D-34): 0=Mon..6=Sun, 7=holiday.
-    # day_idx (computed above) maps the entry date the same way.
+    # day_idx (computed above) maps the entry date the same way. RESTRICT grade
+    # (Spec 4.11, Dekompilat-belegt): 0=keine, 1=„auf Anfrage" (weich, Warnung),
+    # 2=„nie" (harte Sperre ⇒ 409).
+    restriction_warning = None
     try:
         restrictions = db._read("RESTR")
         for r in restrictions:
@@ -738,14 +741,26 @@ def create_schedule_entry(
                 and r.get("SHIFTID") == body.shift_id
             ):
                 wday = r.get("WEEKDAY", 0) or 0
-                if wday == day_idx:
-                    reason = (r.get("RESERVED") or "").strip()
+                if wday != day_idx:
+                    continue
+                grade = r.get("RESTRICT")
+                grade = int(grade) if grade is not None else 2
+                if grade == 0:
+                    continue  # keine Einschränkung
+                reason = (r.get("RESERVED") or "").strip()
+                if grade >= 2:
                     detail = (
                         f"Employee {body.employee_id} has a restriction for "
                         f"shift {body.shift_id} on weekday {day_idx}"
                         + (f": {reason}" if reason else "")
                     )
                     raise HTTPException(status_code=409, detail=detail)
+                # grade 1: „auf Anfrage" — erlauben, aber warnen
+                restriction_warning = (
+                    f"Mitarbeiter {body.employee_id} ist für Schicht "
+                    f"{body.shift_id} an diesem Tag nur auf Anfrage einteilbar"
+                    + (f": {reason}" if reason else "")
+                )
     except HTTPException:
         raise
     except Exception:
@@ -770,7 +785,10 @@ def create_schedule_entry(
             new_value={"employee_id": body.employee_id, "date": body.date, "shift_id": body.shift_id},
             user_id=_cur_user.get("ID"),
         )
-        return {"ok": True, "record": result}
+        resp = {"ok": True, "record": result}
+        if restriction_warning:
+            resp["warning"] = restriction_warning
+        return resp
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
@@ -1018,17 +1036,20 @@ class RestrictionCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     shift_id: int = Field(..., gt=0)
     reason: str | None = Field("", max_length=500)
+    # Tagindex D-34: 0=Mo … 6=So, 7=Feiertag
     weekday: int | None = Field(0, ge=0, le=7)
+    # RESTRICT-Grad (Spec 4.11): 0=keine, 1=„auf Anfrage", 2=„nie" (Vorgabe)
+    grade: int = Field(2, ge=0, le=2)
 
 
-@router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction", description="Add a shift restriction preventing an employee from a specific shift. Requires Admin role.")
+@router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction", description="Add a shift restriction for an employee on a shift/weekday. grade 0=keine, 1=auf Anfrage (weich), 2=nie (harte Sperre). Requires Admin role.")
 def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_admin)):
-    """Add a shift restriction for an employee."""
+    """Add a shift restriction for an employee (Tagindex D-34: 0=Mo..6=So, 7=Ft)."""
     weekday = body.weekday or 0
     if not (0 <= weekday <= 7):
         raise HTTPException(
             status_code=400,
-            detail="weekday muss zwischen 0 (alle Wochentage) und 7 (So) liegen — 1=Mo, 2=Di, ..., 7=So",
+            detail="weekday muss der Tagindex 0=Mo..6=So, 7=Feiertag sein",
         )
     try:
         result = get_db().set_restriction(
@@ -1036,6 +1057,7 @@ def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_a
             shift_id=body.shift_id,
             reason=body.reason or "",
             weekday=weekday,
+            grade=body.grade,
         )
         return {"ok": True, "record": result}
     except Exception as e:

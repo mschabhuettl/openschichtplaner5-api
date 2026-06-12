@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Einschränkungs-Grad (Spec 4.11): `POST /api/restrictions` nimmt `grade`
+  (0=keine, 1=auf Anfrage, 2=nie; Vorgabe 2). Die Konflikt­prüfung beim
+  Eintragen sperrt hart nur bei „nie" (409); „auf Anfrage" lässt die Eintragung
+  mit `warning` zu, „keine" greift nicht.
 - Laufzeit-State konsolidiert (ROADMAP §C.3): JSON-Stores, Queues und Zähler
   liegen jetzt unter EINEM injizierbaren Verzeichnis `SP5_STATE_DIR` (Default
   `backend/data`) statt verstreut über `backend/data`, `backend/api/data` und
