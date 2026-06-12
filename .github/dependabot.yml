@@ -1,0 +1,13 @@
+# Dependabot: wöchentliche Update-PRs für Python-Abhängigkeiten (pyproject.toml)
+# und die in den Workflows verwendeten GitHub Actions.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
