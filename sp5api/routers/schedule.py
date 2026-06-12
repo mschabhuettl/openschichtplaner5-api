@@ -524,6 +524,8 @@ class ScheduleEntryCreate(BaseModel):
     shift_id: int = Field(..., gt=0)
     # Soll-/Istplan (Spec 4.12): 0=Istplan (Vorgabe), 1=Sollplan-Zielvorgabe
     schedule_type: int = Field(0, ge=0, le=1)
+    # Arbeitsplatz-Zuordnung im Dienstplan (Spec 6.4); 0 = keiner
+    workplace_id: int = Field(0, ge=0)
 
     @field_validator("date")
     @classmethod
@@ -748,6 +750,7 @@ def create_schedule_entry(
         result = db.add_schedule_entry(
             body.employee_id, body.date, body.shift_id,
             schedule_type=body.schedule_type,
+            workplace_id=body.workplace_id,
         )
         broadcast(
             "schedule_changed", {"employee_id": body.employee_id, "date": body.date}
@@ -767,6 +770,47 @@ def create_schedule_entry(
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise _sanitize_500(e)
+
+
+class WorkplaceAssign(BaseModel):
+    employee_id: int = Field(..., gt=0)
+    date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    workplace_id: int = Field(..., ge=0)  # 0 = Zuordnung entfernen
+    schedule_type: int = Field(0, ge=0, le=1)
+
+
+@router.post(
+    "/api/schedule/workplace",
+    tags=["Schedule"],
+    summary="Assign workplace to a schedule entry",
+    description="Setzt den Arbeitsplatz (5MASHI.WORKPLACID) eines bestehenden "
+    "Dienstplan-Eintrags (Spec 6.4). workplace_id=0 entfernt die Zuordnung.",
+)
+def assign_schedule_workplace(
+    body: WorkplaceAssign, _cur_user: dict = Depends(require_write("WDUTIES"))
+):
+    enforce_wpast(_cur_user, body.date)
+    db = get_db()
+    if body.workplace_id and body.workplace_id not in {
+        w.get("ID") for w in db.get_workplaces()
+    }:
+        raise HTTPException(
+            status_code=404, detail=f"Arbeitsplatz {body.workplace_id} nicht gefunden"
+        )
+    try:
+        n = db.set_schedule_workplace(
+            body.employee_id, body.date, body.workplace_id,
+            schedule_type=body.schedule_type,
+        )
+    except Exception as e:
+        raise _sanitize_500(e)
+    if not n:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Kein Dienstplan-Eintrag für MA {body.employee_id} am {body.date}",
+        )
+    broadcast("schedule_changed", {"employee_id": body.employee_id, "date": body.date})
+    return {"ok": True, "updated": n, "workplace_id": body.workplace_id}
 
 
 @router.delete(

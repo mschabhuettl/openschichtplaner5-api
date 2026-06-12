@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Optionaler Redis-Session-Store (ROADMAP §C.2): `SP5_SESSION_BACKEND=redis`
+  (Default `memory`, unverändert) teilt Sessions über mehrere Worker via
+  `SP5_REDIS_URL`. `redis` ist eine optionale Extra-Abhängigkeit; beide Backends
+  (Memory/Redis) sind getestet (fakeredis).
+- Arbeitsplatz im Dienstplan (Spec 6.4): `POST /api/schedule` akzeptiert
+  `workplace_id`; neuer `POST /api/schedule/workplace` setzt den Arbeitsplatz
+  eines bestehenden Eintrags; das Schedule-Ergebnis trägt `workplace_name`.
 - Soll-/Istplan (Spec 4.12): `GET /api/schedule?plan=ist|soll|both` wählt die
   Plansicht; `POST /api/schedule` akzeptiert `schedule_type` (0=Ist, 1=Soll). Die
   Duplikat-/Überlappungsprüfung ist planart-bewusst (Soll- und Ist-Eintrag dürfen
