@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-ARG LIB_SOURCE="libopenschichtplaner5[postgres]==1.7.0"
+ARG LIB_SOURCE="libopenschichtplaner5[postgres]==1.8.0"
 
 WORKDIR /build
 COPY pyproject.toml README.md LICENSE ./
