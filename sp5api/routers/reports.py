@@ -127,14 +127,14 @@ def get_statistics(
 @router.get(
     "/api/personnel-table",
     tags=["Statistics"],
-    summary="Personaltabelle (Spec 3.9.2/3.9.3)",
+    summary="Personaltabelle",
     description=(
         "Return the personnel table over a free evaluation period [from, to].\n\n"
         "Standard columns per employee (Ist-/Sollstunden, Saldo, Arbeitszeit, "
         "Abwesenheit bezahlt, Sonntag/Feiertag-Diensttage, Sonderdienste) plus "
         "dynamic columns: assignments per shift type and absence days per leave "
         "type. If the period covers exactly one calendar year, entitled leave "
-        "types additionally report taken/remaining (Spec 3.9.3 Nr. 6).\n\n"
+        "types additionally report taken/remaining.\n\n"
         "**Required role:** Leser"
     ),
 )
@@ -3107,7 +3107,7 @@ def get_warnings(
     description=(
         "Calculate fairness scores for weekend, night, sunday and holiday "
         "duty-day distribution across employees.\n\n"
-        "Gezählt werden Diensttage (Spec 3.4.5 Nr. 14/15): je Tag mit "
+        "Gezählt werden Diensttage wie im Original: je Tag mit "
         "mindestens einem Dienst; ein Dienst an einem Sonntag, der zugleich "
         "Feiertag ist, zählt in `sunday` UND `holiday`. Geplante Dienste an "
         "Abwesenheitstagen zählen mit. `weekend` (Sa+So) und die "

@@ -184,7 +184,7 @@ def _is_last_admin(db, user_id: int) -> bool:
     "/api/users/{user_id}",
     tags=["Users"],
     summary="Update user",
-    description="Update an existing API user. Requires Admin role. Das Konto 'Admin' (ID 251) kann weder umbenannt noch herabgestuft werden; der letzte Administrator kann nicht herabgestuft werden (Spec 9.3 Nr. 3).",
+    description="Update an existing API user. Requires Admin role. Das Konto 'Admin' (ID 251) kann weder umbenannt noch herabgestuft werden; der letzte Administrator kann nicht herabgestuft werden.",
 )
 def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_admin)):
     data = {k: v for k, v in body.model_dump().items() if v is not None}
@@ -246,7 +246,7 @@ def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_a
     "/api/users/{user_id}",
     tags=["Users"],
     summary="Delete user",
-    description="Soft-delete (hide) an API user. Requires Admin role. Das Konto 'Admin' (ID 251) und der letzte verbliebene Administrator können nicht gelöscht werden (Spec 9.3 Nr. 3).",
+    description="Soft-delete (hide) an API user. Requires Admin role. Das Konto 'Admin' (ID 251) und der letzte verbliebene Administrator können nicht gelöscht werden.",
 )
 def delete_user(user_id: int, _admin: dict = Depends(require_admin)):
     try:
@@ -661,7 +661,7 @@ def _user_permissions(user: dict) -> dict:
     }
 
 
-@router.get("/api/auth/me", tags=["Auth"], summary="Current user info", description="Return the current authenticated user's info incl. the granular 5USER write/display permissions (Spec 9.6).")
+@router.get("/api/auth/me", tags=["Auth"], summary="Current user info", description="Return the current authenticated user's info incl. the granular 5USER write/display permissions.")
 def me(user: dict = Depends(require_auth)):
     """Return the current authenticated user's info."""
     info = {k: v for k, v in user.items() if k != "expires_at"}

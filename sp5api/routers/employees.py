@@ -249,7 +249,7 @@ class EmployeeUpdate(BaseModel):
     "/api/employees",
     tags=["Employees"],
     summary="Create employee",
-    description="Create a new employee record. Requires Admin role or the granular ADDEMPL right ('neue Mitarbeiter erfassen', Spec 9.5.3).",
+    description="Create a new employee record. Requires Admin role or the granular ADDEMPL right ('neue Mitarbeiter erfassen').",
 )
 def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_addempl)):
     # Validation handled by Pydantic Field constraints and validators

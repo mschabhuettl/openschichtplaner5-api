@@ -70,7 +70,7 @@ def get_staffing(
     description=(
         "Return daily coverage analysis against the real staffing demand "
         "(5SHDEM weekly demand per day index incl. holiday slot, overridden by "
-        "5SPDEM date-specific demand; Spec 3.9.4). "
+        "5SPDEM date-specific demand). "
         "Status per day: under | ok | over | none (none = no demand defined)."
     ),
 )

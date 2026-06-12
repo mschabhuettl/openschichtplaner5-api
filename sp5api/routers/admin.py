@@ -587,10 +587,10 @@ async def backup_restore(
     summary="Compact database (PACK)",
     description=(
         "Rewrite all .DBF files to remove physically deleted records "
-        "(equivalent to dBASE PACK, Spec 1.14). Delegates to the lib "
+        "(equivalent to dBASE PACK). Delegates to the lib "
         "(sp5lib.dbf_writer.pack_table): files are exclusively locked, the "
-        "-L change journals are zapped (Spec D-74) and stale CDX indexes are "
-        "deleted (Spec D-14). Requires Admin role."
+        "-L change journals are zapped and stale CDX indexes are "
+        "deleted. Requires Admin role."
     ),
 )
 def compact_database(_cur_user: dict = Depends(require_admin)):

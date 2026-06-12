@@ -472,7 +472,7 @@ class LeaveForfeitBody(BaseModel):
     tags=["Absences"],
     summary="Resturlaub zum Stichtag verfallen lassen",
     description=(
-        "Stichtags-Verfall (Spec 3.7.3 / Dialog 5.17): kürzt je Mitarbeiter und "
+        "Stichtags-Verfall: kürzt je Mitarbeiter und "
         "anspruchsverbundener Abwesenheitsart den 5LEAEN-REST des Stichtagsjahres "
         "auf den Verbrauch bis einschließlich Stichtag (nie erhöhen). "
         "Mit dry_run=true werden die Kürzungen nur als Vorschau geliefert. "
@@ -598,7 +598,7 @@ def annual_close_preview(
         deprecated=True,
         description=(
             "Veraltet und wirkungslos: der Übertrag ist ungedeckelt und "
-            "ausschließlich CARRYFWD-gesteuert (Spec 3.7.2)."
+            "ausschließlich CARRYFWD-gesteuert."
         ),
     ),
     keep_entitlements: bool = Query(

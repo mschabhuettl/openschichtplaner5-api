@@ -399,7 +399,7 @@ class HolidayUpdate(BaseModel):
     INTERVAL: int | None = Field(None, ge=0, le=2)
 
 
-@router.post("/api/holidays", tags=["Events"], summary="Create holiday", description="Create a new public holiday entry. INTERVAL: 0=ganztägig, 1/2=halber Feiertag (Spec 3.2.1 Nr. 3, UNSICHER). repeat_years=true legt den Termin zusätzlich für die nächsten 9 Jahre an. Requires Admin role.")
+@router.post("/api/holidays", tags=["Events"], summary="Create holiday", description="Create a new public holiday entry. INTERVAL: 0=ganztägig, 1/2=halber Feiertag. repeat_years=true legt den Termin zusätzlich für die nächsten 9 Jahre an. Requires Admin role.")
 def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)):
     # DATE and NAME validation handled by Pydantic model
     try:
@@ -600,7 +600,7 @@ def create_extracharge(
     "/api/extracharges/summary", tags=["Statistics"], summary="Extra charges summary",
     description=(
         "Return summarized extra charges overview for a month (year/month) or "
-        "a free evaluation period (from/to, Spec 3.9.1)."
+        "a free evaluation period (from/to)."
     ),
 )
 def get_extracharges_summary(

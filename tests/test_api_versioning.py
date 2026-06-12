@@ -61,6 +61,17 @@ class TestApiVersioning:
         # No drift between OpenAPI schema and the /api/v1/version endpoint
         assert info_version == sync_client.get("/api/v1/version").json()["version"]
 
+    def test_openapi_has_no_internal_spec_references(self, sync_client):
+        """Swagger-visible texts must not leak the internal 'Spec x.y' notation."""
+        import json
+        import re
+
+        res = sync_client.get("/api/v1/openapi.json")
+        assert res.status_code == 200
+        text = json.dumps(res.json(), ensure_ascii=False)
+        leaks = re.findall(r".{0,40}Spec\s[0-9D§].{0,20}", text)
+        assert not leaks, f"Interne Spec-Notation im OpenAPI-Schema: {leaks}"
+
     def test_unversioned_still_works(self, sync_client):
         """GET /api/version should still work for backward compat."""
         res = sync_client.get("/api/version")
