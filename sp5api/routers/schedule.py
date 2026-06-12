@@ -14,6 +14,7 @@ from ..dependencies import (
     require_planer,
     require_write,
 )
+from ..scopes import visible_employee_ids
 from .events import broadcast
 
 router = APIRouter()
@@ -35,6 +36,7 @@ def get_schedule(
         "oder 'both' (beide Pläne für die 2-/3-Zeilen-Ansicht)",
     ),
     abs_mode: int = Depends(absence_visibility_mode),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     if not (1 <= month <= 12):
         raise HTTPException(
@@ -51,6 +53,9 @@ def get_schedule(
         )
     db = get_db()
     entries = db.get_schedule(year=year, month=month, group_id=group_id, plan=plan)
+    # Differenzierte Sichtbarkeit (Spec 9.5.3): nur zugängliche Mitarbeiter
+    if scope is not None:
+        entries = [e for e in entries if e.get("employee_id") in scope]
     return db.apply_absence_visibility(entries, abs_mode)
 
 

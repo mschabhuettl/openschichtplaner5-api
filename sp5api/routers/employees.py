@@ -18,6 +18,11 @@ from ..dependencies import (
     require_admin,
 )
 from ..schemas import GroupResponse, paginate
+from ..scopes import (
+    filter_by_employee_scope,
+    visible_employee_ids,
+    visible_group_ids,
+)
 from .events import broadcast
 
 router = APIRouter()
@@ -34,18 +39,28 @@ def get_employees(
     include_hidden: bool = False,
     page: int | None = Query(None, ge=1, description="Page number (1-based). Omit for unpaginated list."),
     page_size: int = Query(50, ge=1, le=500, description="Items per page"),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     cache_key = f"employees:list:{include_hidden}"
     cached = cache.get(cache_key)
-    if cached is not None:
-        return paginate(cached, page, page_size)
-    result = get_db().get_employees(include_hidden=include_hidden)
-    cache.put(cache_key, result)
+    if cached is None:
+        cached = get_db().get_employees(include_hidden=include_hidden)
+        cache.put(cache_key, cached)
+    # Differenzierte Sichtbarkeit (Spec 9.5.3): nicht zugängliche MA verbergen
+    result = filter_by_employee_scope(cached, scope)
     return paginate(result, page, page_size)
 
 
 @router.get("/api/employees/{emp_id}", tags=["Employees"], summary="Get employee by ID", description="Return a single employee record by ID.")
-def get_employee(emp_id: int):
+def get_employee(
+    emp_id: int,
+    scope: set[int] | None = Depends(visible_employee_ids),
+):
+    if scope is not None and emp_id not in scope:
+        # Spec 9.5.3 Nr. 6: verborgene MA bleiben unsichtbar (404 statt 403)
+        raise HTTPException(
+            status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
+        )
     e = get_db().get_employee(emp_id)
     if e is None:
         raise HTTPException(
@@ -61,19 +76,24 @@ def get_employee(emp_id: int):
     description="Return all groups. Set include_hidden=true to include hidden/archived groups.",
     response_model=list[GroupResponse],
 )
-def get_groups(include_hidden: bool = False):
+def get_groups(
+    include_hidden: bool = False,
+    scope: set[int] | None = Depends(visible_group_ids),
+):
     cache_key = f"groups:list:{include_hidden}"
     cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-    db = get_db()
-    groups = db.get_groups(include_hidden=include_hidden)
-    # Fetch all group→members in a single pass to avoid N+1
-    all_members = db.get_all_group_members()
-    for g in groups:
-        g["member_count"] = len(all_members.get(g["ID"], []))
-    cache.put(cache_key, groups)
-    return groups
+    if cached is None:
+        db = get_db()
+        cached = db.get_groups(include_hidden=include_hidden)
+        # Fetch all group→members in a single pass to avoid N+1
+        all_members = db.get_all_group_members()
+        for g in cached:
+            g["member_count"] = len(all_members.get(g["ID"], []))
+        cache.put(cache_key, cached)
+    # Differenzierte Sichtbarkeit (Spec 9.5.3): nur zugängliche Gruppen
+    if scope is not None:
+        return [g for g in cached if g.get("ID") in scope]
+    return cached
 
 
 @router.get(
