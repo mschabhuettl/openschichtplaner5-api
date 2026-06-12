@@ -47,7 +47,7 @@ dependencies = [
     # released to PyPI. Importable as `sp5lib`. Same reference style as the
     # main application uses. 1.10.0 is required: apply_absence_visibility,
     # get_user_visible_*, set_schedule_workplace, schedule_type, RESTRICT grade.
-    "libopenschichtplaner5[postgres]>=1.10.0",
+    "libopenschichtplaner5[postgres]>=1.11.0",
 ]
 
 [project.optional-dependencies]

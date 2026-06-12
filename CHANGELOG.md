@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Library-Untergrenze auf `libopenschichtplaner5>=1.11.0` angehoben (reorder);
+  Docker-`LIB_SOURCE` auf `==1.11.0`.
+
 ### Added
 
 - `POST /api/reorder/{entity}` (entity = employees|shifts|groups|leave_types|
