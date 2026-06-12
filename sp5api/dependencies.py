@@ -206,9 +206,19 @@ if _jwt_secret_warning:
 _JWT_ALGORITHM = "HS256"
 
 # ── Session store ────────────────────────────────────────────────
-# NOTE: In-process dict — not safe for multi-worker deployments.
-# JWT provides integrity + expiry; sessions dict enables server-side revocation.
+# JWT provides integrity + expiry; the server-side session store enables
+# revocation and the per-user session limit.
+#
+# `_sessions` is the in-process dict that has always backed sessions. It stays a
+# real dict so existing code/tests that mutate it directly keep working. The
+# `SessionStore` abstraction routes all session operations through a backend:
+#   - memory (DEFAULT): wraps THIS dict by reference → byte-identical behaviour.
+#   - redis (opt-in via SP5_SESSION_BACKEND=redis): shared across workers.
+# See sp5api/session_store.py.
+from sp5api.session_store import MemorySessionStore, create_session_store  # noqa: E402
+
 _sessions: dict[str, dict] = {}
+_session_store = create_session_store(_sessions)
 
 # Token lifetime
 _TOKEN_EXPIRE_HOURS = float(os.environ.get("TOKEN_EXPIRE_HOURS", "8"))
@@ -253,7 +263,8 @@ def create_jwt_token(user_data: dict, expires_at: float) -> str:
     }
     token = _jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
     # Register in server-side session store for revocation support
-    _sessions[session_id] = {**user_data, "expires_at": expires_at, "_session_id": session_id}
+    session_data = {**user_data, "expires_at": expires_at, "_session_id": session_id}
+    _session_store.set(session_id, session_data, expires_at)
     return token
 
 
@@ -271,15 +282,11 @@ def _decode_jwt(token: str) -> dict | None:
 def _is_token_valid(token: str) -> bool:
     """Return True if the token exists and has not expired.
 
-    Supports both legacy session tokens (direct lookup) and JWT tokens.
+    Supports both legacy session tokens (direct lookup) and JWT tokens. Routes
+    through the session store, which honours expiry (purging expired entries).
     """
     # Legacy: direct session lookup (for dev mode token and backward compat)
-    session = _sessions.get(token)
-    if session:
-        expires_at = session.get("expires_at")
-        if expires_at is not None and _time.time() > expires_at:
-            del _sessions[token]
-            return False
+    if _session_store.get(token) is not None:
         return True
 
     # JWT: decode and verify, then check server-side revocation
@@ -287,12 +294,7 @@ def _is_token_valid(token: str) -> bool:
     if payload is None:
         return False
     session_id = payload.get("sid")
-    if session_id and session_id in _sessions:
-        session = _sessions[session_id]
-        expires_at = session.get("expires_at")
-        if expires_at is not None and _time.time() > expires_at:
-            del _sessions[session_id]
-            return False
+    if session_id and _session_store.get(session_id) is not None:
         return True
     return False
 
@@ -300,8 +302,8 @@ def _is_token_valid(token: str) -> bool:
 def _get_session_from_token(token: str) -> dict | None:
     """Resolve a token (legacy or JWT) to its session data."""
     # Legacy direct lookup
-    session = _sessions.get(token)
-    if session:
+    session = _session_store.get(token)
+    if session is not None:
         return session
     # JWT decode
     payload = _decode_jwt(token)
@@ -309,7 +311,7 @@ def _get_session_from_token(token: str) -> dict | None:
         return None
     session_id = payload.get("sid")
     if session_id:
-        return _sessions.get(session_id)
+        return _session_store.get(session_id)
     return None
 
 
@@ -514,17 +516,23 @@ def invalidate_sessions_for_user(user_id: int, except_session_id: str | None = N
     own session alive on self-service password changes).
     """
     to_remove = [
-        tok
-        for tok, s in _sessions.items()
-        if s.get("ID") == user_id and s.get("_session_id") != except_session_id
+        sid
+        for sid, s in _session_store.sessions_for_user(user_id)
+        if s.get("_session_id") != except_session_id
     ]
-    for tok in to_remove:
-        del _sessions[tok]
+    for sid in to_remove:
+        _session_store.delete(sid)
     return len(to_remove)
 
 
 def purge_expired_sessions() -> int:
-    """Remove all expired sessions from the in-memory store. Returns count removed."""
+    """Remove all expired sessions from the in-memory store. Returns count removed.
+
+    Only meaningful for the memory backend; with the redis backend, key TTLs
+    let Redis evict expired sessions on its own, so there is nothing to purge.
+    """
+    if not isinstance(_session_store, MemorySessionStore):
+        return 0
     now = _time.time()
     to_remove = [
         tok

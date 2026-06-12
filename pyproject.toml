@@ -56,6 +56,13 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.1.0",
+    # fakeredis backs the RedisSessionStore tests without a real server.
+    "fakeredis>=2.20",
+]
+# Optional Redis-backed session store (SP5_SESSION_BACKEND=redis). Not required
+# for the default in-memory backend — install only when running multi-worker.
+redis = [
+    "redis>=5.0",
 ]
 
 [project.urls]

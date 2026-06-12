@@ -17,7 +17,8 @@ from ..dependencies import (
     _failed_logins,
     _logger,
     _sanitize_500,
-    _sessions,
+    _session_store,
+    _sessions,  # noqa: F401 — re-exported for tests that poke auth._sessions directly
     create_jwt_token,
     get_db,
     invalidate_sessions_for_user,
@@ -585,12 +586,12 @@ def login(request: Request, body: LoginBody):
     write_audit_log("LOGIN_OK", username, {"ip": client_ip, "2fa": totp_enabled})
 
     # Enforce max concurrent sessions per user (evict oldest if over limit)
-    user_sessions = [(tok, s) for tok, s in _sessions.items() if s.get("ID") == user_id]
+    user_sessions = _session_store.sessions_for_user(user_id)
     if len(user_sessions) >= _MAX_SESSIONS_PER_USER:
         # Sort by expires_at ascending, remove oldest
         user_sessions.sort(key=lambda x: x[1].get("expires_at") or 0)
-        for tok, _ in user_sessions[: len(user_sessions) - _MAX_SESSIONS_PER_USER + 1]:
-            _sessions.pop(tok, None)
+        for sid, _ in user_sessions[: len(user_sessions) - _MAX_SESSIONS_PER_USER + 1]:
+            _session_store.delete(sid)
         _logger.warning(
             "AUTH SESSION_LIMIT | username=%s evicted=%d",
             username,
@@ -697,22 +698,22 @@ def logout(request: Request, x_auth_token: str | None = Header(None)):
     logged_out = False
     if token:
         # Try legacy direct lookup first
-        if token in _sessions:
-            user_info = _sessions[token]
+        user_info = _session_store.get(token)
+        if user_info is not None:
             username = user_info.get("NAME", "?")
             user_id = user_info.get("ID", "?")
-            del _sessions[token]
+            _session_store.delete(token)
             logged_out = True
         else:
             # Try JWT decode to find session ID
             payload = _decode_jwt(token)
             if payload:
                 session_id = payload.get("sid")
-                if session_id and session_id in _sessions:
-                    user_info = _sessions[session_id]
+                user_info = _session_store.get(session_id) if session_id else None
+                if user_info is not None:
                     username = user_info.get("NAME", "?")
                     user_id = user_info.get("ID", "?")
-                    del _sessions[session_id]
+                    _session_store.delete(session_id)
                     logged_out = True
 
     if logged_out:
