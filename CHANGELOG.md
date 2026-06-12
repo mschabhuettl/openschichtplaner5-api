@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Laufzeit-State konsolidiert (ROADMAP §C.3): JSON-Stores, Queues und Zähler
+  liegen jetzt unter EINEM injizierbaren Verzeichnis `SP5_STATE_DIR` (Default
+  `backend/data`) statt verstreut über `backend/data`, `backend/api/data` und
+  `backend/api`. Altbestände werden beim ersten Zugriff verlustfrei migriert —
+  bestehende Deployments funktionieren unverändert weiter.
 - Differenzierte Sichtbarkeit (Spec 9.5.3): Benutzer mit 5GRACC/5EMACC-Festlegung
   sehen in `/api/employees`, `/api/employees/{id}`, `/api/groups` und
   `/api/schedule` nur ihre zugänglichen Mitarbeiter/Gruppen (verborgene MA: 404).

@@ -5,22 +5,20 @@ each with a list of time windows. Data is stored in a JSON file.
 """
 
 import json
-import os
 import threading
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .._paths import backend_dir
+from .._paths import state_path
 from ..dependencies import _logger, get_db, require_planer
 
 router = APIRouter()
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
-_DATA_DIR = os.path.join(backend_dir(), "api", "data")
-_AVAILABILITY_FILE = os.path.join(_DATA_DIR, "availability.json")
+_AVAILABILITY_FILE = state_path("availability.json")
 _LOCK = threading.Lock()
 
 
@@ -34,7 +32,6 @@ def _read_all() -> dict:
 
 
 def _write_all(data: dict) -> None:
-    os.makedirs(_DATA_DIR, exist_ok=True)
     with open(_AVAILABILITY_FILE, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 

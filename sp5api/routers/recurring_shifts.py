@@ -5,7 +5,6 @@ then generating concrete schedule entries for a date range.
 """
 
 import json
-import os
 import threading
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -14,15 +13,14 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
-from .._paths import backend_dir
+from .._paths import state_path
 from ..dependencies import _logger, get_db, require_planer
 
 router = APIRouter()
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
-_DATA_DIR = os.path.join(backend_dir(), "api", "data")
-_RECURRING_FILE = os.path.join(_DATA_DIR, "recurring_shifts.json")
+_RECURRING_FILE = state_path("recurring_shifts.json")
 _LOCK = threading.Lock()
 
 
@@ -37,7 +35,6 @@ def _read_all() -> list[dict]:
 
 
 def _write_all(data: list[dict]) -> None:
-    os.makedirs(_DATA_DIR, exist_ok=True)
     with open(_RECURRING_FILE, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
