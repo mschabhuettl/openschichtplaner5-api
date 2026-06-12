@@ -1,0 +1,44 @@
+name: Update PyPI Pins
+
+# Zieht den PyPI-Pin der Library (LIB_SOURCE) in Dockerfile und
+# docker-compose.yml auf die jeweils neueste veröffentlichte Version
+# nach und committet direkt auf main. Ohne Versionsänderung passiert nichts.
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Jeden Montag 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-pins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Neueste PyPI-Version ermitteln und Pin nachziehen
+        run: |
+          set -euo pipefail
+          LIB_VER=$(curl -fsSL https://pypi.org/pypi/libopenschichtplaner5/json | jq -r .info.version)
+          echo "PyPI: libopenschichtplaner5 ${LIB_VER}"
+          if ! [[ "${LIB_VER}" =~ ^[0-9] ]]; then
+            echo "::error::PyPI-Versionsabfrage lieferte keine gültige Version"
+            exit 1
+          fi
+          sed -i -E "s/libopenschichtplaner5\[postgres\]==[0-9][0-9A-Za-z.]*/libopenschichtplaner5[postgres]==${LIB_VER}/g" \
+            Dockerfile docker-compose*.yml
+          echo "LIB_VER=${LIB_VER}" >> "$GITHUB_ENV"
+
+      - name: Änderungen committen und pushen
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Pin bereits aktuell — nichts zu tun."
+            exit 0
+          fi
+          git config user.name "Matthias Schabhüttl"
+          git config user.email "matthias@matthiasschabhuettl.com"
+          git commit -am "build(docker): PyPI-Pin nachgezogen (libopenschichtplaner5 ${LIB_VER})"
+          git push
