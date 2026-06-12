@@ -157,6 +157,7 @@ _OPENAPI_TAGS = [
     {"name": "Employees", "description": "Employee management (CRUD)"},
     {"name": "Groups", "description": "Group management and member assignments"},
     {"name": "Shifts", "description": "Shift definitions (CRUD)"},
+    {"name": "Master Data", "description": "Master-data utilities (e.g. manual reordering / POSITION)"},
     {"name": "Schedule", "description": "Schedule read and write operations"},
     {"name": "Absences", "description": "Absence/leave entries"},
     {"name": "Statistics", "description": "Monthly and yearly statistics"},
