@@ -162,10 +162,13 @@ def _get_db_path() -> str:
 
 
 def _get_backup_dir() -> str:
-    db_path = _get_db_path()
-    if not db_path:
-        return ""
-    backup_dir = os.path.join(os.path.dirname(db_path), "backups")
+    """Backup-Ziel: SP5_BACKUP_DIR (Env) oder <SP5_DB_PATH>/../backups."""
+    backup_dir = os.environ.get("SP5_BACKUP_DIR", "")
+    if not backup_dir:
+        db_path = _get_db_path()
+        if not db_path:
+            return ""
+        backup_dir = os.path.join(os.path.dirname(db_path), "backups")
     os.makedirs(backup_dir, exist_ok=True)
     return backup_dir
 
@@ -231,8 +234,17 @@ def create_auto_backup() -> str | None:
         )
         return None
 
-    backup_dir = _get_backup_dir()
+    # Nicht beschreibbares Ziel (z. B. read-only Rootfs im Container ohne
+    # gemountetes Backup-Volume): sauber überspringen, ein Info-Log, kein Fehler.
+    try:
+        backup_dir = _get_backup_dir()
+    except OSError as e:
+        _logger.info("Auto-backup skipped: backup dir not writable (%s)", e)
+        return None
     if not backup_dir:
+        return None
+    if not os.access(backup_dir, os.W_OK):
+        _logger.info("Auto-backup skipped: backup dir not writable: %s", backup_dir)
         return None
 
     # Check if last backup is younger than 24h

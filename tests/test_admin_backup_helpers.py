@@ -76,3 +76,50 @@ class TestCreateAutoBackup:
         assert fn.startswith("sp5_backup_") and fn.endswith(".zip")
         bdir = os.path.join(os.path.dirname(d), "backups")
         assert os.path.exists(os.path.join(bdir, fn))
+
+    def test_respects_sp5_backup_dir_env(self, tmp_path, monkeypatch):
+        d = _make_db_dir(tmp_path, complete=True)
+        monkeypatch.setenv("SP5_DB_PATH", d)
+        custom = tmp_path / "custom_backups"
+        monkeypatch.setenv("SP5_BACKUP_DIR", str(custom))
+        fn = admin.create_auto_backup()
+        assert fn is not None
+        assert (custom / fn).exists()
+        # nothing written to the derived default location
+        assert not os.path.exists(os.path.join(os.path.dirname(d), "backups"))
+
+    def test_skips_with_single_info_log_when_dir_not_writable(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        d = _make_db_dir(tmp_path, complete=True)
+        monkeypatch.setenv("SP5_DB_PATH", d)
+        ro = tmp_path / "ro_backups"
+        ro.mkdir()
+        ro.chmod(0o500)  # not writable
+        monkeypatch.setenv("SP5_BACKUP_DIR", str(ro))
+        try:
+            with caplog.at_level("INFO", logger=admin._logger.name):
+                assert admin.create_auto_backup() is None
+        finally:
+            ro.chmod(0o700)
+        skips = [r for r in caplog.records if "Auto-backup skipped" in r.getMessage()]
+        assert len(skips) == 1 and skips[0].levelname == "INFO"
+        assert not [r for r in caplog.records if r.levelname in ("WARNING", "ERROR")]
+
+    def test_skips_with_single_info_log_when_dir_not_creatable(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        d = _make_db_dir(tmp_path, complete=True)
+        monkeypatch.setenv("SP5_DB_PATH", d)
+        ro_parent = tmp_path / "ro_parent"
+        ro_parent.mkdir()
+        ro_parent.chmod(0o500)  # makedirs underneath must fail
+        monkeypatch.setenv("SP5_BACKUP_DIR", str(ro_parent / "backups"))
+        try:
+            with caplog.at_level("INFO", logger=admin._logger.name):
+                assert admin.create_auto_backup() is None
+        finally:
+            ro_parent.chmod(0o700)
+        skips = [r for r in caplog.records if "Auto-backup skipped" in r.getMessage()]
+        assert len(skips) == 1 and skips[0].levelname == "INFO"
+        assert not [r for r in caplog.records if r.levelname in ("WARNING", "ERROR")]

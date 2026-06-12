@@ -66,6 +66,7 @@ SP5_DB_PATH=/path/to/SP5/Daten python -m uvicorn sp5api.main:app --host 0.0.0.0 
 | `SP5_DB_PATH` | *(set it!)* | Directory with the Schichtplaner5 `.DBF` files |
 | `SP5_JWT_SECRET` / `SECRET_KEY` | random per process | JWT signing secret — set it in production |
 | `SP5_BACKEND_DIR` | package parent dir | Resource root (`data/`, `api/data/`, uploads), shared contract with `sp5lib` — set it in installed deployments |
+| `SP5_BACKUP_DIR` | `<SP5_DB_PATH>/../backups` | Target directory for (auto-)backups; if it is not writable, the startup auto-backup is skipped with an info log |
 | `DB_BACKEND` / `DATABASE_URL` | `dbf` | Switch to the PostgreSQL mirror (via `sp5lib`) |
 
 Everything else (SPA serving, CORS, rate limits, brute-force lockout, SMTP,
