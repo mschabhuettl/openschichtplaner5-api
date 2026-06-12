@@ -36,13 +36,13 @@ class TestRestrictionCheck:
         if resp.status_code == 409:
             assert "restriction" not in resp.json().get("detail", "").lower()
 
-    def test_restriction_all_days_blocks(self, planer_client, write_db_path):
-        """RESTR weekday=0 (all days) → POST returns 409 with restriction."""
+    def test_restriction_monday_blocks_monday(self, planer_client, write_db_path):
+        """RESTR weekday=0 (Monday, D-34) blocks an assignment on a Monday."""
         from sp5lib.database import SP5Database
 
         emp_id, shift_id = self._get_emp_shift(write_db_path)
 
-        # Insert restriction directly into the DB copy
+        # Insert restriction directly into the DB copy (0 = Monday per D-34)
         db = SP5Database(write_db_path)
         db.set_restriction(
             employee_id=emp_id, shift_id=shift_id, reason="Test-Sperre", weekday=0
@@ -53,7 +53,7 @@ class TestRestrictionCheck:
             json={
                 "employee_id": emp_id,
                 "shift_id": shift_id,
-                "date": "2099-01-07",
+                "date": "2099-01-05",  # Monday
             },
         )
         assert resp.status_code == 409, (
@@ -62,17 +62,17 @@ class TestRestrictionCheck:
         assert "restriction" in resp.json().get("detail", "").lower()
 
     def test_restriction_weekday_match_blocks(self, planer_client, write_db_path):
-        """RESTR weekday=5 (Friday) blocks assignment on a Friday."""
+        """RESTR weekday=4 (Friday, D-34: 0=Mon..6=Sun) blocks a Friday."""
         from sp5lib.database import SP5Database
 
         emp_id, shift_id = self._get_emp_shift(write_db_path)
 
         db = SP5Database(write_db_path)
         db.set_restriction(
-            employee_id=emp_id, shift_id=shift_id, reason="Nur Mo-Do", weekday=5
+            employee_id=emp_id, shift_id=shift_id, reason="Nur Mo-Do", weekday=4
         )
 
-        # 2099-01-09 is a Friday (isoweekday=5)
+        # 2099-01-09 is a Friday → day index 4 in the original convention
         resp = planer_client.post(
             "/api/schedule",
             json={
