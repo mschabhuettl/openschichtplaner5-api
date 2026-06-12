@@ -893,6 +893,46 @@ def get_restrictions(employee_id: int | None = Query(None)):
     return get_db().get_restrictions(employee_id=employee_id)
 
 
+@router.get(
+    "/api/schedule/eligible-replacements",
+    tags=["Schedule"],
+    summary="Eligible replacements for a shift",
+    description=(
+        "Return only the employees eligible to cover *shift_id* on *date* for "
+        "an absent employee. Hard-filtered by area/group membership, employment "
+        "period, availability (not already scheduled, not absent) and shift "
+        "restrictions (5RESTR)."
+    ),
+)
+def get_eligible_replacements(
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
+    shift_id: int = Query(..., gt=0, description="Shift the replacement must cover"),
+    absent_employee_id: int = Query(..., gt=0, description="Employee who dropped out"),
+    group_id: int | None = Query(
+        None, description="Restrict area to this group; default: groups of the absent employee"
+    ),
+):
+    from datetime import datetime
+
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(
+            status_code=400, detail="Invalid date format, please use YYYY-MM-DD"
+        )
+    try:
+        return get_db().eligible_replacements(
+            date_str=date,
+            shift_id=shift_id,
+            absent_employee_id=absent_employee_id,
+            group_id=group_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
 class RestrictionCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     shift_id: int = Field(..., gt=0)
