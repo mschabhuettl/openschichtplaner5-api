@@ -572,7 +572,6 @@ def create_schedule_entry(
     from sp5lib import calculations as calc
 
     entry_date = _date.fromisoformat(body.date)
-    iso_wd = entry_date.isoweekday()  # 1=Mon, 7=Sun (RESTR check below)
     # Tagindex für STARTEND-Lookups: 7 an Feiertagen (D-34), sonst 0=Mo..6=So
     try:
         day_idx = calc.day_index(entry_date, calc.holiday_calendar(db._read("HOLID")))
@@ -692,7 +691,8 @@ def create_schedule_entry(
         pass  # best-effort
 
     # ── Conflict Check 4: RESTR restrictions ──
-    # Check RESTR restrictions: weekday 0=all days, 1=Mon...7=Sun (ISO weekday)
+    # RESTR.WEEKDAY is the original day index (D-34): 0=Mon..6=Sun, 7=holiday.
+    # day_idx (computed above) maps the entry date the same way.
     try:
         restrictions = db._read("RESTR")
         for r in restrictions:
@@ -701,12 +701,11 @@ def create_schedule_entry(
                 and r.get("SHIFTID") == body.shift_id
             ):
                 wday = r.get("WEEKDAY", 0) or 0
-                if wday == 0 or wday == iso_wd:
+                if wday == day_idx:
                     reason = (r.get("RESERVED") or "").strip()
                     detail = (
                         f"Employee {body.employee_id} has a restriction for "
-                        f"shift {body.shift_id}"
-                        + (f" on weekday {iso_wd}" if wday != 0 else "")
+                        f"shift {body.shift_id} on weekday {day_idx}"
                         + (f": {reason}" if reason else "")
                     )
                     raise HTTPException(status_code=409, detail=detail)
