@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Library-Untergrenze auf `libopenschichtplaner5>=1.10.0` angehoben
+  (Anonymisierung, Sichtbarkeits-Scopes, Arbeitsplatz-Schreiben, schedule_type,
+  RESTRICT-Grad); Docker-`LIB_SOURCE` auf `==1.10.0`.
+
 ### Added
 
 - Einschränkungs-Grad (Spec 4.11): `POST /api/restrictions` nimmt `grade`

@@ -45,9 +45,9 @@ dependencies = [
     "SQLAlchemy>=2.0.0",
     # Core library (DBF bridge + ORM/sync), maintained in its own repo and
     # released to PyPI. Importable as `sp5lib`. Same reference style as the
-    # main application uses. 1.7.0 is required: calculations layer,
-    # forfeit_rest, get_personnel_table, get_utilization.
-    "libopenschichtplaner5[postgres]>=1.9.0",
+    # main application uses. 1.10.0 is required: apply_absence_visibility,
+    # get_user_visible_*, set_schedule_workplace, schedule_type, RESTRICT grade.
+    "libopenschichtplaner5[postgres]>=1.10.0",
 ]
 
 [project.optional-dependencies]
