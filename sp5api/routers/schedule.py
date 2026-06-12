@@ -32,7 +32,7 @@ def get_schedule(
     group_id: int | None = Query(None, description="Filter by group ID"),
     plan: str = Query(
         "ist",
-        description="Soll-/Istplan-Sicht (Spec 4.12): 'ist' (Vorgabe), 'soll' "
+        description="Soll-/Istplan-Sicht: 'ist' (Vorgabe), 'soll' "
         "oder 'both' (beide Pläne für die 2-/3-Zeilen-Ansicht)",
     ),
     abs_mode: int = Depends(absence_visibility_mode),
@@ -807,7 +807,7 @@ class WorkplaceAssign(BaseModel):
     tags=["Schedule"],
     summary="Assign workplace to a schedule entry",
     description="Setzt den Arbeitsplatz (5MASHI.WORKPLACID) eines bestehenden "
-    "Dienstplan-Eintrags (Spec 6.4). workplace_id=0 entfernt die Zuordnung.",
+    "Dienstplan-Eintrags. workplace_id=0 entfernt die Zuordnung.",
 )
 def assign_schedule_workplace(
     body: WorkplaceAssign, _cur_user: dict = Depends(require_write("WDUTIES"))
