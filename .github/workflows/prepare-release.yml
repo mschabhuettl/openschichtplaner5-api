@@ -1,0 +1,158 @@
+name: Prepare Release
+
+# Bereitet ein Release vor: Version in pyproject.toml (und den
+# _API_VERSION-Fallback in sp5api/main.py) anheben, die [Unreleased]-Sektion
+# in CHANGELOG.md zur Versions-Sektion schneiden, Commit + annotiertes Tag
+# vX.Y.Z pushen. Das Publish bleibt tag-getrieben (release.yml).
+#
+# dry_run=true (Default): es wird NICHTS gepusht — geplante Version,
+# Changelog-Auszug und git diff landen im Step-Summary.
+#
+# Hinweis: Pushes mit dem GITHUB_TOKEN lösen aus Rekursionsschutz keine
+# weiteren Workflows aus. Der Tag-Push allein würde release.yml also nicht
+# starten — deshalb stößt dieser Workflow release.yml nach dem Push explizit
+# per workflow_dispatch auf dem Tag-Ref an (workflow_dispatch ist von der
+# Rekursionsschutz-Regel ausgenommen).
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Versionssprung (wird von "version" übersteuert)'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+      version:
+        description: 'Explizite Zielversion X.Y.Z (optional, hat Vorrang vor "bump")'
+        type: string
+        required: false
+        default: ''
+      dry_run:
+        description: 'Trockenlauf — nur anzeigen, nichts pushen'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: write   # zum Anstoßen von release.yml auf dem Tag-Ref
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Neue Version bestimmen
+        id: version
+        env:
+          INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          CURRENT=$(sed -nE 's/^version = "([^"]+)"$/\1/p' pyproject.toml | head -1)
+          if [[ -z "${CURRENT}" ]]; then
+            echo "::error::Konnte die aktuelle Version nicht aus pyproject.toml lesen."
+            exit 1
+          fi
+          if [[ -n "${INPUT_VERSION}" ]]; then
+            NEW="${INPUT_VERSION#v}"
+            if ! [[ "${NEW}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Ungültige Zielversion '${INPUT_VERSION}' — erwartet X.Y.Z."
+              exit 1
+            fi
+          else
+            IFS=. read -r MA MI PA <<< "${CURRENT}"
+            case "${INPUT_BUMP}" in
+              major) NEW="$((MA + 1)).0.0" ;;
+              minor) NEW="${MA}.$((MI + 1)).0" ;;
+              patch) NEW="${MA}.${MI}.$((PA + 1))" ;;
+              *) echo "::error::Unbekannter bump '${INPUT_BUMP}'."; exit 1 ;;
+            esac
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/v${NEW}" > /dev/null 2>&1; then
+            echo "::error::Tag v${NEW} existiert bereits auf origin."
+            exit 1
+          fi
+          echo "Aktuelle Version: ${CURRENT} — neue Version: ${NEW}"
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "new=${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: 'Guard: CHANGELOG braucht eine gefüllte [Unreleased]-Sektion'
+        run: |
+          set -euo pipefail
+          if ! grep -q '^## \[Unreleased\]$' CHANGELOG.md; then
+            echo "::error::CHANGELOG.md hat keine [Unreleased]-Sektion — bitte '## [Unreleased]' mit den Änderungen dieses Releases anlegen."
+            exit 1
+          fi
+          SECTION=$(awk '/^## \[Unreleased\]$/{found=1; next} found && /^## /{exit} found{print}' CHANGELOG.md)
+          if [[ -z "$(printf '%s\n' "${SECTION}" | grep -vE '^(---)?[[:space:]]*$' || true)" ]]; then
+            echo "::error::Die [Unreleased]-Sektion in CHANGELOG.md ist leer — ein Release ohne Changelog-Einträge wird abgelehnt. Bitte Änderungen unter [Unreleased] dokumentieren."
+            exit 1
+          fi
+
+      - name: Version und CHANGELOG anpassen
+        env:
+          NEW: ${{ steps.version.outputs.new }}
+        run: |
+          set -euo pipefail
+          DATE=$(date -u +%F)
+          sed -i -E "s/^version = \"[^\"]+\"$/version = \"${NEW}\"/" pyproject.toml
+          # Fallback für editable/Source-Läufe ohne installierte Paket-Metadaten
+          sed -i -E "s/^(    _API_VERSION = )\"[^\"]+\"$/\1\"${NEW}\"/" sp5api/main.py
+          # [Unreleased] -> [X.Y.Z] - YYYY-MM-DD, frische leere Sektion davor
+          sed -i "s/^## \[Unreleased\]$/## [Unreleased]\n\n## [${NEW}] - ${DATE}/" CHANGELOG.md
+
+      - name: Step-Summary schreiben
+        env:
+          CURRENT: ${{ steps.version.outputs.current }}
+          NEW: ${{ steps.version.outputs.new }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          TITLE=$(grep -m1 "^## \[${NEW}\]" CHANGELOG.md | sed 's/^## //')
+          EXCERPT=$(awk -v h="## ${TITLE}" 'index($0, h) == 1 && !found {found=1; next} found && /^## /{exit} found{print}' CHANGELOG.md)
+          {
+            echo "## prepare-release: ${CURRENT} → ${NEW}"
+            echo
+            echo "- Geplante Version: \`${NEW}\`"
+            echo "- Geplanter Tag: \`v${NEW}\` (annotiert, Message: \`${TITLE}\`)"
+            echo
+            echo "### Changelog-Auszug (${TITLE})"
+            echo
+            echo "${EXCERPT}"
+            echo
+            echo "### Geänderte Dateien (git diff)"
+            echo
+            echo '```diff'
+            git diff
+            echo '```'
+            echo
+            if [[ "${DRY_RUN}" == "true" ]]; then
+              echo "**Trockenlauf — kein Push erfolgt** (kein Commit, kein Tag, kein Publish angestoßen)."
+            else
+              echo "Commit und Tag \`v${NEW}\` werden gepusht; release.yml übernimmt das Publish."
+            fi
+          } > summary.md
+          tee -a "$GITHUB_STEP_SUMMARY" < summary.md
+          rm summary.md
+
+      - name: Commit + Tag pushen und Publish anstoßen
+        if: ${{ !inputs.dry_run }}
+        env:
+          NEW: ${{ steps.version.outputs.new }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "Matthias Schabhüttl"
+          git config user.email "matthias@matthiasschabhuettl.com"
+          git commit -am "release: ${NEW}"
+          TITLE=$(grep -m1 "^## \[${NEW}\]" CHANGELOG.md | sed 's/^## //')
+          git tag -a "v${NEW}" -m "${TITLE}"
+          git push origin main "v${NEW}"
+          # GITHUB_TOKEN-Pushes triggern keine Workflows — Publish explizit
+          # auf dem Tag-Ref starten (bleibt damit tag-getrieben):
+          gh workflow run release.yml --ref "v${NEW}"
+          echo "Release v${NEW} gepusht, release.yml auf dem Tag-Ref angestoßen."

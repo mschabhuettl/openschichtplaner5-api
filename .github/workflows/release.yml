@@ -6,11 +6,16 @@ name: Release
 # stored API tokens or passwords. The exchange of the short-lived OIDC token
 # is what requires `permissions: id-token: write` on the publishing jobs.
 #
-# Trigger: push of a tag matching `v*` (e.g. v1.1.0) -> publish to PyPI
+# Triggers:
+#   * push of a tag matching `v*` (e.g. v1.1.0) -> publish to PyPI
+#   * `workflow_dispatch` on a `v*` tag ref     -> publish to PyPI
+#     (used by prepare-release.yml: tag pushes made with GITHUB_TOKEN do not
+#     trigger workflows, so the release run is dispatched explicitly on the tag)
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -47,8 +52,9 @@ jobs:
     name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest
-    # Only publish to PyPI for an actual version tag push.
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Only publish to PyPI when running on a version tag ref (pushed or
+    # dispatched on the tag by prepare-release.yml).
+    if: startsWith(github.ref, 'refs/tags/v')
     environment:
       name: pypi
       url: https://pypi.org/project/openschichtplaner5-api/
