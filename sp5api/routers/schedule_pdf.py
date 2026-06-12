@@ -36,10 +36,11 @@ def _build_schedule_html(
     num_days = calendar.monthrange(year, month)[1]
     month_name = _MONTH_NAMES_DE[month - 1]
 
-    # Fetch schedule entries (SHOWABS-Sichtbarkeit des Druckenden anwenden)
-    entries = db.apply_absence_visibility(
-        db.get_schedule(year=year, month=month, group_id=group_id), abs_mode
-    )
+    # Fetch schedule entries (SHOWABS-Sichtbarkeit des Druckenden anwenden;
+    # Modus 0 = vollständig ⇒ unverändert)
+    entries = db.get_schedule(year=year, month=month, group_id=group_id)
+    if abs_mode:
+        entries = db.apply_absence_visibility(entries, abs_mode)
 
     # Fetch group name if group_id given
     group_name = ""
