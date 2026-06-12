@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `prepare-release` workflow (manual dispatch): bumps the version, cuts the
+  `[Unreleased]` changelog section into a release section and pushes commit +
+  annotated tag — the tag keeps driving the PyPI publish. Dry-run mode
+  (default) only reports the planned changes. The workflow refuses to release
+  when the `[Unreleased]` section is missing or empty. `RELEASING.md`
+  documents the flow.
+
 ### Changed
 
 - Docker builds install the library from PyPI by default
