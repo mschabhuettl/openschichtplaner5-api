@@ -47,7 +47,7 @@ dependencies = [
     # released to PyPI. Importable as `sp5lib`. Same reference style as the
     # main application uses. 1.7.0 is required: calculations layer,
     # forfeit_rest, get_personnel_table, get_utilization.
-    "libopenschichtplaner5[postgres]>=1.7.0",
+    "libopenschichtplaner5[postgres]>=1.9.0",
 ]
 
 [project.optional-dependencies]
