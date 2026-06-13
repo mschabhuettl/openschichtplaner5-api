@@ -7,7 +7,7 @@
 # Build-Arg LIB_SOURCE: pip-Requirement für die Library. Default ist der
 # PyPI-Pin (reproduzierbare Builds). Override-Beispiele:
 #   --build-arg LIB_SOURCE=git+https://github.com/mschabhuettl/libopenschichtplaner5.git@main   (Entwicklungs-Stand)
-#   --build-arg LIB_SOURCE="libopenschichtplaner5[postgres]==1.9.0"   (künftige Version)
+#   --build-arg LIB_SOURCE="libopenschichtplaner5[postgres]==1.11.0"   (künftige Version)
 #
 # ENV-Defaults (Runtime):
 #   SP5_DB_PATH=/app/data        Verzeichnis der 5*.DBF-Dateien (Volume mounten!)
