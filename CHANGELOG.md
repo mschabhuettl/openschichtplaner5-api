@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `GET /api/extracharges/by-day`: Zeitzuschläge je Tag (Spec 3.8) — je
+  (Mitarbeiter, Tag, Zuschlag) eine Zeile mit Stunden > 0, für einen Monat
+  (`year`+`month`) oder einen freien Zeitraum (`from`/`to`), optional je
+  `employee_id`. Die Summe der Tageszeilen je Regel entspricht
+  `/api/extracharges/summary`. Erfordert libopenschichtplaner5 >= 1.13.0.
+
 ## [1.7.0] - 2026-06-16
 
 ### Added

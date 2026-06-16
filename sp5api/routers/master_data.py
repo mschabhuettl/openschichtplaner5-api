@@ -690,6 +690,59 @@ def get_extracharges_summary(
         raise _sanitize_500(e)
 
 
+@router.get(
+    "/api/extracharges/by-day", tags=["Statistics"], summary="Extra charges per day",
+    description=(
+        "Return surcharge hours per day (Zeitzuschläge je Tag, Spec 3.8): one row "
+        "per employee/date/charge with hours > 0, for a month (year/month) or a "
+        "free evaluation period (from/to)."
+    ),
+)
+def get_extracharges_by_day(
+    year: int | None = Query(None),
+    month: int | None = Query(None),
+    employee_id: int | None = Query(None),
+    date_from: str | None = Query(
+        None, alias="from", description="Freier Auswertungszeitraum: Start (YYYY-MM-DD)"
+    ),
+    date_to: str | None = Query(
+        None, alias="to", description="Freier Auswertungszeitraum: Ende (YYYY-MM-DD)"
+    ),
+):
+    """Per-day surcharge hours (month or free period)."""
+    if date_from is not None or date_to is not None:
+        from datetime import date as _date
+
+        if date_from is None or date_to is None:
+            raise HTTPException(
+                status_code=400, detail="'from' und 'to' müssen gemeinsam angegeben werden"
+            )
+        try:
+            von = _date.fromisoformat(date_from)
+            bis = _date.fromisoformat(date_to)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="Invalid date format, please use YYYY-MM-DD"
+            )
+        if von > bis:
+            raise HTTPException(status_code=400, detail="'from' muss <= 'to' sein")
+        try:
+            return get_db().extracharge_hours_by_day(
+                employee_id=employee_id, date_from=date_from, date_to=date_to
+            )
+        except Exception as e:
+            raise _sanitize_500(e)
+
+    if year is None or month is None:
+        raise HTTPException(
+            status_code=400, detail="Entweder year+month oder from+to angeben"
+        )
+    try:
+        return get_db().extracharge_hours_by_day(year, month, employee_id)
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
 @router.put(
     "/api/extracharges/{xc_id}", tags=["Statistics"], summary="Update extra charge",
     description="Update an existing extra charge. Requires Admin role.",

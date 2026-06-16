@@ -134,3 +134,40 @@ class TestExtrachargeSummaryPeriod:
         assert (
             sync_client.get("/api/extracharges/summary?year=2026").status_code == 400
         )
+
+
+class TestExtrachargeByDay:
+    """A8 Zeitzuschläge je Tag: /api/extracharges/by-day."""
+
+    def test_rows_shape_and_period(self, sync_client: TestClient):
+        by_month = sync_client.get("/api/extracharges/by-day?year=2026&month=1")
+        assert by_month.status_code == 200
+        rows = by_month.json()
+        assert isinstance(rows, list)
+        for r in rows:
+            assert {"employee_id", "date", "charge_id", "charge_name", "hours"} <= set(r)
+            assert r["date"].startswith("2026-01") and r["hours"] > 0
+        # freier Zeitraum über den Monat == year/month
+        period = sync_client.get(
+            "/api/extracharges/by-day?from=2026-01-01&to=2026-01-31"
+        ).json()
+        assert period == rows
+
+    def test_daily_sums_match_summary(self, sync_client: TestClient):
+        """Invariante: Summe der Tageszeilen je Regel == aggregierter Summenwert."""
+        rows = sync_client.get("/api/extracharges/by-day?year=2026&month=1").json()
+        summary = sync_client.get("/api/extracharges/summary?year=2026&month=1").json()
+        per_charge: dict[int, float] = {}
+        for r in rows:
+            per_charge[r["charge_id"]] = per_charge.get(r["charge_id"], 0.0) + r["hours"]
+        for s in summary:
+            assert per_charge.get(s["charge_id"], 0.0) == pytest.approx(s["hours"], abs=0.05)
+
+    def test_validation(self, sync_client: TestClient):
+        assert sync_client.get("/api/extracharges/by-day?from=2026-01-01").status_code == 400
+        assert (
+            sync_client.get("/api/extracharges/by-day?from=2026-02-01&to=2026-01-31").status_code
+            == 400
+        )
+        assert sync_client.get("/api/extracharges/by-day").status_code == 400
+        assert sync_client.get("/api/extracharges/by-day?year=2026").status_code == 400
