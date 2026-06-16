@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-16
+
 ### Added
 
 - `GET /api/extracharges/by-day`: Zeitzuschläge je Tag (Spec 3.8) — je
