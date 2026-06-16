@@ -174,7 +174,7 @@ jobs:
       # verpflichtende Build-Provenance ist bereits Sigstore-keyless signiert.
       - name: Install cosign (optional)
         if: vars.ENABLE_COSIGN == 'true'
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.2
 
       - name: Sign image with cosign (optional)
         if: vars.ENABLE_COSIGN == 'true'
