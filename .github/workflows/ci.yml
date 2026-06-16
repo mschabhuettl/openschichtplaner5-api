@@ -50,3 +50,56 @@ jobs:
 
       - name: Audit Python dependencies (pip-audit)
         run: pip-audit
+
+  docker-write-permission:
+    # Cycle 8 regression: the non-root container must be able to WRITE a
+    # bind-mounted data directory it does not own by default. The data dir is
+    # chowned to uid 4000 (deliberately NOT the bundled sp5 uid 1001) so the
+    # bug — and the entrypoint fix that runs the app as the data-dir owner — is
+    # actually exercised. Without the fix, startup demo-seeding and the employee
+    # write fail with EACCES/500.
+    name: Container write-permission
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build API image
+        run: docker build -t sp5api:ci .
+
+      - name: Prepare a data dir owned by uid 4000 (not the container's 1001)
+        run: |
+          mkdir -p data
+          cp tests/fixtures/*.DBF data/
+          sudo chown -R 4000:4000 data
+
+      - name: Start container with the host-owned bind mount
+        run: |
+          docker run -d --name sp5api-ci -p 8000:8000 \
+            -v "$PWD/data:/app/data" \
+            -e SECRET_KEY=ci-secret-not-for-production \
+            -e SP5_SEED_DEMO_USERS=1 \
+            sp5api:ci
+          for i in $(seq 1 40); do
+            curl -sf http://localhost:8000/api/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Demo login + employee write must succeed (not 401/500)
+        run: |
+          set -e
+          login=$(curl -s -o /dev/null -w '%{http_code}' -c c.txt \
+            -X POST http://localhost:8000/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"Test1234"}')
+          echo "demo login HTTP=$login"
+          if [ "$login" != "200" ]; then echo "::error::startup demo-seed write failed"; docker logs sp5api-ci; exit 1; fi
+          write=$(curl -s -o /dev/null -w '%{http_code}' -b c.txt \
+            -X POST http://localhost:8000/api/employees \
+            -H 'Content-Type: application/json' \
+            -d '{"NAME":"CIWrite","SHORTNAME":"ZZCI","HRSWEEK":40}')
+          echo "employee write HTTP=$write"
+          if [ "$write" != "200" ]; then echo "::error::write to mounted volume failed"; docker logs sp5api-ci; exit 1; fi
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f sp5api-ci || true
