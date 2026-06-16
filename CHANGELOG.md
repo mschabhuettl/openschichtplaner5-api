@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Login über reines HTTP nutzbar:** Das Session-Cookie wird nur noch `Secure`
+  gesetzt, wenn die Anfrage tatsächlich über HTTPS kommt (X-Forwarded-Proto bzw.
+  Request-Scheme; `SP5_COOKIE_SECURE=true|false` als Override). Browser verwerfen
+  ein `Secure`-Cookie über reines HTTP auf jedem Nicht-localhost-Host; da die SPA
+  die Sitzung ausschließlich im HttpOnly-Cookie hält, schlug der Login auf üblichen
+  Self-Hosting-/Portainer-Deployments faktisch fehl (200 beim Login, danach 401).
+- **Kein opaker 500 mehr bei Schreibfehlern:** Datei-/Rechte-Fehler (EACCES/EROFS/
+  ENOSPC) liefern eine klare, spezifische Meldung + Log statt eines generischen 500 —
+  zentral über `describe_write_error`, genutzt von `_sanitize_500` und einem globalen
+  `OSError`-Handler (deckt auch nicht selbst abgesicherte Pfade wie `/api/wishes` ab).
+- **Schreibrechte im Container** (Entrypoint): Der Container startet als root,
+  gleicht die Schreibrechte am gemounteten Daten-Verzeichnis an und führt die App
+  via `gosu` als dessen Eigentümer (sonst uid 1001) aus — behebt „Interner
+  Serverfehler" beim Speichern (Umplanen/Wünsche/neuer Mitarbeiter) bei
+  non-root-Container × host-eigenem Bind-Mount. Auto-Backups in `SP5_BACKUP_DIR`.
+
+### Added
+
+- Datenschutzsichere Login-Diagnostik: bei Fehl-Login wird der Grund geloggt
+  (Benutzer (nicht) gefunden, Digest-Format, bcrypt) — nie das Passwort.
+- CI-Job „Container write-permission": startet das Image mit einem fremd-besessenen
+  Daten-Verzeichnis und prüft, dass Schreibzugriffe gelingen.
+
+### Changed
+
+- Library-Untergrenze auf `libopenschichtplaner5>=1.12.0` (login_diagnostics);
+  Docker-`LIB_SOURCE` auf `==1.12.0`.
+
+### Removed
+
+- D11: der wirkungslose `max_carry_forward_days`-Parameter (annual-close
+  preview/execute) ist entfernt; Alt-Clients, die ihn noch senden, werden weiterhin
+  fehlerfrei ignoriert.
+
 ## [1.5.0] - 2026-06-12
 
 ### Changed
