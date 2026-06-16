@@ -141,7 +141,7 @@ try:
 
     _API_VERSION = _pkg_version("openschichtplaner5-api")
 except Exception:  # editable/source runs without installed metadata
-    _API_VERSION = "1.6.1"
+    _API_VERSION = "1.7.0"
 
 # CORS origins from env
 _raw_origins = os.environ.get("ALLOWED_ORIGINS", "")

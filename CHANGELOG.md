@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-16
+
 ### Added
 
 - `POST /api/absences` warnt jetzt, wenn die Abwesenheit in einen Sperrzeitraum
