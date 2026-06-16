@@ -693,8 +693,8 @@ def get_extracharges_summary(
 @router.get(
     "/api/extracharges/by-day", tags=["Statistics"], summary="Extra charges per day",
     description=(
-        "Return surcharge hours per day (Zeitzuschläge je Tag, Spec 3.8): one row "
-        "per employee/date/charge with hours > 0, for a month (year/month) or a "
+        "Return surcharge hours per day (Zeitzuschläge je Tag): one row per "
+        "employee/date/charge with hours > 0, for a month (year/month) or a "
         "free evaluation period (from/to)."
     ),
 )
