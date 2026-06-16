@@ -11,10 +11,13 @@ import sp5api.routers.absences as absences
 
 
 class _AbsDB:
-    def __init__(self, *, schedule_day=None, holidays=None, add_exc=None):
+    def __init__(self, *, schedule_day=None, holidays=None, add_exc=None,
+                 groups=None, bans=None):
         self._schedule_day = schedule_day or []
         self._holidays = holidays or []
         self._add_exc = add_exc
+        self._groups = groups or []
+        self._bans = bans or []
 
     def get_employee(self, eid):
         return {"ID": eid, "NAME": "Müller", "FIRSTNAME": "Anna"}
@@ -27,6 +30,12 @@ class _AbsDB:
 
     def get_holiday_dates(self, year):
         return self._holidays
+
+    def get_employee_groups(self, eid):
+        return self._groups
+
+    def get_holiday_bans(self, group_id=None):
+        return self._bans
 
     def add_absence(self, eid, date, ltid, interval=0, start=0, end=0):
         # V-3: create_absence reicht interval/start/end als Kwargs durch
@@ -86,6 +95,46 @@ class TestCreateAbsence:
             assert any("Feiertag" in w for w in warnings)
         finally:
             _sessions.pop(tok, None)
+
+    def test_warns_about_holiday_ban(self, monkeypatch):
+        # R5.10-5: Abwesenheit in einem Sperrzeitraum einer Gruppe des MA → Warnung.
+        from sp5api.main import _sessions
+
+        db = _AbsDB(
+            groups=[51],
+            bans=[{
+                "id": 1, "group_id": 51, "group_name": "Team C",
+                "start_date": "2026-07-10", "end_date": "2026-07-20",
+                "restrict": 1, "reason": "Betriebsferien",
+            }],
+        )
+        tok = _planer_session()
+        try:
+            resp = self._post(_client(monkeypatch, db), tok, date="2026-07-15")
+            assert resp.status_code == 200
+            warnings = resp.json()["warnings"]
+            assert any("Urlaubssperre" in w and "Team C" in w for w in warnings), warnings
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_no_ban_warning_outside_period_or_group(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        ban = {
+            "id": 1, "group_id": 51, "group_name": "Team C",
+            "start_date": "2026-07-10", "end_date": "2026-07-20",
+            "restrict": 1, "reason": "Betriebsferien",
+        }
+        # (a) Datum außerhalb des Zeitraums; (b) MA nicht in der gesperrten Gruppe
+        for groups, date in ([51], "2026-07-25"), ([99], "2026-07-15"):
+            db = _AbsDB(groups=groups, bans=[ban])
+            tok = _planer_session()
+            try:
+                resp = self._post(_client(monkeypatch, db), tok, date=date)
+                assert resp.status_code == 200
+                assert not any("Urlaubssperre" in w for w in resp.json()["warnings"])
+            finally:
+                _sessions.pop(tok, None)
 
     def test_overlap_conflict_returns_409(self, monkeypatch):
         from sp5api.main import _sessions

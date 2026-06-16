@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `POST /api/absences` warnt jetzt, wenn die Abwesenheit in einen Sperrzeitraum
+  (Urlaubssperre, 5HOBAN) einer Gruppe des Mitarbeiters fällt (Spec R5.10-5). Die
+  Warnung wird wie die bestehenden Konflikt-/Feiertagshinweise im `warnings`-Feld
+  der Antwort geliefert; die Eintragung bleibt möglich (weiche Warnung, keine
+  Sperre). Der Geltungsbereich („alle" vs. „nur anspruchsgebunden", R5.10-7) wird
+  bewusst nicht eingeschränkt, da das `RESTRICT`-Enum aus dem Originalmaterial
+  nicht eindeutig bestimmbar ist — es wird konservativ für jede Abwesenheitsart
+  gewarnt.
+
 ## [1.6.1] - 2026-06-16
 
 ### Changed

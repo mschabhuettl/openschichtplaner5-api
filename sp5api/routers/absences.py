@@ -182,6 +182,21 @@ def create_absence(
             warnings.append(
                 "Dieses Datum ist ein Feiertag – der Urlaub wird trotzdem vom Kontingent abgezogen."
             )
+        # Urlaubssperre (5HOBAN, R5.10-5): weiche Warnung, wenn der Tag in einem
+        # Sperrzeitraum einer Gruppe des Mitarbeiters liegt — keine harte Sperre.
+        # Der Geltungsbereich (RESTRICT: "alle" vs. "nur anspruchsgebunden",
+        # R5.10-7) ist im Original-Enum nicht eindeutig bestimmbar (Spec 2.5.4,
+        # UNSICHER); es wird daher konservativ für jede Abwesenheitsart gewarnt.
+        emp_groups = set(db.get_employee_groups(body.employee_id))
+        for ban in db.get_holiday_bans():
+            end = ban.get("end_date") or ban.get("start_date", "")
+            if ban.get("group_id") in emp_groups and ban.get("start_date", "") <= body.date <= end:
+                grp = ban.get("group_name") or f"Gruppe {ban.get('group_id')}"
+                msg = f"Urlaubssperre für {grp} ({ban.get('start_date')} – {end})"
+                if ban.get("reason"):
+                    msg += f": {ban['reason']}"
+                warnings.append(msg + " – Eintragung trotzdem möglich.")
+                break
     except Exception:
         pass  # Never block creation due to warning check errors
 
