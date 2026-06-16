@@ -1,6 +1,9 @@
 # openschichtplaner5-api
 
 [![CI](https://github.com/mschabhuettl/openschichtplaner5-api/actions/workflows/ci.yml/badge.svg)](https://github.com/mschabhuettl/openschichtplaner5-api/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/openschichtplaner5-api?logo=pypi&logoColor=white)](https://pypi.org/project/openschichtplaner5-api/)
+[![ghcr.io](https://img.shields.io/badge/ghcr.io-image-2496ED?logo=docker&logoColor=white)](https://github.com/mschabhuettl/openschichtplaner5-api/pkgs/container/openschichtplaner5-api)
+[![GitHub release](https://img.shields.io/github/v/release/mschabhuettl/openschichtplaner5-api?logo=github)](https://github.com/mschabhuettl/openschichtplaner5-api/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 The REST API behind [**OpenSchichtplaner5**](https://github.com/mschabhuettl/openschichtplaner5) —
@@ -84,14 +87,22 @@ Production-ready multi-stage image (slim runtime, non-root, `HEALTHCHECK` on
 SP5_DBF_DIR=/path/to/SP5/Daten docker compose up --build
 ```
 
-Standalone, without compose — mount the DBF directory to `/app/data` and pass
-the environment via `.env` (at minimum `SECRET_KEY`, see
+Each release publishes a multi-arch image (amd64+arm64) to the GitHub Container
+Registry, so no local build is needed. Standalone — mount the DBF directory to
+`/app/data` and pass the environment via `.env` (at minimum `SECRET_KEY`, see
 [Key environment variables](#key-environment-variables)):
 
 ```bash
-docker build -t openschichtplaner5-api .
-
 echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
+
+# published image (no build required):
+docker run -d --name sp5-api -p 8000:8000 \
+  -v /path/to/SP5/Daten:/app/data \
+  --env-file .env \
+  ghcr.io/mschabhuettl/openschichtplaner5-api:latest   # or :1.6.0
+
+# or build it locally instead:
+docker build -t openschichtplaner5-api .
 docker run -d --name sp5-api -p 8000:8000 \
   -v /path/to/SP5/Daten:/app/data \
   --env-file .env \

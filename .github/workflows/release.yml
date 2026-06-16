@@ -1,21 +1,30 @@
 name: Release
 
-# Build the distribution and publish it to PyPI.
-#
-# Publishing uses PyPI Trusted Publishing (OpenID Connect) — there are NO
-# stored API tokens or passwords. The exchange of the short-lived OIDC token
-# is what requires `permissions: id-token: write` on the publishing jobs.
+# Ein Versions-Tag veröffentlicht auf ALLE Kanäle dieses Repos:
+#   * PyPI            — sdist + wheel, Trusted Publishing (OIDC, keine Tokens)
+#   * ghcr.io         — das Standalone-Service-Image (Dockerfile-Default-Stage),
+#                       multi-arch (amd64+arm64), Tags Version/Minor/latest
+#   * GitHub-Release  — Body = die von prepare-release.yml geschnittene
+#                       CHANGELOG-Sektion; Assets = wheel + sdist + SBOM
+# plus Build-Provenance-Attestation (Dist + Image) und ein SBOM je Image.
 #
 # Triggers:
-#   * push of a tag matching `v*` (e.g. v1.1.0) -> publish to PyPI
-#   * `workflow_dispatch` on a `v*` tag ref     -> publish to PyPI
-#     (used by prepare-release.yml: tag pushes made with GITHUB_TOKEN do not
-#     trigger workflows, so the release run is dispatched explicitly on the tag)
+#   * push eines Tags `v*`                       -> Publish auf alle Kanäle
+#   * workflow_dispatch auf einem `v*`-Tag-Ref   -> Publish auf alle Kanäle
+#     (prepare-release.yml stößt das an: GITHUB_TOKEN-Tag-Pushes lösen aus
+#     Rekursionsschutz keine Workflows aus — der Run wird explizit auf dem Tag
+#     dispatcht, das Publish bleibt damit tag-getrieben)
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
   workflow_dispatch:
+
+# Re-Run-sicher: Läufe für denselben Ref serialisieren, ein laufendes Publish
+# nicht abbrechen.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -24,6 +33,10 @@ jobs:
   build:
     name: Build sdist + wheel
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write       # Build-Provenance-Attestation (OIDC)
+      attestations: write
     steps:
       - uses: actions/checkout@v6
 
@@ -41,6 +54,12 @@ jobs:
       - name: Check distributions
         run: twine check --strict dist/*
 
+      - name: Attest build provenance for the distributions
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: 'dist/*'
+
       - name: Upload distributions
         uses: actions/upload-artifact@v7
         with:
@@ -52,8 +71,8 @@ jobs:
     name: Publish to PyPI
     needs: build
     runs-on: ubuntu-latest
-    # Only publish to PyPI when running on a version tag ref (pushed or
-    # dispatched on the tag by prepare-release.yml).
+    # Nur auf einem Versions-Tag-Ref publizieren (gepusht oder von
+    # prepare-release.yml auf dem Tag dispatcht).
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
       name: pypi
@@ -69,4 +88,165 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true   # Re-Run-idempotent
 
+  docker:
+    name: Build & Push Docker Image
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+      id-token: write       # Build-Provenance- + SBOM-Attestation, cosign (OIDC)
+      attestations: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v6
+        id: meta
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v7
+        id: build
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Attest build provenance for the image
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate SBOM (SPDX) for the image
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+
+      - name: Attest SBOM for the image
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
+      - name: Name the SBOM for the release asset
+        run: cp sbom.spdx.json "openschichtplaner5-api-${GITHUB_REF_NAME#v}.sbom.spdx.json"
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: '*.sbom.spdx.json'
+          if-no-files-found: error
+
+      # Optional, ohne neue Secrets: cosign keyless (OIDC). Default aus; per
+      # Repo-Variable ENABLE_COSIGN=true einschaltbar. Begründung: die
+      # verpflichtende Build-Provenance ist bereits Sigstore-keyless signiert.
+      - name: Install cosign (optional)
+        if: vars.ENABLE_COSIGN == 'true'
+        uses: sigstore/cosign-installer@v4
+
+      - name: Sign image with cosign (optional)
+        if: vars.ENABLE_COSIGN == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+
+      - name: Scan image for CVEs (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  github-release:
+    name: Create GitHub Release
+    needs: [build, docker]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Download distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Download SBOM
+        uses: actions/download-artifact@v8
+        with:
+          name: sbom
+          path: dist/
+
+      - name: Extract changelog section
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Extract the section for this version from CHANGELOG.md
+          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="See [CHANGELOG.md](CHANGELOG.md) for details."
+          fi
+          echo "$NOTES" > release_notes.md
+          echo "Release notes extracted for v${VERSION}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: "v${{ steps.version.outputs.version }}"
+          body_path: release_notes.md
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.sbom.spdx.json
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: false
+          token: ${{ secrets.GITHUB_TOKEN }}
