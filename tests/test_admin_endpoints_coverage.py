@@ -18,6 +18,26 @@ class TestPeriodAndSettingsErrors:
         )
         assert resp.status_code == 422
 
+    def test_create_period_with_color_roundtrips(self, planer_client):
+        # R5.10-10: gekennzeichneter Zeitraum mit Farbe — Hex → COLORREF → Hex.
+        resp = planer_client.post(
+            "/api/periods",
+            json={"group_id": 1, "start": "2026-07-01", "end": "2026-07-10",
+                  "description": "Sommerferien", "color": "#112233"},
+        )
+        assert resp.status_code == 200, resp.text
+        got = planer_client.get("/api/periods").json()
+        mine = [p for p in got if p["description"] == "Sommerferien"]
+        assert mine and mine[0]["color"].lower() == "#112233", mine
+
+    def test_create_period_rejects_bad_color(self, planer_client):
+        resp = planer_client.post(
+            "/api/periods",
+            json={"group_id": 1, "start": "2026-07-01", "end": "2026-07-10",
+                  "color": "blau"},
+        )
+        assert resp.status_code == 422
+
     def test_create_period_db_error_is_sanitized_500(self, planer_client, monkeypatch):
         monkeypatch.setattr(admin, "get_db", _boom)
         resp = planer_client.post(

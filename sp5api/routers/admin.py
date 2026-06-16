@@ -37,11 +37,19 @@ def get_periods(
     return get_db().get_periods(group_id=group_id)
 
 
+def _hex_to_bgr(hex_color: str) -> int:
+    """#RRGGBB → COLORREF (BGR int), wie von der Library erwartet (D-32)."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return (b << 16) | (g << 8) | r
+
+
 class PeriodCreate(BaseModel):
     group_id: int = Field(..., gt=0)
     start: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     end: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     description: str = Field("", max_length=500)
+    color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")  # gekennzeichneter Zeitraum (R5.10-10)
 
     @field_validator("start", "end")
     @classmethod
@@ -70,14 +78,15 @@ class PeriodCreate(BaseModel):
 def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer)):
     # Date format and order already validated by Pydantic model
     try:
-        result = get_db().create_period(
-            {
-                "group_id": body.group_id,
-                "start": body.start,
-                "end": body.end,
-                "description": body.description,
-            }
-        )
+        data = {
+            "group_id": body.group_id,
+            "start": body.start,
+            "end": body.end,
+            "description": body.description,
+        }
+        if body.color:
+            data["color"] = _hex_to_bgr(body.color)
+        result = get_db().create_period(data)
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e)

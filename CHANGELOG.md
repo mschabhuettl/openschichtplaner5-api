@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bewusst nicht eingeschränkt, da das `RESTRICT`-Enum aus dem Originalmaterial
   nicht eindeutig bestimmbar ist — es wird konservativ für jede Abwesenheitsart
   gewarnt.
+- `POST /api/periods` akzeptiert jetzt eine optionale `color` (`#RRGGBB`) für
+  gekennzeichnete Zeiträume (5PERIO, R5.10-10); sie wird als COLORREF gespeichert
+  und von `GET /api/periods` als Hex zurückgegeben. Ohne Angabe bleibt der
+  bisherige Default.
 
 ## [1.6.1] - 2026-06-16
 
