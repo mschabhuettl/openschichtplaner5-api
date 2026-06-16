@@ -593,14 +593,6 @@ def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
 def annual_close_preview(
     year: int = Query(...),
     group_id: int | None = Query(None),
-    max_carry_forward_days: float | None = Query(
-        None,
-        deprecated=True,
-        description=(
-            "Veraltet und wirkungslos: der Übertrag ist ungedeckelt und "
-            "ausschließlich CARRYFWD-gesteuert."
-        ),
-    ),
     keep_entitlements: bool = Query(
         False,
         description="Dialog-Option 'Urlaubsansprüche bleiben im Folgejahr gleich' (R6.8-4)",
@@ -616,12 +608,6 @@ def annual_close_preview(
 class AnnualCloseBody(BaseModel):
     year: int = Field(..., ge=2000, le=2100)
     group_id: int | None = Field(None, gt=0)
-    # Veraltet und wirkungslos (D11): der Übertrag ist ungedeckelt und
-    # ausschließlich CARRYFWD-gesteuert (Spec 3.7.2). Wird nur noch aus
-    # Kompatibilität angenommen.
-    max_carry_forward_days: float | None = Field(
-        None, ge=0, le=366, deprecated=True
-    )
     # Dialog-Option "Urlaubsansprüche bleiben im Folgejahr gleich" (R6.8-4):
     # ENTITLEMNT des abgeschlossenen Jahres wird ins Folgejahr kopiert, auch
     # Arten ohne CARRYFWD werden (mit REST=0) fortgeschrieben.

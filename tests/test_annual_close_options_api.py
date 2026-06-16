@@ -66,20 +66,20 @@ class TestAnnualCloseKeepEntitlements:
         assert rows[1]["carry_forward"] == 34.0
         assert 14 not in rows
 
-    def test_max_carry_forward_days_is_deprecated_noop(self, write_client):
-        """D11: der Parameter suggerierte einen Übertrags-Deckel, den es seit
-        Phase 3 nicht mehr gibt (Spec 3.7.2: ungedeckelt, nur CARRYFWD).
-        Er bleibt aus Kompatibilität annehmbar, ist aber wirkungslos und im
-        OpenAPI-Schema als deprecated markiert."""
+    def test_max_carry_forward_days_removed_and_harmless(self, write_client):
+        """D11: der wirkungslose Übertrags-Deckel-Parameter ist entfernt (Zyklus 8).
+        Wird er von einem Alt-Client noch mitgeschickt, ignoriert ihn die API
+        weiterhin (kein Deckel, kein Fehler) — und er taucht nicht mehr im
+        OpenAPI-Schema auf."""
         _seed(write_client)
         prev = write_client.get(
             f"/api/annual-close/preview?year={YEAR}"
             "&keep_entitlements=true&max_carry_forward_days=5"
-        ).json()
-        # kein Deckel: 34 Tage Übertrag trotz max_carry_forward_days=5
-        assert prev["total_carry_forward"] == 34.0
+        )
+        assert prev.status_code == 200
+        # kein Deckel: 34 Tage Übertrag trotz mitgeschicktem max_carry_forward_days=5
+        assert prev.json()["total_carry_forward"] == 34.0
 
         schema = write_client.get("/api/v1/openapi.json").json()
-        params = schema["paths"]["/api/annual-close/preview"]["get"]["parameters"]
-        cap = next(p for p in params if p["name"] == "max_carry_forward_days")
-        assert cap.get("deprecated") is True
+        params = schema["paths"]["/api/annual-close/preview"]["get"].get("parameters", [])
+        assert all(p["name"] != "max_carry_forward_days" for p in params)
