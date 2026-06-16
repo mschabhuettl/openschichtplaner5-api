@@ -586,14 +586,55 @@ def write_audit_log(action: str, actor: str, details: dict) -> None:
         _logger.warning("Audit log write failed: %s", _ae)
 
 
+import errno as _errno  # noqa: E402
+
+
+def describe_write_error(exc: BaseException) -> tuple[int, str] | None:
+    """Map a filesystem/permission error to ``(status_code, user-facing detail)``.
+
+    Returns ``None`` if ``exc`` is not a filesystem error we can explain. Shared by
+    ``_sanitize_500`` (handlers that catch) and the global ``OSError`` handler
+    (uncaught) so that NO write failure ever ends as an opaque 500 — every write
+    path either succeeds or returns a clear, specific message + log (cycle 8 /
+    Regel 6). The most common real cause is a data directory mounted into the
+    non-root container without write permission for the container user.
+    """
+    if not isinstance(exc, OSError):
+        return None
+    eno = getattr(exc, "errno", None)
+    fname = getattr(exc, "filename", None)
+    where = f" ({fname})" if fname else ""
+    if eno in (_errno.EACCES, _errno.EPERM, _errno.EROFS):
+        return 503, (
+            "Das Daten-Verzeichnis ist nicht beschreibbar — der Schreibvorgang "
+            "wurde abgebrochen, es wurde nichts verändert. Der Container-Benutzer "
+            "braucht Schreibrechte auf das gemountete Daten-Verzeichnis."
+            f" [Errno {eno}: {exc.strerror}{where}]"
+        )
+    if eno == _errno.ENOSPC:
+        return 507, (
+            "Kein freier Speicherplatz auf dem Daten-Volume — der Schreibvorgang "
+            f"wurde abgebrochen. [Errno {eno}: {exc.strerror}{where}]"
+        )
+    return None
+
+
 def _sanitize_500(e: Exception, context: str = "") -> HTTPException:
-    """Log full exception with traceback, return sanitized 500."""
+    """Log full exception with traceback, return a sanitized error.
+
+    Filesystem/permission errors get a clear, specific message (see
+    ``describe_write_error``); everything else stays a generic 500.
+    """
     _logger.exception(
         "500 error context=%s type=%s msg=%s",
         context,
         type(e).__name__,
         str(e),
     )
+    mapped = describe_write_error(e)
+    if mapped is not None:
+        status, detail = mapped
+        return HTTPException(status_code=status, detail=detail)
     return HTTPException(
         status_code=500,
         detail="Interner Serverfehler. Bitte versuche es erneut.",

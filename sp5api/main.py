@@ -601,6 +601,32 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+@app.exception_handler(OSError)
+async def filesystem_error_handler(request: Request, exc: OSError):
+    """Turn an unhandled filesystem/permission error into a clear, specific
+    response instead of an opaque 500 (cycle 8 / Regel 6). Covers write paths that
+    do not wrap their DB calls themselves (e.g. wishes). The most common cause is a
+    data directory mounted into the non-root container without write permission."""
+    from .dependencies import describe_write_error, request_id_ctx
+
+    mapped = describe_write_error(exc)
+    if mapped is None:
+        # Not a filesystem error we can explain — defer to the generic handler.
+        return await global_exception_handler(request, exc)
+    status, detail = mapped
+    rid = request_id_ctx.get(None) or "-"
+    _logger.error(
+        "Write error: %s %s | %s: %s",
+        request.method,
+        request.url.path,
+        type(exc).__name__,
+        str(exc),
+        exc_info=True,
+        extra={"request_id": rid, "exc_type": type(exc).__name__, "event": "write_error"},
+    )
+    return JSONResponse(status_code=status, content={"detail": detail})
+
+
 # ── Public paths (no auth required) ────────────────────────────
 _PUBLIC_PATHS = {
     "/api/auth/login",

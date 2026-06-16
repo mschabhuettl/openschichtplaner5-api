@@ -65,6 +65,35 @@ def _validate_password_strength(password: str) -> None:
 _IS_DEV = os.environ.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes")
 _COOKIE_NAME = "sp5_token"
 
+_TRUTHY = ("1", "true", "yes", "on")
+_FALSY = ("0", "false", "no", "off")
+
+
+def _cookie_secure(request: Request) -> bool:
+    """Whether the session cookie should carry the ``Secure`` flag.
+
+    Default (``SP5_COOKIE_SECURE=auto``): mark the cookie ``Secure`` only when the
+    request actually arrived over HTTPS, detected from ``X-Forwarded-Proto`` (the
+    bundled nginx forwards the original scheme) or, failing that, the request
+    scheme. This matters because browsers **silently drop a ``Secure`` cookie over
+    plain HTTP on any non-localhost host** — exactly the typical self-hosted /
+    Portainer deployment — which would make the cookie-only SPA session unusable
+    (login appears to "not work"). Setting it unconditionally Secure (the old
+    ``not _IS_DEV`` behaviour) broke real HTTP deployments.
+
+    ``SP5_COOKIE_SECURE=true|false`` forces the flag for edge cases (e.g. a TLS
+    terminator that does not forward the scheme).
+    """
+    override = os.environ.get("SP5_COOKIE_SECURE", "").strip().lower()
+    if override in _TRUTHY:
+        return True
+    if override in _FALSY:
+        return False
+    xfp = request.headers.get("x-forwarded-proto", "")
+    proto = (xfp.split(",")[0].strip().lower() if xfp else request.url.scheme.lower())
+    return proto == "https"
+
+
 router = APIRouter()
 
 
@@ -538,13 +567,25 @@ def login(request: Request, body: LoginBody):
             status_code=429, detail="Zu viele Fehlversuche. Bitte 15 Minuten warten."
         )
 
-    user = get_db().verify_user_password(username, body.password)
+    db_for_login = get_db()
+    user = db_for_login.verify_user_password(username, body.password)
     if user is None:
         _failed_logins[username] = timestamps + [now]
+        # Privacy-safe diagnostics (never logs the password) so an operator can
+        # explain a real-DB login edge case (unknown user vs. unexpected digest
+        # format vs. bcrypt-only) from the server logs.
+        diag = {}
+        diag_fn = getattr(db_for_login, "login_diagnostics", None)
+        if callable(diag_fn):
+            try:
+                diag = diag_fn(username)
+            except Exception:  # noqa: BLE001 — diagnostics must never break login
+                diag = {}
         _logger.warning(
-            "AUTH LOGIN_FAIL | ip=%s username=%s",
+            "AUTH LOGIN_FAIL | ip=%s username=%s diag=%s",
             client_ip,
             username,
+            diag,
             extra={"event": "login_failure", "username": username},
         )
         raise HTTPException(
@@ -611,7 +652,7 @@ def login(request: Request, body: LoginBody):
             "expires_at": expires_at,
         }
     )
-    secure = not _IS_DEV
+    secure = _cookie_secure(request)
     response.set_cookie(
         key=_COOKIE_NAME,
         value=token,

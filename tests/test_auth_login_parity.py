@@ -107,6 +107,48 @@ def test_token_works_as_bearer_cookie_and_header(app, fresh_client):
     assert me3.status_code == 200, f"Cookie: {me3.text}"
 
 
+def test_cookie_not_secure_over_plain_http(fresh_client):
+    """Cycle 8 regression: over plain HTTP the session cookie must NOT be Secure.
+
+    Browsers silently drop a Secure cookie on a plain-HTTP non-localhost origin
+    (the typical self-hosted/Portainer deployment); since the SPA relies solely
+    on the HttpOnly cookie, that made login appear to fail. The cookie's Secure
+    flag must therefore follow the request scheme. Fails against the old
+    ``secure = not _IS_DEV`` behaviour (always Secure in production).
+    """
+    client, _ = fresh_client
+    set_cookie = _login(client, "Admin", "").headers.get("set-cookie", "")
+    assert "sp5_token=" in set_cookie
+    assert "Secure" not in set_cookie, set_cookie
+
+
+def test_cookie_secure_when_forwarded_https(fresh_client):
+    """Behind an HTTPS terminator (X-Forwarded-Proto: https) the cookie IS Secure."""
+    client, _ = fresh_client
+    r = client.post(
+        "/api/auth/login",
+        json={"username": "Admin", "password": ""},
+        headers={"X-Forwarded-Proto": "https"},
+    )
+    set_cookie = r.headers.get("set-cookie", "")
+    assert "sp5_token=" in set_cookie
+    assert "Secure" in set_cookie, set_cookie
+
+
+def test_login_diagnostics_are_privacy_safe(fresh_client):
+    """Failed-login diagnostics must distinguish unknown-user vs. existing-user
+    and never expose the password (cycle 8 — operator-debuggable real-DB edge)."""
+    _, db = fresh_client
+    assert db.login_diagnostics("Admin") == {
+        "user_found": True,
+        "hidden": False,
+        "digest_len": 16,
+        "digest_is_md5_shape": True,
+        "has_bcrypt": False,
+    }
+    assert db.login_diagnostics("NoSuchUser") == {"user_found": False}
+
+
 def test_session_persists_across_requests(fresh_client):
     client, _ = fresh_client
     token = _login(client, "Admin", "").json()["token"]
