@@ -178,9 +178,24 @@ jobs:
 
       - name: Sign image with cosign (optional)
         if: vars.ENABLE_COSIGN == 'true'
+        # Optionaler Kanal: die verpflichtende Build-Provenance + SBOM-Attestation
+        # laufen davor. Ein transienter OIDC-/Sigstore-Blip darf das Release nicht
+        # hart scheitern lassen → Retry + continue-on-error (Fehlschlag wird als
+        # ::error:: sichtbar, blockiert aber weder Trivy noch das GitHub-Release).
+        continue-on-error: true
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+        run: |
+          for attempt in 1 2 3; do
+            if cosign sign --yes "${IMAGE}@${DIGEST}"; then
+              echo "cosign sign erfolgreich (Versuch ${attempt})."
+              exit 0
+            fi
+            echo "::warning::cosign sign Versuch ${attempt}/3 fehlgeschlagen — neuer Versuch in 15 s ..."
+            sleep 15
+          done
+          echo "::error::cosign sign nach 3 Versuchen fehlgeschlagen — Image bleibt unsigniert (Provenance/SBOM unberührt)."
+          exit 1
 
       - name: Scan image for CVEs (Trivy)
         uses: aquasecurity/trivy-action@master
