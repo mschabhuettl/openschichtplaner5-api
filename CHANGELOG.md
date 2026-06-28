@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Manuelle Kontobuchung bearbeiten: `PUT /api/bookings/{booking_id}` ändert eine
+  bestehende Buchung. Nur die übergebenen Felder (`date`, `type`, `value`, `note`)
+  werden geschrieben, der Rest bleibt unverändert. Unbekannte ID → 404, ungültiges
+  Datumsformat → 400. `WPAST` greift sowohl auf das bestehende als auch (bei
+  Datumswechsel) auf das neue Datum. Erfordert libopenschichtplaner5 >= 1.19.0.
+
 ## [1.15.0] - 2026-06-28
 
 ### Added

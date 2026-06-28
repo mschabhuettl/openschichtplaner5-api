@@ -176,6 +176,32 @@ class TestBookings:
         del_res = planer_client.delete(f"/api/bookings/{booking_id}")
         assert del_res.status_code == 200
 
+    def test_update_booking_roundtrip(self, planer_client: TestClient):
+        """POST then PUT booking → geänderte Felder werden gespeichert (404 sonst)."""
+        emps = planer_client.get("/api/employees").json()
+        if not emps:
+            pytest.skip("No employees")
+        res = planer_client.post(
+            "/api/bookings",
+            json={"employee_id": emps[0]["ID"], "date": "2024-06-02", "type": 0,
+                  "value": 8.0, "note": "alt"},
+        )
+        assert res.status_code == 200
+        booking_id = res.json()["record"]["id"]
+        upd = planer_client.put(
+            f"/api/bookings/{booking_id}", json={"value": 5.5, "note": "neu"}
+        )
+        assert upd.status_code == 200, upd.text
+        rec = upd.json()["record"]
+        assert abs(rec["value"] - 5.5) < 1e-6
+        assert rec["note"] == "neu"
+        planer_client.delete(f"/api/bookings/{booking_id}")
+
+    def test_update_booking_not_found(self, planer_client: TestClient):
+        """PUT /api/bookings/99999 → 404."""
+        res = planer_client.put("/api/bookings/99999", json={"value": 1.0})
+        assert res.status_code == 404
+
     def test_delete_booking_not_found(self, planer_client: TestClient):
         """DELETE /api/bookings/99999 → 404."""
         res = planer_client.delete("/api/bookings/99999")

@@ -2017,6 +2017,13 @@ class BookingCreate(BaseModel):
     note: str | None = Field("", max_length=500)
 
 
+class BookingUpdate(BaseModel):
+    date: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    type: int | None = Field(None, ge=0, le=1)
+    value: float | None = None
+    note: str | None = Field(None, max_length=500)
+
+
 @router.post(
     "/api/bookings",
     tags=["Statistics"],
@@ -2079,6 +2086,59 @@ def delete_booking(booking_id: int, _cur_user: dict = Depends(require_write("WOV
         if count == 0:
             raise HTTPException(status_code=404, detail="Buchung nicht gefunden")
         return {"ok": True, "deleted": booking_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
+@router.put(
+    "/api/bookings/{booking_id}",
+    tags=["Statistics"],
+    summary="Update manual hour booking",
+    description=(
+        "Update a manual hour booking by ID. Only provided fields change "
+        "(`date`, `type`, `value`, `note`). Returns 404 if not found.\n\n"
+        "**Required role:** Planer"
+    ),
+    responses={
+        400: {"description": "Invalid date format or type"},
+        404: {"description": "Booking not found"},
+        401: {"description": "Not authenticated"},
+    },
+)
+def update_booking(
+    booking_id: int, body: BookingUpdate, _cur_user: dict = Depends(require_write("WOVERTIMES"))
+):
+    db = get_db()
+    existing_date = next(
+        (r.get("DATE") for r in db._read("BOOK") if r.get("ID") == booking_id), None
+    )
+    if existing_date is None:
+        raise HTTPException(status_code=404, detail="Buchung nicht gefunden")
+    # WPAST: das bestehende Datum zählt; bei Datumswechsel auch das neue.
+    enforce_wpast(_cur_user, existing_date)
+    if body.date is not None:
+        from datetime import datetime
+
+        try:
+            datetime.strptime(body.date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail="Invalid date format, please use YYYY-MM-DD"
+            )
+        enforce_wpast(_cur_user, body.date)
+    try:
+        result = db.update_booking(
+            booking_id,
+            date_str=body.date,
+            booking_type=body.type,
+            value=body.value,
+            note=body.note,
+        )
+        if result is None:
+            raise HTTPException(status_code=404, detail="Buchung nicht gefunden")
+        return {"ok": True, "record": result}
     except HTTPException:
         raise
     except Exception as e:
