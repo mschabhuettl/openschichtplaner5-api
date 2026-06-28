@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Schichtmodell-Zuordnung über einen Zeitraum: `POST /api/shift-cycles/assign`
+  akzeptiert jetzt ein optionales `end_date` (`YYYY-MM-DD`), das die Zuordnung
+  befristet (5CYASS.END). Die Zyklus-Expansion erzeugt danach keine Dienste mehr;
+  ohne Ende gilt die Zuordnung weiter offen. Ein Ende vor dem Start wird mit 400
+  abgelehnt. Erfordert libopenschichtplaner5 >= 1.18.0.
+
 ## [1.13.0] - 2026-06-28
 
 ### Added

@@ -55,7 +55,9 @@ dependencies = [
     # 1.16.0 is required: create_user/update_user übernehmen explizite 5USER-Schreibrechte.
     # 1.17.0 is required: create_shift/update_shift + create_leave_type/update_leave_type
     #         schreiben das BOLD-Flag (Fettschrift je Schicht-/Abwesenheitsart).
-    "libopenschichtplaner5[postgres]>=1.17.0",
+    # 1.18.0 is required: assign_cycle akzeptiert end_date (befristete Schichtmodell-
+    #         Zuordnung, 5CYASS.END).
+    "libopenschichtplaner5[postgres]>=1.18.0",
 ]
 
 [project.optional-dependencies]

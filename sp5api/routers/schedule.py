@@ -231,6 +231,9 @@ class CycleAssignBody(BaseModel):
     employee_id: int = Field(..., gt=0)
     cycle_id: int = Field(..., gt=0)
     start_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    # Optionales Ende: befristet die Schichtmodell-Zuordnung (5CYASS.END).
+    # Ohne Wert gilt die Zuordnung offen. Handbuch: Zuordnung über einen Zeitraum.
+    end_date: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 @router.post(
@@ -245,10 +248,17 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_write(
         from datetime import datetime
 
         datetime.strptime(body.start_date, "%Y-%m-%d")
+        if body.end_date is not None:
+            datetime.strptime(body.end_date, "%Y-%m-%d")
     except ValueError:
         raise HTTPException(
             status_code=400,
             detail="Invalid date format, please use YYYY-MM-DD",
+        )
+    if body.end_date is not None and body.end_date < body.start_date:
+        raise HTTPException(
+            status_code=400,
+            detail="end_date darf nicht vor start_date liegen",
         )
     db = get_db()
     # Referential integrity: verify employee and cycle exist
@@ -261,7 +271,9 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_write(
             status_code=404, detail=f"Schichtmodell {body.cycle_id} nicht gefunden"
         )
     try:
-        result = db.assign_cycle(body.employee_id, body.cycle_id, body.start_date)
+        result = db.assign_cycle(
+            body.employee_id, body.cycle_id, body.start_date, body.end_date
+        )
         return {"ok": True, "record": result}
     except Exception as e:
         raise _sanitize_500(e)
