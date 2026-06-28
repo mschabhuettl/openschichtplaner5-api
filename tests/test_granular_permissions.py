@@ -119,6 +119,113 @@ class TestAuthMePermissions:
             _sessions.pop(admin_tok, None)
 
 
+class TestSettableWritePermissions:
+    """Lücke #1 (BenutzerErfassen.24): granulare Schreibrechte sind beim
+    Anlegen/Bearbeiten einzeln setzbar und überschreiben die Rollen-Defaults."""
+
+    def _admin(self):
+        return _inject(role="Admin", name="perm_setter_admin")
+
+    def test_create_with_permission_overrides(self, client):
+        from sp5api.main import _sessions
+
+        admin = self._admin()
+        try:
+            r = client.post(
+                "/api/users",
+                json={"NAME": "setperm_create", "PASSWORD": "Geheim123",
+                      "role": "Planer",
+                      "permissions": {"WPAST": False, "WSWAPONLY": True,
+                                      "ADDEMPL": True}},
+                headers=_h(admin),
+            )
+            assert r.status_code == 200, r.text
+            login = client.post("/api/auth/login",
+                                json={"username": "setperm_create",
+                                      "password": "Geheim123"}).json()
+            perms = client.get("/api/auth/me",
+                               headers={"X-Auth-Token": login["token"]}).json()["permissions"]
+            # Rollen-Default bleibt, wo nicht übersteuert; explizite Flags gewinnen
+            assert perms["wduties"] is True
+            assert perms["wpast"] is False
+            assert perms["wswaponly"] is True
+            assert perms["addempl"] is True
+        finally:
+            _sessions.pop(admin, None)
+
+    def test_update_permissions_without_role(self, client):
+        from sp5api.main import _sessions
+
+        admin = self._admin()
+        try:
+            uid = client.post(
+                "/api/users",
+                json={"NAME": "setperm_update", "PASSWORD": "Geheim123",
+                      "role": "Planer"},
+                headers=_h(admin),
+            ).json()["record"]["ID"]
+            r = client.put(
+                f"/api/users/{uid}",
+                json={"permissions": {"WABSENCES": False, "ADDEMPL": True}},
+                headers=_h(admin),
+            )
+            assert r.status_code == 200, r.text
+            login = client.post("/api/auth/login",
+                                json={"username": "setperm_update",
+                                      "password": "Geheim123"}).json()
+            perms = client.get("/api/auth/me",
+                               headers={"X-Auth-Token": login["token"]}).json()["permissions"]
+            assert perms["wabsences"] is False
+            assert perms["addempl"] is True
+            assert perms["wduties"] is True  # unberührt
+        finally:
+            _sessions.pop(admin, None)
+
+    def test_explicit_flag_wins_over_role_in_same_update(self, client):
+        from sp5api.main import _sessions
+
+        admin = self._admin()
+        try:
+            uid = client.post(
+                "/api/users",
+                json={"NAME": "setperm_roleover", "PASSWORD": "Geheim123",
+                      "role": "Planer"},
+                headers=_h(admin),
+            ).json()["record"]["ID"]
+            # role=Leser (Default writes 0) + WNOTES=True explizit
+            r = client.put(
+                f"/api/users/{uid}",
+                json={"role": "Leser", "permissions": {"WNOTES": True}},
+                headers=_h(admin),
+            )
+            assert r.status_code == 200, r.text
+            login = client.post("/api/auth/login",
+                                json={"username": "setperm_roleover",
+                                      "password": "Geheim123"}).json()
+            perms = client.get("/api/auth/me",
+                               headers={"X-Auth-Token": login["token"]}).json()["permissions"]
+            assert perms["wnotes"] is True       # explizit gewinnt
+            assert perms["wduties"] is False     # Leser-Default
+        finally:
+            _sessions.pop(admin, None)
+
+    def test_unknown_permission_key_rejected_422(self, client):
+        from sp5api.main import _sessions
+
+        admin = self._admin()
+        try:
+            r = client.post(
+                "/api/users",
+                json={"NAME": "setperm_bad", "PASSWORD": "Geheim123",
+                      "role": "Planer", "permissions": {"SHOWABS": True,
+                                                        "BOGUS": True}},
+                headers=_h(admin),
+            )
+            assert r.status_code == 422, r.text
+        finally:
+            _sessions.pop(admin, None)
+
+
 class TestWriteFlagEnforcement:
     def _expect_403(self, client, tok, method, url, **kwargs):
         resp = getattr(client, method)(url, headers=_h(tok), **kwargs)

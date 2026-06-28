@@ -52,7 +52,8 @@ dependencies = [
     # 1.14.4 is required: Konflikterkennung nur auf Ist-Ebene (kein Falsch-Konflikt
     #         bei normaler Soll-/Ist-Abweichung).
     # 1.15.0 is required: get_user_identity (Admin-Impersonation „Als Benutzer ansehen").
-    "libopenschichtplaner5[postgres]>=1.15.0",
+    # 1.16.0 is required: create_user/update_user übernehmen explizite 5USER-Schreibrechte.
+    "libopenschichtplaner5[postgres]>=1.16.0",
 ]
 
 [project.optional-dependencies]

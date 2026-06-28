@@ -111,11 +111,34 @@ def get_users(_admin: dict = Depends(require_admin)):
 # ── User Management (CRUD) ───────────────────────────────────
 
 
+# Granulare 5USER-Schreibrechte (Spec 9.6), die im Benutzer-Create/Update
+# einzeln setzbar sind und die rollenbasierten Defaults überschreiben. Muss mit
+# sp5lib.database.SP5Database._WRITE_PERMISSION_FIELDS übereinstimmen.
+_WRITE_PERMISSION_FIELDS = frozenset({
+    "WDUTIES", "WABSENCES", "WOVERTIMES", "WNOTES", "WDEVIATION",
+    "WCYCLEASS", "WSWAPONLY", "WPAST", "ADDEMPL", "BACKUP",
+})
+
+
+def _validate_permissions(v: dict | None) -> dict | None:
+    if v is None:
+        return v
+    unknown = set(v) - _WRITE_PERMISSION_FIELDS
+    if unknown:
+        raise ValueError(
+            "Unbekannte Schreibrechte: " + ", ".join(sorted(unknown))
+        )
+    return {k: bool(x) for k, x in v.items()}
+
+
 class UserCreate(BaseModel):
     NAME: str = Field(..., min_length=1, max_length=100)
     DESCRIP: str | None = Field("", max_length=500)
     PASSWORD: str = Field(..., min_length=6, max_length=200)
     role: str = Field("Leser", pattern=r"^(Admin|Planer|Leser)$")
+    # Optionale granulare Schreibrechte (5USER-Flags), überschreiben die
+    # rollenbasierten Defaults. Schlüssel = 5USER-Feldnamen (s. o.).
+    permissions: dict[str, bool] | None = None
 
     @field_validator("NAME")
     @classmethod
@@ -123,6 +146,11 @@ class UserCreate(BaseModel):
         if not v.strip():
             raise ValueError("Benutzername darf nicht nur aus Leerzeichen bestehen")
         return v.strip()
+
+    @field_validator("permissions")
+    @classmethod
+    def check_permissions(cls, v: dict | None) -> dict | None:
+        return _validate_permissions(v)
 
 
 class UserUpdate(BaseModel):
@@ -133,6 +161,9 @@ class UserUpdate(BaseModel):
     # SHOWABS dreiwertig (Spec 9.5.2 Nr. 2.1): 0=vollständig, 1=anonymisiert,
     # 2=gar nicht — Abwesenheits-Sichtbarkeit dieses Benutzers.
     SHOWABS: int | None = Field(None, ge=0, le=2)
+    # Optionale granulare Schreibrechte (5USER-Flags), überschreiben die
+    # rollenbasierten Defaults. Schlüssel = 5USER-Feldnamen (s. o.).
+    permissions: dict[str, bool] | None = None
 
     @field_validator("NAME")
     @classmethod
@@ -140,6 +171,11 @@ class UserUpdate(BaseModel):
         if v is not None and not v.strip():
             raise ValueError("Benutzername darf nicht nur aus Leerzeichen bestehen")
         return v.strip() if v is not None else v
+
+    @field_validator("permissions")
+    @classmethod
+    def check_permissions(cls, v: dict | None) -> dict | None:
+        return _validate_permissions(v)
 
 
 class LoginBody(BaseModel):
@@ -170,8 +206,14 @@ def create_user(body: UserCreate, _admin: dict = Depends(require_admin)):
             status_code=400, detail="role muss Admin, Planer oder Leser sein"
         )
     _validate_password_strength(body.PASSWORD)
+    data = body.model_dump()
+    # permissions-Objekt in einzelne 5USER-Flag-Felder auflösen (lib erwartet
+    # die Flags direkt im data-Dict, nicht verschachtelt).
+    perms = data.pop("permissions", None)
+    if perms:
+        data.update(perms)
     try:
-        result = get_db().create_user(body.model_dump())
+        result = get_db().create_user(data)
         _logger.warning(
             "AUDIT USER_CREATE | admin=%s new_user=%s role=%s",
             _admin.get("NAME"),
@@ -226,6 +268,10 @@ def _is_last_admin(db, user_id: int) -> bool:
 )
 def update_user(user_id: int, body: UserUpdate, _admin: dict = Depends(require_admin)):
     data = {k: v for k, v in body.model_dump().items() if v is not None}
+    # permissions-Objekt in einzelne 5USER-Flag-Felder auflösen.
+    perms = data.pop("permissions", None)
+    if perms:
+        data.update(perms)
     if "role" in data and data["role"] not in ("Admin", "Planer", "Leser"):
         raise HTTPException(
             status_code=400, detail="role muss Admin, Planer oder Leser sein"

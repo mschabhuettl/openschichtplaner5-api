@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Benutzerverwaltung: granulare Schreibrechte beim Anlegen/Bearbeiten setzbar.
+  `POST /api/users` und `PUT /api/users/{id}` akzeptieren ein optionales
+  `permissions`-Objekt mit 5USER-Flag-Schlüsseln (WDUTIES, WABSENCES,
+  WOVERTIMES, WNOTES, WDEVIATION, WCYCLEASS, WSWAPONLY, WPAST, ADDEMPL, BACKUP);
+  gesetzte Flags überschreiben die rollenbasierten Defaults. Unbekannte
+  Schlüssel werden mit 422 abgelehnt. Das serverseitige Enforcement bestand
+  bereits — bisher waren die Flags nur grob über die Rolle vergebbar. Erfordert
+  lib ab 1.16.0.
+
 ## [1.11.0] - 2026-06-28
 
 ### Added
