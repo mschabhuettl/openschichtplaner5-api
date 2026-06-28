@@ -90,3 +90,42 @@ class TestCycleExpansionInScheduleReads:
         row = next(r for r in wed["entries"] if r["employee_id"] == emp_id)
         assert row["source"] == "cycle"
         assert row["shift_id"] == shift_id
+
+
+class TestCycleExceptionSuppressesDuty:
+    """5CYEXC = freier Tag: eine Ausnahme streicht den generierten Zyklusdienst.
+
+    Der Frontend-Body trägt KEIN `type` (5CYEXC hat kein Ersatzschicht-Feld;
+    `type` ist die Plan-Eintragsart, Field(ge=0, le=1)). Früher schickte das
+    Frontend `type: shiftId` → 422; dieser Round-Trip sichert den Bugfix ab.
+    """
+
+    def test_exception_without_type_removes_cycle_entry(
+        self, write_client: TestClient, cycle_setup
+    ):
+        emp_id, _shift_id = cycle_setup
+        ass = next(
+            a
+            for a in write_client.get("/api/shift-cycles/assign").json()
+            if a["employee_id"] == emp_id
+        )
+        # Genau der Body, den das Frontend jetzt sendet — ohne `type`.
+        res = write_client.post(
+            "/api/cycle-exceptions",
+            json={
+                "employee_id": emp_id,
+                "cycle_assignment_id": ass["id"],
+                "date": "2027-06-09",
+            },
+        )
+        assert res.status_code == 200, res.text
+
+        entries = write_client.get("/api/schedule?year=2027&month=6").json()
+        wed = [
+            e
+            for e in entries
+            if e["employee_id"] == emp_id and e["date"] == "2027-06-09"
+        ]
+        assert all(e.get("source") != "cycle" for e in wed), (
+            "Zyklusdienst trotz Ausnahme noch vorhanden — Ausnahme wirkt nicht"
+        )
