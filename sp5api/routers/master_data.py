@@ -199,6 +199,8 @@ class ShiftCreate(BaseModel):
     STARTEND7: str | None = None
     # R5.5-15: keine Arbeitszeitzuschläge berechnen (5SHIFT.NOEXTRA)
     NOEXTRA: bool = False
+    # Fette Schrift im Plan (5SHIFT.BOLD)
+    BOLD: int = Field(0, ge=0, le=1)
     HIDE: bool = False
 
 
@@ -228,6 +230,8 @@ class ShiftUpdate(BaseModel):
     POSITION: int | None = None
     # R5.5-15: keine Arbeitszeitzuschläge berechnen (5SHIFT.NOEXTRA)
     NOEXTRA: bool | None = None
+    # Fette Schrift im Plan (5SHIFT.BOLD)
+    BOLD: int | None = Field(None, ge=0, le=1)
     HIDE: bool | None = None
 
 
@@ -336,6 +340,8 @@ class LeaveTypeCreate(BaseModel):
     COLORBAR: int = Field(0, ge=0, le=16777215)
     ENTITLED: bool = False
     STDENTIT: float = Field(0.0, ge=0.0, le=366.0)
+    # Fette Schrift im Plan (5LEAVT.BOLD)
+    BOLD: int = Field(0, ge=0, le=1)
     HIDE: bool = False
 
 
@@ -348,6 +354,8 @@ class LeaveTypeUpdate(BaseModel):
     ENTITLED: bool | None = None
     STDENTIT: float | None = None
     POSITION: int | None = None
+    # Fette Schrift im Plan (5LEAVT.BOLD)
+    BOLD: int | None = Field(None, ge=0, le=1)
     HIDE: bool | None = None
 
 

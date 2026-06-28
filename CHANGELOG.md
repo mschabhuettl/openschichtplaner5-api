@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Schicht- und Abwesenheitsarten: Fettschrift-Flag `BOLD` (0/1) in den Modellen
+  `ShiftCreate`/`ShiftUpdate` und `LeaveTypeCreate`/`LeaveTypeUpdate`. Wird an die
+  Bibliothek weitergereicht (5SHIFT.BOLD / 5LEAVT.BOLD); beim Update wird ein
+  explizites `BOLD=0` nicht als „nicht gesetzt" verworfen. Erfordert
+  libopenschichtplaner5 >= 1.17.0.
+
 ## [1.12.0] - 2026-06-28
 
 ### Added

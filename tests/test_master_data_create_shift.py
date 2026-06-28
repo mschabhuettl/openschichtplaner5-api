@@ -97,3 +97,80 @@ class TestCreateShift:
             assert resp.json()["record"]["NAME"] == "Frühschicht"
         finally:
             _sessions.pop(tok, None)
+
+
+class _CaptureDB:
+    """Fängt die an die lib weitergereichten Felder ab (Round-Trip-Beweis)."""
+
+    def __init__(self):
+        self.captured = None
+
+    def create_shift(self, data):
+        self.captured = data
+        return {"ID": 1, "NAME": data.get("NAME")}
+
+    def update_shift(self, shift_id, data):
+        self.captured = data
+        return {"ID": shift_id, "NAME": "X"}
+
+    def create_leave_type(self, data):
+        self.captured = data
+        return {"ID": 1, "NAME": data.get("NAME")}
+
+    def update_leave_type(self, lid, data):
+        self.captured = data
+        return {"ID": lid, "NAME": "X"}
+
+
+class TestBoldForwarded:
+    """P-VOLLERFASSUNG Lücke #10: das Fettschrift-Flag (5SHIFT.BOLD / 5LEAVT.BOLD)
+    wird von der API an die lib weitergereicht."""
+
+    def test_create_shift_forwards_bold(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        db = _CaptureDB()
+        tok = _admin_session()
+        try:
+            client = _client(monkeypatch, db)
+            client.post(
+                "/api/shifts",
+                json={"NAME": "Fett", "BOLD": 1},
+                headers={"X-Auth-Token": tok},
+            )
+            assert db.captured["BOLD"] == 1
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_update_shift_forwards_bold_zero(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        db = _CaptureDB()
+        tok = _admin_session()
+        try:
+            client = _client(monkeypatch, db)
+            client.put(
+                "/api/shifts/7",
+                json={"BOLD": 0},
+                headers={"X-Auth-Token": tok},
+            )
+            # 0 ist nicht None → muss durchgereicht werden (sonst nie abschaltbar)
+            assert db.captured["BOLD"] == 0
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_create_leave_type_forwards_bold(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        db = _CaptureDB()
+        tok = _admin_session()
+        try:
+            client = _client(monkeypatch, db)
+            client.post(
+                "/api/leave-types",
+                json={"NAME": "FettAbw", "BOLD": 1},
+                headers={"X-Auth-Token": tok},
+            )
+            assert db.captured["BOLD"] == 1
+        finally:
+            _sessions.pop(tok, None)
