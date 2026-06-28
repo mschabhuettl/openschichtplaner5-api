@@ -106,6 +106,69 @@ def delete_period(period_id: int, _cur_user: dict = Depends(require_planer)):
         raise _sanitize_500(e)
 
 
+class PeriodUpdate(BaseModel):
+    group_id: int | None = Field(None, gt=0)
+    start: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    description: str | None = Field(None, max_length=500)
+    color: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")  # gekennzeichneter Zeitraum
+
+    @field_validator("start", "end")
+    @classmethod
+    def validate_date(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        from datetime import datetime
+
+        try:
+            datetime.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Datumsformat muss JJJJ-MM-TT sein")
+        return v
+
+
+@router.put(
+    "/api/periods/{period_id}",
+    tags=["Admin"],
+    summary="Update accounting period",
+    description=(
+        "Update a marked period by ID. Only provided fields change "
+        "(group_id, start, end, description, color). Returns 404 if not found. "
+        "Requires Planer role."
+    ),
+)
+def update_period(period_id: int, body: PeriodUpdate, _cur_user: dict = Depends(require_planer)):
+    db = get_db()
+    existing = next((p for p in db.get_periods() if p.get("id") == period_id), None)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Zeitraum nicht gefunden")
+    # Reihenfolge auf dem effektiven (zusammengeführten) Stand prüfen.
+    eff_start = body.start if body.start is not None else existing.get("start")
+    eff_end = body.end if body.end is not None else existing.get("end")
+    if eff_start and eff_end and eff_end < eff_start:
+        raise HTTPException(status_code=400, detail="end-Datum darf nicht vor start-Datum liegen")
+    data: dict = {}
+    if body.group_id is not None:
+        data["group_id"] = body.group_id
+    if body.start is not None:
+        data["start"] = body.start
+    if body.end is not None:
+        data["end"] = body.end
+    if body.description is not None:
+        data["description"] = body.description
+    if body.color is not None:
+        data["color"] = _hex_to_bgr(body.color)
+    try:
+        result = db.update_period(period_id, data)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Zeitraum nicht gefunden")
+        return {"ok": True, "record": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
 # ── Settings (USETT) ─────────────────────────────────────────
 
 

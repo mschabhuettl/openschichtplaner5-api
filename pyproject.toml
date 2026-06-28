@@ -58,7 +58,8 @@ dependencies = [
     # 1.18.0 is required: assign_cycle akzeptiert end_date (befristete Schichtmodell-
     #         Zuordnung, 5CYASS.END).
     # 1.19.0 is required: update_booking (Buchung bearbeiten, 5BOOK).
-    "libopenschichtplaner5[postgres]>=1.19.0",
+    # 1.20.0 is required: update_period (gekennzeichneten Zeitraum bearbeiten, 5PERIO).
+    "libopenschichtplaner5[postgres]>=1.20.0",
 ]
 
 [project.optional-dependencies]

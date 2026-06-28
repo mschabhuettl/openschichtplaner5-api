@@ -62,6 +62,58 @@ class TestPeriods:
         assert del_res.status_code == 200
         assert del_res.json()["ok"] is True
 
+    def test_update_period_roundtrip(self, planer_client: TestClient):
+        """POST then PUT /api/periods/{id} → geänderte Felder persistiert."""
+        groups = planer_client.get("/api/groups").json()
+        group_id = groups[0]["ID"] if groups else 1
+        create = planer_client.post(
+            "/api/periods",
+            json={
+                "group_id": group_id,
+                "start": "2026-07-01",
+                "end": "2026-07-31",
+                "description": "Sommer",
+            },
+        )
+        assert create.status_code == 200
+        period_id = create.json()["record"]["id"]
+        try:
+            upd = planer_client.put(
+                f"/api/periods/{period_id}",
+                json={"end": "2026-08-15", "description": "Sommer+"},
+            )
+            assert upd.status_code == 200
+            rec = upd.json()["record"]
+            assert rec["description"] == "Sommer+"
+            assert str(rec["end"]) == "2026-08-15"
+            # Re-read confirms persistence; Start unverändert (nicht mitgegeben).
+            row = next(p for p in planer_client.get("/api/periods").json() if p["id"] == period_id)
+            assert str(row["end"]) == "2026-08-15"
+            assert row["description"] == "Sommer+"
+            assert str(row["start"]) == "2026-07-01"
+        finally:
+            planer_client.delete(f"/api/periods/{period_id}")
+
+    def test_update_period_not_found(self, planer_client: TestClient):
+        """PUT /api/periods/{unbekannt} → 404."""
+        res = planer_client.put("/api/periods/999999", json={"description": "x"})
+        assert res.status_code == 404
+
+    def test_update_period_end_before_start(self, planer_client: TestClient):
+        """PUT mit end vor bestehendem start → 400 (effektive Prüfung)."""
+        groups = planer_client.get("/api/groups").json()
+        group_id = groups[0]["ID"] if groups else 1
+        create = planer_client.post(
+            "/api/periods",
+            json={"group_id": group_id, "start": "2026-07-01", "end": "2026-07-31"},
+        )
+        period_id = create.json()["record"]["id"]
+        try:
+            res = planer_client.put(f"/api/periods/{period_id}", json={"end": "2026-06-01"})
+            assert res.status_code == 400
+        finally:
+            planer_client.delete(f"/api/periods/{period_id}")
+
 
 class TestSettings:
     """Test settings read/write."""

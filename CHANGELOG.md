@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Gekennzeichneten Zeitraum bearbeiten: `PUT /api/periods/{period_id}` ändert einen
+  bestehenden Zeitraum (5PERIO). Nur die übergebenen Felder (`group_id`, `start`,
+  `end`, `description`, `color`) werden geschrieben. Unbekannte ID → 404, ungültiges
+  Datumsformat → 422, Ende vor Start (auf dem zusammengeführten Stand geprüft) → 400.
+  Erfordert libopenschichtplaner5 >= 1.20.0.
+
 ## [1.16.0] - 2026-06-28
 
 ### Added
