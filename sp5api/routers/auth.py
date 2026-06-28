@@ -16,6 +16,7 @@ from ..dependencies import (
     _TOKEN_EXPIRE_HOURS,
     _failed_logins,
     _logger,
+    _resolve_session_id,
     _sanitize_500,
     _session_store,
     _sessions,  # noqa: F401 — re-exported for tests that poke auth._sessions directly
@@ -767,6 +768,101 @@ def logout(request: Request, x_auth_token: str | None = Header(None)):
     # Clear the cookie
     response.delete_cookie(key=_COOKIE_NAME, path="/", samesite="strict")
     return response
+
+
+# ── Admin-Impersonation („Als Benutzer ansehen", P-B) ─────────
+#
+# Impersonation ist KEIN neuer Login und KEIN neuer Token: der echte Admin behält
+# Token/Session. Hier werden nur Marker-Felder in der bestehenden Session gesetzt;
+# get_current_user bildet den Autorisierungs-Principal dann auf die Ziel-Identität
+# ab (dependencies.py). Read-only wird zentral in der auth_middleware erzwungen
+# (main.py). Der Login-/Digest-Pfad bleibt komplett unberührt.
+
+
+def _session_token(request: Request, x_auth_token: str | None) -> str | None:
+    """Token wie in get_current_user: Bearer → X-Auth-Token → sp5_token-Cookie."""
+    authz = request.headers.get("authorization", "")
+    bearer = authz[7:].strip() if authz[:7].lower() == "bearer " else None
+    return bearer or x_auth_token or request.cookies.get(_COOKIE_NAME)
+
+
+# Der literale /stop-Pfad MUSS vor der /{user_id}-Route stehen, sonst fängt der
+# Pfadparameter „stop" die Stop-Anfrage ab (und require_admin würde während einer
+# Impersonation mit Nicht-Admin-Ziel fälschlich 403 liefern).
+@router.post(
+    "/api/auth/impersonate/stop",
+    tags=["Auth"],
+    summary="Stop viewing as another user",
+    description="End the active impersonation and return to the admin's own identity.",
+)
+def impersonate_stop(
+    request: Request,
+    user: dict = Depends(require_auth),
+    x_auth_token: str | None = Header(None),
+):
+    """Stop the active impersonation for the current session (idempotent)."""
+    token = _session_token(request, x_auth_token)
+    sid = _resolve_session_id(token) if token else None
+    session = _session_store.get(sid) if sid else None
+    if session is None:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    target_id = session.get("_impersonating_user_id")
+    if target_id is None:
+        return {"ok": True, "active": False}  # nichts aktiv — idempotent
+    impersonated_by = session.get("_impersonated_by") or {}
+    session.pop("_impersonating_user_id", None)
+    session.pop("_impersonation_identity", None)
+    session.pop("_impersonated_by", None)
+    _session_store.set(sid, session, session.get("expires_at"))
+    write_audit_log(
+        "ACT_AS_END", impersonated_by.get("NAME", "?"), {"target_id": target_id}
+    )
+    return {"ok": True, "active": False}
+
+
+@router.post(
+    "/api/auth/impersonate/{user_id}",
+    tags=["Auth"],
+    summary="Start viewing as another user (admin only)",
+    description=(
+        "Admin only: view the application as the given user. Their role, rights "
+        "and visibility apply — never more than the admin's own. Read-only: write "
+        "requests are blocked while active. Not nestable and server-audited. The "
+        "admin's own session and token stay unchanged."
+    ),
+)
+def impersonate_start(
+    user_id: int,
+    request: Request,
+    admin: dict = Depends(require_admin),
+    x_auth_token: str | None = Header(None),
+):
+    """Start an impersonation ('view as user') for the current admin session."""
+    token = _session_token(request, x_auth_token)
+    sid = _resolve_session_id(token) if token else None
+    session = _session_store.get(sid) if sid else None
+    if session is None:
+        raise HTTPException(status_code=401, detail="Nicht angemeldet")
+    # Nicht verschachtelbar — die ROHE Session prüfen (deckt auch Admin→Admin ab,
+    # wo der gemappte Principal bereits ein Admin wäre).
+    if session.get("_impersonating_user_id") is not None:
+        raise HTTPException(
+            status_code=409, detail="Impersonation ist nicht verschachtelbar"
+        )
+    target = get_db().get_user_identity(user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    session["_impersonating_user_id"] = user_id
+    session["_impersonation_identity"] = target
+    session["_impersonated_by"] = {"ID": admin.get("ID"), "NAME": admin.get("NAME")}
+    _session_store.set(sid, session, session.get("expires_at"))
+    client_ip = request.client.host if request.client else "unknown"
+    write_audit_log(
+        "ACT_AS_START",
+        admin.get("NAME", "?"),
+        {"target_id": user_id, "target_name": target.get("NAME"), "ip": client_ip},
+    )
+    return {"ok": True, "impersonating": target.get("NAME"), "target_id": user_id}
 
 
 # ── 2FA / TOTP Management ─────────────────────────────────────

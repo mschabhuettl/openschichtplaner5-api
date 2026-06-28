@@ -315,6 +315,20 @@ def _get_session_from_token(token: str) -> dict | None:
     return None
 
 
+def _resolve_session_id(token: str) -> str | None:
+    """Storage-Key der Session zu einem Token (Roh-Token bei Legacy-Sessions,
+    sonst der JWT-``sid``). Für Handler, die die gespeicherte Session MUTIEREN
+    müssen (Impersonation Start/Stop, P-B) — getrennt von
+    ``_get_session_from_token``, das nur die Daten liefert (RedisSessionStore gibt
+    eine Kopie zurück, In-place-Mutation würde dort verpuffen)."""
+    if _session_store.get(token) is not None:
+        return token
+    payload = _decode_jwt(token)
+    if payload is None:
+        return None
+    return payload.get("sid")
+
+
 def _bearer_token(authorization: str | None) -> str | None:
     """Extract the token from an ``Authorization: Bearer <token>`` header."""
     if isinstance(authorization, str) and authorization[:7].lower() == "bearer ":
@@ -347,7 +361,19 @@ def get_current_user(
         return None
 
     if _is_token_valid(token):
-        return _get_session_from_token(token)
+        session = _get_session_from_token(token)
+        if session is not None and session.get("_impersonation_identity") is not None:
+            # P-B Admin-Impersonation („Als Benutzer ansehen"): Der echte Admin
+            # behält Token/Session unverändert; hier wird NUR der Autorisierungs-
+            # Principal auf die Ziel-Identität abgebildet, sodass Rolle/ID/Rechte/
+            # Sichtbarkeit exakt die des Ziel-Users sind (nie mehr als der echte
+            # Admin). Der Token-/Login-/Digest-Pfad bleibt komplett unberührt.
+            return {
+                **session["_impersonation_identity"],
+                "_impersonated_by": session.get("_impersonated_by"),
+                "_impersonation_active": True,
+            }
+        return session
     return None
 
 

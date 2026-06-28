@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Admin-Impersonation („Als Benutzer ansehen"): Ein Admin kann die Anwendung
+  vorübergehend als ein anderer Benutzer ansehen. `POST /api/auth/impersonate/{user_id}`
+  (nur Admin) startet, `POST /api/auth/impersonate/stop` beendet. Es ist **kein** neuer
+  Login/Token — die Admin-Session bleibt unverändert; nur der Autorisierungs-Principal
+  wird auf die Ziel-Identität abgebildet, sodass **ausschließlich** dessen Rolle/Rechte/
+  Sichtbarkeit gelten (nie mehr als der Admin). **Nur lesend**: während aktiver
+  Impersonation sind alle schreibenden Anfragen zentral mit `403` gesperrt. **Nicht
+  verschachtelbar** und **serverseitig auditiert** (`ACT_AS_START`/`ACT_AS_END` mit dem
+  echten Admin als Actor). Der Login-/Digest-Prüfpfad bleibt unberührt. Erfordert
+  `libopenschichtplaner5 >= 1.15.0` (`get_user_identity`).
+
 ## [1.9.1] - 2026-06-28
 
 ### Fixed

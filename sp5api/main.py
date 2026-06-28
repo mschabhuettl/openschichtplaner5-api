@@ -721,6 +721,32 @@ async def auth_middleware(request: Request, call_next):
         resp_401 = JSONResponse(status_code=401, content={"detail": "Nicht angemeldet"})
         _apply_security_headers(resp_401)
         return resp_401
+    # P-B Admin-Impersonation: read-only zentral erzwingen. Während aktiver
+    # Impersonation („Als Benutzer ansehen") sind schreibende Methoden auf
+    # Geschäftsdaten gesperrt. Ausgenommen sind die Impersonation-Steuer-
+    # Endpunkte selbst (`/auth/impersonate...` = Session-Steuerung, kein
+    # Daten-Write): deren eigene Guards regeln Start (require_admin, nicht
+    # verschachtelbar) und Stop. Server-seitig vor allen Routen; deckt JEDEN
+    # Daten-Schreib-Endpunkt ab (auch ohne require_write), ohne die Auth-
+    # Entscheidung (_is_token_valid) zu berühren. Substring-Check ist
+    # prefixunabhängig gegen das /api/v1→/api-Rewrite.
+    if method in ("POST", "PUT", "PATCH", "DELETE") and "/auth/impersonate" not in path:
+        from .dependencies import _get_session_from_token
+
+        _imp = _get_session_from_token(token)
+        if _imp is not None and _imp.get("_impersonating_user_id") is not None:
+            _logger.warning(
+                "IMPERSONATION_WRITE_BLOCKED | ip=%s method=%s path=%s",
+                client_ip,
+                method,
+                path,
+            )
+            resp_imp = JSONResponse(
+                status_code=403,
+                content={"detail": "Impersonation ist nur lesend (read-only)."},
+            )
+            _apply_security_headers(resp_imp)
+            return resp_imp
     response = await call_next(request)
     if response.status_code == 403:
         user_info = _sessions.get(token, {})
