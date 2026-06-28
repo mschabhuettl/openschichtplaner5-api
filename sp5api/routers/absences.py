@@ -88,6 +88,10 @@ class AbsenceCreate(_AbsenceIntervalMixin):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     leave_type_id: int = Field(..., gt=0)
+    # Optionaler Kommentartext zur Abwesenheit. Das Original trägt ihn als
+    # Dienstplan-Kommentar ein (5ABSEN hat kein Textfeld) → hier als Notiz
+    # (5NOTE) gespeichert. Max. 125 Zeichen (5NOTE.TEXT1, UTF-16-LE).
+    comment: str | None = Field(None, max_length=125)
 
     @field_validator("date")
     @classmethod
@@ -212,6 +216,21 @@ def create_absence(
         broadcast(
             "absence_changed", {"employee_id": body.employee_id, "date": body.date}
         )
+
+        # ── Optionaler Kommentartext als Dienstplan-Notiz (5NOTE) ─────────
+        # Faithful zum Original: der Kommentar der Abwesenheits-Eingabe wird
+        # als Kommentar in den Dienstplan eingetragen (eigene 5NOTE-Zeile),
+        # nicht am Abwesenheitssatz selbst. Best-effort wie die übrigen
+        # Nebenwirkungen — ein Fehler blockiert die Eintragung nicht.
+        comment = (body.comment or "").strip()
+        if comment:
+            try:
+                import html as _html
+
+                db.add_note(body.date, _html.escape(comment), body.employee_id)
+                broadcast("note_added", {"date": body.date})
+            except Exception:
+                warnings.append("Kommentar konnte nicht als Notiz gespeichert werden.")
 
         # ── Auto-set status to "pending" for approval workflow ────────────
         absence_id = result.get("ID")

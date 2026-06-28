@@ -12,12 +12,14 @@ import sp5api.routers.absences as absences
 
 class _AbsDB:
     def __init__(self, *, schedule_day=None, holidays=None, add_exc=None,
-                 groups=None, bans=None):
+                 groups=None, bans=None, note_exc=None):
         self._schedule_day = schedule_day or []
         self._holidays = holidays or []
         self._add_exc = add_exc
         self._groups = groups or []
         self._bans = bans or []
+        self._note_exc = note_exc
+        self.notes = []  # Mitschrift der add_note-Aufrufe (date, text, eid)
 
     def get_employee(self, eid):
         return {"ID": eid, "NAME": "Müller", "FIRSTNAME": "Anna"}
@@ -42,6 +44,12 @@ class _AbsDB:
         if self._add_exc:
             raise self._add_exc
         return {"ID": 1, "INTERVAL": interval, "START": start, "END": end}
+
+    def add_note(self, date, text, employee_id=0, text2="", category=""):
+        if self._note_exc:
+            raise self._note_exc
+        self.notes.append((date, text, employee_id))
+        return {"id": 1}
 
     def log_action(self, **kwargs):
         pass
@@ -93,6 +101,90 @@ class TestCreateAbsence:
             warnings = resp.json()["warnings"]
             assert any("Schicht" in w for w in warnings)
             assert any("Feiertag" in w for w in warnings)
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_comment_written_as_dienstplan_note(self, monkeypatch):
+        # Lücke #5 (AbwesenheitenEintragen.09): Der optionale Kommentartext der
+        # Abwesenheits-Eingabe landet als Dienstplan-Kommentar (5NOTE), HTML-
+        # escaped, mit demselben Datum/MA — 5ABSEN selbst hat kein Textfeld.
+        from sp5api.main import _sessions
+
+        db = _AbsDB()
+        tok = _planer_session()
+        try:
+            resp = _client(monkeypatch, db).post(
+                "/api/absences",
+                json={"employee_id": 5, "date": "2026-07-15", "leave_type_id": 1,
+                      "comment": "Arzt <Reha>"},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 200
+            assert db.notes == [("2026-07-15", "Arzt &lt;Reha&gt;", 5)]
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_no_comment_writes_no_note(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        db = _AbsDB()
+        tok = _planer_session()
+        try:
+            resp = self._post(_client(monkeypatch, db), tok)
+            assert resp.status_code == 200
+            assert db.notes == []
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_blank_comment_writes_no_note(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        db = _AbsDB()
+        tok = _planer_session()
+        try:
+            resp = _client(monkeypatch, db).post(
+                "/api/absences",
+                json={"employee_id": 5, "date": "2026-07-15", "leave_type_id": 1,
+                      "comment": "   "},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 200
+            assert db.notes == []
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_comment_failure_warns_but_keeps_absence(self, monkeypatch):
+        # Notiz-Schreibfehler darf die Eintragung nicht blockieren (best-effort).
+        from sp5api.main import _sessions
+
+        db = _AbsDB(note_exc=RuntimeError("note boom"))
+        tok = _planer_session()
+        try:
+            resp = _client(monkeypatch, db).post(
+                "/api/absences",
+                json={"employee_id": 5, "date": "2026-07-15", "leave_type_id": 1,
+                      "comment": "wichtig"},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 200
+            assert any("Kommentar" in w for w in resp.json()["warnings"])
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_comment_too_long_rejected_422(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        db = _AbsDB()
+        tok = _planer_session()
+        try:
+            resp = _client(monkeypatch, db).post(
+                "/api/absences",
+                json={"employee_id": 5, "date": "2026-07-15", "leave_type_id": 1,
+                      "comment": "x" * 126},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 422
+            assert db.notes == []
         finally:
             _sessions.pop(tok, None)
 

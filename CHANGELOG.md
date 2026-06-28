@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Abwesenheit anlegen (`POST /api/absences`): optionales Feld `comment` (max.
+  125 Zeichen). Faithful zum Original (Abwesenheits-Eingabe „nicht ganztägig"):
+  Der Kommentartext wird als Dienstplan-Kommentar in `5NOTE` gespeichert (am
+  selben Datum/Mitarbeiter, HTML-escaped) — der Abwesenheitssatz `5ABSEN` selbst
+  hat kein Textfeld. Das Schreiben der Notiz ist best-effort: schlägt es fehl,
+  wird die Abwesenheit dennoch angelegt und eine Warnung zurückgegeben.
+
 ## [1.10.0] - 2026-06-28
 
 ### Added
