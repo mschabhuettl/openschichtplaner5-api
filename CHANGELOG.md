@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Monatsabschluss-Report (`GET /api/reports/monthly`, PDF): optionale Query-Parameter
+  `title` (eigener Berichtstitel in der Kopfzeile, max. 120) und `footer` (eigener
+  Fußtext, max. 200). Ohne Angabe bleiben „Monatsabschluss-Report" bzw. die
+  Standard-Fußzeile. Nicht in Latin-1 darstellbare Zeichen werden ersetzt (fpdf2-
+  Kernfont), sodass Nutzereingaben nie einen Fehler auslösen.
+
 ## [1.14.0] - 2026-06-28
 
 ### Added

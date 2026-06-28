@@ -1361,6 +1361,26 @@ def export_absences(
 # ── Monatsabschluss-Report ───────────────────────────────────
 
 
+def _sanitize_pdf_text(text: str) -> str:
+    """fpdf2 nutzt den Latin-1-Kernfont Helvetica; nicht darstellbare Zeichen
+    werden ersetzt, damit Nutzereingaben (Titel/Fußtext) nie einen 500 auslösen."""
+    return text.encode("latin-1", "replace").decode("latin-1")
+
+
+def _monthly_report_title(title: str | None) -> str:
+    """Eigener Berichtstitel (Berichtsfenster.07); Default wenn leer/ohne Wert."""
+    if title and title.strip():
+        return _sanitize_pdf_text(title.strip())
+    return "Monatsabschluss-Report"
+
+
+def _monthly_report_footer(footer: str | None) -> str | None:
+    """Eigener Fußtext (Berichtsoptionen.10); None = Standard-Fußzeile."""
+    if footer and footer.strip():
+        return _sanitize_pdf_text(footer.strip())
+    return None
+
+
 @router.get(
     "/api/reports/monthly",
     tags=["Export"],
@@ -1383,6 +1403,12 @@ def get_monthly_report(
     month: int = Query(..., description="Month (1-12)"),
     format: str = Query("csv", description="Output format: csv or pdf"),
     group_id: int | None = Query(None, description="Filter by group ID"),
+    title: str | None = Query(
+        None, max_length=120, description="Eigener Berichtstitel (PDF-Kopfzeile)"
+    ),
+    footer: str | None = Query(
+        None, max_length=200, description="Eigener Fußtext (PDF-Fußzeile)"
+    ),
 ):
     """Generate a monthly closing report (Monatsabschluss) for all employees.
 
@@ -1491,6 +1517,10 @@ def get_monthly_report(
             detail="fpdf2 not installed. Please run 'pip install fpdf2'.",
         )
 
+    # Eigener Titel/Fußtext (Berichtsfenster.07 / Berichtsoptionen.10).
+    report_title = _monthly_report_title(title)
+    custom_footer = _monthly_report_footer(footer)
+
     class SP5Report(FPDF):
         def header(self):
             # Logo placeholder
@@ -1507,7 +1537,7 @@ def get_monthly_report(
             self.set_text_color(30, 41, 59)
             self.set_font("Helvetica", "B", 13)
             self.set_xy(44, 9)
-            self.cell(0, 7, "Monatsabschluss-Report", new_x=XPos.RIGHT, new_y=YPos.TOP)
+            self.cell(0, 7, report_title, new_x=XPos.RIGHT, new_y=YPos.TOP)
             self.set_font("Helvetica", "", 9)
             self.set_xy(44, 16)
             self.cell(
@@ -1526,10 +1556,11 @@ def get_monthly_report(
             self.set_y(-12)
             self.set_font("Helvetica", "I", 7)
             self.set_text_color(120, 120, 120)
+            left = custom_footer if custom_footer else f"OpenSchichtplaner5  |  {month_label}"
             self.cell(
                 0,
                 5,
-                f"OpenSchichtplaner5  |  {month_label}  |  Seite {self.page_no()}",
+                f"{left}  |  Seite {self.page_no()}",
                 align="C",
             )
 
