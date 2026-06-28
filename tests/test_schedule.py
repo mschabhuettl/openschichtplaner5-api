@@ -104,3 +104,33 @@ class TestScheduleConflicts:
         data = res.json()
         assert "conflicts" in data
         assert isinstance(data["conflicts"], list)
+
+
+class TestSchedulePartialDay:
+    def test_schedule_surfaces_partial_day_absence(self, write_client: TestClient):
+        """A10: GET /api/schedule reicht interval/start_time/end_time je Abwesenheit
+        durch (Teiltage), damit das Raster sie anzeigen und Undo/Move die Granularität
+        erhalten kann. Braucht libopenschichtplaner5 >= 1.14.0 (get_schedule-Felder)."""
+        emp_id = write_client.get("/api/employees").json()[0]["ID"]
+        lt_id = write_client.get("/api/leave-types").json()[0]["ID"]
+        r = write_client.post(
+            "/api/absences",
+            json={
+                "employee_id": emp_id,
+                "date": "2029-04-10",
+                "leave_type_id": lt_id,
+                "interval": 3,
+                "start_time": 480,
+                "end_time": 720,
+            },
+        )
+        assert r.status_code == 200
+        entries = write_client.get("/api/schedule?year=2029&month=4").json()
+        cell = next(
+            e
+            for e in entries
+            if e["kind"] == "absence"
+            and e["employee_id"] == emp_id
+            and e["date"] == "2029-04-10"
+        )
+        assert (cell["interval"], cell["start_time"], cell["end_time"]) == (3, 480, 720)

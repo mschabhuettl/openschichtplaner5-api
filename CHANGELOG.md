@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `GET /api/schedule` reicht für Abwesenheiten jetzt die Teiltags-Felder `interval`,
+  `start_time` und `end_time` durch (aus `get_schedule`), sodass der Dienstplan
+  Teiltags-Abwesenheiten erkennen und beim Wiederherstellen/Verschieben die
+  Granularität erhalten kann. Erfordert `libopenschichtplaner5 >= 1.14.0`.
+
 ## [1.8.0] - 2026-06-16
 
 ### Added

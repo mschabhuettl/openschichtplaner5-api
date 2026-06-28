@@ -48,7 +48,8 @@ dependencies = [
     # main application uses. 1.10.0 is required: apply_absence_visibility,
     # get_user_visible_*, set_schedule_workplace, schedule_type, RESTRICT grade.
     # 1.13.0 is required: extracharge_hours_by_day (Zeitzuschläge je Tag).
-    "libopenschichtplaner5[postgres]>=1.13.0",
+    # 1.14.0 is required: get_schedule liefert Teiltags-Felder je Abwesenheit (A10).
+    "libopenschichtplaner5[postgres]>=1.14.0",
 ]
 
 [project.optional-dependencies]
