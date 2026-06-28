@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Konflikterkennung läuft jetzt durchgängig nur auf der Ist-Ebene. Ein Sollplan-Ziel
+  (`5MASHI.TYPE=1`) ist eine geplante Vorgabe und kein tatsächlicher Dienst; eine
+  Soll-/Ist-Überlagerung am selben Tag ist die normale Zwei-Ebenen-Ansicht und kein
+  Konflikt. Betrifft die über `get_schedule_conflicts` ausgelieferten Hinweise
+  (`/api/schedule/...`, Monatsbericht) — eine Soll-Schicht neben einem Krankenstand
+  erscheint nicht mehr als `shift_and_absence`-Konflikt — sowie `_detect_conflicts`
+  in `/api/conflicts/report`, wo Doppelbelegung/Overlap und Unterbesetzung nur noch
+  Ist-Schichten auswerten. Echte Konflikte (zwei Ist-Schichten am selben Tag) bleiben
+  erkannt. Erfordert `libopenschichtplaner5 >= 1.14.4`.
+
 ## [1.9.0] - 2026-06-28
 
 ### Changed

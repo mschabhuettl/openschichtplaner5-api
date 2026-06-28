@@ -88,7 +88,13 @@ def _detect_conflicts(
     to_str = to_date.isoformat()
 
     # Build per-employee, per-date list of shifts: {(emp_id, date_str): [shift_id, ...]}
+    # emp_day_shifts = alle Schichten (für die Unterbesetzungs-Prüfung weiter unten);
+    # emp_day_ist_shifts = nur Ist-Schichten (5MASHI.TYPE != 1) für Doppelbelegung/Overlap.
+    # Ein Sollplan-Ziel (TYPE=1, Spec 4.12/D-58) ist eine Planvorgabe, kein tatsächlicher
+    # Dienst — eine Soll-/Ist-Überlagerung am selben Tag ist die normale Zwei-Ebenen-Ansicht
+    # und KEINE Doppelbelegung.
     emp_day_shifts: dict[tuple[int, str], list[int]] = {}
+    emp_day_ist_shifts: dict[tuple[int, str], list[int]] = {}
 
     # Read MASHI entries
     for r in db._read("MASHI"):
@@ -104,6 +110,8 @@ def _detect_conflicts(
         if sid:
             key = (eid, d[:10])
             emp_day_shifts.setdefault(key, []).append(sid)
+            if int(r.get("TYPE") or 0) != 1:
+                emp_day_ist_shifts.setdefault(key, []).append(sid)
 
     # Read SPSHI entries (special shifts, TYPE==0 = shift, not absence)
     try:
@@ -122,11 +130,12 @@ def _detect_conflicts(
             if sid:
                 key = (eid, d[:10])
                 emp_day_shifts.setdefault(key, []).append(sid)
+                emp_day_ist_shifts.setdefault(key, []).append(sid)
     except Exception:
         pass
 
-    # ── check overlap + double_booked per employee/day ───────────────────────
-    for (eid, date_str), shift_ids in emp_day_shifts.items():
+    # ── check overlap + double_booked per employee/day (nur Ist-Schichten) ────
+    for (eid, date_str), shift_ids in emp_day_ist_shifts.items():
         if len(shift_ids) < 2:
             continue
 
@@ -223,7 +232,7 @@ def _detect_conflicts(
 
     # build per-day scheduled set {date_str: set(emp_ids)} for the range
     day_scheduled: dict[str, set[int]] = {}
-    for (eid, date_str), shift_ids in emp_day_shifts.items():
+    for (eid, date_str), shift_ids in emp_day_ist_shifts.items():
         if shift_ids:
             day_scheduled.setdefault(date_str, set()).add(eid)
 

@@ -256,3 +256,47 @@ class TestExportValidation:
             params={"from": "2026-01-01", "to": "2026-01-31", "format": "xlsx"},
         )
         assert resp.status_code == 500
+
+
+def _soll_ist_db(mashi):
+    """FakeDB mit MA 1 und zwei zeitgleichen Schichten (1, 2)."""
+    employees = [{"ID": 1, "FIRSTNAME": "Anna", "NAME": "Berg"}]
+    shifts = [
+        {"ID": 1, "NAME": "Früh", "STARTEND0": "06:00-14:00"},
+        {"ID": 2, "NAME": "Früh-Dup", "STARTEND0": "06:00-14:00"},  # identische Zeit
+    ]
+    return _FakeDB(
+        {"MASHI": mashi, "SPSHI": []},
+        employees, shifts, [{"ID": 10, "NAME": "Team"}], {10: [1]},
+    )
+
+
+class TestSollIstNotDoubleBooked:
+    """P-KONFLIKT: Sollplan-Schicht (5MASHI.TYPE=1) ist kein tatsächlicher Dienst —
+    eine Soll-/Ist-Überlagerung am selben Tag ist keine Doppelbelegung. Echte
+    Doppelbelegung (zwei Ist-Schichten) bleibt erkannt. Beide Richtungen, Revert→rot."""
+
+    def test_soll_plus_ist_same_day_is_not_double_booked(self):
+        # Ist-Schicht (TYPE=0) + Sollplan-Ziel (TYPE=1), zeitgleich am selben Tag.
+        mashi = [
+            {"EMPLOYEEID": 1, "DATE": "2026-05-04", "SHIFTID": 1, "TYPE": 0},
+            {"EMPLOYEEID": 1, "DATE": "2026-05-04", "SHIFTID": 2, "TYPE": 1},
+        ]
+        conflicts = cr._detect_conflicts(
+            _soll_ist_db(mashi), date(2026, 5, 1), date(2026, 5, 31), None
+        )
+        same_day = [c for c in conflicts if c["date"] == "2026-05-04"
+                    and c["type"] in ("double_booked", "overlap")]
+        assert same_day == []
+
+    def test_two_ist_shifts_still_double_booked(self):
+        # Gegenrichtung: zwei echte Ist-Schichten (TYPE=0) zeitgleich → Doppelbelegung.
+        mashi = [
+            {"EMPLOYEEID": 1, "DATE": "2026-05-11", "SHIFTID": 1, "TYPE": 0},
+            {"EMPLOYEEID": 1, "DATE": "2026-05-11", "SHIFTID": 2, "TYPE": 0},
+        ]
+        conflicts = cr._detect_conflicts(
+            _soll_ist_db(mashi), date(2026, 5, 1), date(2026, 5, 31), None
+        )
+        assert any(c["date"] == "2026-05-11" and c["type"] == "double_booked"
+                   for c in conflicts)
