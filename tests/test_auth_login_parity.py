@@ -139,12 +139,20 @@ def test_login_diagnostics_are_privacy_safe(fresh_client):
     """Failed-login diagnostics must distinguish unknown-user vs. existing-user
     and never expose the password (cycle 8 — operator-debuggable real-DB edge)."""
     _, db = fresh_client
+    # Strenge Gleichheit, damit kein unerwarteter (potenziell sensibler) Schlüssel
+    # hineinrutscht. Die Multi-Encoding-Diagnose (lib >= 1.14.1) ergänzt nur
+    # abgeleitete Booleans/Längen und die statische Encoding-Namensliste — niemals
+    # die Digest-Bytes selbst. digest_is_empty_md5=True hier, weil das Admin-Konto
+    # der Beispiel-DB ein leeres Passwort (MD5("")) hat.
     assert db.login_diagnostics("Admin") == {
         "user_found": True,
         "hidden": False,
         "digest_len": 16,
         "digest_is_md5_shape": True,
+        "digest_all_zero": False,
+        "digest_is_empty_md5": True,
         "has_bcrypt": False,
+        "encodings_tried": ["utf-8", "cp1252", "utf-16-le"],
     }
     assert db.login_diagnostics("NoSuchUser") == {"user_found": False}
 
