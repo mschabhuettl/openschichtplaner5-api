@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bündelt **libopenschichtplaner5 1.23.0**: Benutzerrollen/-rechte werden jetzt korrekt
+  aus dem `5USER.RIGHTS`-Modus aufgelöst. Echte Konten mit vollen/differenzierten
+  Schreibrechten (RIGHTS 0/2) wurden bisher fälschlich als „Leser" angezeigt; zudem
+  ist die **Schreib-Durchsetzung** nun an den Modus gekoppelt — ein Nur-Lese-Konto
+  (RIGHTS 1/3) erhält über `get_current_user`/`require_write` keine Schreibrechte mehr,
+  selbst wenn alte W*-Flags im Satz gesetzt sind. Kein API-Code-Change (Auflösung
+  liegt in der Bibliothek), aber sichtbare Verhaltenskorrektur bei Rolle/Durchsetzung.
+
 ## [1.19.1] - 2026-06-29
 
 ### Changed

@@ -64,7 +64,9 @@ dependencies = [
     #         (Sonderdienst „keine Arbeitszeitzuschläge", 5SPSHI.NOEXTRA).
     # 1.22.1 is required: atomare ID-Vergabe bei nebenläufigen Schreibvorgängen
     #         (Datenintegrität — keine doppelten IDs/vertauschten Sätze unter Last).
-    "libopenschichtplaner5[postgres]>=1.22.1",
+    # 1.23.0 is required: 5USER.RIGHTS als Berechtigungs-Modus auflösen (Rolle Planer/
+    #         Leser korrekt + Read-only-Durchsetzung an den Modus gekoppelt).
+    "libopenschichtplaner5[postgres]>=1.23.0",
 ]
 
 [project.optional-dependencies]
