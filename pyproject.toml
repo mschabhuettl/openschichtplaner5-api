@@ -62,7 +62,9 @@ dependencies = [
     # 1.21.0 is required: update_holiday_ban (Urlaubssperre bearbeiten, 5HOBAN).
     # 1.22.0 is required: add_spshi_entry(noextra=…) + update_spshi_entry NOEXTRA
     #         (Sonderdienst „keine Arbeitszeitzuschläge", 5SPSHI.NOEXTRA).
-    "libopenschichtplaner5[postgres]>=1.22.0",
+    # 1.22.1 is required: atomare ID-Vergabe bei nebenläufigen Schreibvorgängen
+    #         (Datenintegrität — keine doppelten IDs/vertauschten Sätze unter Last).
+    "libopenschichtplaner5[postgres]>=1.22.1",
 ]
 
 [project.optional-dependencies]

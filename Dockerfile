@@ -7,7 +7,7 @@
 # Build-Arg LIB_SOURCE: pip-Requirement für die Library. Default ist der
 # PyPI-Pin (reproduzierbare Builds). Override-Beispiele:
 #   --build-arg LIB_SOURCE=git+https://github.com/mschabhuettl/libopenschichtplaner5.git@main   (Entwicklungs-Stand)
-#   --build-arg LIB_SOURCE="libopenschichtplaner5[postgres]==1.22.0"   (künftige Version)
+#   --build-arg LIB_SOURCE="libopenschichtplaner5[postgres]==1.22.1"   (künftige Version)
 #
 # ENV-Defaults (Runtime):
 #   SP5_DB_PATH=/app/data        Verzeichnis der 5*.DBF-Dateien (Volume mounten!)
@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-ARG LIB_SOURCE="libopenschichtplaner5[postgres]==1.22.0"
+ARG LIB_SOURCE="libopenschichtplaner5[postgres]==1.22.1"
 
 WORKDIR /build
 COPY pyproject.toml README.md LICENSE ./
