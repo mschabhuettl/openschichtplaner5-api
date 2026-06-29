@@ -1,12 +1,16 @@
 """Recurring shift patterns router (Q066).
 
-Allows defining weekly/biweekly shift patterns per employee or group,
-then generating concrete schedule entries for a date range.
+Allows defining weekly/biweekly shift patterns per employee, then generating
+concrete schedule entries for a date range. A pattern only references a shift
+(by ``shift_id``); the shift definition itself carries the start/end times, so
+the pattern does not duplicate them.
+
+The list and create responses are enriched with ``employee_name`` /
+``shift_name`` / ``shift_short`` so the frontend can render rows directly.
 """
 
 import json
 import threading
-import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
@@ -39,32 +43,50 @@ def _write_all(data: list[dict]) -> None:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
+def _next_id(patterns: list[dict]) -> int:
+    """Allocate the next integer pattern ID (max+1, ignoring non-int ids)."""
+    ids = [p["id"] for p in patterns if isinstance(p.get("id"), int)]
+    return (max(ids) + 1) if ids else 1
+
+
+def _enrich(db, rec: dict) -> dict:
+    """Project a stored pattern to the API/frontend shape with display names."""
+    emp = db.get_employee(rec["employee_id"])
+    shift = db.get_shift(rec["shift_id"])
+    if emp is not None:
+        employee_name = f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip()
+    else:
+        employee_name = f"#{rec['employee_id']}"
+    return {
+        "id": rec["id"],
+        "employee_id": rec["employee_id"],
+        "employee_name": employee_name or f"#{rec['employee_id']}",
+        "shift_id": rec["shift_id"],
+        "shift_name": shift.get("NAME", "") if shift else f"#{rec['shift_id']}",
+        "shift_short": shift.get("SHORTNAME", "") if shift else "",
+        "recurrence": rec["recurrence"],
+        "day_of_week": rec["day_of_week"],
+        "valid_from": rec["valid_from"],
+        "valid_until": rec.get("valid_until"),
+    }
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
-_TIME_PATTERN = r"^\d{2}:\d{2}$"
 _DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
 
 class RecurringShiftCreate(BaseModel):
     """Request body for creating a recurring shift pattern."""
 
-    employee_id: int | None = Field(None, description="Employee ID (or None for group-wide)")
-    group_id: int | None = Field(None, description="Group ID (or None for individual)")
-    shift_type: int = Field(..., description="Shift ID (integer)")
-    start_time: str = Field(..., pattern=_TIME_PATTERN, description="Shift start time HH:MM")
-    end_time: str = Field(..., pattern=_TIME_PATTERN, description="Shift end time HH:MM")
+    employee_id: int = Field(..., description="Employee ID")
+    shift_id: int = Field(..., description="Shift ID")
     recurrence: Literal["weekly", "biweekly"] = Field(..., description="Recurrence pattern")
     day_of_week: int = Field(..., ge=0, le=6, description="Day of week: 0=Monday, 6=Sunday")
     valid_from: str = Field(..., pattern=_DATE_PATTERN, description="Pattern valid from YYYY-MM-DD")
-    valid_until: str | None = Field(None, pattern=_DATE_PATTERN, description="Pattern valid until YYYY-MM-DD (null = indefinite)")
-
-    @field_validator("start_time", "end_time")
-    @classmethod
-    def validate_time(cls, v: str) -> str:
-        h, m = int(v[:2]), int(v[3:])
-        if not (0 <= h <= 23 and 0 <= m <= 59):
-            raise ValueError(f"Invalid time: {v}")
-        return v
+    valid_until: str | None = Field(
+        None, pattern=_DATE_PATTERN, description="Pattern valid until YYYY-MM-DD (null = indefinite)"
+    )
 
     @field_validator("valid_from", "valid_until")
     @classmethod
@@ -78,8 +100,6 @@ class RecurringShiftCreate(BaseModel):
         return v
 
     def model_post_init(self, __context) -> None:
-        if self.employee_id is None and self.group_id is None:
-            raise ValueError("Either employee_id or group_id must be provided")
         if self.valid_until is not None and self.valid_until < self.valid_from:
             raise ValueError("valid_until must be >= valid_from")
 
@@ -110,7 +130,7 @@ class GenerateRequest(BaseModel):
     "/api/shifts/recurring",
     tags=["Recurring Shifts"],
     summary="Create recurring shift pattern",
-    description="Create a weekly or biweekly recurring shift pattern for an employee or group.",
+    description="Create a weekly or biweekly recurring shift pattern for an employee.",
 )
 def create_recurring_shift(
     body: RecurringShiftCreate,
@@ -118,44 +138,31 @@ def create_recurring_shift(
 ):
     db = get_db()
 
-    # Validate employee if given
-    if body.employee_id is not None:
-        emp = db.get_employee(body.employee_id)
-        if emp is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Mitarbeiter {body.employee_id} nicht gefunden",
-            )
+    emp = db.get_employee(body.employee_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden")
 
-    # Validate shift type exists
-    shift = db.get_shift(body.shift_type)
+    shift = db.get_shift(body.shift_id)
     if shift is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Schicht {body.shift_type} nicht gefunden",
-        )
-
-    record = {
-        "id": str(uuid.uuid4()),
-        "employee_id": body.employee_id,
-        "group_id": body.group_id,
-        "shift_type": body.shift_type,
-        "start_time": body.start_time,
-        "end_time": body.end_time,
-        "recurrence": body.recurrence,
-        "day_of_week": body.day_of_week,
-        "valid_from": body.valid_from,
-        "valid_until": body.valid_until,
-        "created_at": datetime.now(UTC).isoformat() + "Z",
-    }
+        raise HTTPException(status_code=404, detail=f"Schicht {body.shift_id} nicht gefunden")
 
     with _LOCK:
         patterns = _read_all()
+        record = {
+            "id": _next_id(patterns),
+            "employee_id": body.employee_id,
+            "shift_id": body.shift_id,
+            "recurrence": body.recurrence,
+            "day_of_week": body.day_of_week,
+            "valid_from": body.valid_from,
+            "valid_until": body.valid_until,
+            "created_at": datetime.now(UTC).isoformat() + "Z",
+        }
         patterns.append(record)
         _write_all(patterns)
 
     _logger.info("RecurringShift created: %s", record["id"])
-    return {"ok": True, "pattern": record}
+    return _enrich(db, record)
 
 
 @router.get(
@@ -168,14 +175,16 @@ def list_recurring_shifts(
     employee_id: int | None = Query(None, description="Filter by employee ID"),
     group_id: int | None = Query(None, description="Filter by group ID"),
 ):
+    db = get_db()
     patterns = _read_all()
 
     if employee_id is not None:
         patterns = [p for p in patterns if p.get("employee_id") == employee_id]
     if group_id is not None:
-        patterns = [p for p in patterns if p.get("group_id") == group_id]
+        member_ids = set(db.get_group_members(group_id))
+        patterns = [p for p in patterns if p.get("employee_id") in member_ids]
 
-    return {"patterns": patterns, "total": len(patterns)}
+    return [_enrich(db, p) for p in patterns]
 
 
 @router.delete(
@@ -185,21 +194,18 @@ def list_recurring_shifts(
     description="Delete a recurring shift pattern by ID. Requires Planer role.",
 )
 def delete_recurring_shift(
-    pattern_id: str,
+    pattern_id: int,
     _cur_user: dict = Depends(require_planer),
 ):
     with _LOCK:
         patterns = _read_all()
         remaining = [p for p in patterns if p.get("id") != pattern_id]
         if len(remaining) == len(patterns):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Muster {pattern_id} nicht gefunden",
-            )
+            raise HTTPException(status_code=404, detail=f"Muster {pattern_id} nicht gefunden")
         _write_all(remaining)
 
     _logger.info("RecurringShift deleted: %s", pattern_id)
-    return {"ok": True, "deleted_id": pattern_id}
+    return {"ok": True, "deleted": pattern_id}
 
 
 @router.post(
@@ -209,22 +215,18 @@ def delete_recurring_shift(
     description=(
         "Generate concrete schedule entries for a date range from a recurring pattern. "
         "Skips dates where the employee already has the shift assigned. "
-        "Returns {generated, skipped}."
+        "Returns {created, skipped}."
     ),
 )
 def generate_shifts(
-    pattern_id: str,
+    pattern_id: int,
     body: GenerateRequest,
     _cur_user: dict = Depends(require_planer),
 ):
-    # Find pattern
     patterns = _read_all()
     pattern = next((p for p in patterns if p.get("id") == pattern_id), None)
     if pattern is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Muster {pattern_id} nicht gefunden",
-        )
+        raise HTTPException(status_code=404, detail=f"Muster {pattern_id} nicht gefunden")
 
     db = get_db()
     from_dt = date.fromisoformat(body.from_date)
@@ -240,30 +242,19 @@ def generate_shifts(
         effective_to = min(to_dt, valid_until)
 
     if effective_from > effective_to:
-        return {"generated": 0, "skipped": 0, "dates": []}
+        return {"created": 0, "skipped": 0}
 
     target_dow = pattern["day_of_week"]  # 0=Monday, 6=Sunday
     recurrence = pattern["recurrence"]
-    shift_type = pattern["shift_type"]
-    employee_id = pattern.get("employee_id")
-
-    if employee_id is None:
-        raise HTTPException(
-            status_code=422,
-            detail="Dieses Muster hat keine employee_id — Gruppen-Generierung noch nicht unterstützt",
-        )
+    shift_id = pattern["shift_id"]
+    employee_id = pattern["employee_id"]
 
     # Collect all matching dates in the range
-    candidate_dates: list[date] = []
-    current = effective_from
-
-    # Find the first occurrence of target_dow >= current
-    days_ahead = (target_dow - current.weekday()) % 7
-    first_occurrence = current + timedelta(days=days_ahead)
-
-    # Step size for recurrence
+    days_ahead = (target_dow - effective_from.weekday()) % 7
+    first_occurrence = effective_from + timedelta(days=days_ahead)
     step = 7 if recurrence == "weekly" else 14
 
+    candidate_dates: list[date] = []
     d = first_occurrence
     while d <= effective_to:
         candidate_dates.append(d)
@@ -277,18 +268,16 @@ def generate_shifts(
 
         filepath = db._table("MASHI")
         fields = get_table_fields(filepath)
-        # Load all entries for this employee — filter by date range
         all_entries = find_all_records(filepath, fields, EMPLOYEEID=employee_id)
         for _, rec in all_entries:
             rec_date = rec.get("DATE", "")
-            if rec_date and rec.get("SHIFTID") == shift_type:
+            if rec_date and rec.get("SHIFTID") == shift_id:
                 existing_dates.add(rec_date)
     except Exception:
         pass  # best-effort, proceed with generation
 
-    generated = 0
+    created = 0
     skipped = 0
-    generated_dates: list[str] = []
 
     for d in candidate_dates:
         date_str = d.isoformat()
@@ -296,9 +285,8 @@ def generate_shifts(
             skipped += 1
             continue
         try:
-            db.add_schedule_entry(employee_id, date_str, shift_type)
-            generated += 1
-            generated_dates.append(date_str)
+            db.add_schedule_entry(employee_id, date_str, shift_id)
+            created += 1
             existing_dates.add(date_str)  # prevent duplicates within same call
         except Exception as exc:
             _logger.warning(
@@ -310,10 +298,5 @@ def generate_shifts(
             )
             skipped += 1
 
-    _logger.info(
-        "RecurringShift generate %s: generated=%d skipped=%d",
-        pattern_id,
-        generated,
-        skipped,
-    )
-    return {"generated": generated, "skipped": skipped, "dates": generated_dates}
+    _logger.info("RecurringShift generate %s: created=%d skipped=%d", pattern_id, created, skipped)
+    return {"created": created, "skipped": skipped}

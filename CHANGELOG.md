@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **„Wiederkehrende Schichten" war im Frontend nicht ladbar** (Seite blieb weiß, auch
+  nach Neuladen). Ursache war ein Vertrags-Bruch zwischen Frontend und API: die Liste
+  `GET /api/shifts/recurring` lieferte ein Objekt `{patterns, total}`, das Frontend
+  erwartet aber ein Array und rief `.map()` darauf auf → Render-Absturz schon beim
+  leeren Datenstand. Zusätzlich verlangte das Anlegen Felder, die das UI gar nicht
+  schickt (`shift_type`, `start_time`, `end_time`), `generate` lieferte `generated`
+  statt des erwarteten `created`, und die IDs waren UUID-Strings statt Ganzzahlen.
+  Die Endpunkte folgen jetzt durchgängig dem Frontend-Vertrag: Liste/Anlegen liefern
+  angereicherte Objekte (`employee_name`/`shift_name`/`shift_short`), ein Muster
+  referenziert die Schicht nur über `shift_id` (die Schicht trägt ihre eigenen
+  Start-/Endzeiten — die im Generieren ohnehin ungenutzten Zeitfelder entfielen),
+  `generate` liefert `{created, skipped}`, IDs sind fortlaufende Ganzzahlen. Der
+  Gruppenfilter wirkt nun über die Gruppenmitgliedschaft. `tests/test_recurring_shifts.py`
+  auf den funktionierenden Vertrag umgestellt (vorher grün gegen den kaputten Vertrag —
+  klassisches „Tests grün, App kaputt", weil kein Test die Frontend-↔-API-Grenze querte).
+
 ## [1.20.1] - 2026-06-29
 
 ### Fixed
