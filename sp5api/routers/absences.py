@@ -615,6 +615,66 @@ def delete_holiday_ban(ban_id: int, _cur_user: dict = Depends(require_planer)):
         raise _sanitize_500(e)
 
 
+class HolidayBanUpdate(BaseModel):
+    group_id: int | None = Field(None, gt=0)
+    start_date: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    end_date: str | None = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    reason: str | None = Field(None, max_length=500)
+
+    @field_validator("start_date", "end_date")
+    @classmethod
+    def validate_dates(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        from datetime import datetime as _dtt
+
+        try:
+            _dtt.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Date must be a valid date in YYYY-MM-DD format")
+        return v
+
+
+@router.put(
+    "/api/holiday-bans/{ban_id}", tags=["Absences"], summary="Update holiday ban period",
+    description=(
+        "Update a holiday ban period by ID. Only provided fields change "
+        "(group_id, start_date, end_date, reason). Returns 404 if not found. "
+        "Requires Planer role."
+    ),
+)
+def update_holiday_ban(
+    ban_id: int, body: HolidayBanUpdate, _cur_user: dict = Depends(require_planer)
+):
+    db = get_db()
+    existing = next((b for b in db.get_holiday_bans() if b.get("id") == ban_id), None)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Urlaubssperre nicht gefunden")
+    # Reihenfolge auf dem effektiven (zusammengeführten) Stand prüfen.
+    eff_start = body.start_date if body.start_date is not None else existing.get("start_date")
+    eff_end = body.end_date if body.end_date is not None else existing.get("end_date")
+    if eff_start and eff_end and eff_end < eff_start:
+        raise HTTPException(status_code=400, detail="end_date muss >= start_date sein")
+    data: dict = {}
+    if body.group_id is not None:
+        data["group_id"] = body.group_id
+    if body.start_date is not None:
+        data["start_date"] = body.start_date
+    if body.end_date is not None:
+        data["end_date"] = body.end_date
+    if body.reason is not None:
+        data["reason"] = body.reason
+    try:
+        result = db.update_holiday_ban(ban_id, data)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Urlaubssperre nicht gefunden")
+        return {"ok": True, "record": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _sanitize_500(e)
+
+
 # ── Annual Close ──────────────────────────────────────────────
 
 

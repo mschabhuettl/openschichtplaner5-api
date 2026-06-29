@@ -1506,6 +1506,46 @@ class TestAPIWriteEndpoints:
         del_resp = write_client.delete(f"/api/holiday-bans/{ban_id}")
         assert del_resp.status_code == 200
 
+    def test_holiday_ban_update(self, write_client):
+        """PUT /api/holiday-bans/{id} → geänderte Felder persistiert (5HOBAN)."""
+        groups = write_client.get("/api/groups").json()
+        if not groups:
+            pytest.skip("No groups")
+        gid = groups[0]["ID"]
+        create = write_client.post(
+            "/api/holiday-bans",
+            json={
+                "group_id": gid,
+                "start_date": "2026-07-01",
+                "end_date": "2026-07-31",
+                "reason": "Sommersperre",
+            },
+        )
+        assert create.status_code == 200
+        ban_id = create.json()["record"]["id"]
+        try:
+            upd = write_client.put(
+                f"/api/holiday-bans/{ban_id}",
+                json={"end_date": "2026-08-15", "reason": "verlängert"},
+            )
+            assert upd.status_code == 200
+            rec = upd.json()["record"]
+            assert str(rec["end_date"]) == "2026-08-15"
+            assert rec["reason"] == "verlängert"
+            row = next(
+                b for b in write_client.get("/api/holiday-bans").json() if b["id"] == ban_id
+            )
+            assert str(row["end_date"]) == "2026-08-15"
+            assert row["reason"] == "verlängert"
+            assert str(row["start_date"]) == "2026-07-01"  # unverändert
+        finally:
+            write_client.delete(f"/api/holiday-bans/{ban_id}")
+
+    def test_holiday_ban_update_not_found(self, write_client):
+        """PUT /api/holiday-bans/{unbekannt} → 404."""
+        res = write_client.put("/api/holiday-bans/999999", json={"reason": "x"})
+        assert res.status_code == 404
+
     def test_group_member_add_remove(self, write_client):
         """Verify group member add remove."""
         emps = write_client.get("/api/employees").json()

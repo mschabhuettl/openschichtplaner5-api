@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Urlaubssperre bearbeiten: `PUT /api/holiday-bans/{ban_id}` ändert eine bestehende
+  Sperre (5HOBAN). Nur die übergebenen Felder (`group_id`, `start_date`, `end_date`,
+  `reason`) werden geschrieben. Unbekannte ID → 404, ungültiges Datumsformat → 422,
+  Ende vor Start (auf dem zusammengeführten Stand geprüft) → 400. Erfordert
+  libopenschichtplaner5 >= 1.21.0.
+
 ## [1.17.0] - 2026-06-28
 
 ### Added

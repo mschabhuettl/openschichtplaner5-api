@@ -59,7 +59,8 @@ dependencies = [
     #         Zuordnung, 5CYASS.END).
     # 1.19.0 is required: update_booking (Buchung bearbeiten, 5BOOK).
     # 1.20.0 is required: update_period (gekennzeichneten Zeitraum bearbeiten, 5PERIO).
-    "libopenschichtplaner5[postgres]>=1.20.0",
+    # 1.21.0 is required: update_holiday_ban (Urlaubssperre bearbeiten, 5HOBAN).
+    "libopenschichtplaner5[postgres]>=1.21.0",
 ]
 
 [project.optional-dependencies]
