@@ -28,6 +28,7 @@ import os
 
 from fastapi import APIRouter, Depends, Query
 
+from .._paths import state_path
 from ..dependencies import _sanitize_500, require_admin
 
 router = APIRouter(prefix="/api/admin/orm", tags=["ORM Mirror"])
@@ -39,14 +40,15 @@ router = APIRouter(prefix="/api/admin/orm", tags=["ORM Mirror"])
 def _get_orm_engine():
     """Create (and migrate) the SQLite engine for the ORM mirror DB.
 
-    The mirror DB sits alongside the DBF data directory, matching the location
-    the Companies router uses so both share a single ORM store.
+    The mirror DB lives in the consolidated, writable state directory
+    (``state_path``/``SP5_STATE_DIR``), matching the Companies router so both
+    share a single ORM store. It must NOT sit next to the DBF data: those are
+    often mounted read-only, and ``dirname(SP5_DB_PATH)`` is the data dir's parent
+    (in the container ``/app``, owned by root) — ``init_db`` would fail with EACCES.
     """
     from sp5lib.orm import get_engine, init_db
 
-    import sp5api.main as _main
-
-    orm_db = os.path.join(os.path.dirname(_main.DB_PATH), "sp5_orm.db")
+    orm_db = state_path("sp5_orm.db")
     engine = get_engine(f"sqlite:///{orm_db}")
     init_db(engine)
     return engine
@@ -123,14 +125,10 @@ def orm_mirror_status(user: dict = Depends(require_admin)):
     row counts (all 19 mirrored tables), so admins can gauge mirror freshness
     cheaply before deciding to POST /sync.
     """
-    import os
-
     import sp5lib.orm as orm
     from sqlalchemy import func, select
 
-    import sp5api.main as _main
-
-    orm_db = os.path.join(os.path.dirname(_main.DB_PATH), "sp5_orm.db")
+    orm_db = state_path("sp5_orm.db")
     mirror_exists = os.path.exists(orm_db)
 
     session = _get_orm_session()

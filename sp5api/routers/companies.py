@@ -5,6 +5,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from .._paths import state_path
 from ..dependencies import (
     _logger,
     _sanitize_500,
@@ -17,17 +18,16 @@ router = APIRouter(prefix="/api/companies", tags=["Companies"])
 # ── Helpers ──────────────────────────────────────────────────
 
 def _get_orm_session():
-    """Get an ORM session connected to the app's SQLite DB."""
-    import os  # noqa: I001
-
+    """Get an ORM session connected to the app's ORM SQLite store."""
     from sp5lib.orm import get_engine, init_db
     from sp5lib.orm.base import get_session
 
-    import sp5api.main as _main
-
-    # Derive the ORM database path from the DBF DB_PATH
-    # The SQLite DB sits alongside the DBF data directory
-    orm_db = os.path.join(os.path.dirname(_main.DB_PATH), "sp5_orm.db")
+    # Die ORM-/Firmen-DB ist veränderlicher Laufzeit-Zustand und gehört in das
+    # beschreibbare State-Verzeichnis (state_path/SP5_STATE_DIR), NICHT neben die
+    # (oft read-only gemounteten) DBF-Daten: dirname(SP5_DB_PATH) ist im Container
+    # /app (root-owned) → init_db scheitert mit EACCES → 500. orm_mirror nutzt
+    # denselben Pfad, damit beide denselben ORM-Store teilen.
+    orm_db = state_path("sp5_orm.db")
     engine = get_engine(f"sqlite:///{orm_db}")
     init_db(engine)
     return get_session(engine), engine

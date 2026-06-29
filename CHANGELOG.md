@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.20.0] - 2026-06-29
+### Fixed
+
+- **Firmenverwaltung und ORM-Spiegel lieferten im Container HTTP 500** („unable to
+  open database file"). Die ORM-/Firmen-SQLite-DB (`sp5_orm.db`) wurde als
+  `dirname(SP5_DB_PATH)/sp5_orm.db` abgeleitet. Im Container ist `SP5_DB_PATH=
+  /app/data` (das dem App-User gehörende Volume), dessen Elternverzeichnis `/app`
+  jedoch root gehört → `init_db` scheiterte mit EACCES, jeder Aufruf von
+  `GET /api/companies` und `GET /api/admin/orm/status` endete in 500. Beide Stellen
+  (`companies._get_orm_session`, `orm_mirror._get_orm_engine`) nutzen jetzt das
+  konsolidierte, beschreibbare State-Verzeichnis (`state_path`/`SP5_STATE_DIR`,
+  Default `SP5_BACKEND_DIR/data`) — dieselbe veränderliche-Zustand-Konvention wie der
+  Rest der App. Regressionstest `tests/test_orm_db_path.py` (die echte Pfadableitung
+  war bisher von keinem Test abgedeckt, da alle `_get_orm_session` mockten).
 
 ### Changed
 
