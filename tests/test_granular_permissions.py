@@ -181,7 +181,12 @@ class TestSettableWritePermissions:
         finally:
             _sessions.pop(admin, None)
 
-    def test_explicit_flag_wins_over_role_in_same_update(self, client):
+    def test_readonly_role_overrides_explicit_write_flag(self, client):
+        # Der Nur-Lese-Modus (Rolle „Leser", 5USER.RIGHTS 1/3) übersteuert explizit
+        # gesetzte W*-Flags: ein read-only-Konto kann NICHT schreiben, auch wenn ein
+        # Schreibrecht ausdrücklich mitgegeben wird (P0-2, Original SP5Data.dll). Das
+        # „explizit gewinnt"-Verhalten gilt nur für schreibfähige Rollen (Planer),
+        # siehe test_set_write_permissions_via_update oben.
         from sp5api.main import _sessions
 
         admin = self._admin()
@@ -192,7 +197,7 @@ class TestSettableWritePermissions:
                       "role": "Planer"},
                 headers=_h(admin),
             ).json()["record"]["ID"]
-            # role=Leser (Default writes 0) + WNOTES=True explizit
+            # role=Leser (Nur-Lese-Modus) + WNOTES=True explizit
             r = client.put(
                 f"/api/users/{uid}",
                 json={"role": "Leser", "permissions": {"WNOTES": True}},
@@ -204,7 +209,7 @@ class TestSettableWritePermissions:
                                       "password": "Geheim123"}).json()
             perms = client.get("/api/auth/me",
                                headers={"X-Auth-Token": login["token"]}).json()["permissions"]
-            assert perms["wnotes"] is True       # explizit gewinnt
+            assert perms["wnotes"] is False      # Nur-Lese-Modus übersteuert explizites WNOTES
             assert perms["wduties"] is False     # Leser-Default
         finally:
             _sessions.pop(admin, None)
