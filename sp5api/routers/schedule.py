@@ -1285,6 +1285,8 @@ class EinsatzplanCreate(BaseModel):
     colortext: int | None = Field(0, ge=0, le=16777215)
     colorbar: int | None = Field(0, ge=0, le=16777215)
     colorbk: int | None = Field(16777215, ge=0, le=16777215)
+    # 5SPSHI.NOEXTRA — „keine Arbeitszeitzuschläge berechnen" (Spec 3.8.3 Nr. 13).
+    noextra: bool | None = Field(False)
 
 
 class EinsatzplanUpdate(BaseModel):
@@ -1297,6 +1299,7 @@ class EinsatzplanUpdate(BaseModel):
     colortext: int | None = Field(None, ge=0, le=16777215)
     colorbar: int | None = Field(None, ge=0, le=16777215)
     colorbk: int | None = Field(None, ge=0, le=16777215)
+    noextra: bool | None = Field(None)
 
 
 class DeviationCreate(BaseModel):
@@ -1348,6 +1351,7 @@ def create_einsatzplan_entry(
             colortext=body.colortext or 0,
             colorbar=body.colorbar or 0,
             colorbk=body.colorbk if body.colorbk is not None else 16777215,
+            noextra=bool(body.noextra),
         )
         return {"ok": True, "record": result}
     except HTTPException:
@@ -1380,6 +1384,7 @@ def update_einsatzplan_entry(
         "colortext": "COLORTEXT",
         "colorbar": "COLORBAR",
         "colorbk": "COLORBK",
+        "noextra": "NOEXTRA",
     }
     mapped = {key_map.get(k, k.upper()): v for k, v in data.items()}
     try:

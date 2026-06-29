@@ -1692,6 +1692,44 @@ class TestAPIWriteEndpoints:
             del_resp = write_client.delete(f"/api/einsatzplan/{entry_id}")
             assert del_resp.status_code == 200
 
+    def test_einsatzplan_noextra(self, write_client):
+        """Freier Sonderdienst mit Flag „keine Arbeitszeitzuschläge" (5SPSHI.NOEXTRA)."""
+        emps = write_client.get("/api/employees").json()
+        if not emps:
+            pytest.skip("No data")
+        emp_id = emps[0]["ID"]
+        resp = write_client.post(
+            "/api/einsatzplan",
+            json={
+                "employee_id": emp_id,
+                "date": "2026-07-15",
+                "name": "Messe",
+                "startend": "0800-1600",
+                "noextra": True,
+            },
+        )
+        assert resp.status_code == 200
+        entry_id = resp.json()["record"]["id"]
+        try:
+            # GET liefert das Flag zurück (aus der DBF gelesen).
+            row = next(
+                e for e in write_client.get("/api/einsatzplan?date=2026-07-15").json()
+                if e["id"] == entry_id
+            )
+            assert row["noextra"] is True
+            # PUT schaltet das Flag wieder ab.
+            put_resp = write_client.put(
+                f"/api/einsatzplan/{entry_id}", json={"noextra": False}
+            )
+            assert put_resp.status_code == 200
+            row2 = next(
+                e for e in write_client.get("/api/einsatzplan?date=2026-07-15").json()
+                if e["id"] == entry_id
+            )
+            assert row2["noextra"] is False
+        finally:
+            write_client.delete(f"/api/einsatzplan/{entry_id}")
+
     def test_cycle_exception_crud(self, write_client):
         """Verify cycle exception crud."""
         emps = write_client.get("/api/employees").json()

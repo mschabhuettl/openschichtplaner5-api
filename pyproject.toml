@@ -60,7 +60,9 @@ dependencies = [
     # 1.19.0 is required: update_booking (Buchung bearbeiten, 5BOOK).
     # 1.20.0 is required: update_period (gekennzeichneten Zeitraum bearbeiten, 5PERIO).
     # 1.21.0 is required: update_holiday_ban (Urlaubssperre bearbeiten, 5HOBAN).
-    "libopenschichtplaner5[postgres]>=1.21.0",
+    # 1.22.0 is required: add_spshi_entry(noextra=…) + update_spshi_entry NOEXTRA
+    #         (Sonderdienst „keine Arbeitszeitzuschläge", 5SPSHI.NOEXTRA).
+    "libopenschichtplaner5[postgres]>=1.22.0",
 ]
 
 [project.optional-dependencies]

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Sonderdienst „keine Arbeitszeitzuschläge berechnen": `POST /api/einsatzplan` und
+  `PUT /api/einsatzplan/{id}` akzeptieren jetzt das Feld `noextra` (bool), das nach
+  5SPSHI.NOEXTRA geschrieben wird (Spec 3.8.3 Nr. 13). `GET /api/einsatzplan` liefert
+  es als `noextra` zurück. Wirkt für freie Sonderdienste ohne Schicht-Referenz.
+  Erfordert libopenschichtplaner5 >= 1.22.0.
+
 ## [1.18.0] - 2026-06-29
 
 ### Added
