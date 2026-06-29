@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Bündelt **libopenschichtplaner5 1.22.1** (Floor und Image-Pin auf `>=1.22.1`
+  bzw. `==1.22.1` angehoben). Diese lib-Version behebt einen Datenintegritäts-Bug:
+  nebenläufige Schreibvorgänge vergaben unter Last doppelte Datensatz-IDs (ID wurde
+  als `max(ID)+1` außerhalb des Append-Locks berechnet), wodurch ID-adressierte
+  Updates/Deletes den falschen Satz treffen und Einträge „vertauschen" konnten. Kein
+  API-Code-Change — reiner Abhängigkeits-Pin, damit das API-Image den Fix enthält.
+
 ## [1.19.0] - 2026-06-29
 
 ### Added
