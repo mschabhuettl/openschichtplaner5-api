@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.20.1] - 2026-06-29
+
 ### Fixed
 
 - **Firmenverwaltung und ORM-Spiegel lieferten im Container HTTP 500** („unable to
