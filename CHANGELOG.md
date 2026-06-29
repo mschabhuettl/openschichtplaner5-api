@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-06-29
+
 ### Changed
 
 - Bündelt **libopenschichtplaner5 1.22.1** (Floor und Image-Pin auf `>=1.22.1`
