@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.22.0] - 2026-06-30
+
 ### Added
 
 - `GET /api/health` liefert im `db`-Block jetzt zusätzlich `employees` (Mitarbeiterzahl
