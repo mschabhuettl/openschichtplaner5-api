@@ -1005,9 +1005,10 @@ def health():
 
     # ── DB check ──
     db_check = "ok"
+    db_employees: int | None = None
     try:
         db = get_db()
-        db.get_stats()
+        db_employees = db.get_stats().get("employees")
     except Exception:
         db_check = "error"
 
@@ -1038,6 +1039,8 @@ def health():
         "dbf_ok": dbf_ok_count,
         "dbf_missing": dbf_missing,
     }
+    if db_employees is not None:
+        db_details["employees"] = db_employees
     if latest_mtime > 0:
         db_details["last_modified"] = datetime.fromtimestamp(latest_mtime, tz=UTC).isoformat()
 

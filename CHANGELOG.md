@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `GET /api/health` liefert im `db`-Block jetzt zusätzlich `employees` (Mitarbeiterzahl
+  der verbundenen Datenbank) für die „Mitarbeiter"-Kachel des System-Health-Dashboards.
+  Der Wert stammt aus dem bereits im Health-Check berechneten `get_stats()` (zuvor
+  verworfen); Pfad/Fehlerdetails bleiben weiterhin bewusst unexponiert (öffentlicher
+  Endpunkt).
+
 ## [1.21.0] - 2026-06-30
 
 ### Added
