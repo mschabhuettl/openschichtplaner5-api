@@ -1912,6 +1912,185 @@ def get_monthly_report(
     )
 
 
+# ── Urlaubsantrag (printable vacation request form) ──────────
+
+
+def _format_de_date(iso: str) -> str:
+    """``YYYY-MM-DD`` → ``DD.MM.YYYY``; passes anything else through unchanged."""
+    try:
+        d = date.fromisoformat(iso)
+        return d.strftime("%d.%m.%Y")
+    except ValueError:
+        return iso
+
+
+def _requested_vacation_days(absences: list[dict]) -> float:
+    """Sum entered absence days: full=1.0, half-day (interval 1/2)=0.5, hourly
+    (interval 3)=hours/8 rounded. Mirrors how the day count is shown to the user."""
+    total = 0.0
+    for a in absences:
+        iv = int(a.get("interval", 0) or 0)
+        if iv in (1, 2):
+            total += 0.5
+        elif iv == 3:
+            mins = max(0, int(a.get("end_time", 0) or 0) - int(a.get("start_time", 0) or 0))
+            total += round(mins / 60.0 / 8.0, 2) if mins else 0.5
+        else:
+            total += 1.0
+    return round(total, 2)
+
+
+@router.get(
+    "/api/reports/vacation-request",
+    tags=["Export"],
+    summary="Urlaubsantrag (printable vacation request form, PDF)",
+    description=(
+        "Generate a printable vacation request form (Urlaubsantrag) for one employee "
+        "and a date range, mirroring the original's paper form: applicant/leave type/"
+        "period/requested days, plus approval (Genehmigt/Abgelehnt) and signature lines "
+        "for applicant and supervisor.\n\n**Required role:** Leser"
+    ),
+    responses={
+        200: {"description": "PDF download"},
+        400: {"description": "Invalid date range"},
+        404: {"description": "Employee not found"},
+    },
+)
+def get_vacation_request_form(
+    employee_id: int = Query(..., description="Employee ID"),
+    from_date: str = Query(..., description="Start of the requested period (YYYY-MM-DD)"),
+    to_date: str = Query(..., description="End of the requested period (YYYY-MM-DD)"),
+    leave_type_id: int | None = Query(None, description="Restrict to this leave type"),
+):
+    try:
+        d_from = date.fromisoformat(from_date)
+        d_to = date.fromisoformat(to_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Datum muss YYYY-MM-DD sein")
+    if d_to < d_from:
+        raise HTTPException(status_code=400, detail="to_date muss >= from_date sein")
+
+    db = get_db()
+    emp = db.get_employee(employee_id)
+    if emp is None:
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter {employee_id} nicht gefunden")
+
+    emp_name = f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip() or f"#{employee_id}"
+    emp_short = emp.get("SHORTNAME", "")
+    emp_number = str(emp.get("NUMBER", "") or "")
+
+    # Entered absences of this employee (optionally one leave type) within the range.
+    absences = [
+        a
+        for a in db.get_absences_list(employee_id=employee_id, leave_type_id=leave_type_id)
+        if from_date <= str(a.get("date", "")) <= to_date
+    ]
+    days = _requested_vacation_days(absences)
+    if leave_type_id is not None:
+        lt = db.get_leave_type(leave_type_id)
+        leave_name = lt.get("NAME", f"Typ #{leave_type_id}") if lt else f"Typ #{leave_type_id}"
+    else:
+        names = sorted({a.get("leave_type_name", "") for a in absences if a.get("leave_type_name")})
+        leave_name = ", ".join(names) if names else "Urlaub"
+
+    try:
+        from fpdf import FPDF, XPos, YPos
+    except ImportError:
+        raise HTTPException(status_code=500, detail="fpdf2 not installed.")
+
+    def S(text: str) -> str:
+        return _sanitize_pdf_text(str(text))
+
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_auto_page_break(auto=False)
+    pdf.add_page()
+    pw = pdf.w - 20  # usable width (10mm margins)
+
+    # ── Title ──────────────────────────────────────────────────
+    pdf.set_xy(10, 16)
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_text_color(30, 41, 59)
+    pdf.cell(pw, 10, "Urlaubsantrag", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="L")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(pw, 5, S(f"Antragsdatum: {_dt.now().strftime('%d.%m.%Y')}"),
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_draw_color(30, 41, 59)
+    pdf.set_line_width(0.5)
+    pdf.line(10, 34, pdf.w - 10, 34)
+    pdf.ln(8)
+
+    # ── Request details ────────────────────────────────────────
+    def field(label: str, value: str) -> None:
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(100, 116, 139)
+        pdf.cell(45, 8, S(label), new_x=XPos.RIGHT, new_y=YPos.TOP)
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(pw - 45, 8, S(value), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    applicant = emp_name + (f" ({emp_short})" if emp_short else "")
+    field("Antragsteller:", applicant)
+    if emp_number:
+        field("Personalnummer:", emp_number)
+    field("Abwesenheitsart:", leave_name)
+    period = _format_de_date(from_date)
+    if to_date != from_date:
+        period += f" - {_format_de_date(to_date)}"
+    field("Zeitraum:", period)
+    days_str = f"{days:g} Tag" + ("" if days == 1 else "e")
+    field("Beantragter Urlaub:", days_str)
+
+    pdf.ln(10)
+
+    # ── Decision (Genehmigt / Abgelehnt) ───────────────────────
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(30, 41, 59)
+    pdf.cell(pw, 7, "Entscheidung", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    box_y = pdf.get_y() + 1
+    pdf.set_draw_color(120, 120, 120)
+    pdf.set_line_width(0.4)
+    pdf.rect(12, box_y, 5, 5)
+    pdf.rect(72, box_y, 5, 5)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_xy(19, box_y - 0.5)
+    pdf.cell(45, 6, "Genehmigt", new_x=XPos.RIGHT, new_y=YPos.TOP)
+    pdf.set_xy(79, box_y - 0.5)
+    pdf.cell(45, 6, "Abgelehnt", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(pw, 6, "Begruendung bei Ablehnung:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(8)
+    pdf.set_draw_color(180, 180, 180)
+    for _ in range(2):
+        y = pdf.get_y()
+        pdf.line(12, y, pdf.w - 12, y)
+        pdf.ln(8)
+
+    # ── Signature lines (bottom of page) ───────────────────────
+    sig_y = pdf.h - 40
+    col_w = (pw - 10) / 2
+    pdf.set_draw_color(30, 41, 59)
+    pdf.set_line_width(0.3)
+    pdf.line(12, sig_y, 12 + col_w, sig_y)
+    pdf.line(pdf.w - 12 - col_w, sig_y, pdf.w - 12, sig_y)
+    pdf.set_xy(12, sig_y + 1)
+    pdf.set_font("Helvetica", "", 8)
+    pdf.set_text_color(100, 116, 139)
+    pdf.cell(col_w, 5, "Datum, Unterschrift Antragsteller", new_x=XPos.RIGHT, new_y=YPos.TOP)
+    pdf.set_xy(pdf.w - 12 - col_w, sig_y + 1)
+    pdf.cell(col_w, 5, "Datum, Unterschrift Vorgesetzter", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    pdf_bytes = pdf.output()
+    fname = f"urlaubsantrag_{employee_id}_{from_date}.pdf"
+    return _Response(
+        content=bytes(pdf_bytes or b""),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
 # ── Time Account / Overtime ──────────────────────────────────
 
 

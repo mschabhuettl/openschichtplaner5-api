@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Druckbarer „Urlaubsantrag" (`GET /api/reports/vacation-request`, PDF).** Erzeugt das
+  Urlaubsantrags-Formular des Originals für einen Mitarbeiter und einen Zeitraum
+  (`employee_id`, `from_date`, `to_date`, optional `leave_type_id`): Antragsteller,
+  Abwesenheitsart, Zeitraum, beantragte Tage und Antragsdatum, dazu Genehmigt-/
+  Abgelehnt-Ankreuzfeld und die Unterschriftszeilen „Datum, Unterschrift Antragsteller/
+  Vorgesetzter" (Original-Strings aus `SP5Res.dll`). Damit bekommt die Urlaubsgenehmigung
+  das papiergebundene Pendant des Originals; der interaktive Genehmigen/Ablehnen-Workflow
+  bleibt unverändert. Unbekannter Mitarbeiter → 404, ungültiger/umgekehrter Zeitraum → 400.
+
 ## [1.20.2] - 2026-06-29
 
 ### Fixed
