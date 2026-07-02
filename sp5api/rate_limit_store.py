@@ -31,7 +31,7 @@ def log_rate_limit_event(
     endpoint: str,
     detail: str = "",
 ) -> None:
-    """Append a rate-limit event to the log file."""
+    """Hängt ein Rate-Limit-Ereignis an die Logdatei an."""
     entry = {
         "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
         "user": user or "",
@@ -55,7 +55,7 @@ def get_rate_limit_events(
     user: str | None = None,
     limit: int = 500,
 ) -> list[dict]:
-    """Read rate-limit events, optionally filtered by time range and user.
+    """Liest Rate-Limit-Ereignisse, optional nach Zeitraum und Benutzer gefiltert.
 
     Returns newest-first, capped at *limit* entries.
     """
@@ -94,7 +94,7 @@ def get_rate_limit_events(
 
 
 def rotate_events() -> int:
-    """Trim the log file to the newest _MAX_EVENTS entries.
+    """Kürzt die Logdatei auf die neuesten _MAX_EVENTS Einträge.
 
     Returns the number of removed entries.
     """

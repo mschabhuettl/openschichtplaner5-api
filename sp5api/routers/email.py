@@ -1,4 +1,4 @@
-"""Email administration endpoints for OpenSchichtplaner5.
+"""E-Mail-Administrations-Endpunkte für OpenSchichtplaner5.
 
 Provides:
   GET  /api/email/config   – view current SMTP config (no password)
@@ -16,7 +16,7 @@ router = APIRouter(tags=["Email"])
 
 
 class TestEmailRequest(BaseModel):
-    """Request body for sending a test email."""
+    """Request-Body für den Test-Mail-Versand."""
 
     to: str = Field(..., description="Recipient email address", max_length=254)
 
@@ -27,7 +27,7 @@ class TestEmailRequest(BaseModel):
     description="Returns the current SMTP configuration (without password). Admin only.",
 )
 def get_email_config(_cur_user: dict = Depends(require_admin)):
-    """Return the current SMTP configuration (safe, no password)."""
+    """Liefert die aktuelle SMTP-Konfiguration (ohne Passwort)."""
     from sp5lib.email_service import get_config
 
     cfg = get_config()

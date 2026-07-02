@@ -66,7 +66,7 @@ def _save_all(data: dict) -> None:
 
 
 def get_user_settings(user_id: int) -> dict:
-    """Return settings for a user, merging with defaults."""
+    """Liefert die Einstellungen eines Benutzers, gemergt mit den Defaults."""
     all_settings = _load_all()
     user_key = str(user_id)
     stored = all_settings.get(user_key, {})
@@ -75,7 +75,7 @@ def get_user_settings(user_id: int) -> dict:
 
 @router.get("/api/notifications/settings", tags=["Notifications"])
 def get_notification_settings(current_user=Depends(require_auth)):
-    """Get the current user's notification settings."""
+    """Liefert die Benachrichtigungs-Einstellungen des angemeldeten Benutzers."""
     user_id = current_user.get("ID") or current_user.get("id")
     with _lock:
         settings = get_user_settings(user_id)
@@ -87,7 +87,7 @@ def update_notification_settings(
     payload: NotificationSettingsUpdate,
     current_user=Depends(require_auth),
 ):
-    """Update the current user's notification settings."""
+    """Aktualisiert die Benachrichtigungs-Einstellungen des angemeldeten Benutzers."""
     user_id = current_user.get("ID") or current_user.get("id")
     user_key = str(user_id)
     with _lock:

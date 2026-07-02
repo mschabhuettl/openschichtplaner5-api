@@ -1,4 +1,4 @@
-"""Qualification matrix and stats router (Q084)."""
+"""Router für Qualifikations-Matrix und -Statistik (Q084)."""
 
 import logging as _logging
 import re
@@ -112,7 +112,7 @@ def get_qualification_stats(
 
     total_employees = len(employees)
 
-    # qual_name -> list of {id, name}
+    # qual_name -> Liste aus {id, name}
     qual_employees: dict[str, list[dict]] = {}
 
     for e in employees:

@@ -111,7 +111,7 @@ class WebhookUpdate(BaseModel):
 
 
 def sign_payload(secret: str, payload: bytes) -> str:
-    """Create HMAC-SHA256 signature for webhook payload."""
+    """Erzeugt die HMAC-SHA256-Signatur der Webhook-Payload."""
     return hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
@@ -122,7 +122,7 @@ BACKOFF_MS = 500
 
 
 async def deliver_webhook(webhook: dict, event: str, data: dict) -> dict:
-    """Deliver a webhook event with retry logic. Returns delivery result."""
+    """Stellt ein Webhook-Ereignis mit Retry-Logik zu. Liefert das Ergebnis."""
     payload = json.dumps(
         {
             "event": event,
