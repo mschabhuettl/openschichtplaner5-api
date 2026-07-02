@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Schichtmodell-Einheit „Tage".** Anlegen und Ändern von Zyklen führen die
+  Einheit (Wochen/Tage) wie das Original; Tages-Modelle werden korrekt
+  materialisiert (benötigt libopenschichtplaner5 ≥ 1.29.0).
+
 ## [1.27.0] - 2026-07-02
 
 ### Added
