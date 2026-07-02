@@ -2,6 +2,8 @@
 
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import date as _date
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .. import cache
@@ -612,8 +614,21 @@ class ExtraChargeCreate(BaseModel):
         pattern=r"^[01]{7}$",
     )  # 7 chars: 0=inactive, 1=active per weekday (Mon-Sun)
     HOLRULE: int = Field(0, ge=0, le=2)  # 0=no holiday rule, 1=holidays only, 2=not on holidays
-    VALIDITY: int = Field(0, ge=0)
+    VALIDITY: int = Field(0, ge=0, le=1)  # 0=Wochentage (VALIDDAYS), 1=festes Datum (DATE)
+    DATE: str = Field("", max_length=10)  # YYYY-MM-DD, nur bei VALIDITY=1
     HIDE: bool = False
+
+    @model_validator(mode="after")
+    def datum_bei_validity_1(self) -> "ExtraChargeCreate":
+        # Spec 3.8.2 Nr. 5: der Festes-Datum-Modus braucht ein gültiges Datum.
+        if self.VALIDITY == 1:
+            try:
+                _date.fromisoformat(self.DATE)
+            except ValueError as exc:
+                raise ValueError(
+                    "Modus 'festes Datum' erfordert ein gültiges Datum (JJJJ-MM-TT)"
+                ) from exc
+        return self
 
 
 class ExtraChargeUpdate(BaseModel):
@@ -622,7 +637,8 @@ class ExtraChargeUpdate(BaseModel):
     END: int | None = Field(None, ge=0, le=1440)
     VALIDDAYS: str | None = Field(None, min_length=7, max_length=7, pattern=r"^[01]{7}$")
     HOLRULE: int | None = Field(None, ge=0, le=2)
-    VALIDITY: int | None = Field(None, ge=0)
+    VALIDITY: int | None = Field(None, ge=0, le=1)
+    DATE: str | None = Field(None, max_length=10)
     POSITION: int | None = None
     HIDE: bool | None = None
 
