@@ -1,7 +1,7 @@
-"""Scheduled Reports router for OpenSchichtplaner5.
+"""Router für geplante Berichte in OpenSchichtplaner5.
 
-Provides CRUD endpoints for scheduled report configurations plus a background
-scheduler that automatically generates and emails reports on configured frequencies.
+CRUD-Endpunkte für geplante Berichts-Konfigurationen plus ein Hintergrund-
+Scheduler, der Berichte in den konfigurierten Frequenzen erzeugt und mailt.
 
 Supported report types:
   - schedule_overview   : Monthly schedule grid (Excel/CSV)
@@ -87,7 +87,7 @@ def _get_report_by_id(report_id: str) -> tuple[list[dict], int, dict]:
 
 
 class ScheduledReportCreate(BaseModel):
-    """Request body for creating a scheduled report."""
+    """Request-Body zum Anlegen eines geplanten Berichts."""
 
     name: str = Field(..., min_length=1, max_length=100, description="Human-readable report name")
     report_type: str = Field(..., description="Type of report: schedule_overview, overtime, absences")
@@ -130,7 +130,7 @@ class ScheduledReportCreate(BaseModel):
 
 
 class ScheduledReportUpdate(BaseModel):
-    """Request body for updating a scheduled report (all fields optional)."""
+    """Request-Body zum Ändern eines geplanten Berichts (alle Felder optional)."""
 
     name: str | None = Field(None, min_length=1, max_length=100)
     report_type: str | None = None
@@ -177,7 +177,7 @@ class ScheduledReportUpdate(BaseModel):
 
 
 def _compute_next_run(frequency: str, from_dt: _dt | None = None) -> str:
-    """Compute the next run time for a given frequency."""
+    """Berechnet den nächsten Lauf-Zeitpunkt einer Frequenz."""
     now = from_dt or _dt.now(UTC)
     if frequency == "daily":
         next_run = now + timedelta(days=1)
@@ -193,7 +193,7 @@ def _compute_next_run(frequency: str, from_dt: _dt | None = None) -> str:
 
 
 def _get_reference_month(frequency: str) -> tuple[int, int]:
-    """Return (year, month) for the report period based on frequency."""
+    """Liefert (Jahr, Monat) des Berichtszeitraums je nach Frequenz."""
     now = _dt.now(UTC)
     if frequency == "daily":
         # yesterday
@@ -490,7 +490,7 @@ def _generate_absences_report(year: int, month: int, filters: dict, fmt: str) ->
 
 
 def generate_report(report: dict) -> tuple[bytes, str]:
-    """Dispatch to the correct report generator. Returns (file_bytes, filename)."""
+    """Verteilt an den passenden Berichts-Generator. Liefert (file_bytes, filename)."""
     report_type = report.get("report_type", "schedule_overview")
     frequency = report.get("frequency", "monthly")
     fmt = report.get("format", "xlsx")
@@ -511,7 +511,7 @@ def generate_report(report: dict) -> tuple[bytes, str]:
 
 
 def send_report_email(report: dict, file_bytes: bytes, filename: str) -> dict:
-    """Send the report file via email using the existing email service config."""
+    """Versendet die Berichtsdatei per Mail über die bestehende E-Mail-Konfiguration."""
     import smtplib
     from email import encoders
     from email.mime.base import MIMEBase
@@ -615,7 +615,7 @@ _scheduler_reports_sent: int = 0
 
 
 def _run_due_reports() -> int:
-    """Check all scheduled reports and send any that are due. Returns count sent."""
+    """Prüft alle geplanten Berichte und versendet fällige. Liefert die Anzahl."""
     global _scheduler_last_run, _scheduler_reports_sent
     now = _dt.now(UTC)
     reports = _load_reports()
@@ -643,7 +643,7 @@ def _run_due_reports() -> int:
             except Exception as exc:
                 _logger.error("Error running scheduled report '%s': %s", report_id, exc)
 
-            # Update next_run regardless of success
+            # next_run unabhängig vom Erfolg aktualisieren
             reports_list, idx, _ = _get_report_by_id(report_id)
             reports_list[idx]["next_run"] = _compute_next_run(report.get("frequency", "monthly"), now)
             reports_list[idx]["last_run"] = now.isoformat()
@@ -655,7 +655,7 @@ def _run_due_reports() -> int:
 
 
 def _scheduler_loop(interval_seconds: int = 300) -> None:
-    """Background loop that periodically checks for due reports."""
+    """Hintergrund-Schleife, die periodisch nach fälligen Berichten schaut."""
     global _scheduler_running
     _logger.info("Scheduled reports background scheduler started (interval=%ds)", interval_seconds)
     while _scheduler_running:
@@ -674,7 +674,7 @@ def _scheduler_loop(interval_seconds: int = 300) -> None:
 
 
 def start_scheduler(interval_seconds: int = 300) -> None:
-    """Start the background scheduler thread (idempotent)."""
+    """Startet den Hintergrund-Scheduler-Thread (idempotent)."""
     global _scheduler_thread, _scheduler_running
     with _scheduler_lock:
         if _scheduler_thread is not None and _scheduler_thread.is_alive():
@@ -690,7 +690,7 @@ def start_scheduler(interval_seconds: int = 300) -> None:
 
 
 def stop_scheduler() -> None:
-    """Stop the background scheduler thread."""
+    """Stoppt den Hintergrund-Scheduler-Thread."""
     global _scheduler_running
     _scheduler_running = False
 
@@ -746,7 +746,7 @@ def create_scheduled_report(
     description="Returns background scheduler status. **Required role:** Admin",
 )
 def get_scheduler_status(_cur_user: dict = Depends(require_admin)) -> dict:
-    """Return the background scheduler status."""
+    """Liefert den Status des Hintergrund-Schedulers."""
     return {
         "running": _scheduler_running and (_scheduler_thread is not None) and _scheduler_thread.is_alive(),
         "last_run": _scheduler_last_run,
@@ -822,7 +822,7 @@ def run_scheduled_report(
     report_id: str,
     _cur_user: dict = Depends(require_admin),
 ) -> dict:
-    """Manually trigger a scheduled report: generate and email it."""
+    """Löst einen geplanten Bericht manuell aus: erzeugen und mailen."""
     reports, idx, report = _get_report_by_id(report_id)
     try:
         file_bytes, filename = generate_report(report)

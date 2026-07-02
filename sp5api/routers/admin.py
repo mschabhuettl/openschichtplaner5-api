@@ -76,7 +76,7 @@ class PeriodCreate(BaseModel):
     description="Create a new accounting/settlement period for a group. Dates must be in YYYY-MM-DD format. Requires Planer role.",
 )
 def create_period(body: PeriodCreate, _cur_user: dict = Depends(require_planer)):
-    # Date format and order already validated by Pydantic model
+    # Datumsformat und -reihenfolge bereits vom Pydantic-Modell validiert
     try:
         data = {
             "group_id": body.group_id,
@@ -218,7 +218,7 @@ def update_settings(body: SettingsUpdate, _cur_user: dict = Depends(require_admi
 _BACKUP_ALLOWED_EXT = {".DBF", ".FPT", ".CDX"}
 _BACKUP_MAX_COUNT = 7
 
-# Critical DBF files that must be present for a valid backup
+# Kritische DBF-Dateien, die ein gültiges Backup enthalten muss
 _BACKUP_REQUIRED_FILES = {
     "5EMPL.DBF",  # Employees (core)
     "5USER.DBF",  # Users / logins
@@ -246,9 +246,9 @@ def _get_backup_dir() -> str:
 
 
 def _create_zip_bytes(db_path: str) -> bytes:
-    """Create a ZIP of all DBF/FPT/CDX files and return as bytes.
+    """Erzeugt ein ZIP aller DBF/FPT/CDX-Dateien und liefert es als Bytes.
 
-    Raises HTTPException 500 if critical DBF files are missing.
+    Wirft HTTPException 500, wenn kritische DBF-Dateien fehlen.
     """
     all_files = {
         fname
@@ -277,7 +277,7 @@ def _create_zip_bytes(db_path: str) -> bytes:
 
 
 def _rotate_backups(backup_dir: str, max_count: int = _BACKUP_MAX_COUNT):
-    """Keep only the newest max_count backup files."""
+    """Behält nur die neuesten max_count Backup-Dateien."""
     files = sorted(
         [
             f
@@ -319,7 +319,7 @@ def create_auto_backup() -> str | None:
         _logger.info("Auto-backup skipped: backup dir not writable: %s", backup_dir)
         return None
 
-    # Check if last backup is younger than 24h
+    # Prüfen, ob das letzte Backup jünger als 24 h ist
     existing = sorted(
         [
             f
@@ -460,7 +460,7 @@ def delete_saved_backup(filename: str, _admin: dict = Depends(require_admin)):
 )
 @limiter.limit("3/minute")
 def backup_download(request: Request, _admin: dict = Depends(require_admin)):
-    """Create a ZIP of all .DBF / .FPT / .CDX files and return as download. Also saves to backup dir."""
+    """Erzeugt ein ZIP aller .DBF/.FPT/.CDX-Dateien als Download; speichert zusätzlich ins Backup-Verzeichnis."""
     db_path = _get_db_path()
     if not db_path or not os.path.isdir(db_path):
         raise HTTPException(
@@ -507,7 +507,7 @@ def backup_sqlite_download(
     compress: bool = Query(False, description="Return .gz compressed"),
     _admin: dict = Depends(require_admin),
 ):
-    """Export current DBF data as a SQLite .db file for download."""
+    """Exportiert die aktuellen DBF-Daten als SQLite-.db-Datei zum Download."""
     db_path = _get_db_path()
     if not db_path or not os.path.isdir(db_path):
         raise HTTPException(
@@ -618,9 +618,9 @@ async def backup_restore(
 
     names_in_zip = zf.namelist()
 
-    # Security: reject any entry with path traversal components (Zip Slip prevention)
+    # Sicherheit: Einträge mit Path-Traversal-Komponenten abweisen (Zip-Slip-Schutz)
     for entry in names_in_zip:
-        # Normalize separators; reject anything that escapes the target directory
+        # Trenner normalisieren; alles abweisen, was das Zielverzeichnis verlässt
         norm = entry.replace("\\", "/")
         if ".." in norm.split("/") or norm.startswith("/"):
             raise HTTPException(
@@ -642,7 +642,7 @@ async def backup_restore(
             basename = os.path.basename(name)
             if not basename:
                 continue
-            # Extra safety: ensure the resolved destination is inside DB_PATH
+            # Zusätzliche Sicherheit: aufgelöstes Ziel muss in DB_PATH liegen
             dest = os.path.normpath(os.path.join(safe_db_path, basename))
             if not dest.startswith(safe_db_path + os.sep) and dest != safe_db_path:
                 # Should never happen since basename has no path separators, but
@@ -678,7 +678,7 @@ async def backup_restore(
     ),
 )
 def compact_database(_cur_user: dict = Depends(require_admin)):
-    """Compact the database via the lib facade (SP5Database.compact_database)."""
+    """Komprimiert die Datenbank über die lib-Fassade (SP5Database.compact_database)."""
     db = get_db()
     if not hasattr(db, "compact_database"):
         raise HTTPException(
@@ -722,7 +722,7 @@ class FrontendErrorReport(BaseModel):
 @router.post("/api/errors", tags=["Health"], summary="Report frontend error", description="Receive a frontend error report and store it.")
 @limiter.limit("10/minute")
 def report_frontend_error(request: Request, body: FrontendErrorReport):
-    """Receive a frontend error report and store it."""
+    """Nimmt einen Frontend-Fehlerbericht entgegen und speichert ihn."""
     errors = _load_frontend_errors()
     entry = {
         "timestamp": body.timestamp

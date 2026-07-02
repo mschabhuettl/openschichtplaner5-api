@@ -1,23 +1,24 @@
-"""Pluggable server-side session store for OpenSchichtplaner5.
+"""Steckbarer serverseitiger Session-Store für OpenSchichtplaner5.
 
-The API keeps a server-side record of every issued session (keyed by the JWT
-``sid`` claim, or by a raw token for legacy/dev sessions) so that tokens can be
-revoked, expired and limited per user. Historically this lived in a single
-in-process ``dict`` (``dependencies._sessions``), which rules out multi-worker
-deployments because the dict is not shared between worker processes.
+Die API führt serverseitig Buch über jede ausgegebene Session (Schlüssel: der
+JWT-``sid``-Claim, bzw. ein rohes Token für Legacy-/Dev-Sessions), damit Tokens
+widerrufen, ablaufen gelassen und je Benutzer begrenzt werden können.
+Historisch lag das in EINEM In-Prozess-``dict`` (``dependencies._sessions``) —
+das schließt Multi-Worker-Deployments aus, weil das dict nicht zwischen
+Worker-Prozessen geteilt wird.
 
-This module introduces a tiny ``SessionStore`` abstraction with two backends:
+Dieses Modul führt eine kleine ``SessionStore``-Abstraktion mit zwei Backends ein:
 
-* ``MemorySessionStore`` — the DEFAULT. It wraps the very same ``_sessions``
-  dict by reference, so behaviour is byte-identical to before and any code or
-  test that still pokes ``_sessions`` directly stays consistent.
-* ``RedisSessionStore`` — stores each session as a Redis key with a TTL and
-  maintains a per-user secondary index (a Redis set per user id) so the
-  per-user eviction loop works across workers. ``redis`` is imported lazily so
-  the package keeps no hard dependency on it.
+* ``MemorySessionStore`` — der DEFAULT. Umhüllt exakt dasselbe ``_sessions``-
+  dict per Referenz: Verhalten byte-identisch wie zuvor, und Code/Tests, die
+  ``_sessions`` direkt anfassen, bleiben konsistent.
+* ``RedisSessionStore`` — legt jede Session als Redis-Key mit TTL ab und
+  pflegt einen Sekundärindex je Benutzer (ein Redis-Set je User-ID), damit die
+  Je-Benutzer-Räumung über Worker hinweg funktioniert. ``redis`` wird lazy
+  importiert — das Paket behält keine harte Abhängigkeit.
 
-Select the backend via ``SP5_SESSION_BACKEND`` (``memory`` | ``redis``); the
-Redis connection URL comes from ``SP5_REDIS_URL``.
+Backend-Wahl via ``SP5_SESSION_BACKEND`` (``memory`` | ``redis``); die
+Redis-Verbindungs-URL kommt aus ``SP5_REDIS_URL``.
 """
 
 from __future__ import annotations
@@ -29,32 +30,32 @@ from typing import Any
 
 
 class SessionStore:
-    """Interface for the server-side session store.
+    """Schnittstelle des serverseitigen Session-Stores.
 
-    A session is a plain ``dict`` of user data plus an ``expires_at`` epoch
-    float (or ``None`` for non-expiring sessions, e.g. the dev-mode token). The
-    key is the session id — the JWT ``sid`` for normal logins, or a raw token
-    string for legacy/dev sessions.
+    Eine Session ist ein einfaches ``dict`` mit Benutzerdaten plus
+    ``expires_at``-Epoch-Float (oder ``None`` für nicht ablaufende Sessions,
+    z. B. das Dev-Modus-Token). Der Schlüssel ist die Session-ID — der
+    JWT-``sid`` normaler Logins, oder ein roher Token-String bei Legacy/Dev.
     """
 
     def set(self, session_id: str, data: dict, expires_at: float | None) -> None:
-        """Store ``data`` under ``session_id`` (expiring at ``expires_at``)."""
+        """Legt ``data`` unter ``session_id`` ab (Ablauf bei ``expires_at``)."""
         raise NotImplementedError
 
     def get(self, session_id: str) -> dict | None:
-        """Return the session data, or ``None`` if missing or expired.
+        """Liefert die Session-Daten, oder ``None`` wenn fehlend/abgelaufen.
 
-        Implementations purge the entry when it is found expired, matching the
-        original in-memory behaviour.
+        Implementierungen räumen den Eintrag beim Fund als abgelaufen weg —
+        wie das ursprüngliche In-Memory-Verhalten.
         """
         raise NotImplementedError
 
     def delete(self, session_id: str) -> bool:
-        """Remove ``session_id``. Return ``True`` if it existed."""
+        """Entfernt ``session_id``. Liefert ``True``, wenn sie existierte."""
         raise NotImplementedError
 
     def sessions_for_user(self, user_id: Any) -> list[tuple[str, dict]]:
-        """Return ``(session_id, data)`` for all sessions of ``user_id``."""
+        """Liefert ``(session_id, data)`` für alle Sessions von ``user_id``."""
         raise NotImplementedError
 
 
@@ -90,15 +91,15 @@ class MemorySessionStore(SessionStore):
 
 
 class RedisSessionStore(SessionStore):
-    """Redis backend: one key per session (with TTL) + a per-user index set.
+    """Redis-Backend: ein Key je Session (mit TTL) + Index-Set je Benutzer.
 
-    Layout (keys are prefixed to avoid clashing with other Redis users):
+    Layout (Keys mit Präfix, um anderen Redis-Nutzern nicht in die Quere zu kommen):
 
-    * ``<prefix>session:<session_id>`` → JSON-encoded session data, with a TTL
-      derived from ``expires_at`` so Redis evicts expired sessions for us.
-    * ``<prefix>user:<user_id>`` → a SET of the session ids for that user,
-      enabling the per-user eviction lookup. Stale member ids (whose session
-      key has already expired/been deleted) are pruned lazily on read.
+    * ``<prefix>session:<session_id>`` → JSON-kodierte Session-Daten mit TTL
+      aus ``expires_at`` — Redis räumt abgelaufene Sessions selbst.
+    * ``<prefix>user:<user_id>`` → SET der Session-IDs des Benutzers für den
+      Je-Benutzer-Räumungs-Lookup. Veraltete Mitglieds-IDs (deren Session-Key
+      schon abgelaufen/gelöscht ist) werden beim Lesen lazy weggeputzt.
     """
 
     def __init__(self, client, prefix: str = "sp5:"):
@@ -133,8 +134,8 @@ class RedisSessionStore(SessionStore):
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8")
         data = json.loads(raw)
-        # Honour the in-payload expiry too (TTL is the primary guard, but a test
-        # may set expires_at without a matching TTL): purge if past.
+        # Auch den Ablauf in der Payload beachten (TTL ist der primäre Schutz,
+        # aber ein Test kann expires_at ohne passende TTL setzen): wenn vorbei, räumen.
         expires_at = data.get("expires_at")
         if expires_at is not None and time.time() > expires_at:
             self.delete(session_id)
@@ -160,7 +161,7 @@ class RedisSessionStore(SessionStore):
             sid = member.decode("utf-8") if isinstance(member, bytes) else member
             data = self.get(sid)
             if data is None:
-                # Session key gone (expired/revoked) — prune the stale index entry.
+                # Session-Key weg (abgelaufen/widerrufen) — den veralteten Index-Eintrag putzen.
                 self._r.srem(self._ukey(user_id), sid)
                 continue
             result.append((sid, data))
@@ -168,10 +169,10 @@ class RedisSessionStore(SessionStore):
 
 
 def _make_redis_client(url: str):
-    """Lazily import ``redis`` and build a client for ``url``.
+    """Importiert ``redis`` lazy und baut einen Client für ``url``.
 
-    Imported here (not at module top) so the package has no hard dependency on
-    redis — it is only required when the redis backend is actually selected.
+    Import hier (nicht am Modulkopf), damit das Paket keine harte redis-
+    Abhängigkeit hat — gebraucht nur, wenn das redis-Backend gewählt ist.
     """
     import redis  # noqa: PLC0415 — lazy by design
 
@@ -179,14 +180,14 @@ def _make_redis_client(url: str):
 
 
 def create_session_store(backing: dict[str, dict], env: dict[str, str] | None = None) -> SessionStore:
-    """Build the session store selected by the environment.
+    """Baut den per Umgebung gewählten Session-Store.
 
-    ``SP5_SESSION_BACKEND`` (default ``memory``) chooses the backend; ``redis``
-    enables :class:`RedisSessionStore` using ``SP5_REDIS_URL`` (default
-    ``redis://localhost:6379/0``). Any other value falls back to memory.
+    ``SP5_SESSION_BACKEND`` (Default ``memory``) wählt das Backend; ``redis``
+    aktiviert :class:`RedisSessionStore` mit ``SP5_REDIS_URL`` (Default
+    ``redis://localhost:6379/0``). Jeder andere Wert fällt auf memory zurück.
 
-    ``backing`` is the existing in-process ``_sessions`` dict; the memory store
-    wraps it so existing direct-access code keeps working unchanged.
+    ``backing`` ist das bestehende In-Prozess-``_sessions``-dict; der
+    Memory-Store umhüllt es, damit direkter Zugriff unverändert funktioniert.
     """
     env = os.environ if env is None else env
     backend = (env.get("SP5_SESSION_BACKEND") or "memory").strip().lower()
