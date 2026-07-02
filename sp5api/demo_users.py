@@ -44,7 +44,7 @@ def demo_seeding_enabled() -> bool:
 
 
 def ensure_demo_users(db) -> list[str]:
-    """Upsert the demo accounts. Returns the list of newly *created* usernames.
+    """Upsertet die Demo-Konten. Liefert die Liste der NEU angelegten Benutzernamen.
 
     Missing accounts are created; an account that already exists under the same
     (case-insensitive) name has its password reset to ``Test1234`` and its role

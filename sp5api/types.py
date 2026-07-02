@@ -1,4 +1,4 @@
-"""Common type aliases for the SP5 backend API."""
+"""Gemeinsame Typ-Aliase der SP5-Backend-API."""
 
 from typing import Any
 

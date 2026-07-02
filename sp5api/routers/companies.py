@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/companies", tags=["Companies"])
 # ── Helpers ──────────────────────────────────────────────────
 
 def _get_orm_session():
-    """Get an ORM session connected to the app's ORM SQLite store."""
+    """Liefert eine ORM-Session auf den ORM-SQLite-Store der App."""
     from sp5lib.orm import get_engine, init_db
     from sp5lib.orm.base import get_session
 
@@ -240,7 +240,7 @@ def update_company(company_id: int, body: CompanyUpdate, user: dict = Depends(re
 
 @router.delete("/{company_id}")
 def delete_company(company_id: int, user: dict = Depends(require_admin)):
-    """Deactivate a company (soft-delete). Cannot delete the default company (id=1)."""
+    """Deaktiviert eine Firma (Soft-Delete). Die Default-Firma (id=1) ist nicht löschbar."""
     from sp5lib.orm.models import Company
 
     if company_id == 1:
