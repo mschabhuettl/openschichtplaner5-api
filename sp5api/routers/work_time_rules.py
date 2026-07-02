@@ -46,7 +46,7 @@ def _load_rules() -> dict[str, Any]:
     if _RULES_FILE.exists():
         try:
             data = json.loads(_RULES_FILE.read_text())
-            # Merge with defaults for forward-compatibility
+            # Mit Defaults mergen (vorwärtskompatibel)
             merged = dict(_DEFAULT_RULES)
             merged.update(data)
             return merged
@@ -192,7 +192,7 @@ def _check_employee(
     to_date: date,
     rules: dict,
 ) -> list[dict]:
-    """Run all rule checks for a single employee. Returns list of violation dicts."""
+    """Führt alle Regelprüfungen für einen MA aus. Liefert die Verstoß-dicts."""
     violations: list[dict] = []
 
     if not rules.get("enabled", True):
@@ -228,7 +228,7 @@ def _check_employee(
 
     for (yr, wk), hrs in sorted(week_hours.items()):
         if hrs > max_week:
-            # Find Monday of that week for the date field
+            # Montag dieser Woche fürs Datumsfeld bestimmen
             mon = date.fromisocalendar(yr, wk, 1)
             violations.append({
                 "type": "max_hours_per_week",
@@ -242,7 +242,7 @@ def _check_employee(
 
     # ── Min rest between shifts ───────────────────────────────────
     for prev, curr in zip(shift_blocks, shift_blocks[1:], strict=False):
-        # Calculate actual rest in hours between end of prev and start of curr
+        # Tatsächliche Ruhezeit in Stunden zwischen Vor-Ende und Ist-Beginn
         rest_hours = (curr["start"] - prev["end"]).total_seconds() / 3600
         if 0 < rest_hours < min_rest:
             violations.append({

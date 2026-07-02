@@ -66,7 +66,7 @@ class TimeWindow(BaseModel):
 
 
 class DayAvailability(BaseModel):
-    """Availability for a single day of the week."""
+    """Verfügbarkeit eines einzelnen Wochentags."""
 
     day: int = Field(..., ge=0, le=6, description="Wochentag: 0=Montag, 6=Sonntag")
     available: bool = Field(True, description="Whether the employee is available on this day")
@@ -81,7 +81,7 @@ class DayAvailability(BaseModel):
             raise ValueError(
                 f"Tag {self.day}: Zeitfenster nicht erlaubt wenn available=false"
             )
-        # Check for overlapping windows
+        # Auf überlappende Zeitfenster prüfen
         windows = sorted(self.time_windows, key=lambda w: w.start)
         for i in range(1, len(windows)):
             if windows[i].start < windows[i - 1].end:
@@ -93,7 +93,7 @@ class DayAvailability(BaseModel):
 
 
 class AvailabilityUpdate(BaseModel):
-    """Full weekly availability update for an employee."""
+    """Vollständiges Wochen-Verfügbarkeits-Update eines Mitarbeiters."""
 
     days: list[DayAvailability] = Field(
         ...,
@@ -206,7 +206,7 @@ def update_availability(
         else:
             existing_days = {d["day"]: d for d in existing.get("days", [])}
 
-        # Merge: update only the provided days
+        # Merge: nur die übergebenen Tage aktualisieren
         for d in body.days:
             existing_days[d.day] = d.model_dump()
 

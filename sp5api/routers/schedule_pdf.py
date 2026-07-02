@@ -32,7 +32,7 @@ def _build_schedule_html(
     db,
     abs_mode: int = 0,
 ) -> str:
-    """Build a print-friendly HTML page with the schedule table."""
+    """Baut eine druckfreundliche HTML-Seite mit der Plantabelle."""
     num_days = calendar.monthrange(year, month)[1]
     month_name = _MONTH_NAMES_DE[month - 1]
 
@@ -82,7 +82,7 @@ def _build_schedule_html(
     # Sort employees by name
     emp_ids_seen.sort(key=lambda eid: emp_map[eid]["name"])
 
-    # Build grid: emp_id → day → list of cell labels
+    # Raster bauen: emp_id → Tag → Zell-Beschriftungen
     grid: dict[int, dict[int, list[str]]] = {
         eid: {d: [] for d in range(1, num_days + 1)}
         for eid in emp_ids_seen
@@ -377,7 +377,7 @@ def get_schedule_pdf(
     _cur_user: dict = Depends(require_planer),
     abs_mode: int = Depends(absence_visibility_mode),
 ):
-    """Return a print-optimized HTML schedule for the given month.
+    """Liefert den druckoptimierten HTML-Plan des Monats.
 
     The response is Content-Type: text/html. Open in a browser and
     use the browser's print function (Ctrl+P) to save as PDF.

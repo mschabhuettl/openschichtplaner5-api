@@ -41,7 +41,7 @@ def get_employee_overtime(
     month: int = Query(..., ge=1, le=12, description="Month (1–12)"),
     _user: dict = Depends(require_planer),
 ):
-    """Return overtime/underhours for one employee for a given month."""
+    """Liefert Über-/Minusstunden eines Mitarbeiters für einen Monat."""
     db = get_db()
     emp = db.get_employee(emp_id)
     if emp is None:
@@ -85,7 +85,7 @@ def get_overtime_summary(
     group_id: int | None = Query(None, description="Optional: filter by group ID"),
     _user: dict = Depends(require_planer),
 ):
-    """Return overtime/underhours summary for all employees in a month."""
+    """Liefert die Über-/Minusstunden-Übersicht aller Mitarbeiter eines Monats."""
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="Ungültiger Monat: muss zwischen 1 und 12 liegen")
 
@@ -97,7 +97,7 @@ def get_overtime_summary(
 
     rows = db.get_statistics(year, month, group_id=group_id)
     if group_id is not None and not rows:
-        # Return empty list with metadata rather than 404 — group may have no members
+        # Leere Liste mit Metadaten statt 404 — die Gruppe kann leer sein
         _logger.debug("Overtime summary: group %d has no active members", group_id)
 
     result = [

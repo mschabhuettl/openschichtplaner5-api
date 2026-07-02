@@ -1,4 +1,4 @@
-"""Server-Sent Events (SSE) router for real-time updates."""
+"""Server-Sent-Events-(SSE)-Router für Echtzeit-Updates."""
 
 import asyncio
 import json
@@ -16,7 +16,7 @@ _logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/events", tags=["Events"])
 
 # ── In-memory subscriber registry ──────────────────────────────
-# List of (loop, queue) tuples — each SSE connection gets one.
+# Liste von (loop, queue)-Tupeln — eines je SSE-Verbindung.
 _lock = threading.Lock()
 _subscribers: list[tuple[asyncio.AbstractEventLoop, asyncio.Queue]] = []
 
@@ -46,7 +46,7 @@ def broadcast(event_type: str, data: dict | None = None) -> None:
 async def _event_generator(
     request: Request, queue: asyncio.Queue, loop: asyncio.AbstractEventLoop
 ) -> AsyncGenerator[str, None]:
-    """Yield SSE-formatted strings from the queue until the client disconnects."""
+    """Liefert SSE-formatierte Strings aus der Queue, bis der Client trennt."""
     try:
         # Send initial "connected" event
         yield "event: connected\ndata: {}\n\n"
@@ -62,7 +62,7 @@ async def _event_generator(
                 # Send keepalive comment every 25s
                 yield ": keepalive\n\n"
     finally:
-        # Use the same loop object that was registered to ensure correct removal
+        # Dasselbe registrierte Loop-Objekt nutzen (korrektes Entfernen)
         with _lock:
             try:
                 _subscribers.remove((loop, queue))

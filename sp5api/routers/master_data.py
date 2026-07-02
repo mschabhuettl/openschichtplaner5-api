@@ -449,7 +449,7 @@ class HolidayUpdate(BaseModel):
 
 @router.post("/api/holidays", tags=["Events"], summary="Create holiday", description="Create a new public holiday entry. INTERVAL: 0=ganztägig, 1/2=halber Feiertag. repeat_years=true legt den Termin zusätzlich für die nächsten 9 Jahre an. Requires Admin role.")
 def create_holiday(body: HolidayCreate, _cur_user: dict = Depends(require_admin)):
-    # DATE and NAME validation handled by Pydantic model
+    # DATE- und NAME-Validierung übernimmt das Pydantic-Modell
     try:
         result = get_db().create_holiday(
             body.model_dump(exclude={"repeat_years"}),
@@ -834,7 +834,7 @@ def create_special_staffing(
     body: SpecialStaffingCreate, _cur_user: dict = Depends(require_planer)
 ):
     """Create a date-specific staffing requirement."""
-    # Date format and range validated by Pydantic model
+    # Datumsformat und -bereich validiert das Pydantic-Modell
     try:
         result = get_db().create_special_staffing(
             groupid=body.group_id,
@@ -1022,7 +1022,7 @@ def get_assignments(employee_id: int | None = Query(None)):
 )
 def add_assignment(body: SkillAssignment, _cur_user: dict = Depends(require_admin)):
     data = _load_skills()
-    # Remove existing assignment for same employee+skill
+    # Bestehende Zuweisung desselben MA+Skills entfernen
     data["assignments"] = [
         a
         for a in data.get("assignments", [])
@@ -1062,7 +1062,7 @@ def delete_assignment(assignment_id: str, _cur_user: dict = Depends(require_admi
 
 @router.get("/api/skills/matrix", tags=["Employees"], summary="Skills matrix overview", description="Full matrix: all employees × all skills with assignment details.")
 def get_skills_matrix(_cur_user: dict = Depends(require_auth)):
-    """Full matrix: all employees × all skills with assignment details."""
+    """Volle Matrix: alle MA × alle Skills mit Zuweisungsdetails."""
     data = _load_skills()
     skills = data.get("skills", [])
     assignments = data.get("assignments", [])
