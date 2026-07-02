@@ -1,0 +1,3 @@
+# Laufzeit-Uploads (MA-Fotos) gehören ins Deployment-Volume, nicht ins Repo.
+*
+!.gitignore
