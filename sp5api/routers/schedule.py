@@ -97,12 +97,12 @@ def get_schedule_coverage(
     month: int = Query(..., description="Month (1-12)"),
     group_id: int | None = Query(None, description="Filter by group ID"),
 ):
-    """Return daily coverage status for the given month (Spec 3.9.4).
+    """Liefert den täglichen Besetzungsstatus des Monats (Spec 3.9.4).
 
-    Each day: { day, date, scheduled_count, required_count, required_min,
+    Je Tag: { day, date, scheduled_count, required_count, required_min,
     required_max, status: under|ok|over|none, cells: [...] }.
-    Days without any defined demand report status "none" and
-    required_count=None instead of the former hard-coded requirement of 3.
+    Tage ohne definierten Bedarf melden status "none" und
+    required_count=None statt der früheren hartkodierten 3.
     """
     if not (1 <= month <= 12):
         raise HTTPException(
@@ -183,7 +183,7 @@ def get_schedule_conflicts(
     month: int = Query(..., description="Month (1-12)"),
     group_id: int | None = Query(None, description="Group ID filter"),
 ):
-    """Return all scheduling conflicts for a given month."""
+    """Liefert alle Planungskonflikte eines Monats."""
     if not (1 <= month <= 12):
         raise HTTPException(
             status_code=400, detail="Invalid month: must be between 1 and 12"
@@ -243,7 +243,7 @@ class CycleAssignBody(BaseModel):
     description="Assign an employee to a shift rotation cycle. Requires Planer role.",
 )
 def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_write("WCYCLEASS"))):
-    # start_date format already validated by Pydantic pattern; also parse for calendar validity
+    # start_date-Format bereits per Pydantic-Pattern validiert; zusätzlich auf Kalender-Gültigkeit parsen
     try:
         from datetime import datetime
 
@@ -261,7 +261,7 @@ def assign_cycle(body: CycleAssignBody, _cur_user: dict = Depends(require_write(
             detail="end_date darf nicht vor start_date liegen",
         )
     db = get_db()
-    # Referential integrity: verify employee and cycle exist
+    # Referentielle Integrität: Mitarbeiter und Zyklus müssen existieren
     if db.get_employee(body.employee_id) is None:
         raise HTTPException(
             status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden"
@@ -352,8 +352,9 @@ def update_shift_cycle(
     except Exception as e:
         raise _sanitize_500(e)
     # Replace all entries: clear old ones, write new ones.
-    # On partial failure we log the error but do not leave the cycle completely
-    # empty — we re-apply what we managed to write so the caller gets a clear error.
+    # Bei Teilfehlern loggen wir den Fehler, lassen den Zyklus aber nicht komplett
+    # leer — das bereits Geschriebene wird erneut angewandt, der Aufrufer bekommt
+    # einen klaren Fehler.
     errors = []
     db.clear_cycle_entries(cycle_id)
     for entry in body.entries:
@@ -393,9 +394,9 @@ def delete_shift_cycle(cycle_id: int, _cur_user: dict = Depends(require_planer))
 
 
 # ── Schedule Templates (Schicht-Vorlagen & Favoriten) ────────
-# NOTE: these routes must be registered BEFORE the generic
-#       DELETE /api/schedule/{employee_id}/{date} route to avoid
-#       "templates" being parsed as an employee_id integer.
+# HINWEIS: diese Routen müssen VOR der generischen Route
+#          DELETE /api/schedule/{employee_id}/{date} registriert sein, sonst
+#          wird "templates" als employee_id-Integer geparst.
 
 
 class TemplateAssignment(BaseModel):
@@ -465,7 +466,7 @@ def create_template(body: TemplateCreate, _cur_user: dict = Depends(require_plan
 def capture_template(
     body: TemplateCaptureRequest, _cur_user: dict = Depends(require_planer)
 ):
-    """Capture the current week's schedule entries as a new template."""
+    """Erfasst die Planeinträge der aktuellen Woche als neue Vorlage."""
     db = get_db()
     entries = db.get_week_entries_for_template(
         year=body.year,
@@ -579,7 +580,7 @@ def _shift_time_windows(shift: dict, day_idx: int) -> list[tuple[int, int]]:
 
 
 def _windows_overlap(a: list[tuple[int, int]], b: list[tuple[int, int]]) -> bool:
-    """True if any window pair of the two lists overlaps."""
+    """True, wenn sich irgendein Fensterpaar der beiden Listen überlappt."""
     return any(x[0] < y[1] and y[0] < x[1] for x in a for y in b)
 
 
@@ -678,7 +679,7 @@ def create_schedule_entry(
                                     "new_shift_id": body.shift_id,
                                 },
                             )
-        # Also check SPSHI (Sonderdienste) for overlaps
+        # Auch SPSHI (Sonderdienste) auf Überlappungen prüfen
         spshi_path = db._table("SPSHI")
         spshi_fields = get_table_fields(spshi_path)
         spshi_entries = find_all_records(
@@ -740,8 +741,8 @@ def create_schedule_entry(
         pass  # best-effort
 
     # ── Conflict Check 4: RESTR restrictions ──
-    # RESTR.WEEKDAY is the original day index (D-34): 0=Mon..6=Sun, 7=holiday.
-    # day_idx (computed above) maps the entry date the same way. RESTRICT grade
+    # RESTR.WEEKDAY ist der Original-Tag-Index (D-34): 0=Mo..6=So, 7=Feiertag.
+    # day_idx (oben berechnet) bildet das Eintragsdatum genauso ab. RESTRICT-Grad
     # (Spec 4.11, Dekompilat-belegt): 0=keine, 1=„auf Anfrage" (weich, Warnung),
     # 2=„nie" (harte Sperre ⇒ 409).
     restriction_warning = None
@@ -901,7 +902,7 @@ def delete_schedule_entry(
 def delete_shift_only(
     employee_id: int, date: str, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
-    """Delete only shift entries (MASHI/SPSHI) for an employee on a date, leaving absences intact."""
+    """Löscht nur Schichteinträge (MASHI/SPSHI) eines MA an einem Datum; Abwesenheiten bleiben."""
     try:
         from datetime import datetime
 
@@ -939,9 +940,9 @@ class ScheduleGenerateRequest(BaseModel):
 def generate_schedule(
     request: Request, body: ScheduleGenerateRequest, _cur_user: dict = Depends(require_write("WDUTIES"))
 ):
-    """Generate (or preview) schedule entries for a month based on cycle assignments.
-    dry_run=True: returns preview without writing.
-    respect_restrictions=True: skips shifts that employee has a restriction for."""
+    """Erzeugt (oder simuliert) Monats-Planeinträge aus den Zyklus-Zuweisungen.
+    dry_run=True: liefert die Vorschau ohne zu schreiben.
+    respect_restrictions=True: überspringt Schichten mit Einschränkung des MA."""
     if not (1 <= body.month <= 12):
         raise HTTPException(
             status_code=400, detail="Invalid month: must be between 1 and 12"
@@ -1056,7 +1057,7 @@ class RestrictionCreate(BaseModel):
 
 @router.post("/api/restrictions", tags=["Schedule"], summary="Add shift restriction", description="Add a shift restriction for an employee on a shift/weekday. grade 0=keine, 1=auf Anfrage (weich), 2=nie (harte Sperre). Requires Admin role.")
 def set_restriction(body: RestrictionCreate, _cur_user: dict = Depends(require_admin)):
-    """Add a shift restriction for an employee (Tagindex D-34: 0=Mo..6=So, 7=Ft)."""
+    """Legt eine Schicht-Einschränkung für einen MA an (Tagindex D-34: 0=Mo..6=So, 7=Ft)."""
     weekday = body.weekday or 0
     if not (0 <= weekday <= 7):
         raise HTTPException(
@@ -1088,7 +1089,7 @@ def remove_restriction(
     weekday: int = Query(0),
     _cur_user: dict = Depends(require_admin),
 ):
-    """Remove a shift restriction for an employee. Requires Admin role."""
+    """Entfernt eine Schicht-Einschränkung eines MA. Erfordert Admin-Rolle."""
     try:
         count = get_db().remove_restriction(
             employee_id=employee_id, shift_id=shift_id, weekday=weekday
@@ -1129,7 +1130,7 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_writ
     updated = 0
     deleted = 0
     db = get_db()
-    # Pre-validate all shift_ids to avoid partial writes with bad data
+    # Alle shift_ids vorab validieren (keine Teil-Writes mit kaputten Daten)
     shift_id_cache: dict = {}
     for entry in body.entries:
         if entry.shift_id is not None and entry.shift_id not in shift_id_cache:
@@ -1169,7 +1170,7 @@ def bulk_schedule(body: BulkScheduleBody, _cur_user: dict = Depends(require_writ
 
 
 class BulkGroupAssignBody(BaseModel):
-    """Assign a single shift to all members of a group (or explicit employee list) across a date range."""
+    """Weist eine Schicht allen Gruppenmitgliedern (oder einer MA-Liste) über einen Zeitraum zu."""
     group_id: int | None = Field(None, gt=0, description="Group whose members receive the shift")
     employee_ids: list[int] | None = Field(None, description="Explicit employee IDs (alternative to group_id)")
     shift_id: int = Field(..., gt=0, description="Shift to assign")
@@ -1185,7 +1186,7 @@ class BulkGroupAssignBody(BaseModel):
     description="Assign a shift to all members of a group (or explicit employee list) for a date range. Requires Planer role.",
 )
 def bulk_group_assign(body: BulkGroupAssignBody, _cur_user: dict = Depends(require_write("WDUTIES"))):
-    """Assign one shift to a group of employees across a date range."""
+    """Weist einer MA-Gruppe eine Schicht über einen Zeitraum zu."""
     from datetime import datetime as _dt3
     from datetime import timedelta
 
@@ -1209,7 +1210,7 @@ def bulk_group_assign(body: BulkGroupAssignBody, _cur_user: dict = Depends(requi
         if not emp_ids:
             raise HTTPException(status_code=404, detail=f"Gruppe {body.group_id} hat keine Mitglieder")
 
-    # Parse and validate dates
+    # Daten parsen und validieren
     try:
         d_from = _dt3.strptime(body.date_from, "%Y-%m-%d").date()
         d_to = _dt3.strptime(body.date_to, "%Y-%m-%d").date()
@@ -1470,7 +1471,7 @@ def get_einsatzplan(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     group_id: int | None = Query(None),
 ):
-    """Return SPSHI entries for a specific date (Sonderdienste + Abweichungen)."""
+    """Liefert die SPSHI-Einträge eines Datums (Sonderdienste + Abweichungen)."""
     try:
         from datetime import datetime
 
@@ -1511,7 +1512,7 @@ def get_cycle_exceptions(
 def set_cycle_exception(
     body: CycleExceptionSet, _cur_user: dict = Depends(require_write("WCYCLEASS"))
 ):
-    """Set a cycle exception for a specific date."""
+    """Setzt eine Zyklus-Ausnahme für ein Datum."""
     try:
         result = get_db().set_cycle_exception(
             employee_id=body.employee_id,
@@ -1554,7 +1555,7 @@ class SwapShiftsRequest(BaseModel):
     description="Exchange schedule entries (shifts and absences) between two employees for the specified dates. Requires Planer role.",
 )
 def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_write("WDUTIES", "WSWAPONLY"))):
-    """Swap schedule entries (shifts + absences) between two employees for the given dates."""
+    """Tauscht Planeinträge (Schichten + Abwesenheiten) zweier MA an den Daten."""
     from datetime import datetime as _dt3
 
     enforce_wpast(_cur_user, *body.dates)
@@ -1620,7 +1621,7 @@ def swap_shifts(body: SwapShiftsRequest, _cur_user: dict = Depends(require_write
                     db.add_schedule_entry(emp_id, date_str, entry["shift_id"])
                 elif entry["kind"] == "absence" and entry.get("leave_type_id"):
                     db.add_absence(emp_id, date_str, entry["leave_type_id"])
-                # special_shift: skip for now (complex custom fields)
+                # special_shift: vorerst überspringen (komplexe Sonderfelder)
             except Exception as exc:
                 errors.append(f"MA {emp_id} / {date_str}: {exc}")
 
@@ -1677,7 +1678,7 @@ class CopyWeekRequest(BaseModel):
     description="Copy a source employee's schedule entries for given dates to one or more target employees. Use `skip_existing=false` to overwrite. Requires Planer role.",
 )
 def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_write("WDUTIES"))):
-    """Copy one employee's schedule entries (shifts + absences) for given dates to one or more target employees."""
+    """Kopiert Planeinträge (Schichten + Abwesenheiten) eines MA an den Daten auf Ziel-MA."""
     enforce_wpast(_cur_user, *body.dates)
     db = get_db()
     if not body.dates or not body.target_employee_ids:
@@ -1695,7 +1696,7 @@ def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_write("WD
             raise HTTPException(status_code=400, detail=f"Invalid date: {d}")
 
     # Collect source entries grouped by date
-    # We query each date individually via the schedule tables
+    # Jedes Datum einzeln über die Plantabellen abfragen
     from sp5lib.dbf_reader import get_table_fields
     from sp5lib.dbf_writer import find_all_records
 
@@ -1770,7 +1771,7 @@ def copy_week(body: CopyWeekRequest, _cur_user: dict = Depends(require_write("WD
                     elif entry["kind"] == "absence" and entry.get("leave_type_id"):
                         db.add_absence(target_id, date_str, entry["leave_type_id"])
                         created += 1
-                    # special_shift: skip for now (complex custom fields)
+                    # special_shift: vorerst überspringen (komplexe Sonderfelder)
                 except Exception as exc:
                     errors.append(f"MA {target_id} / {date_str}: {exc}")
 
