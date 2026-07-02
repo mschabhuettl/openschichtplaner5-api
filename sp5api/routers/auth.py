@@ -1,4 +1,4 @@
-"""Auth and user management router."""
+"""Router für Authentifizierung und Benutzerverwaltung."""
 
 import os
 import re as _re
@@ -45,7 +45,7 @@ _PW_REQUIRE_DIGIT = os.environ.get("SP5_PW_REQUIRE_DIGIT", "true").lower() not i
 
 
 def _validate_password_strength(password: str) -> None:
-    """Raise HTTPException 400 if the password does not meet strength requirements."""
+    """Wirft HTTPException 400, wenn das Passwort die Stärke-Anforderungen verfehlt."""
     if len(password) < _PW_MIN_LENGTH:
         raise HTTPException(
             status_code=400,
@@ -71,19 +71,20 @@ _FALSY = ("0", "false", "no", "off")
 
 
 def _cookie_secure(request: Request) -> bool:
-    """Whether the session cookie should carry the ``Secure`` flag.
+    """Ob das Session-Cookie das ``Secure``-Flag tragen soll.
 
-    Default (``SP5_COOKIE_SECURE=auto``): mark the cookie ``Secure`` only when the
-    request actually arrived over HTTPS, detected from ``X-Forwarded-Proto`` (the
-    bundled nginx forwards the original scheme) or, failing that, the request
-    scheme. This matters because browsers **silently drop a ``Secure`` cookie over
-    plain HTTP on any non-localhost host** — exactly the typical self-hosted /
-    Portainer deployment — which would make the cookie-only SPA session unusable
-    (login appears to "not work"). Setting it unconditionally Secure (the old
-    ``not _IS_DEV`` behaviour) broke real HTTP deployments.
+    Default (``SP5_COOKIE_SECURE=auto``): das Cookie nur dann ``Secure``
+    markieren, wenn der Request wirklich über HTTPS kam — erkannt an
+    ``X-Forwarded-Proto`` (das gebündelte nginx reicht das Original-Schema
+    weiter), ersatzweise am Request-Schema. Das zählt, weil Browser **ein
+    ``Secure``-Cookie über pures HTTP auf jedem Nicht-localhost-Host still
+    verwerfen** — genau das typische Self-Hosted-/Portainer-Deployment — und
+    die Cookie-only-SPA-Session damit unbenutzbar wäre (Login „geht nicht").
+    Bedingungslos Secure (das alte ``not _IS_DEV``-Verhalten) brach echte
+    HTTP-Deployments.
 
-    ``SP5_COOKIE_SECURE=true|false`` forces the flag for edge cases (e.g. a TLS
-    terminator that does not forward the scheme).
+    ``SP5_COOKIE_SECURE=true|false`` erzwingt das Flag für Grenzfälle (z. B.
+    einen TLS-Terminator, der das Schema nicht weiterreicht).
     """
     override = os.environ.get("SP5_COOKIE_SECURE", "").strip().lower()
     if override in _TRUTHY:
@@ -180,9 +181,9 @@ class UserUpdate(BaseModel):
 
 class LoginBody(BaseModel):
     username: str = Field(..., min_length=1, max_length=100)
-    # No minimum length: accounts created by the original Schichtplaner5 may
-    # carry an empty or short password (the original allows it). Password
-    # strength is enforced only when a password is *set* (CreateUserBody /
+    # Keine Mindestlänge: vom Original-Schichtplaner5 angelegte Konten dürfen
+    # ein leeres oder kurzes Passwort tragen (das Original erlaubt es). Die
+    # Passwort-Stärke wird nur beim *Setzen* erzwungen (CreateUserBody /
     # ChangePasswordBody / _validate_password_strength), never on login.
     password: str = Field(..., max_length=200)
     totp_code: str | None = Field(None, max_length=20)
@@ -395,7 +396,7 @@ def change_user_password(
         ok = get_db().change_password(user_id, body.new_password)
         if not ok:
             raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
-        # Invalidate all existing sessions for this user (token rotation on pw change)
+        # Alle Sessions dieses Benutzers invalidieren (Token-Rotation beim Passwortwechsel)
         removed = invalidate_sessions_for_user(user_id)
         _logger.warning(
             "AUDIT PASSWORD_CHANGE | admin=%s target_id=%d sessions_revoked=%d",
@@ -438,8 +439,8 @@ def change_own_password(request: Request, body: SelfChangePasswordBody, user: di
     username = user.get("NAME", "")
     user_id = user.get("ID")
     if user_id is None:
-        # An authenticated session always carries an int ID; guard defensively and
-        # narrow the type for the session-invalidation call below.
+        # Eine authentifizierte Session trägt immer eine Int-ID; defensiv prüfen
+        # und den Typ für den Session-Invalidierungs-Aufruf unten verengen.
         raise HTTPException(status_code=401, detail="Ungültige Sitzung")
 
     # Verify old password
@@ -514,7 +515,7 @@ def reset_user_password(request: Request, user_id: int, admin: dict = Depends(re
 
         removed = invalidate_sessions_for_user(user_id)
 
-        # Try to find user info for logging and email
+        # Benutzerinfos für Logging und E-Mail ermitteln
         users = db.get_users()
         target_user = next((u for u in users if u.get("ID") == user_id), None)
         target_name = target_user.get("NAME", "?") if target_user else "?"
@@ -536,7 +537,7 @@ def reset_user_password(request: Request, user_id: int, admin: dict = Depends(re
             },
         )
 
-        # Try to send email with temp password
+        # E-Mail mit dem temporären Passwort versuchen
         email_sent = False
         try:
             from sp5lib.email_service import get_config, send_email_async
@@ -618,9 +619,9 @@ def login(request: Request, body: LoginBody):
     user = db_for_login.verify_user_password(username, body.password)
     if user is None:
         _failed_logins[username] = timestamps + [now]
-        # Privacy-safe diagnostics (never logs the password) so an operator can
-        # explain a real-DB login edge case (unknown user vs. unexpected digest
-        # format vs. bcrypt-only) from the server logs.
+        # Datenschutz-sichere Diagnose (loggt nie das Passwort), damit der
+        # Betreiber Echt-DB-Login-Grenzfälle (unbekannter Benutzer vs.
+        # unerwartetes Digest-Format vs. nur-bcrypt) aus den Server-Logs erklären kann.
         diag = {}
         diag_fn = getattr(db_for_login, "login_diagnostics", None)
         if callable(diag_fn):
@@ -686,7 +687,7 @@ def login(request: Request, body: LoginBody):
             len(user_sessions) - _MAX_SESSIONS_PER_USER + 1,
         )
 
-    # Generate a signed JWT token with expiry
+    # Signiertes JWT mit Ablauf erzeugen
     expires_at = now + _TOKEN_EXPIRE_HOURS * 3600
     token = create_jwt_token(user, expires_at)
 
@@ -759,7 +760,7 @@ def _user_permissions(user: dict) -> dict:
 
 @router.get("/api/auth/me", tags=["Auth"], summary="Current user info", description="Return the current authenticated user's info incl. the granular 5USER write/display permissions.")
 def me(user: dict = Depends(require_auth)):
-    """Return the current authenticated user's info."""
+    """Liefert die Infos des angemeldeten Benutzers."""
     info = {k: v for k, v in user.items() if k != "expires_at"}
     info["permissions"] = _user_permissions(user)
     # SHOWABS-Modus (dreiwertig) explizit, damit das Frontend den
@@ -777,7 +778,7 @@ def me(user: dict = Depends(require_auth)):
     description="Invalidate the current session token.",
 )
 def logout(request: Request, x_auth_token: str | None = Header(None)):
-    """Invalidate the session token. Reads from cookie or X-Auth-Token header."""
+    """Invalidiert das Session-Token. Liest Cookie oder X-Auth-Token-Header."""
     from ..dependencies import _decode_jwt
 
     client_ip = request.client.host if request.client else "unknown"
@@ -811,7 +812,7 @@ def logout(request: Request, x_auth_token: str | None = Header(None)):
     else:
         _logger.info("AUTH LOGOUT_NO_SESSION | ip=%s", client_ip)
     response = JSONResponse(content={"ok": True})
-    # Clear the cookie
+    # Das Cookie löschen
     response.delete_cookie(key=_COOKIE_NAME, path="/", samesite="strict")
     return response
 
@@ -846,7 +847,7 @@ def impersonate_stop(
     user: dict = Depends(require_auth),
     x_auth_token: str | None = Header(None),
 ):
-    """Stop the active impersonation for the current session (idempotent)."""
+    """Beendet die aktive Impersonation der aktuellen Session (idempotent)."""
     token = _session_token(request, x_auth_token)
     sid = _resolve_session_id(token) if token else None
     session = _session_store.get(sid) if sid else None
@@ -883,7 +884,7 @@ def impersonate_start(
     admin: dict = Depends(require_admin),
     x_auth_token: str | None = Header(None),
 ):
-    """Start an impersonation ('view as user') for the current admin session."""
+    """Startet eine Impersonation („als Benutzer ansehen") für die Admin-Session."""
     token = _session_token(request, x_auth_token)
     sid = _resolve_session_id(token) if token else None
     session = _session_store.get(sid) if sid else None

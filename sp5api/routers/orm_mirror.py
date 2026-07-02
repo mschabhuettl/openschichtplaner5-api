@@ -38,13 +38,14 @@ router = APIRouter(prefix="/api/admin/orm", tags=["ORM Mirror"])
 
 
 def _get_orm_engine():
-    """Create (and migrate) the SQLite engine for the ORM mirror DB.
+    """Erzeugt (und migriert) die SQLite-Engine der ORM-Spiegel-DB.
 
-    The mirror DB lives in the consolidated, writable state directory
-    (``state_path``/``SP5_STATE_DIR``), matching the Companies router so both
-    share a single ORM store. It must NOT sit next to the DBF data: those are
-    often mounted read-only, and ``dirname(SP5_DB_PATH)`` is the data dir's parent
-    (in the container ``/app``, owned by root) — ``init_db`` would fail with EACCES.
+    Die Spiegel-DB liegt im konsolidierten, beschreibbaren State-Verzeichnis
+    (``state_path``/``SP5_STATE_DIR``), passend zum Companies-Router — beide
+    teilen EINEN ORM-Store. Sie darf NICHT neben den DBF-Daten liegen: die sind
+    oft read-only gemountet, und ``dirname(SP5_DB_PATH)`` ist das Eltern-
+    Verzeichnis des Datenordners (im Container ``/app``, root-eigen) —
+    ``init_db`` scheiterte dort mit EACCES.
     """
     from sp5lib.orm import get_engine, init_db
 
@@ -55,14 +56,14 @@ def _get_orm_engine():
 
 
 def _get_orm_session():
-    """Return an ORM session bound to the mirror DB."""
+    """Liefert eine an die Spiegel-DB gebundene ORM-Session."""
     from sp5lib.orm.base import get_session
 
     return get_session(_get_orm_engine())
 
 
 def _daten_path() -> str:
-    """Absolute path to the live DBF data directory (the sync source)."""
+    """Absoluter Pfad zum Live-DBF-Datenverzeichnis (die Sync-Quelle)."""
     import sp5api.main as _main
 
     return _main.DB_PATH
@@ -73,16 +74,16 @@ def _daten_path() -> str:
 
 @router.post("/sync")
 def sync_orm_mirror(user: dict = Depends(require_admin)):
-    """Refresh the ORM mirror from the live DBF files.
+    """Frischt den ORM-Spiegel aus den Live-DBF-Dateien auf.
 
-    Delegates to the library's ``sync_all``, which mirrors all 19 supported
-    tables (master data, schedule entries, calendar, time accounting and
-    planning data) and returns the per-table row counts. Safe to call
-    repeatedly; the
-    library's sync uses upsert semantics, rows with invalid dates are skipped,
-    and as of lib 1.4.0 ``sync_group_assignments`` dedups and skips dangling
-    rows, so ``sync_all`` runs cleanly on dirty DBF data. ``sync_all`` opens,
-    commits and closes its own session internally.
+    Delegiert an ``sync_all`` der Bibliothek, das alle 19 unterstützten
+    Tabellen spiegelt (Stammdaten, Planeinträge, Kalender, Zeitkonten- und
+    Planungsdaten) und die Zeilenzahlen je Tabelle liefert. Beliebig oft
+    aufrufbar: der Sync nutzt Upsert-Semantik, Zeilen mit ungültigen Daten
+    werden übersprungen, und seit lib 1.4.0 dedupliziert
+    ``sync_group_assignments`` und überspringt hängende Zeilen — ``sync_all``
+    läuft also auch auf schmutzigen DBF-Daten sauber durch. ``sync_all``
+    öffnet, committet und schließt seine Session selbst.
     """
     from sp5lib.orm.sync import sync_all
 
@@ -93,7 +94,7 @@ def sync_orm_mirror(user: dict = Depends(require_admin)):
         raise _sanitize_500(e, "sync_orm_mirror")
 
 
-# Mirror table name → ORM model, in sync_all order (the 19-table read mirror).
+# Spiegel-Tabellenname → ORM-Modell, in sync_all-Reihenfolge (der 19-Tabellen-Lesespiegel).
 _MIRROR_TABLES = {
     "employees": "Employee",
     "groups": "Group",
@@ -119,11 +120,11 @@ _MIRROR_TABLES = {
 
 @router.get("/status")
 def orm_mirror_status(user: dict = Depends(require_admin)):
-    """Report the current ORM-mirror state without re-syncing.
+    """Meldet den aktuellen ORM-Spiegel-Zustand ohne Neu-Sync.
 
-    Returns whether the mirror DB has been materialised and the live per-table
-    row counts (all 19 mirrored tables), so admins can gauge mirror freshness
-    cheaply before deciding to POST /sync.
+    Liefert, ob die Spiegel-DB materialisiert ist, plus die Zeilenzahlen je
+    Tabelle (alle 19), damit Admins die Frische des Spiegels billig einschätzen
+    können, bevor sie POST /sync auslösen.
     """
     import sp5lib.orm as orm
     from sqlalchemy import func, select
@@ -151,7 +152,7 @@ def orm_mirror_status(user: dict = Depends(require_admin)):
 
 @router.get("/shifts")
 def list_orm_shifts(include_hidden: bool = False, user: dict = Depends(require_admin)):
-    """List shift definitions from the ORM mirror (DBF-shaped dicts)."""
+    """Listet Schichtdefinitionen aus dem ORM-Spiegel (DBF-förmige dicts)."""
     from sp5lib.orm.repository import ShiftRepository
 
     session = _get_orm_session()
@@ -165,7 +166,7 @@ def list_orm_shifts(include_hidden: bool = False, user: dict = Depends(require_a
 
 @router.get("/leave-types")
 def list_orm_leave_types(include_hidden: bool = False, user: dict = Depends(require_admin)):
-    """List leave/absence types from the ORM mirror (DBF-shaped dicts)."""
+    """Listet Abwesenheitsarten aus dem ORM-Spiegel (DBF-förmige dicts)."""
     from sp5lib.orm.repository import LeaveTypeRepository
 
     session = _get_orm_session()
@@ -181,7 +182,7 @@ def list_orm_leave_types(include_hidden: bool = False, user: dict = Depends(requ
 
 @router.get("/workplaces")
 def list_orm_workplaces(include_hidden: bool = False, user: dict = Depends(require_admin)):
-    """List workplace definitions from the ORM mirror (DBF-shaped dicts)."""
+    """Listet Arbeitsplatzdefinitionen aus dem ORM-Spiegel (DBF-förmige dicts)."""
     from sp5lib.orm.repository import WorkplaceRepository
 
     session = _get_orm_session()
@@ -205,8 +206,8 @@ def list_orm_shift_assignments(
     employee_id: int | None = Query(None, description="Filter by employee ID"),
     user: dict = Depends(require_admin),
 ):
-    """List regular schedule entries (5MASHI) from the ORM mirror, filterable by
-    date range and/or employee."""
+    """Listet reguläre Planeinträge (5MASHI) aus dem ORM-Spiegel, filterbar
+    nach Zeitraum und/oder Mitarbeiter."""
     from sp5lib.orm.repository import ShiftAssignmentRepository
 
     session = _get_orm_session()
@@ -228,8 +229,8 @@ def list_orm_special_shifts(
     employee_id: int | None = Query(None, description="Filter by employee ID"),
     user: dict = Depends(require_admin),
 ):
-    """List special / one-off shifts (5SPSHI) from the ORM mirror, filterable by
-    date range and/or employee."""
+    """Listet Sonderdienste (5SPSHI) aus dem ORM-Spiegel, filterbar nach
+    Zeitraum und/oder Mitarbeiter."""
     from sp5lib.orm.repository import SpecialShiftRepository
 
     session = _get_orm_session()
@@ -251,8 +252,8 @@ def list_orm_absences(
     employee_id: int | None = Query(None, description="Filter by employee ID"),
     user: dict = Depends(require_admin),
 ):
-    """List absences / leave entries (5ABSEN) from the ORM mirror, filterable by
-    date range and/or employee."""
+    """Listet Abwesenheiten (5ABSEN) aus dem ORM-Spiegel, filterbar nach
+    Zeitraum und/oder Mitarbeiter."""
     from sp5lib.orm.repository import AbsenceRepository
 
     session = _get_orm_session()
@@ -277,9 +278,9 @@ def list_orm_holidays(
     ),
     user: dict = Depends(require_admin),
 ):
-    """List public holidays (5HOLID) from the ORM mirror (DBF-shaped dicts).
+    """Listet Feiertage (5HOLID) aus dem ORM-Spiegel (DBF-förmige dicts).
 
-    With ``year`` set, returns holidays in that year plus all recurring ones."""
+    Mit ``year`` kommen die Feiertage des Jahres plus alle wiederkehrenden."""
     from sp5lib.orm.repository import HolidayRepository
 
     session = _get_orm_session()
@@ -293,7 +294,7 @@ def list_orm_holidays(
 
 @router.get("/periods")
 def list_orm_periods(user: dict = Depends(require_admin)):
-    """List accounting / planning periods (5PERIO) from the ORM mirror."""
+    """Listet Abrechnungs-/Planungszeiträume (5PERIO) aus dem ORM-Spiegel."""
     from sp5lib.orm.repository import PeriodRepository
 
     session = _get_orm_session()
@@ -360,8 +361,8 @@ def list_orm_leave_entitlements(
     employee_id: int | None = Query(None, description="Filter by employee ID"),
     user: dict = Depends(require_admin),
 ):
-    """List annual leave entitlements (5LEAEN), filterable by year and/or
-    employee."""
+    """Listet Jahres-Urlaubsansprüche (5LEAEN), filterbar nach Jahr und/oder
+    Mitarbeiter."""
     from sp5lib.orm.repository import LeaveEntitlementRepository
 
     session = _get_orm_session()
@@ -425,7 +426,7 @@ def list_orm_special_demands(
 
 @router.get("/cycles")
 def list_orm_cycles(include_hidden: bool = False, user: dict = Depends(require_admin)):
-    """List rotation/shift-cycle definitions (5CYCLE) from the ORM mirror."""
+    """Listet Zyklus-Definitionen (5CYCLE) aus dem ORM-Spiegel."""
     from sp5lib.orm.repository import CycleRepository
 
     session = _get_orm_session()
@@ -443,8 +444,8 @@ def list_orm_cycle_assignments(
     cycle_id: int | None = Query(None, description="Filter by cycle ID"),
     user: dict = Depends(require_admin),
 ):
-    """List employee↔cycle assignments (5CYASS), filterable by employee and/or
-    cycle."""
+    """Listet MA↔Zyklus-Zuweisungen (5CYASS), filterbar nach Mitarbeiter
+    und/oder Zyklus."""
     from sp5lib.orm.repository import CycleAssignmentRepository
 
     session = _get_orm_session()
@@ -463,8 +464,8 @@ def list_orm_restrictions(
     shift_id: int | None = Query(None, description="Filter by shift ID"),
     user: dict = Depends(require_admin),
 ):
-    """List deployment restrictions (5RESTR), filterable by employee and/or
-    shift."""
+    """Listet Einsatz-Einschränkungen (5RESTR), filterbar nach Mitarbeiter
+    und/oder Schicht."""
     from sp5lib.orm.repository import RestrictionRepository
 
     session = _get_orm_session()
