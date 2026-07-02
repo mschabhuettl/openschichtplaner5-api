@@ -198,6 +198,12 @@ class EmployeeCreate(BaseModel):
     def empend_after_empstart(self) -> "EmployeeCreate":
         if self.EMPSTART and self.EMPEND and self.EMPEND < self.EMPSTART:
             raise ValueError("EMPEND muss >= EMPSTART sein")
+        # Basis Gesamtstunden braucht einen geschlossenen Beschäftigungs-
+        # zeitraum und einen Gesamtstunden-Wert — sonst Erfassungsfehler.
+        if self.CALCBASE == 3 and not (self.EMPSTART and self.EMPEND and self.HRSTOTAL > 0):
+            raise ValueError(
+                "Berechnungsbasis Gesamtstunden erfordert Eintritt, Austritt und Gesamtstunden > 0"
+            )
         return self
 
 
@@ -322,6 +328,16 @@ def update_employee(
         db = get_db()
         # Capture old state for audit
         old_emp = db.get_employee(emp_id)
+        # Basis Gesamtstunden: Patch-Semantik — die EFFEKTIVEN Werte
+        # (Body oder Bestand) müssen die Erfassungsregel erfüllen.
+        eff = {**(old_emp or {}), **data}
+        if eff.get("CALCBASE") == 3 and not (
+            eff.get("EMPSTART") and eff.get("EMPEND") and (eff.get("HRSTOTAL") or 0) > 0
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Berechnungsbasis Gesamtstunden erfordert Eintritt, Austritt und Gesamtstunden > 0",
+            )
         old_snapshot = None
         if old_emp:
             old_snapshot = {k: old_emp.get(k) for k in data.keys() if k in (old_emp or {})}

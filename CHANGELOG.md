@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Berechnungsbasis „Gesamtstunden" wird beim Erfassen validiert.** Ein
+  Mitarbeiter mit Basis Gesamtstunden (CALCBASE=3) braucht Eintritts- UND
+  Austrittsdatum sowie Gesamtstunden > 0 — Anlegen und Ändern lehnen
+  unvollständige Angaben mit einer klaren Meldung ab (wie der
+  Erfassen-Dialog des Originals).
+
 ## [1.23.0] - 2026-07-02
 
 ### Changed
