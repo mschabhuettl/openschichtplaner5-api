@@ -4,9 +4,9 @@ from starlette.testclient import TestClient
 
 
 class TestEligibleReplacements:
-    def test_returns_list_and_filters_to_group(self, sync_client: TestClient):
-        """Liefert nur Kandidaten aus dem Bereich des ausgefallenen MA — eine
-        echte Teilmenge aller Mitarbeiter."""
+    def test_returns_list_with_same_group_first(self, sync_client: TestClient):
+        """Kandidaten aus einer gemeinsamen Gruppe des ausgefallenen MA kommen
+        zuerst (same_group=True), Gruppen-fremde danach — nicht ausgeschlossen."""
         emps = sync_client.get("/api/employees").json()
         shifts = sync_client.get("/api/shifts").json()
         groups = sync_client.get("/api/groups").json()
@@ -32,10 +32,11 @@ class TestEligibleReplacements:
         ids = {c["id"] for c in cands}
         # Der ausgefallene MA ist nie Kandidat.
         assert absent_id not in ids
-        # Echte Teilmenge: nicht alle Mitarbeiter sind geeignet.
-        assert len(ids) < len([e for e in emps if not e.get("HIDE")])
         for c in cands:
-            assert {"id", "name", "shortname"} <= set(c)
+            assert {"id", "name", "shortname", "same_group"} <= set(c)
+        # Gruppen-Priorität: kein Gruppen-fremder vor einem Gruppen-Mitglied.
+        flags = [c["same_group"] for c in cands]
+        assert flags == sorted(flags, reverse=True)
 
     def test_invalid_date_returns_400(self, sync_client: TestClient):
         res = sync_client.get(
