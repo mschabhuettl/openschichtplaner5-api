@@ -84,13 +84,15 @@ class TestSearchFuzzy:
 class TestSwapRequestFlow:
     """Test complete swap request flow."""
 
-    def test_create_swap_request_success(self, planer_client: TestClient):
+    def test_create_swap_request_success(self, planer_client: TestClient, ensure_duty):
         """Create swap request with valid employees → 200."""
         emps = planer_client.get("/api/employees").json()
         if len(emps) < 2:
             pytest.skip("Need at least 2 employees")
         emp1 = emps[0]["ID"]
         emp2 = emps[1]["ID"]
+        ensure_duty(emp1, "2025-04-01")
+        ensure_duty(emp2, "2025-04-02")
         res = planer_client.post(
             "/api/swap-requests",
             json={
@@ -105,12 +107,14 @@ class TestSwapRequestFlow:
         data = res.json()
         assert "id" in data
 
-    def test_resolve_swap_reject(self, planer_client: TestClient):
+    def test_resolve_swap_reject(self, planer_client: TestClient, ensure_duty):
         """Create then reject a swap request → 200."""
         emps = planer_client.get("/api/employees").json()
         if len(emps) < 2:
             pytest.skip("Need at least 2 employees")
         emp1, emp2 = emps[0]["ID"], emps[1]["ID"]
+        ensure_duty(emp1, "2025-05-01")
+        ensure_duty(emp2, "2025-05-02")
         # Create request
         create_res = planer_client.post(
             "/api/swap-requests",
@@ -133,12 +137,14 @@ class TestSwapRequestFlow:
         )
         assert res.status_code == 200
 
-    def test_resolve_swap_approve(self, planer_client: TestClient):
+    def test_resolve_swap_approve(self, planer_client: TestClient, ensure_duty):
         """Create then approve a swap request → 200."""
         emps = planer_client.get("/api/employees").json()
         if len(emps) < 2:
             pytest.skip("Need at least 2 employees")
         emp1, emp2 = emps[0]["ID"], emps[1]["ID"]
+        ensure_duty(emp1, "2025-06-01")
+        ensure_duty(emp2, "2025-06-01")
         # Create request
         create_res = planer_client.post(
             "/api/swap-requests",
@@ -162,12 +168,14 @@ class TestSwapRequestFlow:
         )
         assert res.status_code == 200
 
-    def test_delete_swap_request_success(self, planer_client: TestClient):
+    def test_delete_swap_request_success(self, planer_client: TestClient, ensure_duty):
         """Create then delete a swap request → 200."""
         emps = planer_client.get("/api/employees").json()
         if len(emps) < 2:
             pytest.skip("Need at least 2 employees")
         emp1, emp2 = emps[0]["ID"], emps[1]["ID"]
+        ensure_duty(emp1, "2025-07-01")
+        ensure_duty(emp2, "2025-07-02")
         create_res = planer_client.post(
             "/api/swap-requests",
             json={

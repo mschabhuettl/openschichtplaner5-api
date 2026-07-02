@@ -206,3 +206,22 @@ def leser_client(write_db_path, app):
             yield c
     finally:
         _remove_token(tok)
+
+
+@pytest.fixture
+def ensure_duty(write_db_path):
+    """Legt einen 5MASHI-Dienst für (emp_id, datum) an — die Tauschbörse
+    verlangt einen tauschbaren Dienst BEIDER Seiten."""
+    from sp5lib.database import SP5Database
+
+    db = SP5Database(write_db_path)
+    shift_id = db.get_shifts()[0]["ID"]
+
+    def _ensure(emp_id: int, date_str: str) -> int:
+        try:
+            db.add_schedule_entry(emp_id, date_str, shift_id)
+        except ValueError:
+            pass  # Dienst existiert bereits
+        return shift_id
+
+    return _ensure

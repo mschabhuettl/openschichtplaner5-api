@@ -529,12 +529,14 @@ class TestWpastEnforcement:
             _sessions.pop(priv, None)
             _sessions.pop(restricted, None)
 
-    def test_wpast_false_blocks_swap_request_approval(self, client):
+    def test_wpast_false_blocks_swap_request_approval(self, client, ensure_duty):
         """Die Genehmigung eines Tauschs in der Vergangenheit ist ein
         Plan-Write — WPAST greift VOR der Auflösung (Anfrage bleibt pending)."""
         from sp5api.main import _sessions
 
         yesterday = (date.today() - timedelta(days=1)).isoformat()
+        ensure_duty(40, yesterday)
+        ensure_duty(41, yesterday)
         priv = _inject(name="swap_priv")
         restricted = _inject(WPAST=False, name="swap_restricted")
         try:

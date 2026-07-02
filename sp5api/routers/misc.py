@@ -690,6 +690,28 @@ class SwapRequestResolve(BaseModel):
     reject_reason: str | None = Field("", max_length=500)
 
 
+def _swap_duty_missing(
+    requester_id: int, requester_date: str, partner_id: int, partner_date: str
+) -> str | None:
+    """Tauschbar ist ein Tausch nur, wenn BEIDE Mitarbeiter am jeweils eigenen
+    Datum einen Dienst (5MASHI) haben — sonst würde die Genehmigung einseitig
+    einen Dienst verschenken bzw. ins Leere laufen. Liefert eine deutsche
+    Fehlermeldung oder None."""
+    from sp5lib.dbf_reader import get_table_fields
+    from sp5lib.dbf_writer import find_all_records
+
+    db = get_db()
+    filepath = db._table("MASHI")
+    fields = get_table_fields(filepath)
+    names = {e.get("ID"): f"{e.get('FIRSTNAME', '')} {e.get('NAME', '')}".strip()
+             for e in db.get_employees(include_hidden=True)}
+    for emp_id, date_str in ((requester_id, requester_date), (partner_id, partner_date)):
+        if not find_all_records(filepath, fields, EMPLOYEEID=emp_id, DATE=date_str):
+            who = names.get(emp_id) or f"MA #{emp_id}"
+            return f"{who} hat am {date_str} keinen Dienst — kein Tausch möglich"
+    return None
+
+
 @router.get(
     "/api/swap-requests", tags=["Self-Service"], summary="List shift swap requests",
     description="Return shift swap requests, optionally filtered by status or employee.",
@@ -771,6 +793,11 @@ def create_swap_request(
         raise HTTPException(
             status_code=400, detail="Requester and partner must be different"
         )
+    missing = _swap_duty_missing(
+        body.requester_id, body.requester_date, body.partner_id, body.partner_date
+    )
+    if missing:
+        raise HTTPException(status_code=400, detail=missing)
     creator_name = _cur_user.get("NAME", "planner")
     entry = get_db().create_swap_request(
         requester_id=body.requester_id,
@@ -851,6 +878,17 @@ def resolve_swap_request(
                 pending.get("requester_date"),
                 pending.get("partner_date"),
             )
+            # Seit der Antragstellung kann ein Dienst entfernt worden sein —
+            # ohne Dienst BEIDER Seiten würde der Tausch einseitig einen
+            # Dienst löschen. Antrag bleibt pending (Planer kann ablehnen).
+            missing = _swap_duty_missing(
+                pending["requester_id"],
+                pending["requester_date"],
+                pending["partner_id"],
+                pending["partner_date"],
+            )
+            if missing:
+                raise HTTPException(status_code=409, detail=missing)
     entry = get_db().resolve_swap_request(
         swap_id,
         body.action,
@@ -1103,6 +1141,11 @@ def create_self_swap_request(
         raise HTTPException(
             status_code=400, detail="Du kannst nicht mit dir selbst tauschen"
         )
+    missing = _swap_duty_missing(
+        requester_id, body.requester_date, body.partner_id, body.partner_date
+    )
+    if missing:
+        raise HTTPException(status_code=400, detail=missing)
 
     entry = get_db().create_swap_request(
         requester_id=requester_id,

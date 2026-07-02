@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Tauschbörse verlangt einen tauschbaren Dienst beider Mitarbeiter.**
+  Tauschanträge (Planer- und Self-Service-Route) werden nur noch angelegt, wenn
+  sowohl Antragsteller als auch Partner am jeweils eigenen Datum einen Dienst
+  haben (sonst 400 mit klarer Meldung). Die Genehmigung prüft dies erneut und
+  verweigert mit 409, falls ein Dienst seit der Antragstellung entfernt wurde —
+  bisher löschte die Genehmigung eines einseitigen Antrags den vorhandenen
+  Dienst ersatzlos.
+
 ## [1.22.0] - 2026-06-30
 
 ### Added

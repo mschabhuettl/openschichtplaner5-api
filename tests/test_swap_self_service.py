@@ -7,12 +7,22 @@ from starlette.testclient import TestClient
 
 @pytest.fixture
 def _employee_ids(write_db_path):
-    """Return two valid employee IDs from the test DB."""
+    """Return two valid employee IDs from the test DB — beide bekommen an den
+    in dieser Datei verwendeten Datumspaaren Dienste (die Tauschbörse verlangt
+    einen tauschbaren Dienst BEIDER Seiten)."""
     from sp5lib.database import SP5Database
 
     db = SP5Database(write_db_path)
     emps = db.get_employees(include_hidden=False)
     assert len(emps) >= 2, "Need at least 2 employees in test DB"
+    shift_id = db.get_shifts()[0]["ID"]
+    for month in range(4, 13):
+        for day in (1, 2):
+            for emp in (emps[0], emps[1]):
+                try:
+                    db.add_schedule_entry(emp["ID"], f"2025-{month:02d}-{day:02d}", shift_id)
+                except ValueError:
+                    pass
     return emps[0]["ID"], emps[1]["ID"], emps[0].get("NAME", "emp0"), emps[1].get("NAME", "emp1")
 
 
