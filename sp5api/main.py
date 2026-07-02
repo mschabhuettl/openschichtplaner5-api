@@ -22,6 +22,12 @@ _APP_START_TIME = _startup_time_module.time()
 # Stammdaten-GET-Pfade, die clientseitig 60 s gecacht werden. Eine gemeinsame
 # Quelle für die Cache-Control-Middleware (setzt den Header) und den Metrik-
 # Sammler (zählt die Trefferrate), damit beide nie auseinanderlaufen.
+# SP5_READONLY: versetzt die GESAMTE Instanz in einen rein lesenden Modus.
+# Serverseitig erzwungen (nicht nur UI): alle Schreibmethoden auf /api/* werden
+# zentral mit 403 abgelehnt — übersteuert auch Admin/Planer. Fundament für den
+# schreibgeschützten Viewer-Betrieb (read-only gemounteter DBF-Bestand).
+_READONLY = os.environ.get("SP5_READONLY", "").strip().lower() in ("1", "true", "yes")
+
 _CACHEABLE_API_PREFIXES = (
     "/api/shifts",
     "/api/holidays",
@@ -702,6 +708,29 @@ async def auth_middleware(request: Request, call_next):
     method = request.method
     client_ip = request.client.host if request.client else "unknown"
 
+    # SP5_READONLY: rein lesende Instanz — Schreibmethoden zentral ablehnen,
+    # unabhängig von Rolle/Rechten (auch Admin) und VOR dem Public-Path-Return
+    # (deckt auch öffentliche Schreib-Endpunkte wie /api/errors ab). Nutzbar
+    # bleiben: Login (Session-Beginn), Logout/Impersonation (Session-Steuerung)
+    # und der CSP-Report des Browsers. Vor dem Routing ⇒ JEDER Schreib-Endpunkt.
+    if (
+        _READONLY
+        and path.startswith("/api/")
+        and method in ("POST", "PUT", "PATCH", "DELETE")
+        and "/auth/login" not in path
+        and "/auth/logout" not in path
+        and "/auth/impersonate" not in path
+        and "/csp-report" not in path
+    ):
+        _logger.warning(
+            "READONLY_WRITE_BLOCKED | ip=%s method=%s path=%s", client_ip, method, path
+        )
+        resp_ro = JSONResponse(
+            status_code=403,
+            content={"detail": "Diese Instanz ist schreibgeschützt (SP5_READONLY)."},
+        )
+        _apply_security_headers(resp_ro)
+        return resp_ro
     if path in _PUBLIC_PATHS or not path.startswith("/api/"):
         return await call_next(request)
     # Der iCal-Feed authentifiziert per Token in der URL (Kalender-App-Abos)
@@ -1109,6 +1138,7 @@ def health():
     return {
         "status": overall,
         "checks": checks,
+        "readonly": _READONLY,
         "version": _API_VERSION,
         "uptime": uptime_human,
         "uptime_seconds": uptime_seconds,
