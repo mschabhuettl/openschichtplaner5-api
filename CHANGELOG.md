@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Schreibgeschützter Betrieb per `SP5_READONLY=true`.** Die Instanz wird
+  zur reinen Leseansicht: jede Schreibmethode wird serverseitig zentral mit
+  403 abgelehnt (auch für Administratoren), Anmelden/Abmelden bleiben
+  möglich, `/api/health` meldet den Modus. Geeignet für einen Viewer-Betrieb
+  auf read-only eingebundenem Datenbestand.
+
 ## [1.24.0] - 2026-07-02
 
 ### Added
