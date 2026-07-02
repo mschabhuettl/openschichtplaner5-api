@@ -15,7 +15,7 @@ services:
     build:
       context: .
       args:
-        LIB_SOURCE: ${LIB_SOURCE:-libopenschichtplaner5[postgres]==1.24.1}
+        LIB_SOURCE: ${LIB_SOURCE:-libopenschichtplaner5[postgres]==1.26.0}
     image: openschichtplaner5-api:latest
     ports:
       - "8000:8000"
