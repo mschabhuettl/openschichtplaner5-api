@@ -1,4 +1,4 @@
-"""FastAPI application for OpenSchichtplaner5."""
+"""FastAPI-Anwendung für OpenSchichtplaner5."""
 
 import os
 import threading
@@ -10,17 +10,18 @@ from dotenv import load_dotenv
 
 from ._paths import backend_dir as _backend_dir
 
-# Pin the host backend root (where libopenschichtplaner5/sp5lib and this package
-# locate data/, api/data and the Alembic dir) before anything imports sp5lib.
-# backend_dir() honours an existing SP5_BACKEND_DIR; setdefault publishes the
-# fallback so both packages agree even when installed in site-packages.
+# Backend-Root der Host-App festnageln (dort finden libopenschichtplaner5/sp5lib
+# und dieses Paket data/, api/data und das Alembic-Verzeichnis), BEVOR irgendwer
+# sp5lib importiert. backend_dir() respektiert ein gesetztes SP5_BACKEND_DIR;
+# setdefault veröffentlicht den Fallback, damit beide Pakete auch aus
+# site-packages heraus übereinstimmen.
 os.environ.setdefault("SP5_BACKEND_DIR", _backend_dir())
 
 _APP_START_TIME = _startup_time_module.time()
 
-# Master-data GET paths cached client-side for 60s. Single source of truth shared
-# by the cache-control middleware (which sets the header) and the metrics
-# collector (which counts hit rate) so the two can never drift apart.
+# Stammdaten-GET-Pfade, die clientseitig 60 s gecacht werden. Eine gemeinsame
+# Quelle für die Cache-Control-Middleware (setzt den Header) und den Metrik-
+# Sammler (zählt die Trefferrate), damit beide nie auseinanderlaufen.
 _CACHEABLE_API_PREFIXES = (
     "/api/shifts",
     "/api/holidays",
@@ -33,7 +34,7 @@ _CACHEABLE_API_PREFIXES = (
 
 # ── In-memory metrics collector ──────────────────────────────────
 class _Metrics:
-    """Simple thread-safe in-memory metrics for observability."""
+    """Einfache thread-sichere In-Memory-Metriken für die Observability."""
 
     def __init__(self, latency_window: int = 100):
         self._lock = threading.Lock()
@@ -42,7 +43,7 @@ class _Metrics:
         self.not_found_count = 0  # 404 responses
         self.cache_hit_count = 0  # responses with Cache-Control max-age (hits)
         self.cache_total_count = 0  # cacheable requests total
-        # Circular buffer of recent DB-read latencies (ms)
+        # Ringpuffer der letzten DB-Lese-Latenzen (ms)
         self._latencies: deque = deque(maxlen=latency_window)
 
     def record_request(self, status: int, duration_ms: float, path: str, response_headers: dict):
@@ -102,7 +103,7 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 from slowapi.middleware import SlowAPIMiddleware  # noqa: E402
 
 # ── Import shared dependencies ──────────────────────────────────
-# These are re-exported here so tests can still do `from sp5api.main import _sessions`
+# Hier re-exportiert, damit Tests weiterhin `from sp5api.main import _sessions` können
 from .dependencies import (  # noqa: E402
     _DEV_MODE_ACTIVE,
     _DEV_TOKEN,
@@ -197,9 +198,9 @@ _OPENAPI_TAGS = [
 
 
 async def _periodic_cleanup():
-    """Background task: purge expired sessions and stale failed-login entries.
+    """Hintergrund-Task: abgelaufene Sessions und alte Failed-Login-Einträge räumen.
 
-    Interval is configurable via SESSION_CLEANUP_INTERVAL_MINUTES (default 5)."""
+    Intervall konfigurierbar via SESSION_CLEANUP_INTERVAL_MINUTES (Default 5)."""
     import asyncio
 
     interval_sec = _int_env("SESSION_CLEANUP_INTERVAL_MINUTES", 5) * 60
@@ -219,7 +220,7 @@ async def _periodic_cleanup():
 
 
 def _check_db_files_on_startup(db_path: str) -> None:
-    """Check that critical DBF files are readable on startup. Logs warnings for missing/unreadable files."""
+    """Prüft beim Start, ob kritische DBF-Dateien lesbar sind. Warnt bei fehlenden/unlesbaren."""
     CRITICAL_TABLES = ["EMPL", "USER", "SHIFT", "MASHI", "ABSEN"]
     missing = []
     for table in CRITICAL_TABLES:
@@ -362,7 +363,7 @@ app.add_middleware(SlowAPIMiddleware)
 
 
 def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
-    """Custom 429 handler — returns structured JSON with Retry-After header."""
+    """Eigener 429-Handler — liefert strukturiertes JSON mit Retry-After-Header."""
     import re as _re_mod
 
     from sp5api.rate_limit_store import log_rate_limit_event
@@ -391,7 +392,7 @@ def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         if _rl_session:
             _rl_user = _rl_session.get("NAME")
 
-    # Persist rate-limit event for the admin dashboard
+    # Rate-Limit-Ereignis für das Admin-Dashboard persistieren
     log_rate_limit_event(
         user=_rl_user,
         ip=client_ip,
@@ -441,11 +442,11 @@ app.add_middleware(
 
 @app.middleware("http")
 async def cache_control_middleware(request: Request, call_next):
-    """Set Cache-Control headers for static/rarely-changing GET endpoints."""
+    """Setzt Cache-Control-Header für statische/selten wechselnde GET-Endpunkte."""
     response = await call_next(request)
     if request.method == "GET":
         path = request.url.path
-        # Rarely-changing master data: cache for 60s client-side
+        # Selten wechselnde Stammdaten: 60 s clientseitig cachen
         if any(path.startswith(p) for p in _CACHEABLE_API_PREFIXES) and response.status_code == 200:
             response.headers["Cache-Control"] = "private, max-age=60"
         elif path.startswith("/api/"):
@@ -462,7 +463,7 @@ _CSP_REPORT_ONLY = os.environ.get("CSP_REPORT_ONLY", "").lower() in (
 
 
 def _build_csp() -> str:
-    """Build the Content-Security-Policy header value."""
+    """Baut den Content-Security-Policy-Headerwert."""
     directives = [
         "default-src 'self'",
         "script-src 'self'",
@@ -493,7 +494,7 @@ def _apply_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     # Content Security Policy: restrict resource loading to same origin
-    # Use Report-Only mode when CSP_REPORT_ONLY=true (for debugging)
+    # Report-Only-Modus bei CSP_REPORT_ONLY=true (zum Debuggen)
     csp_header = (
         "Content-Security-Policy-Report-Only" if _CSP_REPORT_ONLY else "Content-Security-Policy"
     )
@@ -536,7 +537,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         "less_than": "Must be less than {lt}",
         "type_error": "Wrong data type",
     }
-    # Types where we prefer the custom validator message over the generic mapping
+    # Typen, bei denen die eigene Validator-Meldung vor dem generischen Mapping gilt
     _PASS_THROUGH_TYPES = {"value_error", "assertion_error"}
     errors = []
     for e in exc.errors():
@@ -549,7 +550,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         if raw_msg.startswith("Value error, "):
             raw_msg = raw_msg[len("Value error, ") :]
         if etype in _PASS_THROUGH_TYPES:
-            # Use the custom message from the validator directly
+            # Die eigene Meldung des Validators direkt verwenden
             msg = raw_msg
         elif etype in _TYPE_MSGS:
             template = _TYPE_MSGS[etype]
@@ -570,7 +571,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Catch unhandled exceptions, log with details, return sanitized 500."""
+    """Fängt unbehandelte Exceptions, loggt Details, liefert bereinigte 500."""
     from .dependencies import request_id_ctx
 
     token = (
@@ -611,7 +612,7 @@ async def filesystem_error_handler(request: Request, exc: OSError):
 
     mapped = describe_write_error(exc)
     if mapped is None:
-        # Not a filesystem error we can explain — defer to the generic handler.
+        # Kein erklärbarer Dateisystem-Fehler — an den generischen Handler abgeben.
         return await global_exception_handler(request, exc)
     status, detail = mapped
     rid = request_id_ctx.get(None) or "-"
@@ -643,7 +644,7 @@ _PUBLIC_PATHS = {
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
-    """Log every request with timing info and request-ID via structured logging."""
+    """Loggt jeden Request mit Timing und Request-ID via strukturiertem Logging."""
     import time as _t
     import uuid as _uuid
 
@@ -684,7 +685,7 @@ async def request_logging_middleware(request: Request, call_next):
     )
     response.headers["X-Request-ID"] = req_id
     request_id_ctx.reset(token_cv)
-    # Record metrics (after response so headers are set)
+    # Metriken erfassen (nach der Response, damit die Header gesetzt sind)
     _metrics.record_request(
         status=response.status_code,
         duration_ms=duration_ms,
@@ -696,14 +697,14 @@ async def request_logging_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    """Require authentication for all /api/* endpoints except public ones."""
+    """Verlangt Authentifizierung für alle /api/*-Endpunkte außer den öffentlichen."""
     path = request.url.path
     method = request.method
     client_ip = request.client.host if request.client else "unknown"
 
     if path in _PUBLIC_PATHS or not path.startswith("/api/"):
         return await call_next(request)
-    # iCal feed uses token-in-URL authentication (for calendar app subscriptions)
+    # Der iCal-Feed authentifiziert per Token in der URL (Kalender-App-Abos)
     if path.startswith("/api/ical/feed/"):
         return await call_next(request)
     # SSE endpoint also accepts token as query param (EventSource doesn't support headers)
@@ -776,14 +777,14 @@ async def auth_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def api_versioning_middleware(request: Request, call_next):
-    """Handle /api/v1/ prefix and add deprecation headers on unversioned /api/ routes."""
+    """Behandelt das /api/v1/-Präfix und setzt Deprecation-Header auf unversionierte /api/-Routen."""
     from datetime import datetime as _dt
     from datetime import timedelta
 
     path = request.url.path
     is_versioned = False
 
-    # Don't rewrite OpenAPI docs paths — they are served directly by FastAPI
+    # OpenAPI-Doku-Pfade nicht umschreiben — die liefert FastAPI direkt aus
     _DOCS_PATHS = {"/api/v1/docs", "/api/v1/redoc", "/api/v1/openapi.json"}
     if (path.startswith("/api/v1/") or path == "/api/v1") and path not in _DOCS_PATHS:
         # Rewrite /api/v1/... → /api/...
@@ -809,7 +810,7 @@ from starlette.requests import Request as StarletteRequest  # noqa: E402
 
 
 class ChangelogMiddleware(BaseHTTPMiddleware):
-    """Automatically log CREATE/UPDATE/DELETE actions from the API."""
+    """Loggt CREATE/UPDATE/DELETE-Aktionen der API automatisch."""
 
     _ENTITY_MAP = {
         "employees": "employee",
@@ -882,7 +883,7 @@ class ChangelogMiddleware(BaseHTTPMiddleware):
 app.add_middleware(ChangelogMiddleware)
 
 
-# RequestLoggingMiddleware removed — duplicate of request_logging_middleware above
+# RequestLoggingMiddleware entfernt — Duplikat der request_logging_middleware oben
 
 # ── Include routers ─────────────────────────────────────────────
 from .routers import (  # noqa: E402
@@ -968,7 +969,7 @@ def _format_uptime(seconds: float) -> str:
 
 
 def _get_dir_size(path: str) -> int:
-    """Get total size of files in a directory (non-recursive)."""
+    """Gesamtgröße der Dateien eines Verzeichnisses (nicht rekursiv)."""
     total = 0
     try:
         for entry in os.scandir(path):
@@ -1130,7 +1131,7 @@ def health():
     ),
 )
 def get_metrics(request: Request):
-    """Runtime metrics endpoint — no auth required for localhost."""
+    """Laufzeit-Metriken-Endpunkt — für localhost ohne Auth."""
     client_host = request.client.host if request.client else ""
     is_local = client_host in ("127.0.0.1", "::1", "localhost")
     snap = _metrics.snapshot()
@@ -1176,7 +1177,7 @@ def version():
     description="Returns basic service info.",
 )
 def root():
-    """Return basic service info for the API root endpoint."""
+    """Liefert Basis-Dienstinfos am API-Wurzel-Endpunkt."""
     return {
         "service": "OpenSchichtplaner5 API",
         "version": _API_VERSION,
@@ -1186,7 +1187,7 @@ def root():
 
 @app.get("/", include_in_schema=False)
 async def frontend_root():
-    """Serve the React frontend."""
+    """Liefert das React-Frontend aus."""
     index = os.path.join(_FRONTEND_DIST, "index.html")
     if os.path.exists(index):
         return FileResponse(index)
@@ -1195,7 +1196,7 @@ async def frontend_root():
 
 @app.get("/api/dev/mode", tags=["Health"], summary="Dev mode status")
 def get_dev_mode():
-    """Returns whether SP5_DEV_MODE is active. Safe to call without auth."""
+    """Meldet, ob SP5_DEV_MODE aktiv ist. Ohne Auth aufrufbar."""
     return {"dev_mode": _DEV_MODE_ACTIVE}
 
 
@@ -1247,7 +1248,7 @@ def get_migration_status():
 
 @app.get("/api/stats", tags=["Health"], summary="Database statistics")
 def get_stats():
-    """Return database statistics from the connected SP5 database."""
+    """Liefert Statistiken der verbundenen SP5-Datenbank."""
     return get_db().get_stats()
 
 
@@ -1259,7 +1260,7 @@ def get_dashboard_summary(
     year: int | None = Query(None, description="Year (YYYY), defaults to current year"),
     month: int | None = Query(None, description="Month (1-12), defaults to current month"),
 ):
-    """Return all KPIs needed for the Dashboard in one request."""
+    """Liefert alle Dashboard-KPIs in einem Request."""
     import calendar as _cal
     from collections import defaultdict
     from datetime import date, timedelta
@@ -1328,7 +1329,7 @@ def get_dashboard_summary(
         1 for e in month_entries if e["kind"] in ("shift", "special_shift")
     )
 
-    # Count working days for coverage %
+    # Arbeitstage für die Abdeckungs-Prozente zählen
     num_days = _cal.monthrange(year, month)[1]
     working_days = sum(1 for d in range(1, num_days + 1) if _dt(year, month, d).weekday() < 5)
     max_possible = total_employees * working_days if working_days > 0 else 1
@@ -1358,7 +1359,7 @@ def get_dashboard_summary(
     ]
     absences_by_type_list.sort(key=lambda x: -x["count"])
 
-    # ── Zeitkonto alerts (employees with > 8h deficit this month) ─────────────
+    # ── Zeitkonto-Alarme (MA mit > 8 h Defizit im Monat) ──────────────────────
     try:
         stats = db.get_statistics(year, month)
         zeitkonto_alerts = []
@@ -1468,7 +1469,7 @@ def get_dashboard_summary(
 
 @app.get("/api/dashboard/today", tags=["Health"], summary="Today's schedule overview")
 def get_dashboard_today():
-    """Return employees on duty today, today's absences, and week peak data."""
+    """Liefert heutige Dienste, heutige Abwesenheiten und Wochen-Spitzendaten."""
     from datetime import date, timedelta
 
     db = get_db()
@@ -1476,10 +1477,10 @@ def get_dashboard_today():
     today_str = today.isoformat()
     today_weekday = today.weekday()  # 0=Mon
 
-    # Build shift map for startend lookup
+    # Schicht-Map für den STARTEND-Lookup bauen
     shifts_map = {s["ID"]: s for s in db.get_shifts(include_hidden=True)}
 
-    # Helper: get startend for a shift on a given weekday
+    # Helfer: STARTEND einer Schicht am Wochentag holen
     def get_shift_startend(shift_id: int, weekday: int) -> str:
         shift = shifts_map.get(shift_id)
         if not shift:
@@ -1556,7 +1557,7 @@ def get_dashboard_today():
             peak_count = day_count
             peak_day = week_data[-1]
 
-    # Holidays for edge-case detection
+    # Feiertage für die Grenzfall-Erkennung
     holiday_dates = db.get_holiday_dates(today.year)
     is_holiday_today = today_str in holiday_dates
 
@@ -1581,7 +1582,7 @@ def get_dashboard_today():
 
 @app.get("/api/dashboard/upcoming", tags=["Health"], summary="Upcoming schedule entries")
 def get_dashboard_upcoming():
-    """Return next 3 upcoming holidays and birthdays this week."""
+    """Liefert die nächsten 3 Feiertage und die Geburtstage dieser Woche."""
     from datetime import date, timedelta
 
     db = get_db()
@@ -1604,7 +1605,7 @@ def get_dashboard_upcoming():
     upcoming_holidays.sort(key=lambda x: x["date"])
     upcoming_holidays = upcoming_holidays[:3]
 
-    # Also try to expand recurring holidays for current year if no future ones
+    # Ohne künftige Feiertage zusätzlich wiederkehrende fürs laufende Jahr expandieren
     if not upcoming_holidays:
         all_holidays_raw = db.get_holidays()
         recurring = [h for h in all_holidays_raw if h.get("INTERVAL") == 1]
@@ -1628,7 +1629,7 @@ def get_dashboard_upcoming():
             upcoming_holidays.sort(key=lambda x: x["date"])
             upcoming_holidays = upcoming_holidays[:3]
 
-    # Birthdays this week (Mon–Sun of current week)
+    # Geburtstage dieser Woche (Mo–So der laufenden Woche)
     weekday = today.weekday()  # 0=Mon
     week_start = today - timedelta(days=weekday)
     week_end = week_start + timedelta(days=6)
@@ -1697,7 +1698,7 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
     employees = db.get_employees(include_hidden=False)
     total_employees = len(employees)
 
-    # Active shifts for requested month — via Fassade (inkl. expandierter
+    # Aktive Dienste des angefragten Monats — via Fassade (inkl. expandierter
     # 5CYASS-Zyklusdienste, B-2) statt Roh-Read auf 5MASHI
     month_entries = db.get_schedule(year=req_year, month=req_month)
     shifts_used_ids = set()
@@ -1719,7 +1720,7 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
         if r.get("DATE", "").startswith(year_prefix) and r.get("LEAVETYPID") in vacation_ids
     )
 
-    # Coverage bars: per day of requested month (Fassade, inkl. Zyklusdienste)
+    # Abdeckungs-Balken: je Tag des angefragten Monats (Fassade, inkl. Zyklusdienste)
     num_days = _cal.monthrange(req_year, req_month)[1]
     day_counts: dict = {d: 0 for d in range(1, num_days + 1)}
     for e in month_entries:
@@ -1749,7 +1750,7 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
         except ValueError:
             pass
 
-    # Employee shift ranking for the month (top/bottom performers)
+    # MA-Schicht-Ranking des Monats (Top-/Bottom-Werte)
     try:
         stats = db.get_statistics(req_year, req_month)
         emp_ranking = []
@@ -1782,8 +1783,8 @@ def get_dashboard_stats(year: int | None = None, month: int | None = None):
 
 
 # ── Frontend static files (muss NACH allen /api-Routen stehen!) ──
-# Built SPA to serve at "/" — override with SP5_FRONTEND_DIST; if the directory
-# is absent the API runs in API-only mode.
+# Gebaute SPA für "/" — überschreibbar via SP5_FRONTEND_DIST; fehlt das
+# Verzeichnis, läuft die API im API-only-Modus.
 _FRONTEND_DIST = os.environ.get("SP5_FRONTEND_DIST") or os.path.normpath(
     os.path.join(_backend_dir(), "..", "frontend", "dist")
 )
@@ -1797,8 +1798,8 @@ if os.path.isdir(_FRONTEND_DIST):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
-        # Unknown /api/* paths must return 404, not the SPA — avoids silent 200 on typos/missing endpoints
-        """Serve the React SPA index.html for all unmatched routes."""
+        # Unbekannte /api/*-Pfade müssen 404 liefern, nicht die SPA — verhindert stilles 200 bei Tippfehlern
+        """Liefert die index.html der React-SPA für alle nicht gematchten Routen."""
         if full_path.startswith("api/") or full_path == "api":
             raise HTTPException(status_code=404, detail=f"Endpoint nicht gefunden: /{full_path}")
         index = os.path.join(_FRONTEND_DIST, "index.html")
