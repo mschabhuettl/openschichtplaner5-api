@@ -208,6 +208,19 @@ def leser_client(write_db_path, app):
         _remove_token(tok)
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _photos_in_tmp(tmp_path_factory):
+    """Foto-Uploads der Tests in ein Wegwerf-Verzeichnis lenken — _PHOTOS_DIR
+    zeigt sonst (via SP5_BACKEND_DIR = Repo-Root) in den Checkout und
+    erfolgreiche Upload-Tests hinterlassen api/uploads/photos/*.webp im Repo."""
+    import sp5api.routers.employees as employees_module
+
+    original = employees_module._PHOTOS_DIR
+    employees_module._PHOTOS_DIR = str(tmp_path_factory.mktemp("photos"))
+    yield
+    employees_module._PHOTOS_DIR = original
+
+
 @pytest.fixture
 def ensure_duty(write_db_path):
     """Legt einen 5MASHI-Dienst für (emp_id, datum) an — die Tauschbörse
