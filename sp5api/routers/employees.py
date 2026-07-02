@@ -1,4 +1,4 @@
-"""Employees and groups router."""
+"""Router für Mitarbeiter und Gruppen."""
 
 import csv
 import io
@@ -116,7 +116,7 @@ _DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
 
 def _validate_date_field(v: str, field_name: str) -> str:
-    """Validate optional date string is YYYY-MM-DD if non-empty."""
+    """Validiert, dass ein optionaler Datumsstring YYYY-MM-DD ist, wenn nicht leer."""
     if v:
         import re as _re
         from datetime import datetime as _dtt
@@ -278,7 +278,7 @@ class EmployeeUpdate(BaseModel):
     description="Create a new employee record. Requires Admin role or the granular ADDEMPL right ('neue Mitarbeiter erfassen').",
 )
 def create_employee(body: EmployeeCreate, _cur_user: dict = Depends(require_addempl)):
-    # Validation handled by Pydantic Field constraints and validators
+    # Validierung übernehmen die Pydantic-Field-Constraints und -Validatoren
     try:
         db = get_db()
         result = db.create_employee(body.model_dump())
@@ -323,10 +323,10 @@ def update_employee(
     emp_id: int, body: EmployeeUpdate, _cur_user: dict = Depends(require_admin)
 ):
     try:
-        # Validation handled by Pydantic Field constraints and validators
+        # Validierung übernehmen die Pydantic-Field-Constraints und -Validatoren
         data = {k: v for k, v in body.model_dump().items() if v is not None}
         db = get_db()
-        # Capture old state for audit
+        # Alten Zustand fürs Audit festhalten
         old_emp = db.get_employee(emp_id)
         # Basis Gesamtstunden: Patch-Semantik — die EFFEKTIVEN Werte
         # (Body oder Bestand) müssen die Erfassungsregel erfüllen.
@@ -348,7 +348,7 @@ def update_employee(
             emp_id,
             list(data.keys()),
         )
-        # Audit: employee updated with old/new values
+        # Audit: Mitarbeiter aktualisiert, mit Alt-/Neu-Werten
         db.log_action(
             user=_cur_user.get("NAME", "?"),
             action="UPDATE",
@@ -381,7 +381,7 @@ def update_employee(
 def delete_employee(emp_id: int, _cur_user: dict = Depends(require_admin)):
     try:
         db = get_db()
-        # Capture old name for audit
+        # Alten Namen fürs Audit festhalten
         old_emp = db.get_employee(emp_id)
         old_name = old_emp.get("NAME", "?") if old_emp else "?"
         count = db.delete_employee(emp_id)
@@ -644,10 +644,10 @@ async def upload_employee_photo(
     crop_h: int = Query(0, ge=0, description="Crop area height in pixels (0 = full)"),
     _cur_user: dict = Depends(require_admin),
 ):
-    """Upload a photo for an employee.
+    """Lädt ein Foto für einen Mitarbeiter hoch.
 
-    Accepts JPG/PNG/GIF/WebP.  The image is optionally cropped (if crop_w/crop_h > 0),
-    resized to fit within 400×400 px, and stored as WebP.
+    Akzeptiert JPG/PNG/GIF/WebP. Das Bild wird optional zugeschnitten (wenn
+    crop_w/crop_h > 0), auf max. 400×400 px verkleinert und als WebP gespeichert.
     """
     import io as _io
     import pathlib
@@ -674,11 +674,11 @@ async def upload_employee_photo(
     if len(content) > _MAX_PHOTO_SIZE:
         raise HTTPException(status_code=413, detail="File too large (max. 5 MB)")
 
-    # Open image with Pillow
+    # Bild mit Pillow öffnen
     try:
-        # Annotate as Image.Image: Image.open() returns an ImageFile, but convert()/
-        # crop() below return a plain Image — without this the reassignments are
-        # flagged as incompatible by the type checker.
+        # Als Image.Image annotieren: Image.open() liefert ein ImageFile, aber
+        # convert()/crop() unten liefern ein einfaches Image — ohne die Annotation
+        # meldet der Type-Checker die Neuzuweisungen als inkompatibel.
         img: Image.Image = Image.open(_io.BytesIO(content))
         img = img.convert("RGB")  # ensure RGB for WebP
     except Exception:
@@ -697,11 +697,11 @@ async def upload_employee_photo(
 
     # Resize to max 400x400 preserving aspect ratio
     max_size = (400, 400)
-    # Image.Resampling.LANCZOS is the supported form; the top-level Image.LANCZOS
-    # alias is deprecated and slated for removal in a future Pillow.
+    # Image.Resampling.LANCZOS ist die unterstützte Form; der Top-Level-Alias
+    # Image.LANCZOS ist deprecated und fliegt in einem künftigen Pillow raus.
     img.thumbnail(max_size, Image.Resampling.LANCZOS)
 
-    # Remove old photos for this employee
+    # Alte Fotos dieses MA entfernen
     for old in photos_dir.glob(f"{emp_id}.*"):
         try:
             old.unlink()
@@ -753,7 +753,7 @@ async def import_employees_csv(
     if ct and ct not in ("text/csv", "application/octet-stream", "text/plain"):
         raise HTTPException(status_code=400, detail="Nur CSV-Dateien erlaubt")
 
-    # Read and decode file
+    # Datei lesen und dekodieren
     raw = await file.read()
     if len(raw) > 5 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Datei zu groß (max. 5 MB)")
@@ -797,7 +797,7 @@ async def import_employees_csv(
             detail=f"Pflicht-Spalten fehlen: {', '.join(sorted(missing))}",
         )
 
-    # Load existing employees for duplicate check
+    # Bestehende MA für den Duplikat-Check laden
     db = get_db()
     existing_employees = db.get_employees(include_hidden=True)
     existing_names = {
@@ -805,7 +805,7 @@ async def import_employees_csv(
         for e in existing_employees
     }
 
-    # Load existing groups for validation
+    # Bestehende Gruppen für die Validierung laden
     existing_groups = db.get_groups(include_hidden=True)
     valid_group_ids = {g["ID"] for g in existing_groups}
 
@@ -987,7 +987,7 @@ def bulk_employee_action(
             )
         for emp_id in body.employee_ids:
             try:
-                # add_group_member is idempotent (ignore duplicate)
+                # add_group_member ist idempotent (Duplikat ignorieren)
                 db.add_group_member(body.group_id, emp_id)
                 affected += 1
             except Exception as e:

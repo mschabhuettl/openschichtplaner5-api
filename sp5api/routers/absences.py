@@ -33,7 +33,7 @@ router = APIRouter()
 def delete_absence_only(
     employee_id: int, date: str, _cur_user: dict = Depends(require_write("WABSENCES"))
 ):
-    """Delete only absence entries (ABSEN) for an employee on a date, leaving shifts intact."""
+    """Löscht nur Abwesenheiten (ABSEN) eines MA an einem Datum; Schichten bleiben."""
     try:
         from datetime import datetime
 
@@ -123,7 +123,7 @@ def list_absences(
     page: int | None = Query(None, ge=1, description="Page number (1-based). Omit for unpaginated list."),
     page_size: int = Query(50, ge=1, le=500, description="Items per page"),
 ):
-    """List all absences with optional filters."""
+    """Listet alle Abwesenheiten mit optionalen Filtern."""
     result = get_db().get_absences_list(
         year=year, employee_id=employee_id, leave_type_id=leave_type_id
     )
@@ -162,7 +162,7 @@ def create_absence(
     warnings: list[str] = []
     try:
         year = int(body.date[:4])
-        # Check for existing shift assignment on this date
+        # Auf bestehende Schichtzuweisung an diesem Datum prüfen
         day_entries = db.get_schedule_day(body.date)
         emp_entry = next(
             (
@@ -180,7 +180,7 @@ def create_absence(
             warnings.append(
                 f"Mitarbeiter hat an diesem Tag bereits eine Schicht ({shift_name})."
             )
-        # Check if date is a public holiday
+        # Prüfen, ob das Datum ein Feiertag ist
         holiday_dates = db.get_holiday_dates(year)
         if body.date in holiday_dates:
             warnings.append(
@@ -232,7 +232,7 @@ def create_absence(
             except Exception:
                 warnings.append("Kommentar konnte nicht als Notiz gespeichert werden.")
 
-        # ── Auto-set status to "pending" for approval workflow ────────────
+        # ── Status automatisch auf "pending" für den Genehmigungs-Workflow ─
         absence_id = result.get("ID")
         if absence_id:
             try:
@@ -242,7 +242,7 @@ def create_absence(
             except Exception:
                 pass  # Never block creation due to status file errors
 
-            # ── Notify planners about the new request ─────────────────────
+            # ── Planer über den neuen Antrag benachrichtigen ───────────────
             try:
                 emp = db.get_employee(body.employee_id)
                 emp_name = f"{emp.get('NAME', '')} {emp.get('FIRSTNAME', '')}".strip() if emp else f"MA #{body.employee_id}"
@@ -373,7 +373,7 @@ class BulkAbsenceCreate(BaseModel):
 def bulk_create_absence(
     body: BulkAbsenceCreate, _cur_user: dict = Depends(require_write("WABSENCES"))
 ):
-    """Add an absence entry for multiple employees (or all active) on one date."""
+    """Trägt eine Abwesenheit für mehrere MA (oder alle aktiven) an einem Datum ein."""
     enforce_wpast(_cur_user, body.date)
     db = get_db()
     if db.get_leave_type(body.leave_type_id) is None:
@@ -383,7 +383,7 @@ def bulk_create_absence(
         )
 
     if body.employee_ids:
-        # Build a map once instead of calling get_employee() per ID (O(N) vs O(N*M))
+        # Eine Map einmal bauen statt get_employee() je ID (O(N) statt O(N*M))
         all_emp_map: dict[int, dict] = {
             e["ID"]: e for e in db.get_employees(include_hidden=True)
         }
@@ -415,7 +415,7 @@ def bulk_create_absence(
                 {"id": emp["ID"], "error": "Interner Fehler beim Speichern"}
             )
 
-    # ── Auto-set status to "pending" for all created absences ─────────────
+    # ── Status aller angelegten Abwesenheiten automatisch auf "pending" ────
     if created_ids:
         try:
             status_data = _load_absence_status()
@@ -590,7 +590,7 @@ class HolidayBanCreate(BaseModel):
 def create_holiday_ban(
     body: HolidayBanCreate, _cur_user: dict = Depends(require_planer)
 ):
-    # Date validation and range check handled by Pydantic model
+    # Datums-Validierung und Bereichs-Check übernimmt das Pydantic-Modell
     try:
         result = get_db().create_holiday_ban(
             group_id=body.group_id,
@@ -751,8 +751,8 @@ def _save_absence_status(data: dict) -> None:
     description="Return the status dict for all absences (id → {status, reject_reason}). Also supports legacy format (id → status string) and normalizes on read.",
 )
 def get_all_absence_statuses():
-    """Return the status dict for all absences (id → {status, reject_reason}).
-    Also supports legacy format (id → status string) and normalizes on read."""
+    """Liefert das Status-dict aller Abwesenheiten (id → {status, reject_reason}).
+    Unterstützt auch das Legacy-Format (id → Status-String) und normalisiert beim Lesen."""
     raw = _load_absence_status()
     # Normalize: legacy entries may be plain strings
     normalized: dict = {}
@@ -778,7 +778,7 @@ class AbsenceStatusPatch(BaseModel):
 def patch_absence_status(
     absence_id: int, body: AbsenceStatusPatch, _cur_user: dict = Depends(require_planer)
 ):
-    """Update approval status for an absence record."""
+    """Aktualisiert den Genehmigungsstatus einer Abwesenheit."""
     allowed = {"pending", "approved", "rejected"}
     if body.status not in allowed:
         raise HTTPException(status_code=400, detail=f"status must be one of {allowed}")
@@ -804,7 +804,7 @@ def patch_absence_status(
     except Exception:
         pass
 
-    # ── When rejected: remove from ABSEN table so employee is no longer marked absent ──
+    # ── Bei Ablehnung: aus ABSEN entfernen, damit der MA nicht mehr abwesend markiert ist ──
     rejected_removed = False
     if body.status == "rejected" and _absence_rec:
         try:
@@ -867,7 +867,7 @@ def _classify_leave_type(lt: dict | None) -> str:
 def _build_employee_stats(
     employee_id: int, year: int, absences: list[dict], lt_map: dict, status_data: dict
 ) -> dict:
-    """Build per-employee absence stats for a given year."""
+    """Baut die Abwesenheits-Statistik je MA für ein Jahr."""
     year_str = str(year)
     vacation_days = 0
     sick_days = 0
@@ -934,7 +934,7 @@ def get_absence_stats_employee(
     year: int = Query(..., ge=2000, le=2100, description="Year (YYYY)"),
     _cur_user: dict = Depends(require_role("Planer")),
 ):
-    """Return absence statistics for one employee in a year."""
+    """Liefert die Abwesenheits-Statistik eines MA in einem Jahr."""
     try:
         db = get_db()
         emp = db.get_employee(employee_id)
@@ -1054,7 +1054,7 @@ def get_absence_stats_overview(
         }
         year_str = str(year)
 
-        # Pre-compute all absences with category
+        # Alle Abwesenheiten samt Kategorie vorberechnen
         for ab in absences:
             d = ab.get("date", "")
             if not d.startswith(year_str):
