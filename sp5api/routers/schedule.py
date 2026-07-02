@@ -301,6 +301,7 @@ def remove_cycle_assignment(
 class ShiftCycleCreateBody(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     size_weeks: int = Field(..., ge=1, le=52)
+    unit: int = Field(1, ge=0, le=1)  # 1=Wochen (Default), 0=Tage
 
 
 class CycleEntryItem(BaseModel):
@@ -312,6 +313,7 @@ class ShiftCycleUpdateBody(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     size_weeks: int = Field(..., ge=1, le=52)
     entries: list[CycleEntryItem] = []
+    unit: int | None = Field(None, ge=0, le=1)  # 1=Wochen, 0=Tage (Original-Einheit, Wine-belegt)
 
 
 @router.post("/api/shift-cycles", tags=["Schedule"], summary="Create shift cycle", description="Create a new shift rotation cycle. Requires Planer role.")
@@ -325,7 +327,7 @@ def create_shift_cycle(
             status_code=400, detail="Anzahl Wochen muss zwischen 1 und 52 liegen"
         )
     try:
-        result = get_db().create_shift_cycle(body.name.strip(), body.size_weeks)
+        result = get_db().create_shift_cycle(body.name.strip(), body.size_weeks, unit=body.unit)
         return {"ok": True, "cycle": result}
     except Exception as e:
         raise _sanitize_500(e)
@@ -346,7 +348,7 @@ def update_shift_cycle(
         )
     db = get_db()
     try:
-        db.update_shift_cycle(cycle_id, body.name.strip(), body.size_weeks)
+        db.update_shift_cycle(cycle_id, body.name.strip(), body.size_weeks, unit=body.unit)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
