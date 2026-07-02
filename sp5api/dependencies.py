@@ -27,7 +27,7 @@ request_id_ctx: _contextvars.ContextVar[str | None] = _contextvars.ContextVar(
 
 
 class _JsonFormatter(logging.Formatter):
-    """Emit log records as single-line JSON objects with request_id from context."""
+    """Gibt Log-Einträge als einzeilige JSON-Objekte mit request_id aus dem Kontext aus."""
 
     def format(self, record: logging.LogRecord) -> str:
         entry = {
@@ -61,7 +61,7 @@ class _JsonFormatter(logging.Formatter):
 
 
 class _TextFormatter(logging.Formatter):
-    """Human-readable formatter for local development (SP5_LOG_FORMAT=text)."""
+    """Menschenlesbarer Formatter für die lokale Entwicklung (SP5_LOG_FORMAT=text)."""
 
     def format(self, record: logging.LogRecord) -> str:
         ts = _dt.fromtimestamp(record.created, tz=UTC).strftime("%H:%M:%S")
@@ -81,10 +81,11 @@ _DEFAULT_LOG_FILE = "/tmp/sp5-api.log"
 
 
 def _open_log_handler(path: str) -> tuple[str, logging.handlers.RotatingFileHandler]:
-    """Create a rotating file handler for ``path``, creating the parent dir if
-    needed. On any failure (unwritable/missing dir) fall back to the default
-    ``/tmp`` location so logging — and thus startup — never breaks because of a
-    misconfigured LOG_FILE. Returns the (possibly fallback) path + handler."""
+    """Erzeugt einen rotierenden File-Handler für ``path`` (legt das Eltern-
+    Verzeichnis bei Bedarf an). Bei jedem Fehler (unbeschreibbar/fehlend)
+    Fallback auf den ``/tmp``-Default, damit Logging — und damit der Start —
+    nie an einem falsch konfigurierten LOG_FILE scheitert. Liefert den
+    (ggf. Fallback-)Pfad + Handler."""
     for candidate in (path, _DEFAULT_LOG_FILE):
         try:
             parent = os.path.dirname(candidate)
@@ -100,13 +101,13 @@ def _open_log_handler(path: str) -> tuple[str, logging.handlers.RotatingFileHand
     return path, logging.handlers.RotatingFileHandler(_DEFAULT_LOG_FILE, delay=True)
 
 
-# LOG_FILE is documented in .env.example; default keeps the previous /tmp path.
+# LOG_FILE ist in .env.example dokumentiert; der Default behält den bisherigen /tmp-Pfad.
 _log_file, _handler = _open_log_handler(os.environ.get("LOG_FILE") or _DEFAULT_LOG_FILE)
 _handler.setFormatter(_formatter)
 
 _logger = logging.getLogger("sp5.api")
-# Log level configurable via ENV. LOG_LEVEL is the variable documented in
-# .env.example; SP5_LOG_LEVEL stays supported as an alias.
+# Log-Level per ENV konfigurierbar. LOG_LEVEL ist die in .env.example
+# dokumentierte Variable; SP5_LOG_LEVEL bleibt als Alias unterstützt.
 _log_level_str = (os.environ.get("SP5_LOG_LEVEL") or os.environ.get("LOG_LEVEL") or "INFO").upper()
 _log_level = getattr(logging, _log_level_str, logging.INFO)
 _logger.setLevel(_log_level)
@@ -115,13 +116,13 @@ _stderr_handler = logging.StreamHandler()
 _stderr_handler.setFormatter(_formatter)
 _logger.addHandler(_stderr_handler)
 
-# Keep reference to log file path for health endpoint
+# Referenz auf den Logdatei-Pfad für den Health-Endpunkt behalten
 SP5_LOG_FILE = _log_file
 
 
 def _int_env(name: str, default: int) -> int:
-    """Read a non-negative int from the environment, falling back to ``default``
-    on missing/invalid values (so a typo can never crash startup)."""
+    """Liest einen nicht-negativen Int aus der Umgebung; bei fehlenden/ungültigen
+    Werten Fallback auf ``default`` (ein Tippfehler darf den Start nie crashen)."""
     try:
         value = int(os.environ.get(name, default))
     except (TypeError, ValueError):
@@ -130,7 +131,7 @@ def _int_env(name: str, default: int) -> int:
 
 
 def _str_env(name: str, default: str) -> str:
-    """Read a non-empty string from the environment, falling back to ``default``."""
+    """Liest einen nicht-leeren String aus der Umgebung, sonst ``default``."""
     value = (os.environ.get(name) or "").strip()
     return value or default
 
@@ -157,25 +158,26 @@ def _rate_limit_key(request: Request) -> str:
 
 
 # Rate limits configurable via ENV (documented in .env.example). RATE_LIMIT_API
-# is the global default; RATE_LIMIT_LOGIN guards credential endpoints (used in
-# auth.py decorators).
+# ist der globale Default; RATE_LIMIT_LOGIN schützt die Credential-Endpunkte
+# (genutzt in den auth.py-Decorators).
 _API_RATE_LIMIT = _str_env("RATE_LIMIT_API", "100/minute")
 _LOGIN_RATE_LIMIT = _str_env("RATE_LIMIT_LOGIN", "5/minute")
 limiter = Limiter(key_func=_rate_limit_key, default_limits=[_API_RATE_LIMIT])
 
 # ── JWT Configuration ────────────────────────────────────────────
-# Secret: use env var or generate a strong random one (persists for process lifetime).
-# For multi-worker / restart-safe deployments, set SECRET_KEY (or SP5_JWT_SECRET) in env.
+# Secret: Env-Variable nutzen oder ein starkes Zufalls-Secret erzeugen (gilt für
+# die Prozess-Lebensdauer). Für Multi-Worker-/Restart-feste Deployments
+# SECRET_KEY (oder SP5_JWT_SECRET) in der Env setzen.
 
 
 def _resolve_jwt_secret(env: dict[str, str]) -> tuple[str, str | None]:
-    """Resolve the JWT signing secret and an optional operator warning.
+    """Löst das JWT-Signatur-Secret auf, plus optionale Betreiber-Warnung.
 
-    Reads ``SP5_JWT_SECRET`` first, then ``SECRET_KEY`` — the latter is the
-    variable documented in `.env.example`/README/DEPLOYMENT and the one
-    `start.sh` auto-generates, so it MUST be honoured (otherwise the configured
-    secret is silently ignored and tokens are signed with a random per-process
-    key). The shipped ``change-me…`` placeholder is treated as unset.
+    Liest zuerst ``SP5_JWT_SECRET``, dann ``SECRET_KEY`` — letzteres ist die in
+    `.env.example`/README/DEPLOYMENT dokumentierte Variable, die `start.sh`
+    auto-generiert; sie MUSS beachtet werden (sonst wird das konfigurierte
+    Secret still ignoriert und Tokens mit einem zufälligen Prozess-Schlüssel
+    signiert). Der ausgelieferte ``change-me…``-Platzhalter gilt als ungesetzt.
 
     Returns ``(secret, warning_or_None)``. When no real secret is configured a
     strong random per-process secret is generated — fine for local/dev, but in
@@ -183,7 +185,7 @@ def _resolve_jwt_secret(env: dict[str, str]) -> tuple[str, str | None]:
     multiple workers, so a warning is surfaced unless running in dev/debug mode.
     """
     configured = (env.get("SP5_JWT_SECRET") or env.get("SECRET_KEY") or "").strip()
-    # The shipped placeholder is not a real secret.
+    # Der ausgelieferte Platzhalter ist kein echtes Secret.
     if configured and not configured.lower().startswith("change-me"):
         return configured, None
 
@@ -206,15 +208,16 @@ if _jwt_secret_warning:
 _JWT_ALGORITHM = "HS256"
 
 # ── Session store ────────────────────────────────────────────────
-# JWT provides integrity + expiry; the server-side session store enables
-# revocation and the per-user session limit.
+# JWT liefert Integrität + Ablauf; der serverseitige Session-Store ermöglicht
+# Widerruf und das Sessions-Limit je Benutzer.
 #
-# `_sessions` is the in-process dict that has always backed sessions. It stays a
-# real dict so existing code/tests that mutate it directly keep working. The
-# `SessionStore` abstraction routes all session operations through a backend:
-#   - memory (DEFAULT): wraps THIS dict by reference → byte-identical behaviour.
-#   - redis (opt-in via SP5_SESSION_BACKEND=redis): shared across workers.
-# See sp5api/session_store.py.
+# `_sessions` ist das In-Prozess-dict, das Sessions schon immer getragen hat.
+# Es bleibt ein echtes dict, damit Code/Tests, die es direkt verändern, weiter
+# funktionieren. Die `SessionStore`-Abstraktion leitet alle Session-Operationen
+# durch ein Backend:
+#   - memory (DEFAULT): umhüllt DIESES dict per Referenz → byte-identisches Verhalten.
+#   - redis (Opt-in via SP5_SESSION_BACKEND=redis): über Worker geteilt.
+# Siehe sp5api/session_store.py.
 from sp5api.session_store import MemorySessionStore, create_session_store  # noqa: E402
 
 _sessions: dict[str, dict] = {}
@@ -245,13 +248,13 @@ _DEV_USER = {
     "RIGHTS": 255,
 }
 
-# Whether dev mode is active (cached at import time)
+# Ob der Dev-Modus aktiv ist (beim Import gecacht)
 _DEV_MODE_ACTIVE = os.environ.get("SP5_DEV_MODE", "").lower() in ("1", "true", "yes")
 
 
 def create_jwt_token(user_data: dict, expires_at: float) -> str:
     """Create a signed JWT token containing user session data."""
-    # Generate a unique session ID for server-side revocation
+    # Eindeutige Session-ID für den serverseitigen Widerruf erzeugen
     session_id = _secrets.token_hex(16)
     payload = {
         "sid": session_id,
@@ -262,14 +265,14 @@ def create_jwt_token(user_data: dict, expires_at: float) -> str:
         "iat": int(_time.time()),
     }
     token = _jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGORITHM)
-    # Register in server-side session store for revocation support
+    # Im serverseitigen Session-Store registrieren (Widerrufs-Unterstützung)
     session_data = {**user_data, "expires_at": expires_at, "_session_id": session_id}
     _session_store.set(session_id, session_data, expires_at)
     return token
 
 
 def _decode_jwt(token: str) -> dict | None:
-    """Decode and verify a JWT token. Returns payload or None."""
+    """Dekodiert und verifiziert ein JWT. Liefert die Payload oder None."""
     try:
         payload = _jwt.decode(token, _JWT_SECRET, algorithms=[_JWT_ALGORITHM])
         return payload
@@ -280,16 +283,16 @@ def _decode_jwt(token: str) -> dict | None:
 
 
 def _is_token_valid(token: str) -> bool:
-    """Return True if the token exists and has not expired.
+    """Liefert True, wenn das Token existiert und nicht abgelaufen ist.
 
-    Supports both legacy session tokens (direct lookup) and JWT tokens. Routes
-    through the session store, which honours expiry (purging expired entries).
+    Unterstützt Legacy-Session-Tokens (Direkt-Lookup) und JWTs. Läuft über den
+    Session-Store, der den Ablauf beachtet (abgelaufene Einträge räumen).
     """
-    # Legacy: direct session lookup (for dev mode token and backward compat)
+    # Legacy: direkter Session-Lookup (Dev-Modus-Token und Rückwärtskompatibilität)
     if _session_store.get(token) is not None:
         return True
 
-    # JWT: decode and verify, then check server-side revocation
+    # JWT: dekodieren und verifizieren, dann serverseitigen Widerruf prüfen
     payload = _decode_jwt(token)
     if payload is None:
         return False
@@ -330,7 +333,7 @@ def _resolve_session_id(token: str) -> str | None:
 
 
 def _bearer_token(authorization: str | None) -> str | None:
-    """Extract the token from an ``Authorization: Bearer <token>`` header."""
+    """Extrahiert das Token aus einem ``Authorization: Bearer <token>``-Header."""
     if isinstance(authorization, str) and authorization[:7].lower() == "bearer ":
         return authorization[7:].strip() or None
     return None
@@ -341,13 +344,13 @@ def get_current_user(
     x_auth_token: str | None = Header(None),
     authorization: str | None = Header(None),
 ) -> dict | None:
-    """Return user dict for the given token, or None.
+    """Liefert das Benutzer-dict zum Token, sonst None.
 
-    Priority: Authorization: Bearer → X-Auth-Token header → sp5_token cookie
-    → ?token= query param (query param kept for SSE connections where
-    EventSource cannot set headers). The token issued by ``/api/auth/login`` is
-    therefore usable both as an HttpOnly cookie (the SPA) and as a standard
-    Bearer token (API clients).
+    Priorität: Authorization: Bearer → X-Auth-Token-Header → sp5_token-Cookie
+    → ?token=-Query-Param (bleibt für SSE-Verbindungen, wo EventSource keine
+    Header setzen kann). Das von ``/api/auth/login`` ausgegebene Token ist
+    damit als HttpOnly-Cookie (SPA) UND als Standard-Bearer-Token
+    (API-Clients) nutzbar.
 
     Supports both legacy hex tokens and signed JWT tokens.
     """
@@ -517,10 +520,10 @@ def enforce_wpast(user: dict, *dates: str | None) -> None:
 
 
 def get_db():
-    """Get a database connection using the configured backend.
+    """Liefert eine Datenbankverbindung des konfigurierten Backends.
 
-    Returns SP5Database (DBF) or SP5PostgresDatabase (PostgreSQL)
-    depending on the DB_BACKEND environment variable.
+    Liefert SP5Database (DBF) oder SP5PostgresDatabase (PostgreSQL),
+    abhängig von der Umgebungsvariable DB_BACKEND.
     """
     from sp5lib.db_config import is_postgresql
 
@@ -535,11 +538,11 @@ def get_db():
 
 
 def invalidate_sessions_for_user(user_id: int, except_session_id: str | None = None) -> int:
-    """Remove all active sessions for a given user ID. Returns count removed.
+    """Entfernt alle aktiven Sessions einer Benutzer-ID. Liefert die Anzahl.
 
-    Works for both legacy token keys and JWT session IDs. If except_session_id
-    is provided, the matching session is preserved (used to keep the caller's
-    own session alive on self-service password changes).
+    Funktioniert für Legacy-Token-Schlüssel und JWT-Session-IDs. Mit
+    except_session_id bleibt die passende Session erhalten (hält beim
+    Self-Service-Passwortwechsel die eigene Session am Leben).
     """
     to_remove = [
         sid
@@ -552,10 +555,10 @@ def invalidate_sessions_for_user(user_id: int, except_session_id: str | None = N
 
 
 def purge_expired_sessions() -> int:
-    """Remove all expired sessions from the in-memory store. Returns count removed.
+    """Entfernt alle abgelaufenen Sessions aus dem In-Memory-Store. Liefert die Anzahl.
 
-    Only meaningful for the memory backend; with the redis backend, key TTLs
-    let Redis evict expired sessions on its own, so there is nothing to purge.
+    Nur fürs memory-Backend sinnvoll; beim redis-Backend räumt Redis
+    abgelaufene Sessions über Key-TTLs selbst — nichts zu tun.
     """
     if not isinstance(_session_store, MemorySessionStore):
         return 0
@@ -592,9 +595,9 @@ _audit_lock = _audit_threading.Lock()
 
 
 def write_audit_log(action: str, actor: str, details: dict) -> None:
-    """Append a structured audit event to the audit JSON-lines file.
+    """Hängt ein strukturiertes Audit-Ereignis an die Audit-JSON-Lines-Datei an.
 
-    Each line is a self-contained JSON object with timestamp, action, actor and details.
+    Jede Zeile ist ein eigenständiges JSON-Objekt mit Zeitstempel, Aktion, Akteur und Details.
     """
     from datetime import datetime as _adt
 
@@ -646,10 +649,10 @@ def describe_write_error(exc: BaseException) -> tuple[int, str] | None:
 
 
 def _sanitize_500(e: Exception, context: str = "") -> HTTPException:
-    """Log full exception with traceback, return a sanitized error.
+    """Loggt die volle Exception mit Traceback, liefert einen bereinigten Fehler.
 
-    Filesystem/permission errors get a clear, specific message (see
-    ``describe_write_error``); everything else stays a generic 500.
+    Dateisystem-/Rechte-Fehler bekommen eine klare, spezifische Meldung (siehe
+    ``describe_write_error``); alles andere bleibt eine generische 500.
     """
     _logger.exception(
         "500 error context=%s type=%s msg=%s",
