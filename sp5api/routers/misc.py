@@ -167,9 +167,9 @@ def global_search(
     limit: int = Query(10, ge=1, le=50, description="Max results per category"),
     grouped: bool = Query(False, description="Return grouped results by category"),
 ):
-    """Global search across employees, shifts, leave types (absence types), and groups.
-    Returns up to `limit` results per category with fuzzy matching.
-    When `grouped=true`, returns `{"employees": [...], "groups": [...], "shifts": [...], "leave_types": [...]}`.
+    """Globale Suche über Mitarbeiter, Schichten, Abwesenheitsarten und Gruppen.
+    Liefert bis zu `limit` Treffer je Kategorie mit Fuzzy-Matching.
+    Mit `grouped=true`: `{"employees": [...], "groups": [...], "shifts": [...], "leave_types": [...]}`.
     """
     query = q.strip()
     if not query:
@@ -180,8 +180,8 @@ def global_search(
     db = get_db()
 
     def _fuzzy_score(text: str, q: str) -> float:
-        """Simple fuzzy score: 1.0 for exact match, 0.8 for starts-with,
-        0.6 for contains, partial character overlap otherwise (0–0.5)."""
+        """Einfacher Fuzzy-Score: 1.0 exakt, 0.8 Präfix, 0.6 enthalten,
+        sonst anteilige Zeichen-Überlappung (0–0.5)."""
         t = text.lower()
         s = q.lower()
         if t == s:
@@ -295,7 +295,7 @@ def global_search(
     results.sort(key=lambda x: -(x["score"] or 0))  # type: ignore[operator]  # score is always numeric but typed as mixed dict value
 
     if grouped:
-        # Group results by type and limit per category
+        # Treffer nach Typ gruppieren und je Kategorie begrenzen
         grouped_results: dict[str, list] = {"employees": [], "groups": [], "shifts": [], "leave_types": []}
         type_key_map = {"employee": "employees", "group": "groups", "shift": "shifts", "leave_type": "leave_types"}
         for r in results:
@@ -349,7 +349,7 @@ def get_employee_access(
 def set_employee_access(
     body: EmployeeAccessSet, _cur_user: dict = Depends(require_admin)
 ):
-    """Set employee-level access for a user."""
+    """Setzt den MA-bezogenen Zugriff eines Benutzers."""
     try:
         result = get_db().set_employee_access(
             body.user_id, body.employee_id, body.rights
@@ -383,7 +383,7 @@ def get_group_access(
 
 @router.post("/api/group-access", tags=["Users"], summary="Create group access rule", description="Set group-level access for a user.")
 def set_group_access(body: GroupAccessSet, _cur_user: dict = Depends(require_admin)):
-    """Set group-level access for a user."""
+    """Setzt den gruppenbezogenen Zugriff eines Benutzers."""
     try:
         result = get_db().set_group_access(body.user_id, body.group_id, body.rights)
         return {"ok": True, "record": result}
@@ -434,7 +434,7 @@ class ChangelogEntry(BaseModel):
 
 @router.post("/api/changelog", tags=["Admin"], summary="Add audit log entry", description="Manually write an entry to the changelog.")
 def log_action(body: ChangelogEntry, _cur_user: dict = Depends(require_planer)):
-    """Manually write an entry to the changelog."""
+    """Schreibt manuell einen Eintrag ins Änderungsprotokoll."""
     entry = get_db().log_action(
         user=body.user,
         action=body.action,
@@ -509,10 +509,10 @@ class WishApprove(BaseModel):
 def approve_wish(
     wish_id: int, body: WishApprove, _cur_user: dict = Depends(require_planer)
 ):
-    """Approve or reject a wish. On approval of WUNSCH with shift_id, the shift is
-    written into the schedule."""
+    """Genehmigt oder lehnt einen Wunsch ab. Bei Genehmigung eines WUNSCH mit
+    shift_id wird die Schicht in den Plan geschrieben."""
     db = get_db()
-    # Load the wish
+    # Den Wunsch laden
     wishes = db.get_wishes()
     wish = next((w for w in wishes if w.get("id") == wish_id), None)
     if wish is None:
@@ -544,7 +544,7 @@ def approve_wish(
     # Update wish status
     updated = db.update_wish_status(wish_id, new_status)
 
-    # Notify the employee
+    # Den Mitarbeiter benachrichtigen
     action_label = "genehmigt" if body.action == "approve" else "abgelehnt"
     note_suffix = f" Hinweis: {body.note}" if body.note else ""
     create_notification(
@@ -723,7 +723,7 @@ def list_swap_requests(
 ):
     """List shift swap requests, optionally filtered by status or employee."""
     requests = get_db().get_swap_requests(status=status, employee_id=employee_id)
-    # Enrich with employee names + shift info
+    # Mit MA-Namen + Schichtinfo anreichern
     employees = {e["ID"]: e for e in get_db().get_employees(include_hidden=True)}
     shifts = {s["ID"]: s for s in get_db().get_shifts(include_hidden=True)}
 
@@ -815,7 +815,7 @@ def create_swap_request(
         f"MA {body.requester_id} → MA {body.partner_id} ({body.requester_date}↔{body.partner_date})",
     )
 
-    # ── Notification: inform the partner about incoming swap request ──
+    # ── Benachrichtigung: den Partner über den eingehenden Tauschantrag informieren ──
     try:
         employees = get_db().get_employees()
         requester = next(
@@ -856,7 +856,7 @@ def create_swap_request(
 def resolve_swap_request(
     swap_id: int, body: SwapRequestResolve, _cur_user: dict = Depends(require_planer)
 ):
-    """Approve or reject a swap request. If approved, executes the actual shift swap."""
+    """Genehmigt oder lehnt einen Tauschantrag ab. Bei Genehmigung wird der Tausch ausgeführt."""
     if body.action not in ("approve", "reject"):
         raise HTTPException(
             status_code=400, detail="action muss 'approve' oder 'reject' sein"
@@ -1020,7 +1020,7 @@ def resolve_swap_request(
         swap_id,
         f"Abgelehnt: {body.reject_reason}",
     )
-    # ── Notify requesting employee: rejected (with reason) ──
+    # ── Antragsteller benachrichtigen: abgelehnt (mit Grund) ──
     try:
         reason_txt = f" Grund: {body.reject_reason}" if body.reject_reason else ""
         rejected_msg = f"Der Tausch ({entry['requester_date']} ↔ {entry['partner_date']}) wurde abgelehnt.{reason_txt}"
@@ -1065,7 +1065,7 @@ def delete_swap_request(swap_id: int, _cur_user: dict = Depends(require_planer))
     description="Returns the full status change history for a swap request. Also accessible as /api/v1/shifts/swap/{id}/history.",
 )
 def get_swap_history(swap_id: int, _cur_user: dict = Depends(require_auth)):
-    """Return all status transitions for the given swap request."""
+    """Liefert alle Status-Übergänge des Tauschantrags."""
     history = get_db().get_swap_request_history(swap_id)
     if history is None:
         raise HTTPException(status_code=404, detail="Swap-Anfrage nicht gefunden")
@@ -1082,7 +1082,7 @@ def expire_swap_requests(
     max_age_days: int = Query(7, ge=1, le=365),
     _cur_user: dict = Depends(require_planer),
 ):
-    """Expire pending swap requests older than max_age_days. Returns list of expired IDs."""
+    """Lässt offene Tauschanträge älter als max_age_days verfallen. Liefert die IDs."""
     expired = get_db().expire_old_swap_requests(max_age_days=max_age_days)
     for swap_id in expired:
         broadcast("swap_changed", {"action": "expired", "swap_id": swap_id})
@@ -1093,7 +1093,7 @@ def expire_swap_requests(
 
 
 def _resolve_employee_for_user(cur_user: dict):
-    """Find the employee record matching the logged-in user by name."""
+    """Findet den MA-Satz, der dem angemeldeten Benutzer namensgleich entspricht."""
     user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -1126,7 +1126,7 @@ class SelfSwapRequestCreate(BaseModel):
 def create_self_swap_request(
     request: Request, body: SelfSwapRequestCreate, cur_user: dict = Depends(require_auth)
 ):
-    """Employee offers a shift swap. Status starts as pending_partner until the partner accepts."""
+    """MA bietet einen Schichttausch an. Status beginnt als pending_partner, bis der Partner annimmt."""
     from datetime import datetime as _dt4
 
     employee = _resolve_employee_for_user(cur_user)
@@ -1202,11 +1202,11 @@ class PartnerRespondBody(BaseModel):
 def partner_respond_swap(
     swap_id: int, body: PartnerRespondBody, cur_user: dict = Depends(require_auth)
 ):
-    """The swap partner accepts or declines the swap before planner decides."""
+    """Der Tauschpartner nimmt an oder lehnt ab, bevor der Planer entscheidet."""
     employee = _resolve_employee_for_user(cur_user)
     emp_id = employee["ID"]
 
-    # Verify this employee is the partner
+    # Prüfen, dass dieser MA der Partner ist
     db = get_db()
     all_reqs = db.get_swap_requests()
     req = next((r for r in all_reqs if r.get("id") == swap_id), None)
@@ -1326,7 +1326,7 @@ def cancel_self_swap_request(
     description="Returns the EMPL record matching the logged-in user by name, or null.",
 )
 def get_my_employee(cur_user: dict = Depends(require_auth)):
-    """Returns the EMPL record matching the logged-in user by name, or null."""
+    """Liefert den namensgleichen EMPL-Satz des angemeldeten Benutzers, sonst null."""
     user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -1346,7 +1346,7 @@ class SelfWishCreate(BaseModel):
 
 @router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block", description="Leser can submit a Schichtwunsch or Sperrung for themselves.")
 def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth)):
-    """Leser can submit a Schichtwunsch or Sperrung for themselves."""
+    """Leser können für sich selbst einen Schichtwunsch oder eine Sperrung einreichen."""
     user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -1395,7 +1395,7 @@ def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
             status_code=404,
             detail="No employee record found for this user",
         )
-    # Verify the wish belongs to this employee
+    # Prüfen, dass der Wunsch diesem MA gehört
     wishes = db.get_wishes(employee_id=employee["ID"])
     wish = next((w for w in wishes if w.get("id") == wish_id), None)
     if wish is None:
@@ -1423,7 +1423,7 @@ def get_self_schedule(
     month: int = Query(..., description="Month (1-12)"),
     cur_user: dict = Depends(require_auth),
 ):
-    """Return only the current user's schedule entries for year/month."""
+    """Liefert nur die eigenen Planeinträge des Benutzers für Jahr/Monat."""
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="Invalid month")
     user_name = cur_user.get("NAME", "").strip().lower()
@@ -1449,7 +1449,7 @@ def get_self_wishes(
     month: int | None = Query(None, description="Month 1-12 (optional filter)"),
     cur_user: dict = Depends(require_auth),
 ):
-    """Return only the current user's wishes, optionally filtered by year/month."""
+    """Liefert nur die eigenen Wünsche, optional nach Jahr/Monat gefiltert."""
     user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)
@@ -1475,7 +1475,7 @@ def get_self_wishes(
 def create_self_absence(
     request: Request, body: SelfAbsenceCreate, cur_user: dict = Depends(require_auth)
 ):
-    """Leser can submit an absence/vacation request for themselves."""
+    """Leser können für sich selbst einen Abwesenheits-/Urlaubsantrag einreichen."""
     user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
     employees = db.get_employees(include_hidden=False)

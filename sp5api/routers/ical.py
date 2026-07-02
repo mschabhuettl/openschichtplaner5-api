@@ -1,9 +1,9 @@
-"""iCal export router – .ics feed of employee shift schedules.
+"""iCal-Export-Router – .ics-Feed der Mitarbeiter-Dienstpläne.
 
-Provides two modes:
-1. **Download** (authenticated): `/api/ical/my-schedule.ics` — one-time download
-2. **Subscribe** (token-based): `/api/ical/feed/{token}.ics` — persistent URL for
-   calendar subscriptions (Google Calendar, Apple Calendar, Outlook).
+Zwei Modi:
+1. **Download** (authentifiziert): `/api/ical/my-schedule.ics` — Einmal-Download
+2. **Abo** (Token-basiert): `/api/ical/feed/{token}.ics` — dauerhafte URL für
+   Kalender-Abos (Google Calendar, Apple Calendar, Outlook).
    No auth header needed — the URL-embedded token provides access.
 """
 
@@ -20,12 +20,12 @@ from ..dependencies import get_db, require_auth
 
 router = APIRouter()
 
-# Vienna timezone offset (CET=+1, CEST=+2) — we use UTC and let clients handle TZ
+# Wiener Zeitzonen-Offset (MEZ=+1, MESZ=+2) — wir nutzen UTC, Clients übernehmen die TZ
 _TZ_VIENNA = timezone(timedelta(hours=1))
 
 
 def _make_uid(employee_id: int, date_str: str, kind: str) -> str:
-    """Generate a deterministic UID for an iCal event."""
+    """Erzeugt eine deterministische UID für ein iCal-Ereignis."""
     raw = f"{employee_id}-{date_str}-{kind}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16] + "@openschichtplaner5"
 
@@ -41,7 +41,7 @@ def _ical_date(d: date) -> str:
 
 
 def _escape_ical(text: str) -> str:
-    """Escape special characters for iCal text fields."""
+    """Escapet Sonderzeichen für iCal-Textfelder."""
     return (
         text.replace("\\", "\\\\")
         .replace(";", "\\;")
@@ -88,7 +88,7 @@ def _build_ical(
     events: list[dict],
     cal_name: str,
 ) -> str:
-    """Build a complete iCal string from a list of event dicts."""
+    """Baut den vollständigen iCal-String aus einer Liste von Ereignis-dicts."""
     now = datetime.now(UTC)
     lines = [
         "BEGIN:VCALENDAR",
@@ -106,7 +106,7 @@ def _build_ical(
 
         if ev.get("all_day"):
             lines.append(f"DTSTART;VALUE=DATE:{ev['dtstart']}")
-            # For all-day events, DTEND is the next day (exclusive)
+            # Bei Ganztags-Ereignissen ist DTEND der Folgetag (exklusiv)
             lines.append(f"DTEND;VALUE=DATE:{ev['dtend']}")
         else:
             lines.append(f"DTSTART:{ev['dtstart']}")
@@ -144,7 +144,7 @@ def get_my_ical(
     month: int = Query(..., description="Month (1-12)"),
     user: dict = Depends(require_auth),
 ):
-    """Export the current user's schedule as .ics file."""
+    """Exportiert den Plan des angemeldeten Benutzers als .ics-Datei."""
     employee_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
     if not employee_id:
         raise HTTPException(status_code=400, detail="Kein Mitarbeiter zugeordnet")
@@ -195,7 +195,7 @@ def get_employee_ical(
 def _generate_ical_response(
     employee_id: int, year: int, month: int
 ) -> Response:
-    """Generate iCal response for an employee's monthly schedule."""
+    """Erzeugt die iCal-Antwort für den Monatsplan eines Mitarbeiters."""
     if not (1 <= month <= 12):
         raise HTTPException(
             status_code=400, detail="Invalid month: must be between 1 and 12"
@@ -208,7 +208,7 @@ def _generate_ical_response(
 
     db = get_db()
 
-    # Get employee name for calendar title
+    # MA-Namen für den Kalendertitel holen
     employee = db.get_employee(employee_id)
     if not employee:
         raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
@@ -218,17 +218,17 @@ def _generate_ical_response(
         or employee.get("NAME", f"MA-{employee_id}")
     )
 
-    # Get schedule entries for this employee/month
+    # Planeinträge zu MA/Monat holen
     schedule = db.get_schedule(year=year, month=month)
     employee_entries = [
         e for e in schedule if e.get("employee_id") == employee_id
     ]
 
-    # Get shift definitions for time lookups
+    # Schichtdefinitionen für die Zeit-Lookups holen
     shifts = db.get_shifts(include_hidden=True)
     shifts_map = {s["ID"]: s for s in shifts}
 
-    # Get leave types for absence names
+    # Abwesenheitsarten für die Namen holen
     leave_types = db.get_leave_types()
     leave_map = {lt["ID"]: lt for lt in leave_types}
 
@@ -365,10 +365,10 @@ def _generate_ical_response(
 
 
 def _generate_feed_ical(employee_id: int, months_back: int = 1, months_ahead: int = 3) -> str:
-    """Generate a rolling iCal feed covering past and future months.
+    """Erzeugt einen rollierenden iCal-Feed über vergangene und künftige Monate.
 
-    Unlike the single-month download, the feed always includes a rolling
-    window so subscribers see upcoming changes automatically.
+    Anders als der Einzelmonats-Download umfasst der Feed immer ein rollierendes
+    Fenster — Abonnenten sehen kommende Änderungen automatisch.
     """
     db = get_db()
 
@@ -381,7 +381,7 @@ def _generate_feed_ical(employee_id: int, months_back: int = 1, months_ahead: in
         or employee.get("NAME", f"MA-{employee_id}")
     )
 
-    # Get shift definitions and leave types once
+    # Schichtdefinitionen und Abwesenheitsarten einmal holen
     shifts = db.get_shifts(include_hidden=True)
     shifts_map = {s["ID"]: s for s in shifts}
     leave_types = db.get_leave_types()
@@ -389,7 +389,7 @@ def _generate_feed_ical(employee_id: int, months_back: int = 1, months_ahead: in
     # Feiertage für die Tagindex-Wahl (STARTEND7 an Feiertagen, D-34)
     holidays = _holiday_calendar(db)
 
-    # Build rolling window of months
+    # Rollierendes Monatsfenster bauen
     today = date.today()
     events: list[dict] = []
 
@@ -559,7 +559,7 @@ class IcalTokenResponse(BaseModel):
     response_model=IcalTokenResponse,
 )
 def create_ical_token(request: Request, user: dict = Depends(require_auth)):
-    """Generate a new iCal feed token for the current user."""
+    """Erzeugt ein neues iCal-Feed-Token für den angemeldeten Benutzer."""
     employee_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
     if not employee_id:
         raise HTTPException(status_code=400, detail="Kein Mitarbeiter zugeordnet")
@@ -573,7 +573,7 @@ def create_ical_token(request: Request, user: dict = Depends(require_auth)):
 
     token = db.create_ical_token(employee_id)
 
-    # Build the feed URL from the request's base URL
+    # Feed-URL aus der Basis-URL des Requests bauen
     base = str(request.base_url).rstrip("/")
     feed_path = f"/api/ical/feed/{token}.ics"
     feed_url = f"{base}{feed_path}"
@@ -597,7 +597,7 @@ def create_ical_token(request: Request, user: dict = Depends(require_auth)):
     ),
 )
 def get_ical_token(request: Request, user: dict = Depends(require_auth)):
-    """Get the current iCal feed token for the current user."""
+    """Liefert das aktuelle iCal-Feed-Token des angemeldeten Benutzers."""
     employee_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
     if not employee_id:
         raise HTTPException(status_code=400, detail="Kein Mitarbeiter zugeordnet")
@@ -626,7 +626,7 @@ def get_ical_token(request: Request, user: dict = Depends(require_auth)):
     ),
 )
 def revoke_ical_token(user: dict = Depends(require_auth)):
-    """Revoke the current user's iCal feed token."""
+    """Widerruft das iCal-Feed-Token des angemeldeten Benutzers."""
     employee_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
     if not employee_id:
         raise HTTPException(status_code=400, detail="Kein Mitarbeiter zugeordnet")
