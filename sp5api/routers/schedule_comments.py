@@ -1,4 +1,4 @@
-"""Schedule Comments router (Q069): day-level notes for managers."""
+"""Router für Plan-Kommentare (Q069): Tages-Notizen der Planer."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
