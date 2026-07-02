@@ -66,7 +66,7 @@ dependencies = [
     #         (Datenintegrität — keine doppelten IDs/vertauschten Sätze unter Last).
     # 1.23.0 is required: 5USER.RIGHTS als Berechtigungs-Modus auflösen (Rolle Planer/
     #         Leser korrekt + Read-only-Durchsetzung an den Modus gekoppelt).
-    "libopenschichtplaner5[postgres]>=1.26.0",
+    "libopenschichtplaner5[postgres]>=1.28.0",
 ]
 
 [project.optional-dependencies]

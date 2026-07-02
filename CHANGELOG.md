@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Zuschlagsart „festes Datum".** Anlegen/Ändern führen das Datum des
+  Original-Modus (VALIDITY=1); ohne gültiges Datum wird das Anlegen mit
+  klarer Meldung abgelehnt. Benötigt libopenschichtplaner5 ≥ 1.28.0.
+
 ## [1.26.0] - 2026-07-02
 
 ### Added
