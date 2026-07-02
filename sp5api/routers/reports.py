@@ -28,7 +28,7 @@ _logger = _logging.getLogger("sp5api")
 
 router = APIRouter()
 
-# Maximum file size for CSV imports (10 MB)
+# Maximale Dateigröße für CSV-Importe (10 MB)
 _MAX_CSV_SIZE = 10 * 1024 * 1024
 
 _ALLOWED_CSV_CONTENT_TYPES = {
@@ -40,7 +40,7 @@ _ALLOWED_CSV_CONTENT_TYPES = {
 
 
 async def _validate_csv_upload(file: UploadFile) -> bytes:
-    """Validate and read a CSV upload. Raises HTTPException on invalid input."""
+    """Validiert und liest einen CSV-Upload. Wirft HTTPException bei ungültiger Eingabe."""
     ct = (file.content_type or "").lower().split(";")[0].strip()
     if ct and ct not in _ALLOWED_CSV_CONTENT_TYPES:
         raise HTTPException(
@@ -177,14 +177,14 @@ def get_year_summary(
     ),
     group_id: int | None = Query(None, description="Filter by group ID"),
 ):
-    """Return aggregated statistics for all 12 months of a year."""
+    """Liefert aggregierte Statistiken für alle 12 Monate eines Jahres."""
     from datetime import date as _date
 
     if year is None:
         year = _date.today().year
     db = get_db()
 
-    # Collect stats for each month — single pass to avoid duplicate DB calls
+    # Statistik je Monat sammeln — ein Durchlauf, um doppelte DB-Aufrufe zu vermeiden
     monthly = []
     emp_totals: dict = {}
     all_monthly_rows: list = []
@@ -334,12 +334,12 @@ def get_sickness_statistics(
         None, description="Year (YYYY), defaults to current year"
     ),
 ):
-    """Return sickness (Krankenstand) statistics for a given year.
+    """Liefert die Krankenstand-Statistik für ein Jahr.
 
-    Response contains:
-    - per_employee: list of {employee_id, name, sick_days, sick_episodes, bradford_factor}
-    - per_month: 12-element list {month, sick_days}
-    - per_weekday: 7-element list {weekday, weekday_name, sick_days}
+    Die Antwort enthält:
+    - per_employee: Liste {employee_id, name, sick_days, sick_episodes, bradford_factor}
+    - per_month: 12 Einträge {month, sick_days}
+    - per_weekday: 7 Einträge {weekday, weekday_name, sick_days}
     - totals: total_sick_days, affected_employees, total_employees
     """
     from datetime import date as _date
@@ -391,7 +391,7 @@ def get_shift_statistics(
 
     employees = {e["ID"]: e for e in db.get_employees(include_hidden=False)}
 
-    # Build list of (year, month) for trend window (most recent `months` months)
+    # (Jahr, Monat)-Liste fürs Trendfenster bauen (die letzten `months` Monate)
     today = _date.today()
     end_year, end_month = today.year, today.month
     periods = []
@@ -1410,10 +1410,10 @@ def get_monthly_report(
         None, max_length=200, description="Eigener Fußtext (PDF-Fußzeile)"
     ),
 ):
-    """Generate a monthly closing report (Monatsabschluss) for all employees.
+    """Erzeugt den Monatsabschluss-Bericht für alle Mitarbeiter.
 
-    CSV: All employees with target/actual hours, overtime, extra-charge hours, vacation/sick days.
-    PDF: Professional A4 report with logo placeholder, table and totals row.
+    CSV: alle MA mit Soll-/Iststunden, Überstunden, Zuschlagsstunden, Urlaubs-/Kranktagen.
+    PDF: A4-Bericht mit Logo-Platzhalter, Tabelle und Summenzeile.
     """
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="month must be 1-12")
@@ -1451,8 +1451,8 @@ def get_monthly_report(
 
     # ── Extra-charge hours per employee ───────────────────────
     # calculate_extracharge_hours doesn't support per-employee breakdown,
-    # so we compute it per employee using the employee_id filter.
-    # For performance, only compute if there are extra charges defined.
+    # daher je MA über den employee_id-Filter berechnen.
+    # Aus Performance-Gründen nur rechnen, wenn Zuschlagsarten definiert sind.
     try:
         charges_list = db.get_extracharges(include_hidden=False)
         all_charge_names: list = (
@@ -1979,7 +1979,7 @@ def get_vacation_request_form(
     emp_short = emp.get("SHORTNAME", "")
     emp_number = str(emp.get("NUMBER", "") or "")
 
-    # Entered absences of this employee (optionally one leave type) within the range.
+    # Eingetragene Abwesenheiten dieses MA (optional eine Art) im Zeitraum.
     absences = [
         a
         for a in db.get_absences_list(employee_id=employee_id, leave_type_id=leave_type_id)
@@ -2068,7 +2068,7 @@ def get_vacation_request_form(
         pdf.line(12, y, pdf.w - 12, y)
         pdf.ln(8)
 
-    # ── Signature lines (bottom of page) ───────────────────────
+    # ── Unterschriftszeilen (Seitenende) ───────────────────────
     sig_y = pdf.h - 40
     col_w = (pw - 10) / 2
     pdf.set_draw_color(30, 41, 59)
@@ -2402,7 +2402,7 @@ def get_overtime_records(
 
 
 def _decode_csv(content: bytes) -> str:
-    """Try UTF-8 with BOM first, then latin-1."""
+    """Erst UTF-8 mit BOM versuchen, dann latin-1."""
     try:
         return content.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -2445,10 +2445,10 @@ async def import_employees(
     }
 
     for i, row in enumerate(reader, start=2):  # row 1 = header
-        # Normalize keys — strip and uppercase
+        # Schlüssel normalisieren — strippen und großschreiben
         row = {k.strip().upper(): v.strip() for k, v in row.items() if k}
 
-        # Alias mapping — support both internal and export (German) column names
+        # Alias-Mapping — interne wie Export-Spaltennamen (deutsch) unterstützen
         name = row.get("NAME") or row.get("NACHNAME") or ""
         firstname = row.get("FIRSTNAME") or row.get("VORNAME") or ""
         shortname = (
@@ -2957,8 +2957,8 @@ async def import_entitlements(
 async def import_absences_csv(
     request: Request, file: UploadFile = File(...), _cur_user: dict = Depends(require_admin)
 ):
-    """Import absences from CSV using personnel number and absence type abbreviation.
-    Required: PersonnelNumber,Date,AbsenceType-Abbreviation."""
+    """Importiert Abwesenheiten aus CSV über Personalnummer und Abwesenheits-Kürzel.
+    Erforderlich: Personalnummer, Datum, Abwesenheitsart-Kürzel."""
     content = await _validate_csv_upload(file)
     text = _decode_csv(content)
     reader = csv.DictReader(io.StringIO(text))
@@ -3101,7 +3101,7 @@ async def import_groups(
                 "HIDE": False,
             }
             db.create_group(data)
-            # Refresh for subsequent lookups
+            # Für nachfolgende Lookups auffrischen
             group_by_name[name.upper()] = {"NAME": name, "ID": -1}
             imported += 1
         except Exception as e:
@@ -3127,7 +3127,7 @@ def get_burnout_radar(
     overtime_threshold_pct: float = Query(20.0, description="Min overtime % to flag"),
     group_id: int | None = Query(None, description="Filter by group"),
 ):
-    """Return list of at-risk employees (long streaks or significant overtime)."""
+    """Liefert gefährdete Mitarbeiter (lange Strähnen oder deutliche Überstunden)."""
     if not (1 <= month <= 12):
         raise HTTPException(
             status_code=400, detail="Invalid month: must be between 1 and 12"
@@ -3161,7 +3161,7 @@ def get_overtime_summary(
     ),
     group_id: int | None = Query(None, description="Filter by group"),
 ):
-    """Return overtime summary per employee for a given year."""
+    """Liefert die Überstunden-Übersicht je Mitarbeiter für ein Jahr."""
     from datetime import date as _date
 
     if year is None:
@@ -3205,13 +3205,13 @@ def get_warnings(
     ),
     _cur_user: dict = Depends(require_auth),
 ):
-    """Return a list of active warnings for the Warnings Center.
+    """Liefert die aktiven Warnungen für das Warn-Center.
 
-    Warning types:
-    - next_month_unplanned: Next month not yet scheduled (< 7 days until month end)
-    - overtime_exceeded: Employee has overtime > threshold
-    - understaffing: Staffing below minimum on a day
-    - conflict: Shift + absence conflict for an employee
+    Warnungstypen:
+    - next_month_unplanned: Folgemonat noch ungeplant (< 7 Tage bis Monatsende)
+    - overtime_exceeded: MA über der Überstunden-Schwelle
+    - understaffing: Besetzung unter dem Minimum an einem Tag
+    - conflict: Dienst-+Abwesenheits-Konflikt eines MA
     """
     import calendar as _cal
     from datetime import date as _date
@@ -3237,7 +3237,7 @@ def get_warnings(
         return w_id
 
     # ── 1. Next month not yet planned ─────────────────────
-    # Check if current month → warn if < 7 days until month end and next month has no schedule
+    # Laufender Monat → warnen bei < 7 Tagen bis Monatsende ohne Folgemonats-Plan
     last_day = _cal.monthrange(year, month)[1]
     month_end = _date(year, month, last_day)
     days_until_end = (month_end - today).days
@@ -3422,7 +3422,7 @@ def get_fairness_score(
 
     night_shift_ids = {sid for sid, s in shifts_map.items() if is_night(s)}
 
-    # Collect all schedule entries for the year (month by month)
+    # Alle Planeinträge des Jahres sammeln (Monat für Monat)
     all_entries: list[dict] = []
     for month in range(1, 13):
         entries = db.get_schedule(year=year, month=month, group_id=group_id)
@@ -3520,7 +3520,7 @@ def get_capacity_forecast(
     month: int = Query(..., description="Month (1-12)"),
     group_id: int | None = Query(None, description="Filter by group"),
 ):
-    """Return per-day capacity forecast for a month.
+    """Liefert die Kapazitätsprognose je Tag eines Monats.
 
     api-Erweiterung ohne Original-Pendant (verfügbare-Köpfe-Prognose):
     "abwesend ⇒ nicht einsetzbar" ist bewusste Erweiterungs-Semantik; die
@@ -3568,7 +3568,7 @@ def get_capacity_forecast(
         for e in all_employees
     }
 
-    # Get leave types for labels
+    # Abwesenheitsarten für die Beschriftungen holen
     leave_types_list = db.get_leave_types()
     leave_label_by_id = {
         lt.get("id", lt.get("ID")): lt.get(
@@ -3614,7 +3614,7 @@ def get_capacity_forecast(
         if eid not in emp_by_id:
             continue
         day = int(e["date"][8:10])
-        # Don't count as scheduled if employee is absent on this day
+        # Nicht als eingeteilt zählen, wenn der MA an dem Tag abwesend ist
         if (eid, day) not in absent_emp_days:
             day_scheduled[day].add(eid)
 
@@ -3652,7 +3652,7 @@ def get_capacity_forecast(
             else:
                 status = "unknown"
 
-        # Vacation conflict flag: more than 30% of team absent
+        # Urlaubskonflikt-Flag: mehr als 30 % des Teams abwesend
         conflict_flag = total_emp > 0 and absent_count >= max(2, total_emp * 0.3)
 
         result.append(
@@ -3703,17 +3703,17 @@ def get_capacity_year(
     group_id: int | None = Query(None, description="Filter by group"),
     _cur_user: dict = Depends(require_auth),
 ):
-    """Return per-month capacity summary for a full year (for heatmap).
+    """Liefert die Kapazitäts-Zusammenfassung je Monat eines Jahres (Heatmap).
 
     api-Erweiterung ohne Original-Pendant; Einteilung und Bedarfslinie kommen
     aus db.get_utilization (5SHDEM/5SPDEM je Tagindex inkl. Ft=7, Einteilung
     inkl. expandierter 5CYASS — Spec 3.9.4).
 
-    Each month:
-    - avg_staffing: average daily staffing (planned days only)
+    Je Monat:
+    - avg_staffing: mittlere Tagesbesetzung (nur geplante Tage)
     - ok_days, low_days, critical_days, unplanned_days
     - coverage_pct: avg_staffing / total_employees * 100
-    - worst_status: overall month status
+    - worst_status: Gesamtstatus des Monats
     """
     import calendar as _cal
 
@@ -3880,7 +3880,7 @@ def get_quality_report(
         default=0,
     )
 
-    # ── Hours Compliance (via get_statistics for correct hours calculation) ──
+    # ── Stunden-Compliance (via get_statistics für korrekte Stundenrechnung) ──
     hours_issues = []
     hours_ok = []
     total_target = 0.0
@@ -4093,8 +4093,8 @@ def get_availability_matrix(
     if year is None:
         year = datetime.date.today().year
 
-    # Collect all schedule entries for the requested range
-    # month range: last `months` months up to end of `year`
+    # Alle Planeinträge des angefragten Bereichs sammeln
+    # Monatsbereich: die letzten `months` Monate bis Ende `year`
     datetime.date.today()
     end_date = datetime.date(year, 12, 31)
     start_date = (end_date - datetime.timedelta(days=months * 30)).replace(day=1)
@@ -4150,7 +4150,7 @@ def get_availability_matrix(
         for wd in range(7):
             shift_counts = dict(emp_wd_shift[eid].get(wd, {}))
             total_for_day = emp_day_total[eid].get(wd, 0)
-            # Build list of shifts sorted by count desc
+            # Schichtliste absteigend nach Anzahl sortiert bauen
             shifts_list = []
             for sid, cnt in sorted(shift_counts.items(), key=lambda x: -x[1]):
                 if sid == "absence":
@@ -4353,7 +4353,7 @@ def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_pl
         ]
         baseline_count = len(day_entries)
 
-        # Remove entries for absent employees on this date
+        # Einträge abwesender MA an diesem Datum entfernen
         simulated = [
             e
             for e in day_entries
@@ -4366,7 +4366,7 @@ def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_pl
         lost = baseline_count - sim_count
         total_lost_shifts += lost
 
-        # Who is missing on this day
+        # Wer fehlt an diesem Tag
         missing_emps = []
         for e in day_entries:
             eid = e["employee_id"]
@@ -4382,7 +4382,7 @@ def run_simulation(body: SimulationRequest, _cur_user: dict = Depends(require_pl
                     }
                 )
 
-        # Potential cover candidates: employees with shifts that day NOT absent
+        # Mögliche Vertretungen: an dem Tag eingeteilte, NICHT abwesende MA
         cover_candidates = []
         for e in day_entries:
             eid = e["employee_id"]
