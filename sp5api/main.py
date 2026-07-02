@@ -28,6 +28,47 @@ _APP_START_TIME = _startup_time_module.time()
 # schreibgeschützten Viewer-Betrieb (read-only gemounteter DBF-Bestand).
 _READONLY = os.environ.get("SP5_READONLY", "").strip().lower() in ("1", "true", "yes")
 
+# SP5_CORE_ONLY: beschränkt die Instanz auf den Funktionsumfang des
+# Original-Schichtplaner5 (docs/feature-classification.md im App-Repo).
+# EXTRA-Funktionsbereiche werden GESCHALTET, nicht entfernt: ihre Endpunkte
+# antworten 404 mit klarer Meldung; das Frontend blendet die Ansichten über
+# dasselbe health-Flag aus. Kombinierbar mit SP5_READONLY (unabhängige Gates).
+_CORE_ONLY = os.environ.get("SP5_CORE_ONLY", "").strip().lower() in ("1", "true", "yes")
+
+#: Pfad-Präfixe der EXTRA-Klassifikation (nach /api/v1→/api-Normalisierung).
+#: Betriebs-Infrastruktur (health, metrics, errors, dev) bleibt bewusst aktiv.
+_EXTRA_PREFIXES = (
+    "/api/swap-requests",
+    "/api/wishes",
+    "/api/self",
+    "/api/burnout-radar",
+    "/api/capacity-forecast",
+    "/api/capacity-year",
+    "/api/fairness",
+    "/api/quality-report",
+    "/api/simulation",
+    "/api/warnings",
+    "/api/changelog",
+    "/api/release-notes",
+    "/api/companies",
+    "/api/admin/orm",
+    "/api/webhooks",
+    "/api/email",
+    "/api/notifications",
+    "/api/events",
+    "/api/scheduled-reports",
+    "/api/export-scheduler",
+    "/api/ical",
+    "/api/handover",
+    "/api/skills",
+    "/api/qualifications",
+    "/api/availability-matrix",
+    "/api/work-time-rules",
+    "/api/shifts/recurring",
+    "/api/reports/sickness",
+    "/api/reports/at-risk",
+)
+
 _CACHEABLE_API_PREFIXES = (
     "/api/shifts",
     "/api/holidays",
@@ -731,6 +772,19 @@ async def auth_middleware(request: Request, call_next):
         )
         _apply_security_headers(resp_ro)
         return resp_ro
+    # SP5_CORE_ONLY: EXTRA-Funktionsbereiche zentral deaktivieren (404 mit
+    # Meldung), vor dem Routing und unabhängig von der Methode — auch GETs,
+    # damit im Core-Modus keine EXTRA-Daten lesbar sind. Normalisierung
+    # deckt /api/v1/-Aufrufe ab (Rewrite läuft erst nach dieser Middleware).
+    if _CORE_ONLY:
+        _norm = path.replace("/api/v1/", "/api/", 1)
+        if any(_norm.startswith(px) for px in _EXTRA_PREFIXES):
+            resp_core = JSONResponse(
+                status_code=404,
+                content={"detail": "Diese Funktion ist im Core-Modus deaktiviert (SP5_CORE_ONLY)."},
+            )
+            _apply_security_headers(resp_core)
+            return resp_core
     if path in _PUBLIC_PATHS or not path.startswith("/api/"):
         return await call_next(request)
     # Der iCal-Feed authentifiziert per Token in der URL (Kalender-App-Abos)
@@ -1139,6 +1193,7 @@ def health():
         "status": overall,
         "checks": checks,
         "readonly": _READONLY,
+        "core_only": _CORE_ONLY,
         "version": _API_VERSION,
         "uptime": uptime_human,
         "uptime_seconds": uptime_seconds,
