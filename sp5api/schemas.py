@@ -1,7 +1,7 @@
-"""Pydantic response schemas for OpenAPI documentation.
+"""Pydantic-Antwort-Schemata für die OpenAPI-Dokumentation.
 
-These models describe the shape of GET responses for key resources.
-They use extra='allow' so additional DBF fields pass through without error.
+Diese Modelle beschreiben die Form der GET-Antworten der Kern-Ressourcen.
+Sie nutzen extra='allow', damit zusätzliche DBF-Felder fehlerfrei durchlaufen.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def paginate(
     page: int | None = None,
     page_size: int = 50,
 ) -> dict | list:
-    """Return paginated dict if page is set, else return plain list.
+    """Liefert das paginierte dict bei gesetztem page, sonst die einfache Liste.
 
     Backward-compatible: omitting ``page`` returns the raw list so
     existing callers keep working.
@@ -59,10 +59,10 @@ class _FlexModel(BaseModel):
 
 
 class EmployeeResponse(_FlexModel):
-    # Field names mirror the real DBF/SP5Database keys (extra columns pass through
-    # via _FlexModel). Previously this declared HIDDEN/EMPLOYEENO/GROUPID/WORKPLACEID/
-    # CONTRACTHOURS, none of which exist on the payload — they only surfaced as
-    # misleading always-null fields in the OpenAPI schema.
+    # Feldnamen spiegeln die echten DBF-/SP5Database-Schlüssel (Zusatzspalten
+    # laufen via _FlexModel durch). Früher deklarierte das Modell HIDDEN/
+    # EMPLOYEENO/GROUPID/WORKPLACEID/CONTRACTHOURS — existieren nicht in der
+    # Payload und erschienen nur als irreführende Immer-null-Felder im OpenAPI-Schema.
     ID: int
     NAME: str
     FIRSTNAME: str | None = None

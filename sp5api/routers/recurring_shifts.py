@@ -44,13 +44,13 @@ def _write_all(data: list[dict]) -> None:
 
 
 def _next_id(patterns: list[dict]) -> int:
-    """Allocate the next integer pattern ID (max+1, ignoring non-int ids)."""
+    """Vergibt die nächste Integer-Pattern-ID (max+1, nicht-int-IDs ignoriert)."""
     ids = [p["id"] for p in patterns if isinstance(p.get("id"), int)]
     return (max(ids) + 1) if ids else 1
 
 
 def _enrich(db, rec: dict) -> dict:
-    """Project a stored pattern to the API/frontend shape with display names."""
+    """Projiziert ein gespeichertes Pattern auf die API-/Frontend-Form mit Anzeigenamen."""
     emp = db.get_employee(rec["employee_id"])
     shift = db.get_shift(rec["shift_id"])
     if emp is not None:
@@ -77,7 +77,7 @@ _DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
 
 
 class RecurringShiftCreate(BaseModel):
-    """Request body for creating a recurring shift pattern."""
+    """Request-Body zum Anlegen eines wiederkehrenden Schicht-Patterns."""
 
     employee_id: int = Field(..., description="Employee ID")
     shift_id: int = Field(..., description="Shift ID")
@@ -105,7 +105,7 @@ class RecurringShiftCreate(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    """Request body for generating concrete shifts from a pattern."""
+    """Request-Body zum Erzeugen konkreter Dienste aus einem Pattern."""
 
     from_date: str = Field(..., pattern=_DATE_PATTERN, description="Generate from YYYY-MM-DD")
     to_date: str = Field(..., pattern=_DATE_PATTERN, description="Generate to YYYY-MM-DD (inclusive)")
@@ -249,7 +249,7 @@ def generate_shifts(
     shift_id = pattern["shift_id"]
     employee_id = pattern["employee_id"]
 
-    # Collect all matching dates in the range
+    # Alle passenden Daten im Zeitraum sammeln
     days_ahead = (target_dow - effective_from.weekday()) % 7
     first_occurrence = effective_from + timedelta(days=days_ahead)
     step = 7 if recurrence == "weekly" else 14
@@ -260,7 +260,7 @@ def generate_shifts(
         candidate_dates.append(d)
         d += timedelta(days=step)
 
-    # Get existing MASHI entries for this employee in the range (best-effort)
+    # Bestehende MASHI-Einträge des MA im Zeitraum holen (Best-Effort)
     existing_dates: set[str] = set()
     try:
         from sp5lib.dbf_reader import get_table_fields

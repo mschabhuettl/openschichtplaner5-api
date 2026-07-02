@@ -1,7 +1,7 @@
-"""Simple TTL-based in-memory cache for frequently queried DB data.
+"""Einfacher TTL-basierter In-Memory-Cache für häufig gelesene DB-Daten.
 
-No external dependencies (no Redis). Thread-safe via threading.Lock.
-Cache entries expire after TTL seconds and are invalidated on writes.
+Keine externen Abhängigkeiten (kein Redis). Thread-sicher via threading.Lock.
+Einträge laufen nach TTL Sekunden ab und werden bei Writes invalidiert.
 """
 
 import threading
@@ -16,7 +16,7 @@ DEFAULT_TTL = 60
 
 
 def get(key: str) -> Any | None:
-    """Return cached value if present and not expired, else None."""
+    """Liefert den Cache-Wert, wenn vorhanden und nicht abgelaufen, sonst None."""
     with _lock:
         entry = _store.get(key)
         if entry is None:
@@ -29,13 +29,13 @@ def get(key: str) -> Any | None:
 
 
 def put(key: str, value: Any, ttl: float = DEFAULT_TTL) -> None:
-    """Store a value with the given TTL (seconds)."""
+    """Legt einen Wert mit der angegebenen TTL (Sekunden) ab."""
     with _lock:
         _store[key] = (time.monotonic() + ttl, value)
 
 
 def invalidate(*prefixes: str) -> int:
-    """Remove all cache entries whose keys start with any of the given prefixes.
+    """Entfernt alle Cache-Einträge, deren Schlüssel mit einem der Präfixe beginnen.
 
     Returns the number of entries removed.
     """
@@ -66,7 +66,7 @@ def stats() -> dict:
 
 
 def get_or_set(key: str, factory, ttl: float = DEFAULT_TTL) -> Any:
-    """Return cached value or call factory() to compute, cache, and return it."""
+    """Liefert den Cache-Wert oder berechnet ihn via factory(), cached und liefert ihn."""
     value = get(key)
     if value is not None:
         return value

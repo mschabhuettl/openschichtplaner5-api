@@ -1,15 +1,15 @@
-"""Resolve the host application's backend resource root.
+"""Auflösung des Backend-Ressourcen-Roots der Host-Anwendung.
 
-The API keeps mutable runtime state (JSON document stores, uploads) and finds
-host resources (frontend dist, CHANGELOG.md) under one root directory — the
-same root sp5lib (libopenschichtplaner5) resolves via the SP5_BACKEND_DIR
-environment variable: ``backend/`` in the main application, the repo root in
-this repository's dev/test checkout.
+Die API hält veränderlichen Laufzeit-Zustand (JSON-Stores, Uploads) und findet
+Host-Ressourcen (Frontend-dist, CHANGELOG.md) unter EINEM Wurzelverzeichnis —
+demselben Root, das sp5lib (libopenschichtplaner5) über die Umgebungsvariable
+SP5_BACKEND_DIR auflöst: ``backend/`` in der Hauptanwendung, das Repo-Root im
+Dev-/Test-Checkout dieses Repos.
 
-The fallback mirrors ``sp5lib._resource_paths``: the directory containing the
-sp5api package. That is only correct for an in-tree/source checkout — installed
-deployments must set SP5_BACKEND_DIR explicitly (the main app's start.sh,
-Dockerfile and CI do).
+Der Fallback spiegelt ``sp5lib._resource_paths``: das Verzeichnis des
+sp5api-Pakets. Das stimmt nur für In-Tree-/Quell-Checkouts — installierte
+Deployments MÜSSEN SP5_BACKEND_DIR setzen (start.sh, Dockerfile und CI der
+Hauptanwendung tun das).
 """
 
 import os
@@ -17,7 +17,7 @@ import shutil
 
 
 def backend_dir() -> str:
-    """Return the host backend root (see module docstring)."""
+    """Liefert das Host-Backend-Root (siehe Modul-Docstring)."""
     env = os.environ.get("SP5_BACKEND_DIR")
     if env:
         return os.path.abspath(env)
@@ -25,7 +25,7 @@ def backend_dir() -> str:
 
 
 def state_dir() -> str:
-    """Single, injectable directory for the API's mutable runtime state
+    """Einziges, injizierbares Verzeichnis für den veränderlichen Laufzeit-Zustand
     (JSON document stores, queues, counters).
 
     ``SP5_STATE_DIR`` overrides the location; the default is
@@ -42,7 +42,7 @@ def state_dir() -> str:
 
 
 def _legacy_state_roots() -> list[str]:
-    """Former runtime-state locations, checked for one-time migration."""
+    """Frühere Zustands-Ablageorte, geprüft für die einmalige Migration."""
     bd = backend_dir()
     return [
         os.path.join(bd, "api", "data"),
@@ -52,7 +52,7 @@ def _legacy_state_roots() -> list[str]:
 
 
 def state_path(rel: str) -> str:
-    """Resolve a runtime-state file ``rel`` under the consolidated
+    """Löst eine Zustands-Datei ``rel`` unter dem konsolidierten
     :func:`state_dir`. If the target does not exist yet but a file of the same
     relative path lives in a legacy location, it is moved into the consolidated
     directory on first access (no data loss on upgrade)."""

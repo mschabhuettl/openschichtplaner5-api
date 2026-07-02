@@ -1,4 +1,4 @@
-"""Export Scheduler router for OpenSchichtplaner5.
+"""Export-Scheduler-Router für OpenSchichtplaner5.
 
 Provides CRUD endpoints for weekly export schedule configurations,
 plus a manual trigger endpoint that generates and emails a report.
@@ -71,7 +71,7 @@ _TIME_RE = re.compile(r"^\d{2}:\d{2}$")
 
 
 class ScheduleCreate(BaseModel):
-    """Request body for creating a new export schedule."""
+    """Request-Body zum Anlegen eines Export-Zeitplans."""
 
     name: str = Field(..., min_length=1, max_length=100, description="Human-readable schedule name")
     frequency: str = Field("weekly", description="Only 'weekly' supported")
@@ -118,7 +118,7 @@ class ScheduleCreate(BaseModel):
 
 
 class ScheduleUpdate(BaseModel):
-    """Request body for updating an existing export schedule (all fields optional)."""
+    """Request-Body zum Ändern eines Export-Zeitplans (alle Felder optional)."""
 
     name: str | None = Field(None, min_length=1, max_length=100)
     frequency: str | None = None
@@ -170,7 +170,7 @@ class ScheduleUpdate(BaseModel):
 
 
 def _generate_export(fmt: str, group_id: int | None, month: str) -> tuple[bytes, int]:
-    """Generate an Excel or CSV export for the given month.
+    """Erzeugt einen Excel- oder CSV-Export für den Monat.
 
     Returns (file_bytes, row_count).
     """
@@ -322,7 +322,7 @@ def _send_export_email(
     month: str,
     fmt: str,
 ) -> dict:
-    """Send the export file via email.  Returns result dict."""
+    """Versendet die Exportdatei per Mail. Liefert das Ergebnis-dict."""
     import smtplib
     from email import encoders
     from email.mime.base import MIMEBase
@@ -513,7 +513,7 @@ def run_schedule(
     schedule_id: str,
     _cur_user: dict = Depends(require_admin),
 ) -> dict:
-    """Manually trigger a schedule: generate export and send email."""
+    """Löst einen Zeitplan manuell aus: Export erzeugen und mailen."""
     _, _, schedule = _get_schedule_by_id(schedule_id)
 
     month = _dt.now(UTC).strftime("%Y-%m")

@@ -1,4 +1,4 @@
-"""In-app notification system for OpenSchichtplaner5.
+"""In-App-Benachrichtigungssystem für OpenSchichtplaner5.
 
 Notifications are stored in a JSON file (notifications.json) alongside
 other persistence files. Each notification has:
@@ -77,7 +77,7 @@ def create_notification(
     recipient_employee_id: int | None = None,
     link: str | None = None,
 ) -> dict:
-    """Create and persist a notification. Thread-safe.
+    """Erzeugt und persistiert eine Benachrichtigung. Thread-sicher.
 
     Also sends an email notification (async) if:
     - SMTP is configured
@@ -98,7 +98,7 @@ def create_notification(
         data.append(entry)
         _save(data)
 
-    # ── Send email notification (fire-and-forget) ─────────────
+    # ── E-Mail-Benachrichtigung senden (fire-and-forget) ──────
     _try_send_email(
         notification_type=type,
         title=title,
@@ -107,7 +107,7 @@ def create_notification(
         link=link,
     )
 
-    # ── Broadcast SSE event for real-time UI updates ──────────
+    # ── SSE-Ereignis für Echtzeit-UI-Updates broadcasten ──────
     broadcast("notification_changed", {
         "action": "created",
         "notification_id": entry["id"],
@@ -125,7 +125,7 @@ def _try_send_email(
     recipient_employee_id: int | None,
     link: str | None,
 ) -> None:
-    """Look up recipient email and send notification email (non-blocking)."""
+    """Ermittelt die Empfänger-Mail und sendet die Benachrichtigung (nicht-blockierend)."""
     try:
         from sp5lib.email_service import get_config, send_notification_email
 
@@ -141,7 +141,7 @@ def _try_send_email(
             if emp:
                 recipient_email = (emp.get("EMAIL") or "").strip() or None
         # For planner-wide notifications (recipient_employee_id=None),
-        # we skip email — these are visible in-app for all planners.
+        # Mail überspringen — diese sind in-App für alle Planer sichtbar.
 
         if recipient_email:
             send_notification_email(
@@ -152,7 +152,7 @@ def _try_send_email(
                 link=link,
             )
     except Exception:
-        # Never let email failures break the notification system
+        # Mail-Fehler dürfen das Benachrichtigungssystem nie brechen
         import logging
 
         logging.getLogger("sp5.email").exception("Email bridge error")
@@ -209,7 +209,7 @@ def list_all_notifications(
     limit: int = Query(100, ge=1, le=500),
     _cur_user: dict = Depends(require_admin),
 ):
-    """Return all notifications (admin-only overview of every notification in the system)."""
+    """Liefert alle Benachrichtigungen (Admin-Übersicht über das gesamte System)."""
     data = _load_safe()
     if unread_only:
         data = [n for n in data if not n.get("read")]
@@ -233,7 +233,7 @@ def mark_read(notif_id: int, cur_user: dict = Depends(require_planer)):
         data = _load()
         for n in data:
             if n["id"] == notif_id:
-                # Ownership check: notification must belong to current user (or be planner-wide for admins)
+                # Besitz-Check: Benachrichtigung muss dem Nutzer gehören (oder planerweit für Admins sein)
                 recipient = n.get("recipient_employee_id")
                 if (
                     not is_admin

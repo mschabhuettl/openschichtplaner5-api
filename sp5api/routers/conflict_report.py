@@ -44,7 +44,7 @@ def _shift_time_windows(shift: dict, day_idx: int) -> list[tuple[int, int]]:
 
 
 def _windows_overlap(a: list[tuple[int, int]], b: list[tuple[int, int]]) -> bool:
-    """True if any window pair of the two lists overlaps."""
+    """True, wenn sich irgendein Fensterpaar der beiden Listen überlappt."""
     return any(x[0] < y[1] and y[0] < x[1] for x in a for y in b)
 
 
@@ -62,7 +62,7 @@ def _detect_conflicts(
     to_date: date,
     group_id: int | None,
 ) -> list[dict]:
-    """Run all conflict checks and return a list of conflict dicts."""
+    """Führt alle Konfliktprüfungen aus und liefert die Konflikt-dicts."""
     from sp5lib import calculations as calc
 
     conflicts: list[dict] = []
@@ -87,7 +87,7 @@ def _detect_conflicts(
     from_str = from_date.isoformat()
     to_str = to_date.isoformat()
 
-    # Build per-employee, per-date list of shifts: {(emp_id, date_str): [shift_id, ...]}
+    # Schichtliste je MA und Datum bauen: {(emp_id, date_str): [shift_id, ...]}
     # emp_day_shifts = alle Schichten (für die Unterbesetzungs-Prüfung weiter unten);
     # emp_day_ist_shifts = nur Ist-Schichten (5MASHI.TYPE != 1) für Doppelbelegung/Overlap.
     # Ein Sollplan-Ziel (TYPE=1, Spec 4.12/D-58) ist eine Planvorgabe, kein tatsächlicher
@@ -142,14 +142,14 @@ def _detect_conflicts(
         emp = employees[eid]
         emp_name = f"{emp.get('FIRSTNAME', '')} {emp.get('NAME', '')}".strip()
 
-        # determine day index for time lookups (7 on holidays, D-34)
+        # Tag-Index für Zeit-Lookups bestimmen (7 an Feiertagen, D-34)
         try:
             d_obj = date.fromisoformat(date_str)
             idx = calc.day_index(d_obj, holidays)
         except ValueError:
             idx = 0
 
-        # build list of (shift_id, time_windows)
+        # Liste aus (shift_id, time_windows) bauen
         shift_ranges = []
         for sid in shift_ids:
             s = shifts_map.get(sid)
@@ -164,7 +164,7 @@ def _detect_conflicts(
                 name_a = shifts_map.get(sid_a, {}).get("NAME", str(sid_a))
                 name_b = shifts_map.get(sid_b, {}).get("NAME", str(sid_b))
 
-                # Determine the group_id to report: use group_id param or find first group
+                # Zu meldende group_id bestimmen: Parameter oder erste Gruppe des MA
                 report_gid = group_id
                 if report_gid is None:
                     for gid, _grp in groups.items():
@@ -230,7 +230,7 @@ def _detect_conflicts(
             if mems:
                 groups_to_check.append((gid, mems))
 
-    # build per-day scheduled set {date_str: set(emp_ids)} for the range
+    # Eingeteilte je Tag bauen: {date_str: set(emp_ids)} über den Zeitraum
     day_scheduled: dict[str, set[int]] = {}
     for (eid, date_str), shift_ids in emp_day_ist_shifts.items():
         if shift_ids:
@@ -241,7 +241,7 @@ def _detect_conflicts(
         scheduled_on_day = day_scheduled.get(date_str, set())
         for gid, mems in groups_to_check:
             group_name = groups.get(gid, {}).get("NAME", str(gid))
-            # Only flag if no group member is scheduled at all
+            # Nur melden, wenn GAR KEIN Gruppenmitglied eingeteilt ist
             if not (mems & scheduled_on_day):
                 conflicts.append({
                     "type": "understaffed",
@@ -369,7 +369,7 @@ def export_conflict_report(
     db = get_db()
     conflicts = _detect_conflicts(db, f, t, group_id)
 
-    # Build flat rows for export
+    # Flache Zeilen für den Export bauen
     rows = []
     for c in conflicts:
         rows.append({
