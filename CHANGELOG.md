@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Core-Modus per `SP5_CORE_ONLY=true`.** Die Instanz beschränkt sich auf den
+  Funktionsumfang des originalen Schichtplaner5: alle Zusatzfunktionen
+  (u. a. Tauschbörse, Wünsche, Analytics, Webhooks, iCal) sind zentral
+  deaktiviert und antworten mit einer klaren Meldung; die Kernfunktionen
+  bleiben unverändert. Kombinierbar mit `SP5_READONLY`; `/api/health` meldet
+  den Modus.
+
 ## [1.25.0] - 2026-07-02
 
 ### Added
