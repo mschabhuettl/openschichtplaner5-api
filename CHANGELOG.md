@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Service Worker/PWA-Dateien wurden nie ausgeliefert (Einzelcontainer-
+  Betrieb).** Der SPA-Fallback lieferte für Root-Statikdateien (`/sw.js`,
+  `/manifest.json`, Icons, `offline.html`) die index.html (text/html) — die
+  Service-Worker-Registrierung schlug damit bei jedem Seitenaufruf fehl
+  („unsupported MIME type"), Manifest/Icons der PWA waren unbrauchbar.
+  Root-Statikdateien der SPA werden jetzt direkt mit korrektem MIME-Typ
+  ausgeliefert (streng: ein Pfadsegment, keine versteckten Dateien, kein
+  Traversal); unbekannte Routen erhalten weiterhin die index.html, unbekannte
+  /api-Pfade weiterhin 404. Der nginx-Stack-Betrieb war nicht betroffen.
+
 ## [1.28.1] - 2026-07-03
 
 ### Fixed

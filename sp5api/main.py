@@ -1874,6 +1874,33 @@ _FRONTEND_DIST = os.environ.get("SP5_FRONTEND_DIST") or os.path.normpath(
     os.path.join(_backend_dir(), "..", "frontend", "dist")
 )
 
+def _resolve_root_static(dist_dir: str, full_path: str) -> str | None:
+    """Pfad einer Root-Statikdatei der SPA (sw.js, manifest.json, Icons,
+    offline.html) — oder None für den index.html-Fallback. Bewusst streng:
+    genau EIN Pfadsegment, keine versteckten Dateien, kein Traversal."""
+    if not full_path or "/" in full_path or "\\" in full_path:
+        return None
+    if full_path.startswith("."):
+        return None
+    candidate = os.path.join(dist_dir, full_path)
+    return candidate if os.path.isfile(candidate) else None
+
+
+def _spa_fallback_response(full_path: str):
+    """Antwort des SPA-Fallbacks: unbekannte /api/*-Pfade → 404 (verhindert
+    stilles 200 bei Tippfehlern); Root-Statikdateien direkt mit korrektem
+    MIME-Typ (der pauschale index.html-Fallback machte die Service-Worker-
+    Registrierung kaputt: „unsupported MIME type text/html" für /sw.js,
+    ebenso manifest.json/Icons); sonst die index.html der React-SPA."""
+    if full_path.startswith("api/") or full_path == "api":
+        raise HTTPException(status_code=404, detail=f"Endpoint nicht gefunden: /{full_path}")
+    static_file = _resolve_root_static(_FRONTEND_DIST, full_path)
+    if static_file is not None:
+        return FileResponse(static_file)
+    index = os.path.join(_FRONTEND_DIST, "index.html")
+    return FileResponse(index)
+
+
 if os.path.isdir(_FRONTEND_DIST):
     app.mount(
         "/assets",
@@ -1883,12 +1910,8 @@ if os.path.isdir(_FRONTEND_DIST):
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
-        # Unbekannte /api/*-Pfade müssen 404 liefern, nicht die SPA — verhindert stilles 200 bei Tippfehlern
-        """Liefert die index.html der React-SPA für alle nicht gematchten Routen."""
-        if full_path.startswith("api/") or full_path == "api":
-            raise HTTPException(status_code=404, detail=f"Endpoint nicht gefunden: /{full_path}")
-        index = os.path.join(_FRONTEND_DIST, "index.html")
-        return FileResponse(index)
+        """Liefert Root-Statikdateien bzw. die index.html der React-SPA."""
+        return _spa_fallback_response(full_path)
 
 
 if __name__ == "__main__":
