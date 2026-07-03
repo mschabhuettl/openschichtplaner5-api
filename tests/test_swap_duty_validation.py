@@ -106,6 +106,7 @@ class TestSwapDutyValidation:
         import secrets
 
         from sp5lib.database import SP5Database
+
         from sp5api.main import _sessions
 
         db = SP5Database(write_db_path)
