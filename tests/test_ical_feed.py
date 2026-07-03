@@ -72,20 +72,22 @@ def test_feed_unknown_employee_raises_404(monkeypatch):
 class TestTokenLifecycle:
     """Full create → get → public-feed → revoke flow for a real employee."""
 
-    def _session(self, employee_id=40):
+    def _session(self, name="Buerger", user_id=9251):
+        """Session im ECHTEN Produktions-Shape (_build_user_dict): KEINE
+        Mitarbeiter-Felder — der MA wird namensgleich aufgelöst. Die
+        Benutzer-ID (9251) weicht bewusst von jeder MA-ID ab (Regression
+        P-ICAL: der frühere ID-Fallback fand hier keinen/den falschen MA)."""
         import secrets
 
         from sp5api.main import _sessions
 
         tok = secrets.token_hex(20)
         _sessions[tok] = {
-            "ID": employee_id,
-            "NAME": "icaluser",
+            "ID": user_id,
+            "NAME": name,
             "role": "Admin",
             "ADMIN": True,
             "RIGHTS": 255,
-            "EMPLOYEEID": employee_id,
-            "employee_id": employee_id,
         }
         return tok
 
@@ -94,7 +96,7 @@ class TestTokenLifecycle:
 
         from sp5api.main import _sessions, app
 
-        tok = self._session(40)  # employee 40 exists in the fixtures
+        tok = self._session("Buerger")  # namensgleich zu MA 40 der Fixtures
         try:
             c = TestClient(app, raise_server_exceptions=False)
             c.headers["X-Auth-Token"] = tok
@@ -128,5 +130,43 @@ class TestTokenLifecycle:
             r5 = c.delete("/api/ical/token")
             assert r5.status_code == 200
             assert r5.json()["ok"] is True
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_my_schedule_maps_by_name_not_user_id(self, write_db_path):
+        """REGRESSION (P-ICAL): my-schedule.ics gehört zum NAMENSGLEICHEN MA,
+        nicht zur Benutzer-ID. Session: Benutzer-ID 40 (= MA „Buerger"!)
+        mit Namen „Anders" (= MA 65) ⇒ der Kalender MUSS „Anders" gehören.
+        Der frühere ID-Fallback lieferte hier Buergers (fremden) Kalender."""
+        from starlette.testclient import TestClient
+
+        from sp5api.main import _sessions, app
+
+        tok = self._session("Anders", user_id=40)
+        try:
+            c = TestClient(app, raise_server_exceptions=False)
+            c.headers["X-Auth-Token"] = tok
+
+            r = c.get("/api/ical/my-schedule.ics?year=2026&month=3")
+            assert r.status_code == 200
+            assert "Anders" in r.text
+            assert "Buerger" not in r.text
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_my_schedule_404_without_matching_employee(self, write_db_path):
+        """REGRESSION (P-ICAL): ohne namensgleichen MA gibt es 404 — auch bei
+        kollidierender Benutzer-ID (40 = MA „Buerger")."""
+        from starlette.testclient import TestClient
+
+        from sp5api.main import _sessions, app
+
+        tok = self._session("kein-ma-name", user_id=40)
+        try:
+            c = TestClient(app, raise_server_exceptions=False)
+            c.headers["X-Auth-Token"] = tok
+
+            r = c.get("/api/ical/my-schedule.ics?year=2026&month=3")
+            assert r.status_code == 404
         finally:
             _sessions.pop(tok, None)

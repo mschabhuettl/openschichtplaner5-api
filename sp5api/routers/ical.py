@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from ..dependencies import get_db, require_auth
+from ..dependencies import get_db, require_auth, resolve_employee_for_user
 
 router = APIRouter()
 
@@ -144,12 +144,14 @@ def get_my_ical(
     month: int = Query(..., description="Month (1-12)"),
     user: dict = Depends(require_auth),
 ):
-    """Exportiert den Plan des angemeldeten Benutzers als .ics-Datei."""
-    employee_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
-    if not employee_id:
-        raise HTTPException(status_code=400, detail="Kein Mitarbeiter zugeordnet")
+    """Exportiert den Plan des angemeldeten Benutzers als .ics-Datei.
 
-    return _generate_ical_response(employee_id, year, month)
+    Der Mitarbeiter wird wie bei den Self-Service-Endpunkten namensgleich
+    aufgelöst (5USER trägt keine Mitarbeiter-ID; die Benutzer-ID wäre ein
+    fremder Datensatz)."""
+    _validate_year_month(year, month)
+    employee = resolve_employee_for_user(user)
+    return _generate_ical_response(employee["ID"], year, month)
 
 
 @router.get(
@@ -178,7 +180,8 @@ def get_employee_ical(
     Any authenticated user can access their own schedule.
     Planer/Admin can access any employee's schedule.
     """
-    own_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
+    own = resolve_employee_for_user(user, required=False)
+    own_id = own["ID"] if own else None
     if employee_id != own_id:
         from ..dependencies import _ROLE_LEVEL
 
@@ -192,10 +195,9 @@ def get_employee_ical(
     return _generate_ical_response(employee_id, year, month)
 
 
-def _generate_ical_response(
-    employee_id: int, year: int, month: int
-) -> Response:
-    """Erzeugt die iCal-Antwort für den Monatsplan eines Mitarbeiters."""
+def _validate_year_month(year: int, month: int) -> None:
+    """Parameter-Prüfung der Monats-Exporte — läuft VOR der Mitarbeiter-
+    Auflösung, damit ungültige Parameter immer 400 liefern (nie 404)."""
     if not (1 <= month <= 12):
         raise HTTPException(
             status_code=400, detail="Invalid month: must be between 1 and 12"
@@ -205,6 +207,13 @@ def _generate_ical_response(
             status_code=400,
             detail="Invalid year: must be between 2000 and 2100",
         )
+
+
+def _generate_ical_response(
+    employee_id: int, year: int, month: int
+) -> Response:
+    """Erzeugt die iCal-Antwort für den Monatsplan eines Mitarbeiters."""
+    _validate_year_month(year, month)
 
     db = get_db()
 
@@ -559,19 +568,12 @@ class IcalTokenResponse(BaseModel):
     response_model=IcalTokenResponse,
 )
 def create_ical_token(request: Request, user: dict = Depends(require_auth)):
-    """Erzeugt ein neues iCal-Feed-Token für den angemeldeten Benutzer."""
-    employee_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
-    if not employee_id:
-        raise HTTPException(status_code=400, detail="Kein Mitarbeiter zugeordnet")
+    """Erzeugt ein neues iCal-Feed-Token für den angemeldeten Benutzer
+    (Mitarbeiter namensgleich aufgelöst, wie bei den Self-Service-Endpunkten)."""
+    employee = resolve_employee_for_user(user)
 
     db = get_db()
-
-    # Verify employee exists
-    emp = db.get_employee(employee_id)
-    if not emp:
-        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
-
-    token = db.create_ical_token(employee_id)
+    token = db.create_ical_token(employee["ID"])
 
     # Feed-URL aus der Basis-URL des Requests bauen
     base = str(request.base_url).rstrip("/")
@@ -597,13 +599,15 @@ def create_ical_token(request: Request, user: dict = Depends(require_auth)):
     ),
 )
 def get_ical_token(request: Request, user: dict = Depends(require_auth)):
-    """Liefert das aktuelle iCal-Feed-Token des angemeldeten Benutzers."""
-    employee_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
-    if not employee_id:
-        raise HTTPException(status_code=400, detail="Kein Mitarbeiter zugeordnet")
+    """Liefert das aktuelle iCal-Feed-Token des angemeldeten Benutzers.
+    Ohne namensgleichen Mitarbeiter gibt es kein Token ⇒ Null-Antwort
+    (informativer GET, kein Fehler beim Profil-Laden)."""
+    employee = resolve_employee_for_user(user, required=False)
+    if employee is None:
+        return {"token": None, "feed_url": None, "webcal_url": None}
 
     db = get_db()
-    token = db.get_ical_token_for_employee(employee_id)
+    token = db.get_ical_token_for_employee(employee["ID"])
 
     if token is None:
         return {"token": None, "feed_url": None, "webcal_url": None}
@@ -626,13 +630,12 @@ def get_ical_token(request: Request, user: dict = Depends(require_auth)):
     ),
 )
 def revoke_ical_token(user: dict = Depends(require_auth)):
-    """Widerruft das iCal-Feed-Token des angemeldeten Benutzers."""
-    employee_id = user.get("EMPLOYEEID") or user.get("employee_id") or user.get("ID")
-    if not employee_id:
-        raise HTTPException(status_code=400, detail="Kein Mitarbeiter zugeordnet")
+    """Widerruft das iCal-Feed-Token des angemeldeten Benutzers
+    (Mitarbeiter namensgleich aufgelöst)."""
+    employee = resolve_employee_for_user(user)
 
     db = get_db()
-    revoked = db.revoke_ical_token(employee_id)
+    revoked = db.revoke_ical_token(employee["ID"])
 
     if not revoked:
         return {"ok": True, "message": "Kein Token vorhanden"}

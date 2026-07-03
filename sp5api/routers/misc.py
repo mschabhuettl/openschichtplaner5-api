@@ -15,6 +15,7 @@ from ..dependencies import (
     require_auth,
     require_planer,
     require_write,
+    resolve_employee_for_user,
 )
 from ..schemas import paginate
 from .events import broadcast
@@ -1094,19 +1095,7 @@ def expire_swap_requests(
 
 def _resolve_employee_for_user(cur_user: dict):
     """Findet den MA-Satz, der dem angemeldeten Benutzer namensgleich entspricht."""
-    user_name = cur_user.get("NAME", "").strip().lower()
-    db = get_db()
-    employees = db.get_employees(include_hidden=False)
-    employee = next(
-        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
-        None,
-    )
-    if employee is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No employee record found for this user",
-        )
-    return employee
+    return resolve_employee_for_user(cur_user)
 
 
 class SelfSwapRequestCreate(BaseModel):
@@ -1327,13 +1316,7 @@ def cancel_self_swap_request(
 )
 def get_my_employee(cur_user: dict = Depends(require_auth)):
     """Liefert den namensgleichen EMPL-Satz des angemeldeten Benutzers, sonst null."""
-    user_name = cur_user.get("NAME", "").strip().lower()
-    db = get_db()
-    employees = db.get_employees(include_hidden=False)
-    match = next(
-        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
-        None,
-    )
+    match = resolve_employee_for_user(cur_user, required=False)
     return {"employee": match, "user_id": cur_user.get("ID")}
 
 

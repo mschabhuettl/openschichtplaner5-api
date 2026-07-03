@@ -537,6 +537,30 @@ def get_db():
         return SP5Database(_main.DB_PATH)
 
 
+def resolve_employee_for_user(user: dict, *, required: bool = True) -> dict | None:
+    """Findet den 5EMPL-Satz, der dem angemeldeten 5USER-Konto namensgleich
+    entspricht — die EINZIGE Verknüpfung beider Tabellen (5USER trägt keine
+    Mitarbeiter-ID). Die 5USER-ID ist bewusst KEIN Fallback: sie ist keine
+    Mitarbeiter-ID, gleiche Zahl bedeutet einen fremden Datensatz.
+
+    ``required=True`` (Default) wirft 404, wenn kein Mitarbeiter passt;
+    ``required=False`` liefert dann None (für optionale Selbstbezüge)."""
+    user_name = (user.get("NAME") or "").strip().lower()
+    employee = None
+    if user_name:
+        employees = get_db().get_employees(include_hidden=False)
+        employee = next(
+            (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
+            None,
+        )
+    if employee is None and required:
+        raise HTTPException(
+            status_code=404,
+            detail="No employee record found for this user",
+        )
+    return employee
+
+
 def invalidate_sessions_for_user(user_id: int, except_session_id: str | None = None) -> int:
     """Entfernt alle aktiven Sessions einer Benutzer-ID. Liefert die Anzahl.
 

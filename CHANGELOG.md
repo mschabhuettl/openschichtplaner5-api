@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **iCal funktionierte nur zufällig (Demo-Daten), auf echten Datenbanken
+  nie.** Die iCal-Endpunkte (`my-schedule.ics`, Feed-Token anlegen/abrufen/
+  widerrufen) lösten den „eigenen" Mitarbeiter über die **Benutzer-ID** auf —
+  5USER-IDs sind aber keine Mitarbeiter-IDs. Auf realen Datenbanken schlug
+  das Anlegen des Abo-Tokens deshalb mit 404 fehl; bei zufällig
+  kollidierenden IDs wäre sogar der **Kalender eines fremden Mitarbeiters**
+  geliefert worden. Jetzt wird der Mitarbeiter wie bei den Self-Service-
+  Endpunkten **namensgleich** zum Benutzerkonto aufgelöst (die einzige
+  Verknüpfung beider Tabellen); ohne namensgleichen Mitarbeiter antworten
+  Schreib-Aktionen 404 mit klarer Meldung, der informative
+  `GET /api/ical/token` liefert die Null-Antwort. Ungültige
+  Monats-/Jahres-Parameter liefern weiterhin 400.
+
 ## [1.28.0] - 2026-07-02
 
 ### Added

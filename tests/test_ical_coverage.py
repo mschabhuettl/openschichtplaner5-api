@@ -14,7 +14,9 @@ def _fresh_client():
     return TestClient(app, raise_server_exceptions=False)
 
 
-def _inject_session(user_id=800, name="testuser", role="Admin", employee_id=None):
+def _inject_session(user_id=800, name="testuser", role="Admin"):
+    """Injiziert eine Session in ECHTEM Produktions-Shape (_build_user_dict
+    kennt keine Mitarbeiter-Felder — der MA wird namensgleich aufgelöst)."""
     from sp5api.main import _sessions
     tok = secrets.token_hex(20)
     _sessions[tok] = {
@@ -23,8 +25,6 @@ def _inject_session(user_id=800, name="testuser", role="Admin", employee_id=None
         "role": role,
         "ADMIN": role == "Admin",
         "RIGHTS": 255 if role == "Admin" else (2 if role == "Planer" else 1),
-        "EMPLOYEEID": employee_id or user_id,
-        "employee_id": employee_id or user_id,
     }
     return tok
 
@@ -84,19 +84,20 @@ class TestEmployeeScheduleIcal:
         res = sync_client.get("/api/ical/schedule/99999.ics?year=2026&month=3")
         assert res.status_code == 404
 
-    def test_employee_schedule_as_reader_own(self):
-        """Reader can access own schedule."""
-        tok = _inject_session(user_id=1, name="reader", role="Leser", employee_id=1)
+    def test_employee_schedule_as_reader_own(self, write_db_path):
+        """Leser darf den EIGENEN Plan laden — „eigen" = namensgleicher MA
+        (Fixture: MA 65 heißt „Anders"), nicht die Benutzer-ID."""
+        tok = _inject_session(user_id=1, name="Anders", role="Leser")
         c = _fresh_client()
         c.headers["X-Auth-Token"] = tok
-        res = c.get("/api/ical/schedule/1.ics?year=2026&month=3")
-        # 200 or 404 (employee might not exist in test DB)
-        assert res.status_code in (200, 404)
+        res = c.get("/api/ical/schedule/65.ics?year=2026&month=3")
+        assert res.status_code == 200
+        assert "BEGIN:VCALENDAR" in res.text
         _cleanup(tok)
 
     def test_employee_schedule_as_reader_other_forbidden(self):
         """Reader cannot access other employee's schedule."""
-        tok = _inject_session(user_id=1, name="reader", role="Leser", employee_id=1)
+        tok = _inject_session(user_id=1, name="reader", role="Leser")
         c = _fresh_client()
         c.headers["X-Auth-Token"] = tok
         res = c.get("/api/ical/schedule/999.ics?year=2026&month=3")
@@ -109,76 +110,81 @@ class TestEmployeeScheduleIcal:
 
 class TestIcalTokenManagement:
     def test_create_token(self, write_db_path):
-        """Create a new iCal feed token."""
-        # Need a user with a real employee linked
-        tok = _inject_session(user_id=1, name="tokenuser", role="Admin", employee_id=1)
+        """Token-Lebenszyklus für einen namensgleich aufgelösten MA
+        (Fixture: „Buerger" = MA 40; Benutzer-ID bewusst abweichend)."""
+        tok = _inject_session(user_id=1, name="Buerger", role="Admin")
         c = _fresh_client()
         c.headers["X-Auth-Token"] = tok
 
         res = c.post("/api/ical/token")
-        if res.status_code == 200:
-            data = res.json()
-            assert "token" in data
-            assert "feed_url" in data
-            assert "webcal_url" in data
-            assert "webcal://" in data["webcal_url"]
-            assert ".ics" in data["feed_url"]
+        assert res.status_code == 200
+        data = res.json()
+        assert "token" in data
+        assert "feed_url" in data
+        assert "webcal_url" in data
+        assert "webcal://" in data["webcal_url"]
+        assert ".ics" in data["feed_url"]
 
-            # Get token should return same token
-            res2 = c.get("/api/ical/token")
-            assert res2.status_code == 200
-            data2 = res2.json()
-            assert data2["token"] == data["token"]
+        # Get token should return same token
+        res2 = c.get("/api/ical/token")
+        assert res2.status_code == 200
+        data2 = res2.json()
+        assert data2["token"] == data["token"]
 
-            # Revoke token
-            res3 = c.delete("/api/ical/token")
-            assert res3.status_code == 200
-            assert res3.json()["ok"] is True
+        # Revoke token
+        res3 = c.delete("/api/ical/token")
+        assert res3.status_code == 200
+        assert res3.json()["ok"] is True
 
-            # After revoke, get should return null
-            res4 = c.get("/api/ical/token")
-            assert res4.status_code == 200
-            assert res4.json()["token"] is None
+        # After revoke, get should return null
+        res4 = c.get("/api/ical/token")
+        assert res4.status_code == 200
+        assert res4.json()["token"] is None
 
         _cleanup(tok)
 
     def test_get_token_none_exists(self, write_db_path):
-        tok = _inject_session(user_id=2, name="notoken", role="Admin", employee_id=2)
+        tok = _inject_session(user_id=2, name="Bartel", role="Admin")
         c = _fresh_client()
         c.headers["X-Auth-Token"] = tok
 
         res = c.get("/api/ical/token")
-        if res.status_code == 200:
-            assert res.json()["token"] is None
+        assert res.status_code == 200
+        assert res.json()["token"] is None
+        _cleanup(tok)
+
+    def test_get_token_without_employee_returns_null(self, write_db_path):
+        """GET ist informativ: ohne namensgleichen MA kommt die Null-Antwort
+        (kein Fehler beim Profil-Laden)."""
+        tok = _inject_session(user_id=2, name="ohnema", role="Admin")
+        c = _fresh_client()
+        c.headers["X-Auth-Token"] = tok
+
+        res = c.get("/api/ical/token")
+        assert res.status_code == 200
+        assert res.json() == {"token": None, "feed_url": None, "webcal_url": None}
         _cleanup(tok)
 
     def test_revoke_no_token(self, write_db_path):
-        tok = _inject_session(user_id=3, name="norevo", role="Admin", employee_id=3)
+        tok = _inject_session(user_id=3, name="Gemeiner", role="Admin")
         c = _fresh_client()
         c.headers["X-Auth-Token"] = tok
 
         res = c.delete("/api/ical/token")
-        if res.status_code == 200:
-            assert res.json()["ok"] is True
+        assert res.status_code == 200
+        assert res.json()["ok"] is True
         _cleanup(tok)
 
-    def test_token_no_employee(self):
-        """User without employee_id can't create token."""
-        from sp5api.main import _sessions
-        tok = secrets.token_hex(20)
-        _sessions[tok] = {
-            "ID": 999,
-            "NAME": "noemp",
-            "role": "Admin",
-            "ADMIN": True,
-            "RIGHTS": 255,
-            # No EMPLOYEEID or employee_id
-        }
+    def test_token_no_employee_even_if_user_id_collides(self, write_db_path):
+        """REGRESSION (P-ICAL): Benutzer ohne namensgleichen MA bekommt KEIN
+        Token — auch wenn seine Benutzer-ID mit einer existierenden
+        Mitarbeiter-ID kollidiert (ID=40 = MA „Buerger"). Der frühere
+        ID-Fallback erzeugte hier ein Token für den FREMDEN Kalender."""
+        tok = _inject_session(user_id=40, name="noemp", role="Admin")
         c = _fresh_client()
         c.headers["X-Auth-Token"] = tok
         res = c.post("/api/ical/token")
-        # Should get 400 (no employee) or the ID fallback works
-        assert res.status_code in (200, 400, 404)
+        assert res.status_code == 404
         _cleanup(tok)
 
 
@@ -193,11 +199,12 @@ class TestIcalFeed:
 
     def test_feed_valid_token(self, write_db_path):
         """Create token, then access feed without auth."""
-        tok = _inject_session(user_id=1, name="feeduser", role="Admin", employee_id=1)
+        tok = _inject_session(user_id=1, name="Helmholtz", role="Admin")
         c = _fresh_client()
         c.headers["X-Auth-Token"] = tok
 
         res = c.post("/api/ical/token")
+        assert res.status_code == 200
         if res.status_code == 200:
             feed_token = res.json()["token"]
 

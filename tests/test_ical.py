@@ -235,8 +235,8 @@ class TestIcalEndpoints:
             "/api/ical/my-schedule.ics?year=2026&month=3",
             headers={"X-Auth-Token": "__dev_mode__"},
         )
-        # Dev mode user may not have EMPLOYEEID — could be 400 or 200
-        assert resp.status_code in (200, 400)
+        # Dev-Mode-User hat i. d. R. keinen namensgleichen MA → 404, sonst 200
+        assert resp.status_code in (200, 404)
         if resp.status_code == 200:
             assert "text/calendar" in resp.headers.get("content-type", "")
             assert "BEGIN:VCALENDAR" in resp.text
@@ -414,8 +414,8 @@ class TestIcalFeedEndpoints:
             "/api/ical/token",
             headers={"X-Auth-Token": "__dev_mode__"},
         )
-        # Dev mode user may not have EMPLOYEEID — could be 400 or 200
-        assert resp.status_code in (200, 400)
+        # Dev-Mode-User hat i. d. R. keinen namensgleichen MA → 404, sonst 200
+        assert resp.status_code in (200, 404)
         if resp.status_code == 200:
             data = resp.json()
             assert "token" in data
