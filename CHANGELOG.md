@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dienst eintragen nochmals deutlich schneller auf großen Beständen.** Die
+  Konflikt-Prüfungen des Eintragen-Endpunkts (Duplikat, Zeitüberlappung,
+  Abwesenheit) parsten die DBF-Dateien (5MASHI/5SPSHI/5ABSEN) je Aufruf
+  komplett neu; sie lesen jetzt über den inhalts-gecachten Lesepfad. Gemessen
+  bei 120 Mitarbeitern / 26k Plansätzen: POST /api/schedule ~29 ms bei warmem
+  Cache (~110–130 ms unmittelbar nach einem vorherigen Schreibvorgang) statt
+  zuvor ~200–300 ms; zusammen mit libopenschichtplaner5 1.29.2 ursprünglich
+  ~500 ms. Prüf-Semantik unverändert (409-Konflikte, Soll-/Istplan-Koexistenz).
+
 ## [1.28.2] - 2026-07-03
 
 ### Fixed

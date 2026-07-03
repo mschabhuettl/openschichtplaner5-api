@@ -599,9 +599,6 @@ def create_schedule_entry(
 
     enforce_wpast(_cur_user, body.date)
 
-    from sp5lib.dbf_reader import get_table_fields
-    from sp5lib.dbf_writer import find_all_records
-
     # Date validation handled by Pydantic model
     db = get_db()
     if db.get_employee(body.employee_id) is None:
@@ -624,20 +621,23 @@ def create_schedule_entry(
         day_idx = entry_date.weekday()
 
     # ── Conflict Check 1: Duplicate assignment (same employee + same shift + same date) ──
+    # Konflikt-Checks lesen über den inhalts-gecachten Lesepfad (db._read) statt
+    # per find_all_records die DBF-Dateien voll zu parsen — die Checks brauchen
+    # keine Datei-Indizes, nur die Datensätze (Schreibpfad-Trägheit, Punkt 6).
     try:
-        filepath = db._table("MASHI")
-        fields = get_table_fields(filepath)
-        existing_entries = find_all_records(
-            filepath, fields, EMPLOYEEID=body.employee_id, DATE=body.date
-        )
+        existing_entries = [
+            rec
+            for rec in db._read("MASHI")
+            if rec.get("EMPLOYEEID") == body.employee_id and rec.get("DATE") == body.date
+        ]
         # Soll-/Istplan (Spec 4.12): nur Einträge derselben Planart kollidieren —
         # ein Sollplan-Ziel und ein Istplan-Eintrag dürfen am selben Tag bestehen.
         existing_entries = [
-            (idx, rec)
-            for idx, rec in existing_entries
+            rec
+            for rec in existing_entries
             if int(rec.get("TYPE") or 0) == body.schedule_type
         ]
-        for _, rec in existing_entries:
+        for rec in existing_entries:
             if rec.get("SHIFTID") == body.shift_id:
                 raise HTTPException(
                     status_code=409,
@@ -659,7 +659,7 @@ def create_schedule_entry(
     try:
         new_windows = _shift_time_windows(new_shift, day_idx)
         if new_windows and existing_entries:
-            for _, rec in existing_entries:
+            for rec in existing_entries:
                 existing_shift_id = rec.get("SHIFTID")
                 if existing_shift_id:
                     existing_shift = db.get_shift(existing_shift_id)
@@ -682,13 +682,13 @@ def create_schedule_entry(
                                 },
                             )
         # Auch SPSHI (Sonderdienste) auf Überlappungen prüfen
-        spshi_path = db._table("SPSHI")
-        spshi_fields = get_table_fields(spshi_path)
-        spshi_entries = find_all_records(
-            spshi_path, spshi_fields, EMPLOYEEID=body.employee_id, DATE=body.date
-        )
+        spshi_entries = [
+            rec
+            for rec in db._read("SPSHI")
+            if rec.get("EMPLOYEEID") == body.employee_id and rec.get("DATE") == body.date
+        ]
         if new_windows and spshi_entries:
-            for _, rec in spshi_entries:
+            for rec in spshi_entries:
                 spshi_windows = _startend_windows(rec.get("STARTEND", ""))
                 if _windows_overlap(new_windows, spshi_windows):
                     spshi_name = rec.get("NAME", "Sonderdienst")
@@ -713,13 +713,13 @@ def create_schedule_entry(
 
     # ── Conflict Check 3: Absence/vacation on same day ──
     try:
-        absen_path = db._table("ABSEN")
-        absen_fields = get_table_fields(absen_path)
-        absence_entries = find_all_records(
-            absen_path, absen_fields, EMPLOYEEID=body.employee_id, DATE=body.date
-        )
+        absence_entries = [
+            rec
+            for rec in db._read("ABSEN")
+            if rec.get("EMPLOYEEID") == body.employee_id and rec.get("DATE") == body.date
+        ]
         if absence_entries:
-            _, absence_rec = absence_entries[0]
+            absence_rec = absence_entries[0]
             leave_type_id = absence_rec.get("LEAVETYPID")
             leave_type = db.get_leave_type(leave_type_id) if leave_type_id else None
             leave_name = leave_type.get("NAME", "Absence") if leave_type else "Absence"
