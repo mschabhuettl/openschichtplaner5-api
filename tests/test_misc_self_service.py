@@ -29,6 +29,13 @@ class _SelfDB:
     def get_employees(self, include_hidden=False):
         return self._employees
 
+    def get_linked_employee_id(self, user_id):
+        # Keine explizite Zuordnung im Test-Double → Namensgleichheit greift.
+        return None
+
+    def get_employee(self, emp_id):
+        return next((e for e in self._employees if e.get("ID") == emp_id), None)
+
     def get_schedule(self, year, month):
         return self._schedule
 
@@ -56,9 +63,13 @@ def _session(name="selfuser"):
 
 
 def _client(monkeypatch, db):
+    import sp5api.dependencies as deps
     from sp5api.main import app
 
     monkeypatch.setattr(misc, "get_db", lambda: db)
+    # resolve_employee_for_user (in dependencies) nutzt den dortigen get_db —
+    # ebenfalls auf das Test-Double zeigen lassen.
+    monkeypatch.setattr(deps, "get_db", lambda: db)
     c = TestClient(app, raise_server_exceptions=False)
     return c
 

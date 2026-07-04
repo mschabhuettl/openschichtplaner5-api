@@ -1381,16 +1381,108 @@ def cancel_self_swap_request(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _employee_summary(e: dict) -> dict:
+    """Kompakte Mitarbeiter-Kennung für Verknüpfungs-Vorschläge/Antworten."""
+    return {
+        "id": e.get("ID"),
+        "name": e.get("NAME", ""),
+        "firstname": e.get("FIRSTNAME", ""),
+        "number": e.get("NUMBER", ""),
+    }
+
+
 @router.get(
     "/api/me/employee",
     tags=["Self-Service"],
     summary="Get current user's employee record",
-    description="Returns the EMPL record matching the logged-in user by name, or null.",
+    description="Returns the linked EMPL record of the logged-in user (explicit "
+    "mapping first, then name-match), or null with link context.",
 )
 def get_my_employee(cur_user: dict = Depends(require_auth)):
-    """Liefert den namensgleichen EMPL-Satz des angemeldeten Benutzers, sonst null."""
+    """Liefert den zugeordneten EMPL-Satz des angemeldeten Benutzers.
+
+    Ist keiner zugeordnet, liefert die Antwort KEINE Sackgasse, sondern
+    Verknüpfungs-Kontext: ``can_link`` (darf der User selbst zuordnen —
+    Planer/Admin) und ``suggestion`` (eindeutiger namensgleicher Vorschlag
+    zum Vorbefüllen)."""
     match = resolve_employee_for_user(cur_user, required=False)
-    return {"employee": match, "user_id": cur_user.get("ID")}
+    result = {"employee": match, "user_id": cur_user.get("ID")}
+    if match is None:
+        result["can_link"] = cur_user.get("role") in ("Planer", "Admin")
+        user_name = (cur_user.get("NAME") or "").strip().lower()
+        suggestion = None
+        if user_name:
+            cands = [
+                e for e in get_db().get_employees(include_hidden=False)
+                if (e.get("NAME") or "").strip().lower() == user_name
+            ]
+            if len(cands) == 1:
+                suggestion = _employee_summary(cands[0])
+        result["suggestion"] = suggestion
+    return result
+
+
+class EmployeeLink(BaseModel):
+    employee_id: int = Field(..., gt=0)
+
+
+@router.post(
+    "/api/me/employee",
+    tags=["Self-Service"],
+    summary="Link own account to an employee",
+    description="Planer/Admin can link their own user account to an EMPL record "
+    "(explicit User→Mitarbeiter mapping). Requires Planer role.",
+)
+def link_my_employee(body: EmployeeLink, cur_user: dict = Depends(require_planer)):
+    """Verknüpft das eigene Konto (Planer/Admin) mit einem Mitarbeiter."""
+    db = get_db()
+    if db.get_employee(body.employee_id) is None:
+        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
+    db.set_user_employee_link(int(cur_user["ID"]), body.employee_id)
+    return {"ok": True, "user_id": cur_user.get("ID"), "employee_id": body.employee_id}
+
+
+@router.delete(
+    "/api/me/employee",
+    tags=["Self-Service"],
+    summary="Unlink own account from its employee",
+    description="Removes the explicit User→Mitarbeiter mapping of the own account.",
+)
+def unlink_my_employee(cur_user: dict = Depends(require_planer)):
+    """Entfernt die eigene Mitarbeiter-Zuordnung (Planer/Admin)."""
+    removed = get_db().delete_user_employee_link(int(cur_user["ID"]))
+    return {"ok": True, "removed": removed}
+
+
+@router.put(
+    "/api/users/{user_id}/employee",
+    tags=["Admin"],
+    summary="Link a user to an employee",
+    description="Admin assigns the EMPL record of any user (Benutzerverwaltung). "
+    "This is the robust replacement for the 'Benutzername == Nachname' heuristic.",
+)
+def link_user_employee(
+    user_id: int, body: EmployeeLink, cur_user: dict = Depends(require_admin)
+):
+    """Admin verknüpft ein beliebiges Benutzerkonto mit einem Mitarbeiter."""
+    db = get_db()
+    if db.get_user_identity(user_id) is None:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    if db.get_employee(body.employee_id) is None:
+        raise HTTPException(status_code=404, detail="Mitarbeiter nicht gefunden")
+    db.set_user_employee_link(user_id, body.employee_id)
+    return {"ok": True, "user_id": user_id, "employee_id": body.employee_id}
+
+
+@router.delete(
+    "/api/users/{user_id}/employee",
+    tags=["Admin"],
+    summary="Unlink a user from its employee",
+    description="Admin removes the User→Mitarbeiter mapping of any user.",
+)
+def unlink_user_employee(user_id: int, cur_user: dict = Depends(require_admin)):
+    """Admin entfernt die Mitarbeiter-Zuordnung eines Benutzers."""
+    return {"ok": True, "removed": get_db().delete_user_employee_link(user_id)}
 
 
 class SelfWishCreate(BaseModel):
@@ -1404,18 +1496,8 @@ class SelfWishCreate(BaseModel):
 @router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block", description="Leser can submit a Schichtwunsch or Sperrung for themselves.")
 def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth)):
     """Leser können für sich selbst einen Schichtwunsch oder eine Sperrung einreichen."""
-    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
-    employees = db.get_employees(include_hidden=False)
-    employee = next(
-        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
-        None,
-    )
-    if employee is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No employee record found for this user",
-        )
+    employee = resolve_employee_for_user(cur_user)
     wish_type = body.wish_type.upper()
     if wish_type not in ("WUNSCH", "SPERRUNG"):
         raise HTTPException(
@@ -1440,18 +1522,8 @@ def create_self_wish(body: SelfWishCreate, cur_user: dict = Depends(require_auth
 )
 def delete_self_wish(wish_id: int, cur_user: dict = Depends(require_auth)):
     """Leser can delete their own wishes."""
-    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
-    employees = db.get_employees(include_hidden=False)
-    employee = next(
-        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
-        None,
-    )
-    if employee is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No employee record found for this user",
-        )
+    employee = resolve_employee_for_user(cur_user)
     # Prüfen, dass der Wunsch diesem MA gehört
     wishes = db.get_wishes(employee_id=employee["ID"])
     wish = next((w for w in wishes if w.get("id") == wish_id), None)
@@ -1484,15 +1556,8 @@ def get_self_schedule(
     """Liefert nur die eigenen Planeinträge des Benutzers für Jahr/Monat."""
     if not (1 <= month <= 12):
         raise HTTPException(status_code=400, detail="Invalid month")
-    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
-    employees = db.get_employees(include_hidden=False)
-    employee = next(
-        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
-        None,
-    )
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz gefunden")
+    employee = resolve_employee_for_user(cur_user)
     all_entries = db.get_schedule(year=year, month=month)
     emp_id = employee["ID"]
     return [e for e in all_entries if e.get("employee_id") == emp_id]
@@ -1508,15 +1573,8 @@ def get_self_wishes(
     cur_user: dict = Depends(require_auth),
 ):
     """Liefert nur die eigenen Wünsche, optional nach Jahr/Monat gefiltert."""
-    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
-    employees = db.get_employees(include_hidden=False)
-    employee = next(
-        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
-        None,
-    )
-    if employee is None:
-        raise HTTPException(status_code=404, detail="Kein Mitarbeiter-Datensatz gefunden")
+    employee = resolve_employee_for_user(cur_user)
     kwargs: dict = {"employee_id": employee["ID"]}
     if year is not None:
         kwargs["year"] = year
@@ -1534,18 +1592,8 @@ def create_self_absence(
     request: Request, body: SelfAbsenceCreate, cur_user: dict = Depends(require_auth)
 ):
     """Leser können für sich selbst einen Abwesenheits-/Urlaubsantrag einreichen."""
-    user_name = cur_user.get("NAME", "").strip().lower()
     db = get_db()
-    employees = db.get_employees(include_hidden=False)
-    employee = next(
-        (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
-        None,
-    )
-    if employee is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No employee record found for this user",
-        )
+    employee = resolve_employee_for_user(cur_user)
     # Abwesenheitstyp muss existieren (wie der Planer-Endpunkt POST /api/absences),
     # sonst landet eine tote LEAVETYPID-Referenz in der DBF.
     if db.get_leave_type(body.leave_type_id) is None:

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Robuste User→Mitarbeiter-Zuordnung statt „Benutzername == Nachname".** Der
+  eigene Mitarbeiter wird jetzt über eine explizite, App-verwaltete Zuordnung
+  aufgelöst (libopenschichtplaner5 ≥ 1.31.0) und fällt nur ersatzweise auf
+  Namensgleichheit zurück — das ORIGINAL kennt keine User→Mitarbeiter-Identität
+  (5EMACC/5GRACC sind Zugriffslisten). `GET /api/me/employee` liefert bei
+  fehlender Zuordnung KEINE Sackgasse mehr, sondern Kontext: `can_link` (darf der
+  User selbst zuordnen — Planer/Admin) und `suggestion` (eindeutiger namensgleicher
+  Vorschlag). Neu: `POST`/`DELETE /api/me/employee` (Self-Zuordnung, Planer/Admin)
+  und `PUT`/`DELETE /api/users/{id}/employee` (Admin, Benutzerverwaltung). Alle
+  Self-Service- und iCal-Endpunkte sowie die Passwort-Reset-Mail honorieren die
+  explizite Zuordnung.
+
 ## [1.29.0] - 2026-07-04
 
 ### Security

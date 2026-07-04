@@ -544,19 +544,26 @@ def reset_user_password(request: Request, user_id: int, admin: dict = Depends(re
 
             cfg = get_config()
             if cfg.is_configured:
-                # Try to find employee email by matching user name
-                employees = db.get_employees()
+                # E-Mail des zugeordneten Mitarbeiters ermitteln: explizite
+                # Zuordnung (5USER_EMPLOYEE.json) zuerst, sonst namensgleich
+                # (Voll- oder Nachname, Groß-/Kleinschreibung tolerant).
                 employee_email = None
-                for emp in employees:
-                    emp_surname = (emp.get("NAME") or "").strip()
-                    emp_firstname = (emp.get("FIRSTNAME") or "").strip()
-                    emp_full = f"{emp_firstname} {emp_surname}".strip()
-                    if (emp.get("EMAIL") or "").strip() and (
-                        emp_full.lower() == target_name.lower()
-                        or emp_surname.lower() == target_name.lower()
-                    ):
-                        employee_email = emp["EMAIL"].strip()
-                        break
+                linked_id = db.get_linked_employee_id(user_id)
+                if linked_id is not None:
+                    linked = db.get_employee(linked_id)
+                    if linked and (linked.get("EMAIL") or "").strip():
+                        employee_email = linked["EMAIL"].strip()
+                if employee_email is None:
+                    for emp in db.get_employees():
+                        emp_surname = (emp.get("NAME") or "").strip()
+                        emp_firstname = (emp.get("FIRSTNAME") or "").strip()
+                        emp_full = f"{emp_firstname} {emp_surname}".strip()
+                        if (emp.get("EMAIL") or "").strip() and (
+                            emp_full.lower() == target_name.lower()
+                            or emp_surname.lower() == target_name.lower()
+                        ):
+                            employee_email = emp["EMAIL"].strip()
+                            break
 
                 if employee_email:
                     send_email_async(

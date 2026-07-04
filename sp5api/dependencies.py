@@ -548,17 +548,35 @@ def get_db():
 
 
 def resolve_employee_for_user(user: dict, *, required: bool = True) -> dict | None:
-    """Findet den 5EMPL-Satz, der dem angemeldeten 5USER-Konto namensgleich
-    entspricht — die EINZIGE Verknüpfung beider Tabellen (5USER trägt keine
-    Mitarbeiter-ID). Die 5USER-ID ist bewusst KEIN Fallback: sie ist keine
-    Mitarbeiter-ID, gleiche Zahl bedeutet einen fremden Datensatz.
+    """Findet den 5EMPL-Satz des angemeldeten 5USER-Kontos.
 
-    ``required=True`` (Default) wirft 404, wenn kein Mitarbeiter passt;
-    ``required=False`` liefert dann None (für optionale Selbstbezüge)."""
-    user_name = (user.get("NAME") or "").strip().lower()
+    Reihenfolge: (1) **explizite App-Zuordnung** (5USER_EMPLOYEE.json, gesetzt
+    über die Benutzerverwaltung bzw. „Mein Kalender") — sie ist autoritativ; das
+    ORIGINAL verknüpft 5USER und 5EMPL NICHT (5EMACC/5GRACC sind Zugriffslisten,
+    keine Identität). (2) Fallback **Namensgleichheit** 5USER.NAME == 5EMPL.NAME
+    (nur ein Vorschlag, robust gegen Groß-/Kleinschreibung und Leerzeichen). Die
+    5USER-ID ist bewusst KEIN Fallback (gleiche Zahl = fremder Datensatz).
+
+    ``required=True`` (Default) wirft 404, wenn nichts passt; ``required=False``
+    liefert dann None (für optionale Selbstbezüge)."""
+    db = get_db()
     employee = None
+    user_id = user.get("ID")
+    if user_id is not None:
+        linked_id = db.get_linked_employee_id(int(user_id))
+        if linked_id is not None:
+            # Explizite Zuordnung ist autoritativ — KEIN Namens-Fallback mehr
+            # (sonst könnte ein bewusst gesetztes Mapping still überstimmt werden).
+            employee = db.get_employee(linked_id)
+            if employee is None and required:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Linked employee record no longer exists",
+                )
+            return employee
+    user_name = (user.get("NAME") or "").strip().lower()
     if user_name:
-        employees = get_db().get_employees(include_hidden=False)
+        employees = db.get_employees(include_hidden=False)
         employee = next(
             (e for e in employees if (e.get("NAME") or "").strip().lower() == user_name),
             None,
