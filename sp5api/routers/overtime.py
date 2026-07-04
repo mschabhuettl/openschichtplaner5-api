@@ -18,6 +18,7 @@ from ..dependencies import (
     get_db,
     require_planer,
 )
+from ..scopes import visible_employee_ids
 
 router = APIRouter()
 
@@ -40,8 +41,12 @@ def get_employee_overtime(
     year: int = Query(..., ge=2000, le=2100, description="Year (YYYY)"),
     month: int = Query(..., ge=1, le=12, description="Month (1–12)"),
     _user: dict = Depends(require_planer),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     """Liefert Über-/Minusstunden eines Mitarbeiters für einen Monat."""
+    # Differenzierte Sichtbarkeit (Spec 9.5.3 Nr. 6): verborgene MA → 404.
+    if scope is not None and emp_id not in scope:
+        raise HTTPException(status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden")
     db = get_db()
     emp = db.get_employee(emp_id)
     if emp is None:
@@ -84,6 +89,7 @@ def get_overtime_summary(
     month: int = Query(..., ge=1, le=12, description="Month (1–12)"),
     group_id: int | None = Query(None, description="Optional: filter by group ID"),
     _user: dict = Depends(require_planer),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     """Liefert die Über-/Minusstunden-Übersicht aller Mitarbeiter eines Monats."""
     if not (1 <= month <= 12):
@@ -113,6 +119,10 @@ def get_overtime_summary(
         }
         for r in rows
     ]
+
+    # Differenzierte Sichtbarkeit (Spec 9.5.3): nur sichtbare Mitarbeiter.
+    if scope is not None:
+        result = [r for r in result if r["employee_id"] in scope]
 
     # Sort by difference descending (most overtime first)
     result.sort(key=lambda x: x["difference"], reverse=True)

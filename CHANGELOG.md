@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Differenzierte Sichtbarkeit greift jetzt auch bei Abwesenheiten,
+  Über-/Minusstunden und Verfügbarkeit.** Die 5GRACC-/5EMACC-Sichtbarkeit
+  (Spec 9.5.3: „der Zugriff des Benutzers ist auf bestimmte Gruppen bzw.
+  einzelne Mitarbeiter eingeschränkt") wurde bisher nur auf die Mitarbeiterliste
+  und das Dienstplan-Gitter angewandt. `GET /api/absences`, `GET /api/overtime/summary`,
+  `GET /api/employees/{id}/overtime` und `GET /api/employees/{id}/availability`
+  lieferten eingeschränkten Benutzern Daten beliebiger Mitarbeiter — auch außerhalb
+  ihres Sichtbereichs (auch gezielt via `?employee_id=`). Diese Endpunkte filtern
+  jetzt konsistent über `visible_employee_ids`; verborgene Mitarbeiter liefern bei
+  Einzelabruf 404 (wie `GET /api/employees/{id}`). Für Admins und Benutzer ohne
+  differenzierte Festlegung (Scope = unbeschränkt) ändert sich nichts.
+
 ## [1.31.0] - 2026-07-04
 
 ### Added

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .._paths import state_path
 from ..dependencies import _logger, get_db, require_planer
+from ..scopes import visible_employee_ids
 
 router = APIRouter()
 
@@ -123,7 +124,15 @@ class AvailabilityUpdate(BaseModel):
     description="Returns the weekly availability for an employee. "
     "Each day (0=Monday .. 6=Sunday) can have multiple time windows.",
 )
-def get_availability(emp_id: int):
+def get_availability(
+    emp_id: int,
+    scope: set[int] | None = Depends(visible_employee_ids),
+):
+    # Differenzierte Sichtbarkeit (Spec 9.5.3 Nr. 6): verborgene MA → 404.
+    if scope is not None and emp_id not in scope:
+        raise HTTPException(
+            status_code=404, detail=f"Mitarbeiter ID {emp_id} nicht gefunden"
+        )
     # Verify employee exists
     emp = get_db().get_employee(emp_id)
     if emp is None:
