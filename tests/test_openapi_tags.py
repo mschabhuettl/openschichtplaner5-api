@@ -7,9 +7,25 @@ with no description (as happened for Reports/Notifications/ORM Mirror/… before
 import sp5api.main as main
 
 
+def _leaf_routes(routes):
+    """Endpunkt-Routen rekursiv — ab FastAPI 0.139 nisten include_router-
+    Aufrufe als Wrapper (original_router); vorher lag der Bestand flach.
+    Ohne Rekursion sähe dieser Guard KEINE Tags mehr und wäre still grün."""
+    for route in routes:
+        original = getattr(route, "original_router", None)
+        if original is not None:
+            yield from _leaf_routes(original.routes)
+            continue
+        sub = getattr(route, "routes", None)
+        if sub:
+            yield from _leaf_routes(sub)
+            continue
+        yield route
+
+
 def _route_tags() -> set[str]:
     tags: set[str] = set()
-    for route in main.app.routes:
+    for route in _leaf_routes(main.app.routes):
         for t in getattr(route, "tags", []) or []:
             tags.add(t)
     return tags

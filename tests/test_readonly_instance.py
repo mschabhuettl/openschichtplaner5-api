@@ -16,10 +16,27 @@ def readonly_on(monkeypatch):
     monkeypatch.setattr(main_module, "_READONLY", True)
 
 
+def _leaf_routes(routes):
+    """Endpunkt-Routen rekursiv einsammeln — robust gegen beide
+    FastAPI-Generationen: bis 0.136 liegt der Bestand flach in app.routes,
+    ab 0.139 (Starlette 1.3) nisten include_router-Aufrufe als
+    _IncludedRouter-Wrapper (Blätter via original_router.routes)."""
+    for route in routes:
+        original = getattr(route, "original_router", None)
+        if original is not None:
+            yield from _leaf_routes(original.routes)
+            continue
+        sub = getattr(route, "routes", None)
+        if sub:
+            yield from _leaf_routes(sub)
+            continue
+        yield route
+
+
 def _write_routes():
     """Alle Schreib-Routen der App aus dem Router-Bestand (Beweis-Basis)."""
     routes = []
-    for route in main_module.app.routes:
+    for route in _leaf_routes(main_module.app.routes):
         methods = getattr(route, "methods", None) or set()
         path = getattr(route, "path", "")
         if not path.startswith("/api/"):
