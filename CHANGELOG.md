@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Test-Isolation: Recurring-Shifts-Store pro Test.** `_RECURRING_FILE` ist eine
+  import-fixe Modul-Konstante auf einen geteilten Pfad, den nur ein Testmodul aufräumte;
+  ein in einem anderen Test hinterlassenes Muster konnte so einen seltenen,
+  reihenfolgeabhängigen Voll-Lauf-Flake in `test_recurring_shifts::test_delete_existing`
+  (Endzusicherung `GET /api/shifts/recurring == []`) auslösen. Eine autouse-Fixture lenkt
+  den Store jetzt je Test in ein tmp-Verzeichnis (analog `_photos_in_tmp`) —
+  Cross-Test-Kontamination strukturell ausgeschlossen; kein Produktverhalten geändert.
+
 ## [1.32.0] - 2026-07-04
 
 ### Fixed

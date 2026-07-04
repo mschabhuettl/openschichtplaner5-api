@@ -221,6 +221,21 @@ def _photos_in_tmp(tmp_path_factory):
     employees_module._PHOTOS_DIR = original
 
 
+@pytest.fixture(autouse=True)
+def _recurring_store_in_tmp(tmp_path, monkeypatch):
+    """Den Recurring-Shifts-JSON-Store pro Test isolieren. ``_RECURRING_FILE`` ist
+    eine import-fixe Modul-Konstante auf einen GETEILTEN Pfad (state_dir); nur
+    test_recurring_shifts räumte ihn auf, sodass ein in einem anderen Test
+    geschriebenes Muster hängen bleiben und die Endzusicherung
+    ``GET /api/shifts/recurring == []`` in test_delete_existing selten (Voll-Lauf,
+    reihenfolgeabhängig) rot färben konnte. Ein eigener tmp-Pfad je Test schließt
+    Cross-Test-Kontamination strukturell aus (und hält den Store aus dem Checkout
+    heraus, wie _photos_in_tmp)."""
+    import sp5api.routers.recurring_shifts as rs
+
+    monkeypatch.setattr(rs, "_RECURRING_FILE", str(tmp_path / "recurring_shifts.json"))
+
+
 @pytest.fixture
 def ensure_duty(write_db_path):
     """Legt einen 5MASHI-Dienst für (emp_id, datum) an — die Tauschbörse
