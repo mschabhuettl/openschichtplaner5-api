@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Differenzierte Sichtbarkeit greift jetzt auch bei Statistik/Berichten.**
+  Fortsetzung von 1.31.1: `GET /api/statistics`, `GET /api/personnel-table` und
+  `GET /api/statistics/year-summary` lieferten eingeschränkten Benutzern die
+  statistischen Ergebnisse *aller* Mitarbeiter — das Handbuch (Spec 9.5.3) nennt
+  „Ergebnisse statistischer Berechnungen (in der Personaltabelle und in Berichten)"
+  ausdrücklich als scope-pflichtig. Diese Endpunkte filtern jetzt über
+  `visible_employee_ids`; die Jahres-Übersicht wendet den Scope vor der Aggregation
+  an (Monats- und Mitarbeiter-Summen umfassen nur sichtbare MA). Admin/unbeschränkt
+  unverändert.
+
 ## [1.31.1] - 2026-07-04
 
 ### Security

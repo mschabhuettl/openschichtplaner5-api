@@ -23,10 +23,21 @@ from ..dependencies import (
     require_planer,
     require_write,
 )
+from ..scopes import visible_employee_ids
 
 _logger = _logging.getLogger("sp5api")
 
 router = APIRouter()
+
+
+def _scope_rows(rows: list[dict], scope: set[int] | None) -> list[dict]:
+    """Filtere Statistik-/Tabellenzeilen auf sichtbare Mitarbeiter (Spec 9.5.3).
+
+    ``scope is None`` = unbeschränkt (Admin/keine differenzierte Festlegung).
+    """
+    if scope is None:
+        return rows
+    return [r for r in rows if r.get("employee_id") in scope]
 
 # Maximale Dateigröße für CSV-Importe (10 MB)
 _MAX_CSV_SIZE = 10 * 1024 * 1024
@@ -90,6 +101,7 @@ def get_statistics(
     date_to: str | None = Query(
         None, alias="to", description="Freier Auswertungszeitraum: Ende (YYYY-MM-DD)"
     ),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     from datetime import date as _date
 
@@ -108,8 +120,11 @@ def get_statistics(
             )
         if von > bis:
             raise HTTPException(status_code=400, detail="'from' muss <= 'to' sein")
-        return get_db().get_statistics(
-            group_id=group_id, date_from=date_from, date_to=date_to
+        return _scope_rows(
+            get_db().get_statistics(
+                group_id=group_id, date_from=date_from, date_to=date_to
+            ),
+            scope,
         )
 
     if year is None:
@@ -120,7 +135,7 @@ def get_statistics(
         raise HTTPException(
             status_code=400, detail="Invalid month: must be between 1 and 12"
         )
-    return get_db().get_statistics(year, month, group_id=group_id)
+    return _scope_rows(get_db().get_statistics(year, month, group_id=group_id), scope)
 
 
 # ── Personaltabelle (Spec 3.9.2/3.9.3) ───────────────────────
@@ -144,6 +159,7 @@ def get_personnel_table(
     date_from: str = Query(..., alias="from", description="Start (YYYY-MM-DD)"),
     date_to: str = Query(..., alias="to", description="Ende (YYYY-MM-DD)"),
     group_id: int | None = Query(None, description="Filter by group ID"),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     from datetime import date as _date
 
@@ -156,7 +172,10 @@ def get_personnel_table(
         )
     if von > bis:
         raise HTTPException(status_code=400, detail="'from' muss <= 'to' sein")
-    return get_db().get_personnel_table(date_from, date_to, group_id=group_id)
+    table = get_db().get_personnel_table(date_from, date_to, group_id=group_id)
+    if scope is not None and isinstance(table, dict) and isinstance(table.get("rows"), list):
+        table["rows"] = [r for r in table["rows"] if r.get("employee_id") in scope]
+    return table
 
 
 # ── Year Summary ────────────────────────────
@@ -176,6 +195,7 @@ def get_year_summary(
         None, description="Year (YYYY), defaults to current year"
     ),
     group_id: int | None = Query(None, description="Filter by group ID"),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     """Liefert aggregierte Statistiken für alle 12 Monate eines Jahres."""
     from datetime import date as _date
@@ -189,7 +209,9 @@ def get_year_summary(
     emp_totals: dict = {}
     all_monthly_rows: list = []
     for m in range(1, 13):
-        rows = db.get_statistics(year, m, group_id=group_id)
+        # Differenzierte Sichtbarkeit (Spec 9.5.3) vor der Aggregation anwenden,
+        # damit Monats- UND Mitarbeiter-Summen nur sichtbare MA umfassen.
+        rows = _scope_rows(db.get_statistics(year, m, group_id=group_id), scope)
         all_monthly_rows.append((m, rows))
         total_actual = sum(r.get("actual_hours", 0) or 0 for r in rows)
         total_target = sum(r.get("target_hours", 0) or 0 for r in rows)
