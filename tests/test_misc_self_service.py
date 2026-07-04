@@ -160,6 +160,44 @@ class TestSelfWishes:
         finally:
             _sessions.pop(tok, None)
 
+    def test_create_wish_no_employee_404(self, monkeypatch):
+        """Konto ohne namensgleichen MA → 404 statt 500 (iCal-Bug-Klasse)."""
+        from sp5api.main import _sessions
+
+        tok = _session(name="nobody")
+        try:
+            c = _client(monkeypatch, _SelfDB())
+            resp = c.post(
+                "/api/self/wishes",
+                json={"date": "2026-07-15", "wish_type": "WUNSCH", "shift_id": 1},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 404
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_get_wishes_no_employee_404(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        tok = _session(name="nobody")
+        try:
+            c = _client(monkeypatch, _SelfDB())
+            resp = c.get("/api/self/wishes", headers={"X-Auth-Token": tok})
+            assert resp.status_code == 404
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_delete_wish_no_employee_404(self, monkeypatch):
+        from sp5api.main import _sessions
+
+        tok = _session(name="nobody")
+        try:
+            c = _client(monkeypatch, _SelfDB())
+            resp = c.delete("/api/self/wishes/1", headers={"X-Auth-Token": tok})
+            assert resp.status_code == 404
+        finally:
+            _sessions.pop(tok, None)
+
 
 class TestSelfAbsence:
     def test_create_absence_success(self, monkeypatch):
@@ -190,5 +228,21 @@ class TestSelfAbsence:
                 headers={"X-Auth-Token": tok},
             )
             assert resp.status_code == 409
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_create_absence_no_employee_404(self, monkeypatch):
+        """Konto ohne namensgleichen MA → 404 statt 500 (iCal-Bug-Klasse)."""
+        from sp5api.main import _sessions
+
+        tok = _session(name="nobody")
+        try:
+            c = _client(monkeypatch, _SelfDB())
+            resp = c.post(
+                "/api/self/absences",
+                json={"date": "2026-08-01", "leave_type_id": 1},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 404
         finally:
             _sessions.pop(tok, None)
