@@ -487,8 +487,15 @@ def create_wish(body: WishCreate, _cur_user: dict = Depends(require_planer)):
         raise HTTPException(
             status_code=400, detail="wish_type must be WUNSCH or SPERRUNG"
         )
+    db = get_db()
+    # Mitarbeiter muss existieren (wie POST /api/schedule und POST /api/absences),
+    # sonst landet eine tote EMPLOYEEID-Referenz in der Wunsch-DBF.
+    if db.get_employee(body.employee_id) is None:
+        raise HTTPException(
+            status_code=404, detail=f"Mitarbeiter {body.employee_id} nicht gefunden"
+        )
     try:
-        return get_db().add_wish(
+        return db.add_wish(
             employee_id=body.employee_id,
             date=body.date,
             wish_type=wish_type,

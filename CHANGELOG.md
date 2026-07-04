@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   einen unbekannten Typ längst mit 404 ablehnte — so entstand eine tote
   LEAVETYPID-Referenz. Der Self-Service-Endpunkt prüft die Existenz jetzt
   ebenso (404 „Abwesenheitstyp … nicht gefunden").
+- **Wunsch-Anlage akzeptierte einen nicht existierenden Mitarbeiter.**
+  `POST /api/wishes` schrieb eine beliebige `employee_id` in die Wunsch-DBF,
+  obwohl `POST /api/schedule` und `POST /api/absences` einen unbekannten
+  Mitarbeiter längst mit 404 ablehnen — tote EMPLOYEEID-Referenz. Der
+  Wunsch-Endpunkt prüft die Existenz jetzt ebenso (404 „Mitarbeiter … nicht
+  gefunden").
 
 ## [1.28.5] - 2026-07-04
 

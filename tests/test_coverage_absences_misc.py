@@ -68,6 +68,23 @@ class TestAbsenceErrorPaths:
         assert r.status_code == 404
 
 
+class TestWishErrorPaths:
+    """Konsistenz zu POST /api/schedule und /api/absences: der Wunsch-Endpunkt
+    muss einen nicht existierenden Mitarbeiter ebenso ablehnen, statt eine tote
+    EMPLOYEEID-Referenz in die Wunsch-DBF zu schreiben."""
+
+    def test_create_wish_invalid_employee(self, admin_client):
+        """employee not found → 404 (sonst tote EMPLOYEEID in der DBF)."""
+        r = admin_client.post("/api/wishes", json={
+            "employee_id": 99999,
+            "date": "2025-06-01",
+            "shift_id": 1,
+            "wish_type": "WUNSCH",
+        })
+        assert r.status_code == 404
+        assert "Mitarbeiter" in r.json()["detail"]
+
+
 class TestAbsenceStatus:
     """Cover lines 207-216, 259-260, 382-383, 398-400, 407-408, 422, 445, 465-466, 480-481, 505-506"""
 
