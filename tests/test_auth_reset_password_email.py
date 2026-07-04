@@ -19,6 +19,10 @@ class _ResetDB:
     def get_users(self):
         return [{"ID": 7, "NAME": "Max Müller"}]
 
+    def get_linked_employee_id(self, user_id):
+        # Keine explizite Zuordnung im Test → Namensgleichheit greift.
+        return None
+
     def get_employees(self):
         return self._employees
 
