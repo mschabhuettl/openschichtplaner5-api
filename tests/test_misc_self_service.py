@@ -12,13 +12,19 @@ import sp5api.routers.misc as misc
 
 class _SelfDB:
     def __init__(
-        self, *, employees=None, schedule=None, wishes=None, absences=None, add_wish_exc=None
+        self, *, employees=None, schedule=None, wishes=None, absences=None,
+        add_wish_exc=None, leave_types=None,
     ):
         self._employees = employees if employees is not None else [{"ID": 7, "NAME": "selfuser"}]
         self._schedule = schedule or []
         self._wishes = wishes or []
         self._absences = absences or []
         self._add_wish_exc = add_wish_exc
+        # Gültige Abwesenheitstypen; Default {1}, damit die Erfolgs-Tests laufen.
+        self._leave_types = set(leave_types) if leave_types is not None else {1}
+
+    def get_leave_type(self, lt_id):
+        return {"ID": lt_id, "NAME": "Urlaub"} if lt_id in self._leave_types else None
 
     def get_employees(self, include_hidden=False):
         return self._employees
@@ -277,6 +283,23 @@ class TestSelfAbsence:
                 headers={"X-Auth-Token": tok},
             )
             assert resp.status_code == 422
+        finally:
+            _sessions.pop(tok, None)
+
+    def test_create_absence_unknown_leave_type_404(self, monkeypatch):
+        """Nicht existierender Abwesenheitstyp → 404 statt einer toten
+        LEAVETYPID-Referenz in der DBF (Konsistenz mit POST /api/absences)."""
+        from sp5api.main import _sessions
+
+        tok = _session()
+        try:
+            c = _client(monkeypatch, _SelfDB())  # gültige Typen = {1}
+            resp = c.post(
+                "/api/self/absences",
+                json={"date": "2026-09-11", "leave_type_id": 99999},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 404
         finally:
             _sessions.pop(tok, None)
 

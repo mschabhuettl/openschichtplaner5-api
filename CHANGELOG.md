@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Self-Service-Abwesenheit akzeptierte einen nicht existierenden
+  Abwesenheitstyp.** `POST /api/self/absences` schrieb eine beliebige
+  `leave_type_id` in die DBF, während der Planer-Endpunkt `POST /api/absences`
+  einen unbekannten Typ längst mit 404 ablehnte — so entstand eine tote
+  LEAVETYPID-Referenz. Der Self-Service-Endpunkt prüft die Existenz jetzt
+  ebenso (404 „Abwesenheitstyp … nicht gefunden").
+
 ## [1.28.5] - 2026-07-04
 
 ### Fixed

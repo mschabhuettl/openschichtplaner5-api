@@ -1539,6 +1539,13 @@ def create_self_absence(
             status_code=404,
             detail="No employee record found for this user",
         )
+    # Abwesenheitstyp muss existieren (wie der Planer-Endpunkt POST /api/absences),
+    # sonst landet eine tote LEAVETYPID-Referenz in der DBF.
+    if db.get_leave_type(body.leave_type_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Abwesenheitstyp {body.leave_type_id} nicht gefunden",
+        )
     # Check if already exists
     existing = db.get_absences_list(employee_id=employee["ID"])
     if any(a.get("date") == body.date for a in existing):
