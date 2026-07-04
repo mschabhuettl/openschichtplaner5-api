@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`GET /api/absences`: SHOWABS-Sichtbarkeit wie im Dienstplan-Gitter.** Die
+  Abwesenheits-Liste wandte bisher zwar den 5GRACC/5EMACC-Scope an, aber NICHT den
+  SHOWABS-Modus — ein anonymisiert/ausgeblendet berechtigter Benutzer (SHOWABS 1/2)
+  bekam die echte Abwesenheitsart (`leave_type_id`/`-name`/`-short`) und umging so
+  die Gitter-Anonymisierung. Jetzt zusätzlich `absence_visibility_mode` → Modus 1
+  anonymisiert die Art, Modus 2 blendet sie aus; Admin/unbeschränkte Nutzer (Modus 0)
+  unverändert. Schließt die im Docstring bereits zugesagte Parität zu `schedule.py`
+  (Spec 9.5.2 Nr. 2.1). Benötigt libopenschichtplaner5 mit `anonymize_absence_rows`.
+
 ## [1.31.2] - 2026-07-04
 
 ### Security

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from .._paths import state_path
 from ..dependencies import (
     _sanitize_500,
+    absence_visibility_mode,
     enforce_wpast,
     get_db,
     limiter,
@@ -124,18 +125,25 @@ def list_absences(
     page: int | None = Query(None, ge=1, description="Page number (1-based). Omit for unpaginated list."),
     page_size: int = Query(50, ge=1, le=500, description="Items per page"),
     scope: set[int] | None = Depends(visible_employee_ids),
+    abs_mode: int = Depends(absence_visibility_mode),
 ):
     """Listet alle Abwesenheiten mit optionalen Filtern.
 
     Differenzierte Sichtbarkeit (5GRACC/5EMACC, Spec 9.5.3): eingeschränkte
     Benutzer sehen nur Abwesenheiten ihrer sichtbaren Mitarbeiter — wie im
     Dienstplan-Gitter (schedule.py). ``scope is None`` = unbeschränkt.
+
+    Zusätzlich SHOWABS-Sichtbarkeit (Spec 9.5.2 Nr. 2.1) wie im Gitter:
+    ``abs_mode`` 1 anonymisiert die Abwesenheitsart, 2 blendet sie aus. Admin/
+    unbeschränkte Nutzer haben Modus 0 (unverändert).
     """
-    result = get_db().get_absences_list(
+    db = get_db()
+    result = db.get_absences_list(
         year=year, employee_id=employee_id, leave_type_id=leave_type_id
     )
     if scope is not None:
         result = [a for a in result if a.get("employee_id") in scope]
+    result = db.anonymize_absence_rows(result, abs_mode)
     return paginate(result, page, page_size)
 
 

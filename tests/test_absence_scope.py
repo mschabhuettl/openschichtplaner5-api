@@ -31,6 +31,15 @@ class _ScopeDB:
     def get_user_visible_employee_ids(self, uid):
         return set(self._visible) if self._visible is not None else None
 
+    def anonymize_absence_rows(self, rows, mode):
+        # list_absences ruft dies nach dem Scope-Filter (SHOWABS-Sichtbarkeit);
+        # diese Tests laufen mit Modus 0 → Durchreichen. Vertrag gespiegelt.
+        if mode == 0 or not rows:
+            return rows
+        if mode == 2:
+            return []
+        return [{**r, "leave_type_id": None} for r in rows]
+
 
 def _session(uid, role):
     from sp5api.main import _sessions
