@@ -261,9 +261,10 @@ class TestWishes:
 
     def test_create_wish_valid(self, write_client):
         """Verify create wish valid."""
+        emp_id = write_client.get("/api/employees").json()[0]["ID"]
         resp = write_client.post(
             "/api/wishes",
-            json={"employee_id": 1, "date": "2099-11-03", "wish_type": "WUNSCH"},
+            json={"employee_id": emp_id, "date": "2099-11-03", "wish_type": "WUNSCH"},
         )
         assert resp.status_code in (200, 400, 409, 500)
 

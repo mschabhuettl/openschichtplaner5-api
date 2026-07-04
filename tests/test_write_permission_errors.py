@@ -50,9 +50,10 @@ def test_wish_write_permission_error_is_clear(write_client, monkeypatch):
         raise PermissionError(errno.EACCES, "Permission denied", "/app/data/wishes.json")
 
     monkeypatch.setattr(SP5Database, "add_wish", boom)
+    emp_id = write_client.get("/api/employees").json()[0]["ID"]
     r = write_client.post(
         "/api/wishes",
-        json={"employee_id": 1, "date": "2026-06-20", "wish_type": "WUNSCH"},
+        json={"employee_id": emp_id, "date": "2026-06-20", "wish_type": "WUNSCH"},
     )
     assert r.status_code == 503, r.text
     assert "nicht beschreibbar" in r.json()["detail"]
