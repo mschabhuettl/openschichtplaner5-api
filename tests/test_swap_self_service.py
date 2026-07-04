@@ -16,13 +16,14 @@ def _employee_ids(write_db_path):
     emps = db.get_employees(include_hidden=False)
     assert len(emps) >= 2, "Need at least 2 employees in test DB"
     shift_id = db.get_shifts()[0]["ID"]
+    # DISJUNKT: A nur Tag 1, B nur Tag 2 — der Empfänger eines Kreuz-Tauschs
+    # muss am eingehenden Datum frei sein (sonst 400/409 Ziel-Datum-Kollision).
     for month in range(4, 13):
-        for day in (1, 2):
-            for emp in (emps[0], emps[1]):
-                try:
-                    db.add_schedule_entry(emp["ID"], f"2025-{month:02d}-{day:02d}", shift_id)
-                except ValueError:
-                    pass
+        for emp, day in ((emps[0], 1), (emps[1], 2)):
+            try:
+                db.add_schedule_entry(emp["ID"], f"2025-{month:02d}-{day:02d}", shift_id)
+            except ValueError:
+                pass
     return emps[0]["ID"], emps[1]["ID"], emps[0].get("NAME", "emp0"), emps[1].get("NAME", "emp1")
 
 

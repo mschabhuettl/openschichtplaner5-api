@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Kreuz-Tausch konnte einen Dienst ersatzlos verlieren.** Beim Tausch über
+  verschiedene Daten löschte die Genehmigung erst beide Original-Dienste und
+  legte sie dann über Kreuz neu an — war der Empfänger am eingehenden Datum
+  aber bereits belegt, scheiterte das Neuanlegen am Duplikat-Schutz, der
+  Fehler wurde nur gesammelt und der getauschte Dienst war verloren (die
+  Antwort blieb „ok"). Jetzt wird die Ziel-Datum-Kollision VOR jeder
+  Löschung geprüft: Anlegen eines solchen Antrags wird mit 400 abgelehnt,
+  die Genehmigung (falls die Kollision erst später entsteht) mit 409 — beide
+  Original-Dienste bleiben unangetastet. Der Same-Date-Tausch war nie
+  betroffen.
+
 ## [1.28.3] - 2026-07-03
 
 ### Fixed

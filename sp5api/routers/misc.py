@@ -713,6 +713,36 @@ def _swap_duty_missing(
     return None
 
 
+def _swap_target_conflict(
+    requester_id: int, requester_date: str, partner_id: int, partner_date: str
+) -> str | None:
+    """Kreuz-Tausch (verschiedene Daten): der EMPFÄNGER muss am eingehenden
+    Datum frei sein. Hat er dort schon einen Dienst oder eine Abwesenheit,
+    schlüge das Neuanlegen nach dem Löschen der Originale fehl und der
+    getauschte Dienst ginge ERSATZLOS verloren (Duplikat-Guard von
+    add_schedule_entry). Liefert eine deutsche Fehlermeldung oder None;
+    Same-Date-Tausch ist nie betroffen (swap_shifts tauscht in place)."""
+    if requester_date == partner_date:
+        return None
+    db = get_db()
+    names = {e.get("ID"): f"{e.get('FIRSTNAME', '')} {e.get('NAME', '')}".strip()
+             for e in db.get_employees(include_hidden=True)}
+    occupied = {
+        (r.get("EMPLOYEEID"), r.get("DATE"))
+        for table in ("MASHI", "ABSEN")
+        for r in db._read(table)
+    }
+    # Anfragender übernimmt den Dienst des Partners AN DESSEN Datum — und umgekehrt.
+    for emp_id, incoming_date in ((requester_id, partner_date), (partner_id, requester_date)):
+        if (emp_id, incoming_date) in occupied:
+            who = names.get(emp_id) or f"MA #{emp_id}"
+            return (
+                f"{who} hat am {incoming_date} bereits einen Dienst oder eine "
+                f"Abwesenheit — Kreuz-Tausch nicht möglich"
+            )
+    return None
+
+
 @router.get(
     "/api/swap-requests", tags=["Self-Service"], summary="List shift swap requests",
     description="Return shift swap requests, optionally filtered by status or employee.",
@@ -799,6 +829,11 @@ def create_swap_request(
     )
     if missing:
         raise HTTPException(status_code=400, detail=missing)
+    conflict = _swap_target_conflict(
+        body.requester_id, body.requester_date, body.partner_id, body.partner_date
+    )
+    if conflict:
+        raise HTTPException(status_code=400, detail=conflict)
     creator_name = _cur_user.get("NAME", "planner")
     entry = get_db().create_swap_request(
         requester_id=body.requester_id,
@@ -890,6 +925,18 @@ def resolve_swap_request(
             )
             if missing:
                 raise HTTPException(status_code=409, detail=missing)
+            # Ziel-Datum-Kollision (Kreuz-Tausch): seit der Antragstellung kann
+            # der Empfänger am eingehenden Datum einen Dienst bekommen haben —
+            # die Ausführung löscht ERST die Originale und könnte den
+            # getauschten Dienst ersatzlos verlieren (Duplikat-Guard).
+            conflict = _swap_target_conflict(
+                pending["requester_id"],
+                pending["requester_date"],
+                pending["partner_id"],
+                pending["partner_date"],
+            )
+            if conflict:
+                raise HTTPException(status_code=409, detail=conflict)
     entry = get_db().resolve_swap_request(
         swap_id,
         body.action,
@@ -1135,6 +1182,11 @@ def create_self_swap_request(
     )
     if missing:
         raise HTTPException(status_code=400, detail=missing)
+    conflict = _swap_target_conflict(
+        requester_id, body.requester_date, body.partner_id, body.partner_date
+    )
+    if conflict:
+        raise HTTPException(status_code=400, detail=conflict)
 
     entry = get_db().create_swap_request(
         requester_id=requester_id,

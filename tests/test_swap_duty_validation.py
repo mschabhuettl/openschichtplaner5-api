@@ -101,6 +101,69 @@ class TestSwapDutyValidation:
         )
         assert remaining, "Dienst des Antragstellers darf nicht verloren gehen"
 
+    def test_create_rejected_on_target_date_collision(
+        self, planer_client: TestClient, ensure_duty
+    ):
+        """REGRESSION (Kreuz-Tausch-Datenverlust): hat der Anfragende am Datum
+        des Partners BEREITS einen Dienst, würde die Ausführung erst beide
+        Originale löschen und dann am Duplikat-Guard scheitern — der
+        getauschte Dienst ginge ersatzlos verloren. Anlegen ⇒ 400."""
+        emp1, emp2 = _two_employees(planer_client)
+        ensure_duty(emp1, "2031-06-02")
+        ensure_duty(emp2, "2031-06-03")
+        ensure_duty(emp1, "2031-06-03")  # Kollision: A ist am Ziel-Datum belegt
+        res = planer_client.post(
+            "/api/swap-requests",
+            json={
+                "requester_id": emp1,
+                "requester_date": "2031-06-02",
+                "partner_id": emp2,
+                "partner_date": "2031-06-03",
+            },
+        )
+        assert res.status_code == 400
+        assert "bereits einen Dienst" in res.json()["detail"]
+
+    def test_approve_conflicts_on_target_collision_and_loses_nothing(
+        self, planer_client: TestClient, ensure_duty, write_db_path
+    ):
+        """Entsteht die Ziel-Datum-Kollision NACH der Antragstellung, verweigert
+        die Genehmigung mit 409 und BEIDE Original-Dienste bleiben erhalten."""
+        emp1, emp2 = _two_employees(planer_client)
+        ensure_duty(emp1, "2031-07-01")
+        ensure_duty(emp2, "2031-07-02")
+        created = planer_client.post(
+            "/api/swap-requests",
+            json={
+                "requester_id": emp1,
+                "requester_date": "2031-07-01",
+                "partner_id": emp2,
+                "partner_date": "2031-07-02",
+            },
+        )
+        assert created.status_code == 200
+        swap_id = created.json()["id"]
+
+        ensure_duty(emp1, "2031-07-02")  # Kollision entsteht nachträglich
+
+        res = planer_client.patch(
+            f"/api/swap-requests/{swap_id}/resolve",
+            json={"action": "approve", "resolved_by": "planer"},
+        )
+        assert res.status_code == 409
+        assert "bereits einen Dienst" in res.json()["detail"]
+
+        # NICHTS wurde gelöscht — beide Originale existieren weiter
+        from sp5lib.dbf_reader import get_table_fields
+        from sp5lib.dbf_writer import find_all_records
+
+        mashi = f"{write_db_path}/5MASHI.DBF"
+        fields = get_table_fields(mashi)
+        assert find_all_records(mashi, fields, EMPLOYEEID=emp1, DATE="2031-07-01"), \
+            "Dienst des Antragstellers verloren"
+        assert find_all_records(mashi, fields, EMPLOYEEID=emp2, DATE="2031-07-02"), \
+            "Dienst des Partners verloren"
+
     def test_self_swap_rejected_without_partner_duty(self, app, write_db_path, ensure_duty):
         """Self-Service-Antrag: gleicher Guard wie die Planer-Route."""
         import secrets

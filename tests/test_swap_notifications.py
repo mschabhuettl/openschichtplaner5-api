@@ -28,15 +28,18 @@ def _employee_ids(write_db_path):
     emps = db.get_employees(include_hidden=False)
     assert len(emps) >= 2, "Need at least 2 employees in test DB"
     shift_id = db.get_shifts()[0]["ID"]
-    for pair in (("2025-05-01", "2025-05-02"), ("2025-06-10", "2025-06-11"),
-                 ("2025-07-10", "2025-07-11"), ("2025-08-10", "2025-08-11"),
-                 ("2025-09-10", "2025-09-11")):
-        for d in pair:
-            for emp in (emps[0], emps[1]):
-                try:
-                    db.add_schedule_entry(emp["ID"], d, shift_id)
-                except ValueError:
-                    pass
+    # DISJUNKT: A bekommt nur das jeweils erste, B nur das zweite Datum eines
+    # Paars — ein Kreuz-Tausch verlangt, dass der Empfänger am eingehenden
+    # Datum FREI ist (Ziel-Datum-Kollision ⇒ 400/409, sonst ginge ein Dienst
+    # verloren). Beide-auf-beiden-Tagen wäre genau diese Kollision.
+    for a_date, b_date in (("2025-05-01", "2025-05-02"), ("2025-06-10", "2025-06-11"),
+                           ("2025-07-10", "2025-07-11"), ("2025-08-10", "2025-08-11"),
+                           ("2025-09-10", "2025-09-11")):
+        for emp, d in ((emps[0], a_date), (emps[1], b_date)):
+            try:
+                db.add_schedule_entry(emp["ID"], d, shift_id)
+            except ValueError:
+                pass
     return emps[0]["ID"], emps[1]["ID"], emps[0].get("NAME", "emp0"), emps[1].get("NAME", "emp1")
 
 
