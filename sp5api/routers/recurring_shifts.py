@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from .._paths import state_path
 from ..dependencies import _logger, get_db, require_planer
+from ..scopes import visible_employee_ids
 
 router = APIRouter()
 
@@ -174,6 +175,7 @@ def create_recurring_shift(
 def list_recurring_shifts(
     employee_id: int | None = Query(None, description="Filter by employee ID"),
     group_id: int | None = Query(None, description="Filter by group ID"),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     db = get_db()
     patterns = _read_all()
@@ -183,6 +185,9 @@ def list_recurring_shifts(
     if group_id is not None:
         member_ids = set(db.get_group_members(group_id))
         patterns = [p for p in patterns if p.get("employee_id") in member_ids]
+    # Differenzierte Sichtbarkeit (Spec 9.5.3): nur sichtbare Mitarbeiter.
+    if scope is not None:
+        patterns = [p for p in patterns if p.get("employee_id") in scope]
 
     return [_enrich(db, p) for p in patterns]
 

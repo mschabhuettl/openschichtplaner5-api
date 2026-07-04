@@ -6,6 +6,7 @@ import re
 from fastapi import APIRouter, Depends, Query
 
 from ..dependencies import get_db, require_planer
+from ..scopes import filter_by_employee_scope, visible_employee_ids
 
 _logger = _logging.getLogger("sp5api")
 
@@ -35,10 +36,12 @@ def _parse_qualifications(note1: str | None) -> list[str]:
 def get_qualification_matrix(
     group_id: int | None = Query(None, description="Filter by group ID"),
     _user: dict = Depends(require_planer),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     """Return qualification matrix: rows=employees, columns=qualifications."""
     db = get_db()
-    employees = db.get_employees(include_hidden=False)
+    # Differenzierte Sichtbarkeit (Spec 9.5.3): nur sichtbare Mitarbeiter.
+    employees = filter_by_employee_scope(db.get_employees(include_hidden=False), scope)
 
     # Filter by group if requested
     if group_id is not None:
@@ -100,10 +103,12 @@ def get_qualification_matrix(
 def get_qualification_stats(
     group_id: int | None = Query(None, description="Filter by group ID"),
     _user: dict = Depends(require_planer),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ):
     """Return stats per qualification."""
     db = get_db()
-    employees = db.get_employees(include_hidden=False)
+    # Differenzierte Sichtbarkeit (Spec 9.5.3): nur sichtbare Mitarbeiter.
+    employees = filter_by_employee_scope(db.get_employees(include_hidden=False), scope)
 
     # Filter by group if requested
     if group_id is not None:

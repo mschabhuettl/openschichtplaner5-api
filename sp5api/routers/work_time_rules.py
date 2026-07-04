@@ -25,6 +25,7 @@ from ..dependencies import (
     require_admin,
     require_planer,
 )
+from ..scopes import filter_by_employee_scope, visible_employee_ids
 
 router = APIRouter(prefix="/api/work-time-rules", tags=["work-time-rules"])
 
@@ -318,9 +319,14 @@ def check_employee(
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
     _user: dict = Depends(require_planer),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ) -> dict:
     if to_date < from_date:
         raise HTTPException(status_code=422, detail="'to' must be >= 'from'")
+
+    # Differenzierte Sichtbarkeit (Spec 9.5.3 Nr. 6): verborgene MA → 404.
+    if scope is not None and employee_id not in scope:
+        raise HTTPException(status_code=404, detail=f"Employee {employee_id} not found")
 
     db = get_db()
     # Validate employee exists
@@ -339,12 +345,14 @@ def check_all(
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
     _user: dict = Depends(require_planer),
+    scope: set[int] | None = Depends(visible_employee_ids),
 ) -> dict:
     if to_date < from_date:
         raise HTTPException(status_code=422, detail="'to' must be >= 'from'")
 
     db = get_db()
-    all_employees = db.get_employees(include_hidden=False)
+    # Differenzierte Sichtbarkeit (Spec 9.5.3): nur sichtbare Mitarbeiter.
+    all_employees = filter_by_employee_scope(db.get_employees(include_hidden=False), scope)
 
     if group_id is not None:
         employees = [e for e in all_employees if e.get("GROUPID") == group_id]

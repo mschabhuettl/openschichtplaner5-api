@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `visible_employee_ids`; die Jahres-Übersicht wendet den Scope vor der Aggregation
   an (Monats- und Mitarbeiter-Summen umfassen nur sichtbare MA). Admin/unbeschränkt
   unverändert.
+- **Differenzierte Sichtbarkeit greift jetzt auch bei Qualifikationsmatrix,
+  wiederkehrenden Diensten und Arbeitszeitregel-Prüfung.** Abschluss des
+  Scope-Konsistenz-Audits: `GET /api/employees/qualification-matrix`,
+  `GET /api/qualifications/stats`, `GET /api/shifts/recurring`,
+  `POST /api/work-time-rules/check` und `.../check-all` respektieren jetzt
+  `visible_employee_ids`; Einzel-Prüfung eines verborgenen Mitarbeiters liefert 404.
+  Globale Stammdaten (`/api/shifts`, `/api/leave-types`, `/api/workplaces`,
+  `/api/holidays`, `/api/staffing-requirements`) bleiben bewusst unscopiert
+  (keine Mitarbeiter-Daten). Admin/unbeschränkt unverändert.
 
 ## [1.31.1] - 2026-07-04
 
