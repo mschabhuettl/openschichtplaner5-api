@@ -198,6 +198,23 @@ class TestSelfWishes:
         finally:
             _sessions.pop(tok, None)
 
+    def test_create_wish_invalid_calendar_date_422(self, monkeypatch):
+        """Formal gültiges, kalendarisch ungültiges Datum (2026-04-31) darf NICHT
+        in die DBF geschrieben werden — 422 statt 200 (Datenintegrität)."""
+        from sp5api.main import _sessions
+
+        tok = _session()
+        try:
+            c = _client(monkeypatch, _SelfDB())
+            resp = c.post(
+                "/api/self/wishes",
+                json={"date": "2026-04-31", "wish_type": "WUNSCH", "shift_id": 1},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 422
+        finally:
+            _sessions.pop(tok, None)
+
 
 class TestSelfAbsence:
     def test_create_absence_success(self, monkeypatch):
@@ -246,3 +263,32 @@ class TestSelfAbsence:
             assert resp.status_code == 404
         finally:
             _sessions.pop(tok, None)
+
+    def test_create_absence_invalid_calendar_date_422(self, monkeypatch):
+        """Kalendarisch ungültiges Datum (2026-04-31) → 422, nicht gespeichert."""
+        from sp5api.main import _sessions
+
+        tok = _session()
+        try:
+            c = _client(monkeypatch, _SelfDB())
+            resp = c.post(
+                "/api/self/absences",
+                json={"date": "2026-04-31", "leave_type_id": 1},
+                headers={"X-Auth-Token": tok},
+            )
+            assert resp.status_code == 422
+        finally:
+            _sessions.pop(tok, None)
+
+
+def test_wishcreate_model_rejects_invalid_calendar_date():
+    """Planer-Modell WishCreate lehnt kalendarisch ungültige Daten ab (wie die
+    Self-Service-Modelle) — sonst schreibt POST /api/wishes 2026-02-30 in die DBF."""
+    import pytest
+    from pydantic import ValidationError
+
+    from sp5api.routers.misc import WishCreate
+
+    assert WishCreate(employee_id=1, date="2026-06-30", wish_type="WUNSCH").date == "2026-06-30"
+    with pytest.raises(ValidationError):
+        WishCreate(employee_id=1, date="2026-02-30", wish_type="WUNSCH")

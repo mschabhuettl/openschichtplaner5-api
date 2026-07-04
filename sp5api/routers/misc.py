@@ -3,7 +3,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .._paths import backend_dir
 from ..dependencies import (
@@ -458,12 +458,26 @@ def get_wishes(
     return get_db().get_wishes(employee_id=employee_id, year=year, month=month)
 
 
+def _validate_iso_calendar_date(cls, v: str) -> str:
+    """Kalender-Gültigkeit erzwingen: das Field-``pattern`` prüft nur die FORM
+    (\\d{4}-\\d{2}-\\d{2}), nicht ob der Tag existiert — sonst landen Werte wie
+    2026-02-30 / 2026-04-31 ungeprüft in der DBF. Wie ScheduleEntryCreate."""
+    from datetime import datetime
+
+    try:
+        datetime.strptime(v, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError("Date must be a valid date in YYYY-MM-DD format")
+    return v
+
+
 class WishCreate(BaseModel):
     employee_id: int = Field(..., gt=0)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     wish_type: str = Field(..., pattern=r"^(?i:WUNSCH|SPERRUNG)$")  # WUNSCH | SPERRUNG (case-insensitive)
     shift_id: int | None = Field(None, gt=0)
     note: str | None = Field("", max_length=500)
+    _validate_date = field_validator("date")(classmethod(_validate_iso_calendar_date))
 
 
 @router.post("/api/wishes", tags=["Self-Service"], summary="Create shift wish", description="Create a shift wish or blocked day for an employee. Requires Planer role.")
@@ -1377,6 +1391,7 @@ class SelfWishCreate(BaseModel):
     wish_type: str = Field(..., pattern=r"^(?i:WUNSCH|SPERRUNG)$")  # WUNSCH | SPERRUNG (case-insensitive)
     shift_id: int | None = Field(None, gt=0)
     note: str | None = Field("", max_length=500)
+    _validate_date = field_validator("date")(classmethod(_validate_iso_calendar_date))
 
 
 @router.post("/api/self/wishes", tags=["Self-Service"], summary="Submit own wish/block", description="Leser can submit a Schichtwunsch or Sperrung for themselves.")
@@ -1447,6 +1462,7 @@ class SelfAbsenceCreate(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     leave_type_id: int = Field(..., gt=0)
     note: str | None = Field("", max_length=500)
+    _validate_date = field_validator("date")(classmethod(_validate_iso_calendar_date))
 
 
 @router.get(

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Wunsch/Abwesenheit akzeptierte kalendarisch ungültige Daten.** Die Modelle
+  `WishCreate`, `SelfWishCreate` und `SelfAbsenceCreate` prüften das Datum nur
+  gegen die FORM (`\d{4}-\d{2}-\d{2}`), nicht auf Kalendergültigkeit — ein Wert
+  wie `2026-02-30` oder `2026-04-31` wurde mit 200 in die DBF geschrieben und
+  tauchte in keiner echten Monatsansicht auf (Datenintegrität). Jetzt validieren
+  diese Modelle das Datum wie `ScheduleEntryCreate`/`AbsenceCreate` per
+  `strptime` → ungültige Daten ergeben 422. `POST /api/schedule`,
+  `POST /api/absences` und die Tausch-Endpunkte waren nie betroffen.
+
 ## [1.28.4] - 2026-07-04
 
 ### Fixed
