@@ -54,3 +54,5 @@ AGENTS.md
 /data/work_time_rules.json
 /backups/
 *_BCRYPT.json
+# User→Mitarbeiter-Zuordnung ist Laufzeit-Status (wie *_BCRYPT.json), nie committen.
+5USER_EMPLOYEE.json
