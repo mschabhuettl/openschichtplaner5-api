@@ -205,3 +205,35 @@ def test_admin_link_non_admin_forbidden_403(monkeypatch):
     r = c.put("/api/users/950/employee", json={"employee_id": 57},
               headers={"X-Auth-Token": tok})
     assert r.status_code == 403
+
+
+def test_admin_get_user_employee_linked(monkeypatch):
+    db = _LinkDB(users={950: {"ID": 950, "NAME": "chef"}}, links={"950": 57})
+    c = _client(monkeypatch, db)
+    tok = _session(1, "Admin", "Admin")
+    r = c.get("/api/users/950/employee", headers={"X-Auth-Token": tok})
+    assert r.status_code == 200
+    assert r.json()["employee"]["ID"] == 57
+
+
+def test_admin_get_user_employee_unlinked_null(monkeypatch):
+    db = _LinkDB(users={950: {"ID": 950, "NAME": "chef"}})
+    c = _client(monkeypatch, db)
+    tok = _session(1, "Admin", "Admin")
+    r = c.get("/api/users/950/employee", headers={"X-Auth-Token": tok})
+    assert r.status_code == 200 and r.json()["employee"] is None
+
+
+def test_admin_get_unknown_user_404(monkeypatch):
+    c = _client(monkeypatch, _LinkDB(users={}))
+    tok = _session(1, "Admin", "Admin")
+    r = c.get("/api/users/999/employee", headers={"X-Auth-Token": tok})
+    assert r.status_code == 404
+
+
+def test_admin_get_user_employee_non_admin_403(monkeypatch):
+    db = _LinkDB(users={950: {"ID": 950, "NAME": "chef"}})
+    c = _client(monkeypatch, db)
+    tok = _session(2, "planer", "Planer")
+    r = c.get("/api/users/950/employee", headers={"X-Auth-Token": tok})
+    assert r.status_code == 403

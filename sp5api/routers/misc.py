@@ -1454,6 +1454,22 @@ def unlink_my_employee(cur_user: dict = Depends(require_planer)):
     return {"ok": True, "removed": removed}
 
 
+@router.get(
+    "/api/users/{user_id}/employee",
+    tags=["Admin"],
+    summary="Get a user's linked employee",
+    description="Admin reads the User→Mitarbeiter mapping of any user (or null).",
+)
+def get_user_employee(user_id: int, cur_user: dict = Depends(require_admin)):
+    """Admin liest die (explizite) Mitarbeiter-Zuordnung eines Benutzers."""
+    db = get_db()
+    if db.get_user_identity(user_id) is None:
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
+    linked_id = db.get_linked_employee_id(user_id)
+    emp = db.get_employee(linked_id) if linked_id is not None else None
+    return {"user_id": user_id, "employee": emp}
+
+
 @router.put(
     "/api/users/{user_id}/employee",
     tags=["Admin"],

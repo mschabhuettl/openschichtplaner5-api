@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`GET /api/users/{id}/employee` (Admin).** Liest die explizite
+  User→Mitarbeiter-Zuordnung eines beliebigen Kontos (oder `null`). Ergänzt die
+  in 1.30.0 eingeführten `PUT`/`DELETE`-Endpunkte, damit die Benutzerverwaltung
+  die aktuelle Zuordnung anzeigen kann.
+
 ## [1.30.0] - 2026-07-04
 
 ### Added
