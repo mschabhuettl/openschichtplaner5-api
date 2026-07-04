@@ -116,6 +116,16 @@ _stderr_handler = logging.StreamHandler()
 _stderr_handler.setFormatter(_formatter)
 _logger.addHandler(_stderr_handler)
 
+# Der Bibliotheks-Logger (sp5lib/database.py sowie mehrere Router) nutzt den
+# Namen "sp5api" (ohne Punkt) — ein anderer Logger als "sp5.api". Dasselbe Level
+# und dieselben Handler anlegen, damit SP5_LOG_LEVEL=DEBUG auch die
+# lib-seitige, privacy-safe Diagnostik (z. B. „role-resolve", nur IDs/Enum/
+# Zähler, kein Name/Passwort/Digest) sichtbar macht.
+_lib_logger = logging.getLogger("sp5api")
+_lib_logger.setLevel(_log_level)
+_lib_logger.addHandler(_handler)
+_lib_logger.addHandler(_stderr_handler)
+
 # Referenz auf den Logdatei-Pfad für den Health-Endpunkt behalten
 SP5_LOG_FILE = _log_file
 

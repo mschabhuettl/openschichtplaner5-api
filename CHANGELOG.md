@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Nur-Lese-Konten werden korrekt als „Leser" geführt und serverseitig
+  durchgesetzt.** Über libopenschichtplaner5 ≥ 1.30.0 löst die API die effektive
+  Rolle jetzt grant-bewusst aus dem 5USER-Berechtigungsmodus (RIGHTS) **und** den
+  5GRACC-/5EMACC-Grants auf: ein differenziertes Konto (RIGHTS=2) ohne Schreib-Grant
+  ist Leser statt fälschlich Planer. Damit greifen die serverseitigen Gates
+  (`require_planer`/`require_write`) wieder korrekt — ein solches Konto erhält bei
+  Schreibversuchen (`POST /api/notes`, `/api/handover`, `/api/absences`, …) 403,
+  nicht nur einen versteckten Button. End-to-End-Regressionstest ergänzt (echter
+  5USER-Satz → Login → Rolle → Enforcement).
+
+### Added
+
+- **Privacy-safe Rollen-Diagnostik über `SP5_LOG_LEVEL=DEBUG`.** Der
+  Bibliotheks-Logger (`sp5api`) wird jetzt vom dokumentierten Log-Level erfasst,
+  sodass die Rollenauflösung pro Konto `user_id`, RIGHTS-Rohwert, ADMIN-Flag,
+  Schreib-/Lese-Grant-Zähler und die abgeleitete Rolle protokolliert — nur
+  IDs/Enum/Zähler, kein Name/Passwort/Digest. Erlaubt die Ferndiagnose von
+  Rollen-Randfällen auf echten Daten ohne Datenschutzbruch.
+
 ## [1.28.6] - 2026-07-04
 
 ### Fixed
