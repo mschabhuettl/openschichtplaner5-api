@@ -172,7 +172,6 @@ class TestSwapDutyValidation:
         eines Kreuz-Tauschs muss A's Dienst bei B (req_date) und B's Dienst bei A
         (par_date) liegen — und die beiden Ausgangsfelder leer sein (misc.py 1041-1047)."""
         import pytest
-
         from sp5lib.database import SP5Database
         from sp5lib.dbf_reader import get_table_fields
         from sp5lib.dbf_writer import find_all_records
