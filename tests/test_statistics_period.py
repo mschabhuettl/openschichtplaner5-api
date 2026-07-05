@@ -63,3 +63,26 @@ class TestStatisticsFreePeriod:
         assert res.status_code == 400
         res = sync_client.get("/api/statistics?from=2026-02-01&to=2026-01-31")
         assert res.status_code == 400
+
+
+class TestStatisticsYearRange:
+    """Extreme Jahre dürfen keinen 500er werfen: ``date(year, month, 1)`` ist auf
+    1..9999 beschränkt, und das ungeprüfte Jahr floss bisher direkt hinein
+    (`ValueError: year must be in 1..9999`). Regression: `/api/statistics` und
+    `/api/statistics/year-summary` validieren das Jahr jetzt → 400 statt 500."""
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/api/statistics?year=0&month=1",
+            "/api/statistics?year=99999&month=1",
+            "/api/statistics/year-summary?year=0",
+            "/api/statistics/year-summary?year=999999",
+        ],
+    )
+    def test_out_of_range_year_is_400_not_500(self, sync_client: TestClient, path: str):
+        assert sync_client.get(path).status_code == 400
+
+    def test_valid_year_still_ok(self, sync_client: TestClient):
+        assert sync_client.get("/api/statistics?year=2026&month=1").status_code == 200
+        assert sync_client.get("/api/statistics/year-summary?year=2026").status_code == 200

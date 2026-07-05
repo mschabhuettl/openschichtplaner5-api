@@ -135,6 +135,10 @@ def get_statistics(
         raise HTTPException(
             status_code=400, detail="Invalid month: must be between 1 and 12"
         )
+    if not (1 <= year <= 9999):
+        raise HTTPException(
+            status_code=400, detail="Invalid year: must be between 1 and 9999"
+        )
     return _scope_rows(get_db().get_statistics(year, month, group_id=group_id), scope)
 
 
@@ -202,6 +206,10 @@ def get_year_summary(
 
     if year is None:
         year = _date.today().year
+    if not (1 <= year <= 9999):
+        raise HTTPException(
+            status_code=400, detail="Invalid year: must be between 1 and 9999"
+        )
     db = get_db()
 
     # Statistik je Monat sammeln — ein Durchlauf, um doppelte DB-Aufrufe zu vermeiden

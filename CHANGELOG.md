@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Statistik-Endpunkte: 500 statt 400 bei extremem Jahr.** `GET /api/statistics` (Jahr/Monat-
+  Form) und `GET /api/statistics/year-summary` prüften den Monat (`1..12`), aber NICHT das Jahr;
+  ein Jahr außerhalb `1..9999` (z. B. `?year=0` oder `?year=999999`) floss ungeprüft in
+  `date(year, month, 1)` → `ValueError` → unbehandelter HTTP 500 (Stacktrace statt sauberer
+  Ablehnung). Beide validieren das Jahr jetzt wie den Monat und liefern 400. Gefunden per
+  Input-Validierungs-/500-Sonde; die übrigen mutierenden und rechnenden Endpunkte lieferten auf
+  Grenz-/Malform-Eingaben durchweg saubere 4xx.
+
 ## [1.32.1] - 2026-07-05
 
 ### Fixed
