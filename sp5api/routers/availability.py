@@ -5,6 +5,8 @@ each with a list of time windows. Data is stored in a JSON file.
 """
 
 import json
+import os
+import tempfile
 import threading
 from datetime import datetime
 
@@ -33,8 +35,17 @@ def _read_all() -> dict:
 
 
 def _write_all(data: dict) -> None:
-    with open(_AVAILABILITY_FILE, "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """Atomar schreiben (Temp-Datei + ``os.replace``): ein Abbruch mitten im
+    Schreiben darf den bestehenden Store nicht zu einer halb geschriebenen Datei
+    verstümmeln — ``_read_all`` läse beschädigtes JSON als leer und verlöre alle
+    Verfügbarkeiten (wie in ``notifications._save``)."""
+    dir_ = os.path.dirname(os.path.abspath(_AVAILABILITY_FILE)) or "."
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=dir_, delete=False, suffix=".tmp"
+    ) as tmp:
+        json.dump(data, tmp, indent=2, ensure_ascii=False)
+        tmp_path = tmp.name
+    os.replace(tmp_path, _AVAILABILITY_FILE)
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────

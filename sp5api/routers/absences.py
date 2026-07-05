@@ -1,6 +1,7 @@
 """Absences, leave entitlements, holiday bans, annual close router."""
 
 import os
+import tempfile
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -756,9 +757,17 @@ def _load_absence_status() -> dict:
 
 
 def _save_absence_status(data: dict) -> None:
+    # Atomar schreiben (Temp-Datei + os.replace): ein Abbruch mitten im Schreiben
+    # darf den bestehenden Status-Store nicht zu einer halb geschriebenen Datei
+    # verstümmeln — _load_absence_status läse beschädigtes JSON als leer.
     try:
-        with open(_STATUS_FILE, "w", encoding="utf-8") as f:
-            _json.dump(data, f, indent=2)
+        dir_ = os.path.dirname(os.path.abspath(_STATUS_FILE)) or "."
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=dir_, delete=False, suffix=".tmp"
+        ) as tmp:
+            _json.dump(data, tmp, indent=2)
+            tmp_path = tmp.name
+        os.replace(tmp_path, _STATUS_FILE)
     except Exception:
         pass
 

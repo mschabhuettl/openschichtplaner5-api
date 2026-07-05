@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Nicht-atomare JSON-Store-Writes → Totalverlust bei Schreibabbruch.** Die Stores
+  `recurring_shifts`, `availability` und `absence_status` schrieben mit `open(path, "w")` +
+  `json.dump`: bricht der Schreibvorgang mittendrin ab (Prozess-`kill`, Disk-voll, OOM), bleibt
+  eine halb geschriebene Datei zurück, die die Reader als beschädigtes JSON *stillschweigend als
+  leeren Store* interpretieren (`except: return []/{}`) — der gesamte Store ist weg. Jetzt
+  schreiben alle drei atomar über Temp-Datei + `os.replace` (wie `notifications`/
+  `notification_settings` bereits), sodass die bestehende Datei bei jedem Abbruch unversehrt
+  bleibt. Reine Robustheit — kein Verhaltens- oder Formatunterschied im Normalfall.
 - **Ungültige ISO-8601-Zeitstempel (`+00:00Z`-Doppelmarker) in Export-Planer und
   Serien-Schichten.** `datetime.now(UTC).isoformat()` endet bereits auf `+00:00`; das
   zusätzliche `+ "Z"` erzeugte `…+00:00Z` — kein gültiges ISO 8601, an dem Standard-Parser

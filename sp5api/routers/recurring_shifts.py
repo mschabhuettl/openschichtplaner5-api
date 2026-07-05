@@ -10,6 +10,8 @@ The list and create responses are enriched with ``employee_name`` /
 """
 
 import json
+import os
+import tempfile
 import threading
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal
@@ -40,8 +42,18 @@ def _read_all() -> list[dict]:
 
 
 def _write_all(data: list[dict]) -> None:
-    with open(_RECURRING_FILE, "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """Atomar schreiben (Temp-Datei + ``os.replace``): ein Abbruch mitten im
+    Schreiben (Crash/kill/Disk-voll) darf den bestehenden Store nicht zu einer
+    halb geschriebenen Datei verstümmeln — ``_read_all`` läse beschädigtes JSON
+    als leeren Store und verlöre alle Muster. ``os.replace`` wird nur nach
+    erfolgreichem ``json.dump`` erreicht (wie in ``notifications._save``)."""
+    dir_ = os.path.dirname(os.path.abspath(_RECURRING_FILE)) or "."
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=dir_, delete=False, suffix=".tmp"
+    ) as tmp:
+        json.dump(data, tmp, indent=2, ensure_ascii=False)
+        tmp_path = tmp.name
+    os.replace(tmp_path, _RECURRING_FILE)
 
 
 def _next_id(patterns: list[dict]) -> int:
