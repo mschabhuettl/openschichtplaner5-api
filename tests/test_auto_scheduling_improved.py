@@ -315,3 +315,49 @@ class TestRouterIntegration:
             # der Session-DB für alle Folgemonate Dienste erzeugen (B-2)
             sync_client.delete(f"/api/shift-cycles/assign/{emp_id}")
             sync_client.delete(f"/api/shift-cycles/{cid}")
+
+
+class TestRestrictionRespect:
+    """respect_restrictions=True darf einen per RESTR gesperrten (MA, Schicht,
+    Wochentag) NICHT in den Plan schreiben. Sicherheitskritisch: sonst würde die
+    Auto-Planung jemanden auf eine harte „nie"-Sperre (grade 2) einteilen.
+
+    Der bestehende e2e-Test ``test_generate_schedule_respects_restrictions`` prüft
+    nur ``skipped_restriction >= 0`` (trivial wahr) und legt NIE eine Sperre an —
+    der eigentliche Skip-Effekt blieb ungetestet."""
+
+    def test_grade2_restricted_weekday_is_not_planned(self, tmp_db):
+        from datetime import date
+
+        emps = tmp_db.get_employees()
+        if not emps:
+            pytest.skip("No employees")
+        emp_id = emps[0]["ID"]
+        shift_id = 1
+        _setup_cycle(tmp_db, emp_id, shift_id)  # Mo-Fr Schicht ab 2026-03-02 (Montag)
+        # Harte „nie"-Sperre (grade 2) für Mittwoch (WEEKDAY 2, D-34: 0=Mo..6=So)
+        tmp_db.set_restriction(emp_id, shift_id, weekday=2, grade=2)
+
+        res_yes = tmp_db.generate_schedule_from_cycle(
+            2026, 3, employee_ids=[emp_id], dry_run=True, respect_restrictions=True
+        )
+        res_no = tmp_db.generate_schedule_from_cycle(
+            2026, 3, employee_ids=[emp_id], dry_run=True, respect_restrictions=False
+        )
+
+        def wednesday_statuses(res):
+            return [
+                p.get("status")
+                for p in res.get("preview", [])
+                if p.get("date") and date.fromisoformat(p["date"]).weekday() == 2
+            ]
+
+        wed_yes = wednesday_statuses(res_yes)
+        wed_no = wednesday_statuses(res_no)
+        assert wed_yes, "Testaufbau erwartet Mittwoche im Planungsfenster"
+        # Mit Sperre: KEIN Mittwoch wird eingeplant — alle als 'restricted' markiert.
+        assert all(s == "restricted" for s in wed_yes), wed_yes
+        assert res_yes["skipped_restriction"] == len(wed_yes)
+        # Ohne Sperre (Kontrast): dieselben Mittwoche würden regulär eingeplant.
+        assert all(s == "new" for s in wed_no), wed_no
+        assert res_no["skipped_restriction"] == 0
