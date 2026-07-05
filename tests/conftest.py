@@ -222,18 +222,26 @@ def _photos_in_tmp(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
-def _recurring_store_in_tmp(tmp_path, monkeypatch):
-    """Den Recurring-Shifts-JSON-Store pro Test isolieren. ``_RECURRING_FILE`` ist
-    eine import-fixe Modul-Konstante auf einen GETEILTEN Pfad (state_dir); nur
-    test_recurring_shifts räumte ihn auf, sodass ein in einem anderen Test
-    geschriebenes Muster hängen bleiben und die Endzusicherung
-    ``GET /api/shifts/recurring == []`` in test_delete_existing selten (Voll-Lauf,
-    reihenfolgeabhängig) rot färben konnte. Ein eigener tmp-Pfad je Test schließt
-    Cross-Test-Kontamination strukturell aus (und hält den Store aus dem Checkout
-    heraus, wie _photos_in_tmp)."""
-    import sp5api.routers.recurring_shifts as rs
+def _state_stores_in_tmp(tmp_path, monkeypatch):
+    """Alle JSON-Document-Stores pro Test isolieren. Jeder ``_*_FILE`` ist eine
+    import-fixe Modul-Konstante auf einen GETEILTEN Pfad (state_dir); schreibt ein
+    Test hinein und räumt nicht auf, sehen spätere Tests die Fremddaten — Ursache
+    reihenfolgeabhängiger Voll-Lauf-Flakes (z. B. recurring_shifts::test_delete_existing,
+    Endzusicherung ``GET == []``) und von Store-Schreibzugriffen in den Checkout. Ein
+    eigener tmp-Pfad je Test schließt Cross-Test-Kontamination strukturell aus (wie
+    _photos_in_tmp). absence_status hatte bisher GAR KEINE Isolation."""
+    import sp5api.routers.absences as absences_module
+    import sp5api.routers.availability as availability_module
+    import sp5api.routers.notifications as notifications_module
+    import sp5api.routers.recurring_shifts as recurring_module
 
-    monkeypatch.setattr(rs, "_RECURRING_FILE", str(tmp_path / "recurring_shifts.json"))
+    for module, attr, name in (
+        (recurring_module, "_RECURRING_FILE", "recurring_shifts.json"),
+        (notifications_module, "_NOTIF_FILE", "notifications.json"),
+        (absences_module, "_STATUS_FILE", "absence_status.json"),
+        (availability_module, "_AVAILABILITY_FILE", "availability.json"),
+    ):
+        monkeypatch.setattr(module, attr, str(tmp_path / name))
 
 
 @pytest.fixture
