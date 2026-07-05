@@ -53,6 +53,33 @@ class TestBulkGroupAssign:
         assert data["total_assignments"] == 9  # 3 employees × 3 days
         assert data["created"] == 9
 
+    def test_bulk_group_assign_writes_all_to_schedule(self, admin_client: TestClient):
+        """bulk-group-assign meldet `created==9`; kein Test las bisher 5MASHI zurück.
+        Schreibt es WIRKLICH jeden der 3 MA an jedem der 3 Tage (Effekt statt bloßem
+        Selbst-Zähler)?"""
+        group_id, emp_ids, shift_id = self._setup_group_with_members(admin_client)
+        r = admin_client.post("/api/schedule/bulk-group", json={
+            "group_id": group_id,
+            "shift_id": shift_id,
+            "date_from": "2026-06-01",
+            "date_to": "2026-06-03",
+            "overwrite": True,
+        })
+        assert r.status_code == 200, r.text
+        assert r.json()["created"] == 9
+
+        sched = admin_client.get("/api/schedule?year=2026&month=6").json()
+        emp_set = set(emp_ids)
+        got = {
+            (e["employee_id"], e["date"])
+            for e in sched
+            if e.get("shift_id") == shift_id and e["employee_id"] in emp_set
+        }
+        expected = {
+            (eid, f"2026-06-0{d}") for eid in emp_ids for d in (1, 2, 3)
+        }
+        assert got == expected, f"fehlend: {expected - got}, unerwartet: {got - expected}"
+
     def test_bulk_group_assign_overwrite(self, admin_client: TestClient):
         """Second assignment with overwrite=True should update."""
         group_id, emp_ids, shift_id = self._setup_group_with_members(admin_client)
