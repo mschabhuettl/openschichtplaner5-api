@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Ungültige ISO-8601-Zeitstempel (`+00:00Z`-Doppelmarker) in Export-Planer und
+  Serien-Schichten.** `datetime.now(UTC).isoformat()` endet bereits auf `+00:00`; das
+  zusätzliche `+ "Z"` erzeugte `…+00:00Z` — kein gültiges ISO 8601, an dem Standard-Parser
+  scheitern (`new Date(…)` → *Invalid Date*, `datetime.fromisoformat` → Fehler). Betroffen:
+  `created_at`/`updated_at` der Export-Planer-Einträge (in der API-Antwort) sowie der interne
+  `created_at` der Serien-Schichten. Jetzt korrekt via `.replace("+00:00", "Z")` (wie bereits
+  im Audit-Log). Reine Serialisierung — keine Verhaltensänderung.
 - **iCal-Export (`/api/ical/*`): Sommerzeit-Verschiebung der Dienstzeiten um 1 Stunde.**
   Die Wiener Zeitzone war als fester `+01:00`-Offset kodiert (`timezone(timedelta(hours=1))`);
   in der Sommerzeit (MESZ, +02:00) wurde eine 06:00-Wanduhr-Schicht so nach 05:00 UTC statt

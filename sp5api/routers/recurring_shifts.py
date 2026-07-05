@@ -157,7 +157,7 @@ def create_recurring_shift(
             "day_of_week": body.day_of_week,
             "valid_from": body.valid_from,
             "valid_until": body.valid_until,
-            "created_at": datetime.now(UTC).isoformat() + "Z",
+            "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
         patterns.append(record)
         _write_all(patterns)

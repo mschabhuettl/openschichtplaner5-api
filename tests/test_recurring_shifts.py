@@ -60,6 +60,20 @@ class TestCreateRecurringShift:
         assert p["employee_name"]
         assert p["shift_short"] == "F"
 
+    def test_create_timestamp_is_valid_iso(self, write_client):
+        """Der gespeicherte `created_at` muss gültiges ISO 8601 sein — Regression
+        gegen den `+00:00Z`-Doppelmarker (`isoformat() + "Z"`), an dem `new Date()`
+        bzw. `datetime.fromisoformat` scheitern. (created_at ist intern, nicht in
+        der angereicherten Antwort — daher aus dem Store gelesen.)"""
+        from datetime import datetime
+
+        import sp5api.routers.recurring_shifts as rs
+
+        write_client.post("/api/shifts/recurring", json=_pattern_body())
+        ts = rs._read_all()[0]["created_at"]
+        assert "+00:00Z" not in ts and ts.endswith("Z")
+        datetime.fromisoformat(ts.replace("Z", "+00:00"))  # parst wie ein Standard-Consumer
+
     def test_create_biweekly(self, write_client):
         """Create a biweekly recurring shift pattern."""
         resp = write_client.post(

@@ -95,6 +95,11 @@ class TestCreateSchedule:
         assert data["format"] == "xlsx"
         assert "id" in data
         assert "created_at" in data
+        # gültiges ISO 8601 — Regression gegen den `+00:00Z`-Doppelmarker
+        from datetime import datetime as _dtt
+
+        assert "+00:00Z" not in data["created_at"]
+        _dtt.fromisoformat(data["created_at"].replace("Z", "+00:00"))
 
     def test_create_csv_format(self, admin_client):
         payload = {**_VALID_PAYLOAD, "format": "csv"}

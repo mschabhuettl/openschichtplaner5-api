@@ -455,8 +455,8 @@ def create_schedule(
         "group_id": body.group_id,
         "email_to": body.email_to,
         "enabled": body.enabled,
-        "created_at": _dt.now(UTC).isoformat() + "Z",
-        "updated_at": _dt.now(UTC).isoformat() + "Z",
+        "created_at": _dt.now(UTC).isoformat().replace("+00:00", "Z"),
+        "updated_at": _dt.now(UTC).isoformat().replace("+00:00", "Z"),
     }
     schedules.append(new_schedule)
     _save_schedules(schedules)
@@ -478,7 +478,7 @@ def update_schedule(
     update_data = body.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         existing[key] = value
-    existing["updated_at"] = _dt.now(UTC).isoformat() + "Z"
+    existing["updated_at"] = _dt.now(UTC).isoformat().replace("+00:00", "Z")
     schedules[idx] = existing
     _save_schedules(schedules)
     return existing
