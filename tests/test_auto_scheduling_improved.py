@@ -399,3 +399,56 @@ class TestRestrictionRespect:
         assert wed, "Testaufbau erwartet Mittwoche im Planungsfenster"
         assert all(s == expected_status for s in wed), (grade, wed)
         assert res["skipped_restriction"] == expected_skipped
+
+
+class TestAutoScheduleWritePath:
+    """Alle anderen Auto-Planungs-Tests nutzen `dry_run=True` (nur Vorschau). Der
+    ECHTE Schreibpfad (`dry_run=False` → Einträge landen in 5MASHI) war ungetestet —
+    die einzige no-dry-run-Route (`test_generate_schedule_real_no_dry_run`) prüft nur
+    `status==200`, ohne Zyklus-Zuweisung und ohne Readback. Die Auto-Planung SCHREIBT
+    den Plan; genau das wird hier abgesichert."""
+
+    def test_dry_run_false_writes_planned_entries_to_mashi(self, tmp_db):
+        from sp5lib.dbf_reader import get_table_fields
+        from sp5lib.dbf_writer import find_all_records
+
+        emps = tmp_db.get_employees()
+        if not emps:
+            pytest.skip("No employees")
+        emp_id = emps[0]["ID"]
+        shift_id = 1
+        _setup_cycle(tmp_db, emp_id, shift_id)  # Mo-Fr Schicht ab 2026-03-02
+
+        # Vorschau liefert die geplanten ('new') Tage
+        preview = tmp_db.generate_schedule_from_cycle(
+            2026, 3, employee_ids=[emp_id], dry_run=True
+        )
+        planned = sorted(
+            p["date"] for p in preview["preview"]
+            if p.get("status") == "new" and p.get("employee_id") == emp_id
+        )
+        assert planned, "Vorschau sollte planbare Tage liefern"
+
+        mashi = tmp_db._table("MASHI")
+        fields = get_table_fields(mashi)
+
+        def mashi_dates():
+            return {
+                rec.get("DATE")
+                for _, rec in find_all_records(
+                    mashi, fields, EMPLOYEEID=emp_id, SHIFTID=shift_id
+                )
+            }
+
+        before = mashi_dates()
+        result = tmp_db.generate_schedule_from_cycle(
+            2026, 3, employee_ids=[emp_id], dry_run=False
+        )
+        newly = sorted(mashi_dates() - before)
+
+        # Der echte Lauf schreibt GENAU die zuvor als planbar gemeldeten Tage.
+        assert result["created"] == len(planned)
+        assert newly == planned, (
+            f"geschrieben != geplant: +{set(newly) - set(planned)} "
+            f"-{set(planned) - set(newly)}"
+        )
