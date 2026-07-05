@@ -289,6 +289,40 @@ class TestWishWorkflow:
         })
         assert r2.status_code == 200
 
+    def test_approve_wunsch_writes_schedule(self, admin_client):
+        """Genehmigung eines WUNSCH mit shift_id schreibt den Dienst in den Plan
+        (Cross-Write, misc.py approve_wish). test_create_and_approve_wish oben prüft
+        nur den 200er — NICHT den Schreibeffekt; hier wird der Plan-Eintrag selbst
+        abgesichert (Regressions-Guard zur Browser-Re-Verifikation 76)."""
+        emps = admin_client.get("/api/employees").json()
+        shifts = admin_client.get("/api/shifts").json()
+        if not emps or not shifts:
+            pytest.skip("No employees or shifts")
+        emp_id = emps[0]["ID"]
+        shift_id = shifts[0]["ID"]
+        date = "2025-11-03"
+
+        r = admin_client.post("/api/wishes", json={
+            "employee_id": emp_id, "date": date, "wish_type": "WUNSCH", "shift_id": shift_id,
+        })
+        if r.status_code != 200:
+            pytest.skip("Could not create wish")
+        wish_id = r.json()["id"]
+
+        r2 = admin_client.patch(f"/api/wishes/{wish_id}/approve", json={"action": "approve"})
+        assert r2.status_code == 200
+        assert r2.json().get("status") == "approved"
+
+        # Cross-Write: der genehmigte Dienst steht jetzt im Plan
+        sched = admin_client.get("/api/v1/schedule?year=2025&month=11").json()
+        hit = [
+            s for s in sched
+            if s.get("employee_id") == emp_id
+            and s.get("date") == date
+            and s.get("shift_id") == shift_id
+        ]
+        assert hit, f"approved WUNSCH created no schedule entry for {emp_id}/{date}/{shift_id}"
+
     def test_reject_wish(self, admin_client):
         """Lines 473+: reject path."""
         emps = admin_client.get("/api/employees").json()
