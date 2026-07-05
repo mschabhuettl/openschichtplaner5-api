@@ -6,6 +6,7 @@ Returns a print-optimized HTML page for use with browser Ctrl+P → PDF.
 Requires Planer+ role.
 """
 
+import re
 import secrets
 
 # ── Helpers ─────────────────────────────────────────────────────
@@ -243,9 +244,17 @@ class TestSchedulePdfContent:
 class _StubDB:
     """Minimal db stub for exercising _build_schedule_html directly."""
 
-    def __init__(self, entries, groups=None):
+    # Namen kommen — wie in der echten DB — aus den Mitarbeitersätzen, NICHT aus
+    # den Plan-Einträgen (die tragen nur Schicht-/Abwesenheits-Kurzbez.).
+    _EMPLOYEES = [
+        {"ID": 1, "NAME": "Müller", "FIRSTNAME": "Anna", "SHORTNAME": "MA"},
+        {"ID": 2, "NAME": "Bauer", "FIRSTNAME": "Tom", "SHORTNAME": "BT"},
+    ]
+
+    def __init__(self, entries, groups=None, employees=None):
         self._entries = entries
         self._groups = groups or []
+        self._employees = self._EMPLOYEES if employees is None else employees
 
     def get_schedule(self, year, month, group_id=None):
         return self._entries
@@ -254,7 +263,7 @@ class _StubDB:
         return self._groups
 
     def get_employees(self, include_hidden=False):
-        return []
+        return self._employees
 
     def get_group_members(self, gid):
         return []
@@ -267,8 +276,6 @@ class TestBuildScheduleHtml:
         return [
             {  # a shift entry → shift_short label
                 "employee_id": 1,
-                "employee_name": "Müller, Anna",
-                "employee_short": "MA",
                 "date": "2024-07-15",
                 "kind": "shift",
                 "shift_short": "F",
@@ -276,8 +283,6 @@ class TestBuildScheduleHtml:
             },
             {  # an absence entry → leave_short label
                 "employee_id": 2,
-                "employee_name": "Bauer, Tom",
-                "employee_short": "BT",
                 "date": "2024-07-16",
                 "kind": "absence",
                 "leave_short": "U",
@@ -285,7 +290,6 @@ class TestBuildScheduleHtml:
             },
             {  # display_name branch + out-of-range/short date guards
                 "employee_id": 1,
-                "employee_name": "Müller, Anna",
                 "date": "2024-07-31",
                 "kind": "shift",
                 "display_name": "X",
@@ -301,6 +305,12 @@ class TestBuildScheduleHtml:
         assert "Müller" in html and "Bauer" in html
         assert "F" in html and "U" in html  # shift + absence labels
         assert "Juli" in html and "2024" in html
+        # Namensspalte zeigt den Mitarbeiternamen aus dem Mitarbeitersatz, NICHT
+        # das Schicht-/Abwesenheitskürzel (Regressionsschutz: früher stand das
+        # entry.display_name — z. B. "F" — in der emp-name-Zelle).
+        name_cells = re.findall(r"<td class='emp-name'>(.*?)</td>", html)
+        assert name_cells and any("Müller" in c for c in name_cells)
+        assert not any(c.strip() in ("F", "U", "X") for c in name_cells)
 
     def test_group_name_shown_when_group_given(self):
         from sp5api.routers.schedule_pdf import _build_schedule_html

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Dienstplan-Druckansicht (`GET /api/schedule/pdf`): Mitarbeitername statt
+  Schichtkürzel in der Namensspalte.** Die Namensspalte wurde aus den Plan-Einträgen
+  befüllt (`entry.employee_name or entry.display_name`), doch `get_schedule`-Einträge
+  tragen keinen Mitarbeiternamen — nur `display_name` = Schicht-/Abwesenheits-Kurzbez.
+  In jedem Monat MIT Diensten (der Normalfall) stand daher das Schichtkürzel (z. B. „F")
+  in der Namensspalte, sodass sich keine Zeile mehr einem Mitarbeiter zuordnen ließ; der
+  richtige Name erschien nur im leeren Monat (Fallback-Zweig). Der Name wird jetzt — wie
+  bereits im XLSX/CSV-Export — aus dem Mitarbeitersatz (`NAME, FIRSTNAME`) aufgelöst. Der
+  Fehler war durch einen Test mit unrealistischer Datenform verdeckt (Stub-Einträge trugen
+  ein `employee_name`, das die echte DB nie liefert); Test auf den echten Datenvertrag
+  korrigiert (Namen aus `get_employees`).
 - **Test-Isolation: alle JSON-Document-Stores pro Test.** Jeder `_*_FILE`
   (`recurring_shifts`, `notifications`, `absence_status`, `availability`) ist eine
   import-fixe Modul-Konstante auf einen geteilten Pfad; ein in einem Test hinterlassener

@@ -51,16 +51,22 @@ def _build_schedule_html(
                 group_name = g.get("NAME", "")
                 break
 
-    # Build employee set from entries (maintain stable order)
+    # Build employee set from entries (maintain stable order). Plan-Einträge
+    # tragen KEINEN Mitarbeiternamen, nur die Schicht-/Abwesenheits-Kurzbez.
+    # (display_name) — den Namen daher aus den Mitarbeitersätzen auflösen, sonst
+    # steht das Schichtkürzel in der Namensspalte.
+    emp_by_id = {e.get("ID"): e for e in db.get_employees(include_hidden=True)}
     emp_ids_seen: list[int] = []
     emp_map: dict[int, dict] = {}
     for e in entries:
         eid = e.get("employee_id")
         if eid and eid not in emp_map:
             emp_ids_seen.append(eid)
+            rec = emp_by_id.get(eid, {})
             emp_map[eid] = {
-                "name": e.get("employee_name", "") or e.get("display_name", "") or str(eid),
-                "short": e.get("employee_short", "") or "",
+                "name": f"{rec.get('NAME', '')}, {rec.get('FIRSTNAME', '')}".strip(", ")
+                or str(eid),
+                "short": rec.get("SHORTNAME", ""),
             }
 
     # If no entries, try to get employees via group
