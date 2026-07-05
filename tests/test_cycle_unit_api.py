@@ -1,5 +1,7 @@
 """Zyklus-Einheit über die API: unit=0 (Tage) beim Ändern durchgereicht."""
 
+from datetime import date
+
 from starlette.testclient import TestClient
 
 
@@ -60,3 +62,41 @@ def test_generate_mit_tages_zyklus(admin_client):
 
     admin_client.delete(f"/api/shift-cycles/assign/{emp_id}")
     admin_client.delete(f"/api/shift-cycles/{cid}")
+
+
+def test_generate_restriction_grade_semantics_api(admin_client: TestClient):
+    """api-Ebene end-to-end: die 5RESTR-Grade wirken korrekt in der Auto-Planung.
+    Der in lib 1.32.2 ausgelieferte grade-0-Fix war bisher nur lib-seitig getestet;
+    hier über POST /api/restrictions + POST /api/schedule/generate: grade 0 („keine")
+    blockiert NICHT, grade 2 („nie") blockiert."""
+    emp_id = admin_client.get("/api/employees").json()[0]["ID"]
+    c = admin_client.post("/api/shift-cycles", json={"name": "GradeAPI", "size_weeks": 1}).json()
+    cid = (c.get("cycle") or c)["ID"]
+    try:
+        admin_client.put(f"/api/shift-cycles/{cid}", json={
+            "name": "GradeAPI", "size_weeks": 1,
+            "entries": [{"index": i, "shift_id": 1} for i in range(5)],  # Mo-Fr
+        })
+        admin_client.post("/api/shift-cycles/assign", json={
+            "employee_id": emp_id, "cycle_id": cid, "start_date": "2026-03-02"})  # Montag
+        # grade 0 auf Mittwoch (Tagindex 2), grade 2 auf Donnerstag (3) — beide
+        # innerhalb des 38,5h-Wochenbudgets (Freitag wäre der erschöpfende 5. Tag).
+        for wd, grade in ((2, 0), (3, 2)):
+            r = admin_client.post("/api/restrictions", json={
+                "employee_id": emp_id, "shift_id": 1, "weekday": wd, "grade": grade})
+            assert r.status_code == 200, r.text
+            assert r.json()["record"]["RESTRICT"] == grade  # grade wird persistiert
+
+        gen = admin_client.post("/api/schedule/generate", json={
+            "year": 2026, "month": 3, "dry_run": True, "respect_restrictions": True})
+        assert gen.status_code == 200, gen.text
+        pv = [e for e in gen.json()["preview"] if e["employee_id"] == emp_id]
+        wed = [e["status"] for e in pv if date.fromisoformat(e["date"]).weekday() == 2]
+        thu = [e["status"] for e in pv if date.fromisoformat(e["date"]).weekday() == 3]
+        assert wed and all(s == "new" for s in wed), wed  # grade 0 blockiert NICHT
+        assert thu and all(s == "restricted" for s in thu), thu  # grade 2 blockiert
+        assert gen.json()["skipped_restriction"] == len(thu)
+    finally:
+        admin_client.delete(f"/api/restrictions/{emp_id}/1")
+        admin_client.delete(f"/api/shift-cycles/assign/{emp_id}")
+        admin_client.delete(f"/api/shift-cycles/{cid}")
