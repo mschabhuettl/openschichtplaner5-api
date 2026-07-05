@@ -182,6 +182,42 @@ class TestExportEndpoints:
         res = sync_client.get("/api/export/statistics?year=2024&month=6")
         assert res.status_code == 200
 
+    def test_export_statistics_content(self, planer_client: TestClient):
+        """Der Statistik-Export trägt die ECHTEN Lohn-Zahlen (Soll/Ist/Überstunden
+        je MA und Monat) — identisch zu GET /api/statistics. Bisher prüften alle
+        Tests nur Status/Format/XLSX-Struktur, nie die Werte, die in die Lohn-
+        abrechnung fließen."""
+        import csv as _csv
+        import io
+
+        emp = planer_client.get("/api/employees").json()[0]
+        emp_id = emp["ID"]
+        # Zwei Ist-Frühschichten (je 8 h) in einem leeren Monat → actual_hours == 16.
+        for d in ("2029-06-05", "2029-06-06"):
+            r = planer_client.post(
+                "/api/schedule",
+                json={"employee_id": emp_id, "date": d, "shift_id": 1},
+            )
+            assert r.status_code == 200, r.text
+
+        stats = planer_client.get("/api/statistics?year=2029&month=6").json()
+        ref = next(s for s in stats if s["employee_id"] == emp_id)
+        assert ref["actual_hours"] == 16.0, ref  # 2×8 h flossen wirklich ein
+
+        res = planer_client.get("/api/export/statistics?year=2029&format=csv")
+        assert res.status_code == 200
+        rows = list(_csv.DictReader(io.StringIO(res.text)))
+        row = next(
+            (x for x in rows
+             if x["Monat"] == "6" and x["Kürzel"] == emp.get("SHORTNAME", "")),
+            None,
+        )
+        assert row is not None, "MA-Monatszeile fehlt im Statistik-Export"
+        # Export rendert exakt die get_statistics-Werte (keine Rundungs-/Spalten-Bugs).
+        assert float(row["Ist (h)"]) == ref["actual_hours"]
+        assert float(row["Soll (h)"]) == ref["target_hours"]
+        assert float(row["Überstunden (h)"]) == ref["overtime_hours"]
+
     def test_export_employees(self, sync_client: TestClient):
         """GET /api/export/employees → 200."""
         res = sync_client.get("/api/export/employees")
