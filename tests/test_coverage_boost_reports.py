@@ -95,6 +95,41 @@ class TestExportEndpoints:
         res = planer_client.get("/api/export/schedule?month=2024-06&format=xlsx")
         assert res.status_code in (200, 500)
 
+    def test_export_schedule_csv_content(self, planer_client: TestClient):
+        """Der CSV-Export trägt einen bekannten Dienst in die RICHTIGE Mitarbeiter-
+        Zeile und die RICHTIGE Tagesspalte ein (Anzeigename == get_schedule) —
+        test_export_schedule_csv prüfte nur status==200, nie den Inhalt eines
+        Exports, der in die Lohnabrechnung fließt."""
+        import csv as _csv
+        import io
+
+        emp = planer_client.get("/api/employees").json()[0]
+        emp_id = emp["ID"]
+        # Bekannter Dienst am 15. eines leeren Monats.
+        r = planer_client.post(
+            "/api/schedule",
+            json={"employee_id": emp_id, "date": "2027-05-15", "shift_id": 1},
+        )
+        assert r.status_code == 200, r.text
+        sched = planer_client.get("/api/schedule?year=2027&month=5").json()
+        entry = next(
+            e for e in sched
+            if e["employee_id"] == emp_id and e["date"] == "2027-05-15"
+        )
+        expected = entry["display_name"]
+        assert expected, "Testaufbau: Dienst hat keinen Anzeigenamen"
+
+        exp = planer_client.get("/api/export/schedule?month=2027-05&format=csv")
+        assert exp.status_code == 200
+        assert exp.headers["content-type"].startswith("text/csv")
+        rows = list(_csv.DictReader(io.StringIO(exp.text)))
+        expected_name = f"{emp.get('NAME', '')}, {emp.get('FIRSTNAME', '')}".strip(", ")
+        row = next((x for x in rows if x["Mitarbeiter"] == expected_name), None)
+        assert row is not None, "Mitarbeiter-Zeile fehlt im CSV"
+        # Dienst steht in Tagesspalte 15 mit dem Anzeigenamen, NICHT daneben.
+        assert row["15"] == expected
+        assert row["14"] == "" and row["16"] == ""
+
     def test_export_schedule_bad_month(self, planer_client: TestClient):
         """GET /api/export/schedule with bad month → 400."""
         res = planer_client.get("/api/export/schedule?month=2024-13&format=csv")
