@@ -361,3 +361,41 @@ class TestRestrictionRespect:
         # Ohne Sperre (Kontrast): dieselben Mittwoche würden regulär eingeplant.
         assert all(s == "new" for s in wed_no), wed_no
         assert res_no["skipped_restriction"] == 0
+
+    @pytest.mark.parametrize(
+        "grade,expected_status,expected_skipped",
+        [
+            (0, "new", 0),         # keine (RESTRICT=0) → MUSS eingeplant werden
+            (1, "restricted", 4),  # „auf Anfrage" (weich) → Auto-Planung weist nicht automatisch zu
+            (2, "restricted", 4),  # „nie" (hart) → Auto-Planung überspringt
+        ],
+    )
+    def test_auto_plan_restriction_grade_semantics(
+        self, tmp_db, grade, expected_status, expected_skipped
+    ):
+        """Der RESTR-Lookup in generate_schedule_from_cycle muss nach `grade` filtern:
+        grade 0 = „keine" ist KEINE Sperre und darf NICHT übersprungen werden (sonst
+        blockiert ein ausdrücklich als „keine" markierter Satz die Auto-Planung).
+        grade 1/2 werden konservativ übersprungen (weder soft „auf Anfrage" noch hart
+        „nie" automatisch zuweisen)."""
+        from datetime import date
+
+        emps = tmp_db.get_employees()
+        if not emps:
+            pytest.skip("No employees")
+        emp_id = emps[0]["ID"]
+        shift_id = 1
+        _setup_cycle(tmp_db, emp_id, shift_id)
+        tmp_db.set_restriction(emp_id, shift_id, weekday=2, grade=grade)  # Mittwoch
+
+        res = tmp_db.generate_schedule_from_cycle(
+            2026, 3, employee_ids=[emp_id], dry_run=True, respect_restrictions=True
+        )
+        wed = [
+            p.get("status")
+            for p in res.get("preview", [])
+            if p.get("date") and date.fromisoformat(p["date"]).weekday() == 2
+        ]
+        assert wed, "Testaufbau erwartet Mittwoche im Planungsfenster"
+        assert all(s == expected_status for s in wed), (grade, wed)
+        assert res["skipped_restriction"] == expected_skipped
