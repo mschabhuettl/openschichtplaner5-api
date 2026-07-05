@@ -10,8 +10,13 @@ Je Store laufen zwei Tests in Definitionsreihenfolge: der erste schreibt einen E
 und räumt NICHT auf, der zweite verlangt einen leeren Store. Mit Isolation sind beide
 grün; entfernt man die Fixture, sieht der zweite den Eintrag → rot. ``absence_status``
 hatte bis dahin GAR KEINE Isolation.
+
+Der iCal-Token-Store ist eine Sonderform: KEINE Modul-Konstante, sondern eine
+``SP5Database``-Methode über ``_paths.data_dir()`` — ohne Umlenkung schreiben die
+Feed-Tests echte Tokens in das getrackte ``data/ical_tokens.json``.
 """
 
+from sp5api.dependencies import get_db
 from sp5api.routers import absences as ab
 from sp5api.routers import recurring_shifts as rs
 
@@ -44,3 +49,12 @@ def test_absence_status_leaves_an_entry_without_cleanup():
 
 def test_absence_status_store_starts_empty():
     assert ab._load_absence_status() == {}
+
+
+def test_ical_tokens_leaves_a_token_without_cleanup():
+    get_db().create_ical_token(999)
+    assert get_db().get_ical_token_for_employee(999) is not None
+
+
+def test_ical_tokens_store_starts_empty():
+    assert get_db()._load_ical_tokens() == {}

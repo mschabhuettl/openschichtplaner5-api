@@ -243,6 +243,17 @@ def _state_stores_in_tmp(tmp_path, monkeypatch):
     ):
         monkeypatch.setattr(module, attr, str(tmp_path / name))
 
+    # iCal-Token-Store: KEINE Modul-Konstante, sondern eine SP5Database-Methode
+    # über ``_paths.data_dir()`` → zeigt in den Checkout (data/ical_tokens.json).
+    # Ohne Umlenkung schreiben die Feed-Tests echte Tokens in die getrackte Datei.
+    import sp5lib.database as _db_module
+
+    monkeypatch.setattr(
+        _db_module.SP5Database,
+        "_ical_tokens_path",
+        lambda self: str(tmp_path / "ical_tokens.json"),
+    )
+
 
 @pytest.fixture
 def ensure_duty(write_db_path):

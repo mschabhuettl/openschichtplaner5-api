@@ -35,7 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GET /api/shifts/recurring == []`). Eine autouse-Fixture lenkt die Stores jetzt je Test
   in ein tmp-Verzeichnis (analog `_photos_in_tmp`) — Cross-Test-Kontamination strukturell
   ausgeschlossen, keine Store-Schreibzugriffe mehr in den Checkout; `absence_status` war
-  bis dahin gänzlich unisoliert. Kein Produktverhalten geändert.
+  bis dahin gänzlich unisoliert. Ebenso der iCal-Token-Store (`SP5Database._ical_tokens_path`
+  über `data_dir()`, keine Modul-Konstante) — die Feed-Tests schrieben zuvor echte Tokens in
+  das getrackte `data/ical_tokens.json`; jetzt pro Test nach tmp umgelenkt. Kein
+  Produktverhalten geändert.
 
 ## [1.32.0] - 2026-07-04
 
