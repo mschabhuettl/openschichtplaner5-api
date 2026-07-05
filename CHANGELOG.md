@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `except Exception`-Block die `ValueError` sonst als 500 „Datenbankfehler" verschleierte.
   Sweep nach dem Fix: 0 von 52 year-Endpunkten liefern noch einen 500.
 
+### Changed
+
+- **Mindest-`libopenschichtplaner5` auf `>=1.32.2` angehoben.** Enthält den Fix, dass die
+  Auto-Planung als „keine" (grade 0) markierte Einschränkungen nicht mehr fälschlich wie „nie"
+  überspringt (`generate_schedule_from_cycle`, `POST /api/schedule/generate`).
+
 ## [1.32.1] - 2026-07-05
 
 ### Fixed
