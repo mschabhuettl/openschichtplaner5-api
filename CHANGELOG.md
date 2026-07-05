@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Ablehnung). Beide validieren das Jahr jetzt wie den Monat und liefern 400. Gefunden per
   Input-Validierungs-/500-Sonde; die übrigen mutierenden und rechnenden Endpunkte lieferten auf
   Grenz-/Malform-Eingaben durchweg saubere 4xx.
+- **Ganze Endpunkt-Klasse: 500 statt 4xx bei extremem Jahr.** Ein OpenAPI-Sweep über ALLE
+  `year`-nehmenden GET-Endpunkte zeigte 16 Statistik-/Report-/Zeitkonto-/Dashboard-Endpunkte
+  (u. a. `/api/zeitkonto`, `/api/warnings`, `/api/fairness`, `/api/capacity-forecast`,
+  `/api/quality-report`, `/api/availability-matrix`, `/api/dashboard/summary`, `/api/reports/
+  monthly`, `/api/export/statistics`), die ein Jahr außerhalb `1..9999` ungeprüft in
+  `date(year, …)` reichten → `ValueError` → generischer HTTP 500. Zentral geschlossen durch
+  einen neuen `ValueError`-Handler, der out-of-range Jahr/Monat-Fehler (versionsunabhängig)
+  auf 400 mappt und alle übrigen ValueErrors unverändert an den 500-Handler weiterreicht;
+  zusätzlich validiert `/api/export/statistics` das Jahr explizit vorab, weil dort ein breiter
+  `except Exception`-Block die `ValueError` sonst als 500 „Datenbankfehler" verschleierte.
+  Sweep nach dem Fix: 0 von 52 year-Endpunkten liefern noch einen 500.
 
 ## [1.32.1] - 2026-07-05
 

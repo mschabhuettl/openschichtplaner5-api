@@ -899,6 +899,12 @@ def export_statistics(
     format: str = Query("csv", description="csv, html, or xlsx"),
     _cur_user: dict = Depends(require_planer),
 ):
+    # Jahr vor der Schleife prüfen: sonst schluckt der breite except-Block unten die
+    # date(year, …)-ValueError und meldet sie fälschlich als 500 "Datenbankfehler".
+    if not (1 <= year <= 9999):
+        raise HTTPException(
+            status_code=400, detail="Invalid year: must be between 1 and 9999"
+        )
     try:
         db = get_db()
         rows_data = []

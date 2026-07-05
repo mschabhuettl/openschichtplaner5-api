@@ -649,6 +649,37 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+# datetime wirft bei out-of-range Jahr/Monat einen ValueError (versionsabhängige
+# Formulierung). Nur diese klar eingrenzbaren Meldungen werden auf 400 gemappt; alle
+# übrigen ValueErrors bleiben unerwartet und laufen in den generischen 500-Handler.
+_DATE_DOMAIN_MARKERS = (
+    "year must be in",  # CPython: "year must be in 1..9999, not X"
+    "year is out of range",  # ältere CPython-Formulierung
+    "month must be in",  # "month must be in 1..12, not X"
+)
+
+
+def _date_domain_value_error(exc: ValueError) -> str | None:
+    """Saubere 400-Meldung, wenn der ValueError ein out-of-range Jahr/Monat aus einer
+    ``date(year, month, …)``-Konstruktion ist (z. B. ungeprüftes ``?year=0``), sonst None."""
+    msg = str(exc)
+    if any(marker in msg for marker in _DATE_DOMAIN_MARKERS):
+        return "Ungültiges Jahr bzw. Datum außerhalb des gültigen Bereichs (Jahr 1..9999, Monat 1..12)."
+    return None
+
+
+@app.exception_handler(ValueError)
+async def value_range_error_handler(request: Request, exc: ValueError):
+    """Mappt out-of-range Datums-/Jahr-ValueErrors (z. B. ``?year=0`` / ``?year=999999``
+    in Statistik-/Report-/Zeitkonto-Endpunkten, die das Jahr ungeprüft in
+    ``date(year, …)`` reichen) auf eine saubere 400 statt eines generischen 500.
+    Alle übrigen ValueErrors gelten als unerwartet → generischer 500-Handler."""
+    detail = _date_domain_value_error(exc)
+    if detail is None:
+        return await global_exception_handler(request, exc)
+    return JSONResponse(status_code=400, content={"detail": detail})
+
+
 @app.exception_handler(OSError)
 async def filesystem_error_handler(request: Request, exc: OSError):
     """Turn an unhandled filesystem/permission error into a clear, specific
