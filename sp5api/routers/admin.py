@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from .._paths import backend_dir
+from .._paths import atomic_write_json, backend_dir
 from ..dependencies import (
     _logger,
     _sanitize_500,
@@ -706,9 +706,7 @@ def _load_frontend_errors() -> list:
 
 
 def _save_frontend_errors(errors: list):
-    os.makedirs(os.path.dirname(_FRONTEND_ERRORS_FILE), exist_ok=True)
-    with open(_FRONTEND_ERRORS_FILE, "w", encoding="utf-8") as f:
-        json.dump(errors, f, ensure_ascii=False, indent=2)
+    atomic_write_json(_FRONTEND_ERRORS_FILE, errors, ensure_ascii=False, indent=2)
 
 
 class FrontendErrorReport(BaseModel):

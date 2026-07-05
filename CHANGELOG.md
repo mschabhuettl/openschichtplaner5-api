@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Nicht-atomare JSON-Store-Writes (Rest) → Totalverlust bei Schreibabbruch.** Nachtrag zum
+  vorigen Fix: ein Autorisierungs-Audit deckte vier weitere Stores mit `open(path, "w")` +
+  `json.dump` auf, die die erste Runde übersehen hatte — Webhooks, Frontend-Fehlerberichte,
+  Export-Planer und geplante Berichte. Gleiche Gefahr (Abbruch mittendrin → halb geschriebene
+  Datei → Reader liest sie still als leeren Store → Datenverlust). Alle vier schreiben jetzt
+  über einen gemeinsamen Helper `sp5api._paths.atomic_write_json` (Temp-Datei + `os.replace`,
+  Format je Store via `**dump_kwargs` erhalten). Der zeilenbasierte Rate-Limit-Log-Trim bleibt
+  bewusst unverändert (transienter Text-Log, kein Datenspeicher). Reine Robustheit.
 - **Nicht-atomare JSON-Store-Writes → Totalverlust bei Schreibabbruch.** Die Stores
   `recurring_shifts`, `availability` und `absence_status` schrieben mit `open(path, "w")` +
   `json.dump`: bricht der Schreibvorgang mittendrin ab (Prozess-`kill`, Disk-voll, OOM), bleibt

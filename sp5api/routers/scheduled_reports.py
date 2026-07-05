@@ -38,7 +38,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from .._paths import backend_dir
+from .._paths import atomic_write_json, backend_dir
 from ..dependencies import require_admin, require_planer
 
 _logger = logging.getLogger("sp5.scheduled_reports")
@@ -69,9 +69,8 @@ def _load_reports() -> list[dict]:
 
 
 def _save_reports(reports: list[dict]) -> None:
-    """Persist scheduled reports to JSON file."""
-    with open(_REPORTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(reports, f, ensure_ascii=False, indent=2, default=str)
+    """Persist scheduled reports to JSON file (atomar: Temp-Datei + os.replace)."""
+    atomic_write_json(str(_REPORTS_FILE), reports, ensure_ascii=False, indent=2, default=str)
 
 
 def _get_report_by_id(report_id: str) -> tuple[list[dict], int, dict]:

@@ -12,8 +12,11 @@ Revert→rot: ersetzt man den atomaren Write wieder durch ``open("w")+json.dump`
 werden alle drei Tests rot (Store nach Fehlschlag leer statt unversehrt).
 """
 
+import json
+
 import pytest
 
+from sp5api._paths import atomic_write_json
 from sp5api.routers import absences as ab
 from sp5api.routers import availability as av
 from sp5api.routers import recurring_shifts as rs
@@ -21,6 +24,25 @@ from sp5api.routers import recurring_shifts as rs
 
 class _Unserializable:
     """json.dump kann das nicht serialisieren → TypeError mitten im Schreiben."""
+
+
+def test_atomic_write_json_helper_preserves_on_failure(tmp_path):
+    """Der geteilte Helper (webhooks/frontend_errors/export_scheduler/scheduled_reports
+    nutzen ihn) lässt die bestehende Datei bei fehlgeschlagenem Dump unversehrt — die
+    alte Datei wird erst durch ``os.replace`` NACH erfolgreichem Dump ersetzt."""
+    p = str(tmp_path / "store.json")
+    atomic_write_json(p, [{"a": 1}], ensure_ascii=False, indent=2)
+    with pytest.raises(TypeError):
+        atomic_write_json(p, [{"bad": _Unserializable()}], ensure_ascii=False, indent=2)
+    with open(p, encoding="utf-8") as f:
+        assert json.load(f) == [{"a": 1}]  # unversehrt; nicht-atomar wäre truncated
+
+
+def test_atomic_write_json_helper_no_tmp_residue_on_success(tmp_path):
+    """Ein ERFOLGREICHER Write hinterlässt kein ``.tmp`` (os.replace konsumiert es)."""
+    p = str(tmp_path / "store.json")
+    atomic_write_json(p, [{"a": 1}], ensure_ascii=False, indent=2)
+    assert not list(tmp_path.glob("*.tmp"))
 
 
 _PATTERN = {

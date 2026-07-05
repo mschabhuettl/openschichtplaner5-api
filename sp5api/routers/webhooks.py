@@ -13,7 +13,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from .._paths import backend_dir
+from .._paths import atomic_write_json, backend_dir
 from ..dependencies import _logger, require_admin
 
 router = APIRouter()
@@ -42,9 +42,7 @@ def _load_webhooks() -> list[dict]:
 
 
 def _save_webhooks(webhooks: list[dict]) -> None:
-    os.makedirs(os.path.dirname(_WEBHOOKS_FILE), exist_ok=True)
-    with open(_WEBHOOKS_FILE, "w", encoding="utf-8") as f:
-        json.dump(webhooks, f, ensure_ascii=False, indent=2)
+    atomic_write_json(_WEBHOOKS_FILE, webhooks, ensure_ascii=False, indent=2)
 
 
 def _next_id(webhooks: list[dict]) -> int:

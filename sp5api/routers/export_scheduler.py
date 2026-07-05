@@ -26,7 +26,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from .._paths import backend_dir
+from .._paths import atomic_write_json, backend_dir
 from ..dependencies import require_admin, require_planer
 
 router = APIRouter(tags=["Export Scheduler"])
@@ -51,9 +51,8 @@ def _load_schedules() -> list[dict]:
 
 
 def _save_schedules(schedules: list[dict]) -> None:
-    """Persist schedules to JSON file."""
-    with open(_SCHEDULES_FILE, "w", encoding="utf-8") as f:
-        json.dump(schedules, f, ensure_ascii=False, indent=2)
+    """Persist schedules to JSON file (atomar: Temp-Datei + os.replace)."""
+    atomic_write_json(str(_SCHEDULES_FILE), schedules, ensure_ascii=False, indent=2)
 
 
 def _get_schedule_by_id(schedule_id: str) -> tuple[list[dict], int, dict]:
