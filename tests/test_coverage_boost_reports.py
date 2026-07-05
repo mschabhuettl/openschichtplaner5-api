@@ -135,6 +135,48 @@ class TestExportEndpoints:
         res = planer_client.get("/api/export/schedule?month=2024-13&format=csv")
         assert res.status_code == 400
 
+    def test_export_employees_content(self, planer_client: TestClient):
+        """CSV-Mitarbeiterliste enthält je MA die echten Stammdaten (Name/Vorname/
+        Kürzel) in den richtigen Spalten — test_export_employees prüfte nur 200."""
+        import csv as _csv
+        import io
+
+        emp = planer_client.get("/api/employees").json()[0]
+        res = planer_client.get("/api/export/employees?format=csv")
+        assert res.status_code == 200
+        assert res.headers["content-type"].startswith("text/csv")
+        rows = list(_csv.DictReader(io.StringIO(res.text)))
+        row = next((r for r in rows if str(r["ID"]) == str(emp["ID"])), None)
+        assert row is not None, "Mitarbeiter fehlt in der CSV-Liste"
+        # Name und Vorname getrennt (kein Spalten-Swap), Kürzel korrekt.
+        assert row["Name"] == emp["NAME"]
+        assert row["Vorname"] == emp["FIRSTNAME"]
+        assert row["Kürzel"] == emp["SHORTNAME"]
+
+    def test_export_absences_content(self, planer_client: TestClient):
+        """CSV-Abwesenheitsliste enthält einen bekannten Urlaub mit MA + Art +
+        Datum (ABSEN↔MA↔Abwesenheitsart-Join) — test_export_absences prüfte nur 200."""
+        import csv as _csv
+        import io
+
+        emp = planer_client.get("/api/employees").json()[0]
+        lts = planer_client.get("/api/leave-types").json()
+        lt = (lts if isinstance(lts, list) else lts.get("leave_types"))[0]
+        r = planer_client.post("/api/absences", json={
+            "employee_id": emp["ID"], "date": "2028-04-10",
+            "leave_type_id": lt["ID"], "interval": 0})
+        assert r.status_code == 200, r.text
+
+        res = planer_client.get("/api/export/absences?year=2028&format=csv")
+        assert res.status_code == 200
+        rows = list(_csv.DictReader(io.StringIO(res.text)))
+        expected_name = f"{emp['NAME']}, {emp['FIRSTNAME']}".strip(", ")
+        row = next((x for x in rows if x["Datum"] == "2028-04-10"
+                    and x["Mitarbeiter"] == expected_name), None)
+        assert row is not None, "Abwesenheit fehlt in der CSV-Liste"
+        assert row["Abwesenheitsart"] == lt["NAME"]
+        assert row["Kürzel Art"] == lt["SHORTNAME"]
+
     def test_export_statistics(self, sync_client: TestClient):
         """GET /api/export/statistics → 200."""
         res = sync_client.get("/api/export/statistics?year=2024&month=6")
