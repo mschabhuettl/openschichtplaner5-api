@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **iCal-Export (`/api/ical/*`): Sommerzeit-Verschiebung der Dienstzeiten um 1 Stunde.**
+  Die Wiener Zeitzone war als fester `+01:00`-Offset kodiert (`timezone(timedelta(hours=1))`);
+  in der Sommerzeit (MESZ, +02:00) wurde eine 06:00-Wanduhr-Schicht so nach 05:00 UTC statt
+  04:00 UTC umgerechnet und im abonnierten Kalender (Google/Apple/Outlook) 1 Stunde zu spät
+  angezeigt — von Ende März bis Ende Oktober bei jedem zeitgebundenen Dienst. Jetzt
+  DST-bewusst über `ZoneInfo("Europe/Vienna")`; `tzdata` als Abhängigkeit ergänzt (garantiert
+  die Zonendaten auch in schlanken Containern). Ganztags-Ereignisse (Abwesenheiten) unberührt.
 - **Dienstplan-Druckansicht (`GET /api/schedule/pdf`): Mitarbeitername statt
   Schichtkürzel in der Namensspalte.** Die Namensspalte wurde aus den Plan-Einträgen
   befüllt (`entry.employee_name or entry.display_name`), doch `get_schedule`-Einträge

@@ -10,7 +10,8 @@ Zwei Modi:
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
@@ -20,8 +21,10 @@ from ..dependencies import get_db, require_auth, resolve_employee_for_user
 
 router = APIRouter()
 
-# Wiener Zeitzonen-Offset (MEZ=+1, MESZ=+2) — wir nutzen UTC, Clients übernehmen die TZ
-_TZ_VIENNA = timezone(timedelta(hours=1))
+# Wiener Zeitzone (DST-bewusst: MEZ=+1 im Winter, MESZ=+2 im Sommer). Ein fester
+# +1-Offset kodierte Sommer-Dienstzeiten als Winter → jedes zeitgebundene Ereignis
+# war im abonnierten Kalender während der Sommerzeit 1 Stunde zu spät.
+_TZ_VIENNA = ZoneInfo("Europe/Vienna")
 
 
 def _make_uid(employee_id: int, date_str: str, kind: str) -> str:

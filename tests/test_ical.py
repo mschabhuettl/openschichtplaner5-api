@@ -47,6 +47,29 @@ class TestIcalDt:
         assert _ical_dt(dt) == "20260101T000000Z"
 
 
+class TestShiftTimeDstAware:
+    """Wiener Wanduhrzeit → UTC muss DST-bewusst sein (Sommer MESZ +2, Winter MEZ +1).
+
+    Regression: `_TZ_VIENNA` war ein fester +1-Offset, der Sommer-Dienstzeiten als
+    Winter kodierte — jedes zeitgebundene Ereignis stand im abonnierten Kalender
+    während der Sommerzeit 1 Stunde zu spät.
+    """
+
+    def test_summer_shift_is_cest(self):
+        from sp5api.routers.ical import _TZ_VIENNA
+
+        # 06:00 Wien am 10.07. (MESZ, +02:00) → 04:00 UTC
+        dt = datetime(2026, 7, 10, 6, 0, tzinfo=_TZ_VIENNA).astimezone(UTC)
+        assert _ical_dt(dt) == "20260710T040000Z"
+
+    def test_winter_shift_is_cet(self):
+        from sp5api.routers.ical import _TZ_VIENNA
+
+        # 06:00 Wien am 15.01. (MEZ, +01:00) → 05:00 UTC
+        dt = datetime(2026, 1, 15, 6, 0, tzinfo=_TZ_VIENNA).astimezone(UTC)
+        assert _ical_dt(dt) == "20260115T050000Z"
+
+
 class TestIcalDate:
     def test_date_format(self):
         d = date(2026, 3, 15)
