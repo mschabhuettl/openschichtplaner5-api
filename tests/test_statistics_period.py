@@ -35,6 +35,33 @@ class TestStatisticsFreePeriod:
             for s in partial
         )
 
+    def test_free_period_boundaries_inclusive(self, planer_client: TestClient):
+        """Der freie Zeitraum [von, bis] zählt Ist-Stunden GENAU im inklusiven
+        Intervall: Tage vor `from`/nach `to` fallen raus, Tage EXAKT auf den
+        Grenzen zählen. test_partial_period prüft nur `<=` und würde eine
+        exklusive-`to`-Regression (letzter Tag fällt aus der Lohnabrechnung)
+        nicht bemerken."""
+        emp_id = planer_client.get("/api/employees").json()[0]["ID"]
+        # 8h-Frühschichten: vor from, ==from, innen, ==to, nach to
+        for d in ("2029-08-04", "2029-08-05", "2029-08-07", "2029-08-10", "2029-08-11"):
+            r = planer_client.post(
+                "/api/schedule",
+                json={"employee_id": emp_id, "date": d, "shift_id": 1},
+            )
+            assert r.status_code == 200, r.text
+
+        def actual(frm, to):
+            st = planer_client.get(f"/api/statistics?from={frm}&to={to}").json()
+            return next(s for s in st if s["employee_id"] == emp_id)
+
+        # [05..10]: nur 05, 07, 10 (3×8h); 04 und 11 liegen außerhalb.
+        span = actual("2029-08-05", "2029-08-10")
+        assert span["actual_hours"] == 24.0
+        assert span["shifts_count"] == 3
+        # Grenzen einzeln inklusiv (Regressionsschutz gegen exklusive Grenze).
+        assert actual("2029-08-05", "2029-08-05")["shifts_count"] == 1  # == from
+        assert actual("2029-08-10", "2029-08-10")["shifts_count"] == 1  # == to
+
     def test_period_with_group_filter(self, sync_client: TestClient):
         groups = sync_client.get("/api/groups").json()
         target = None
