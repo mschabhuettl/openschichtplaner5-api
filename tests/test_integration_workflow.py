@@ -244,10 +244,21 @@ class TestNotesCRUD:
         assert resp.status_code == 200
         note_id = resp.json()["record"]["id"]
 
+        # Vor dem Update: Readback bestätigt den Ausgangstext.
+        before = write_client.get("/api/notes?date=2025-08-02").json()
+        row_before = next((n for n in before if n["id"] == note_id), None)
+        assert row_before is not None and row_before["text1"] == "Original"
+
         # Update
         resp2 = write_client.put(f"/api/notes/{note_id}", json={"text": "Aktualisiert"})
         assert resp2.status_code == 200
         assert resp2.json().get("ok") is True
+
+        # Readback aus 5NOTE: der Text wurde WIRKLICH geändert (nicht nur ok:true).
+        after = write_client.get("/api/notes?date=2025-08-02").json()
+        row_after = next((n for n in after if n["id"] == note_id), None)
+        assert row_after is not None, "aktualisierte Notiz fehlt in GET /api/notes"
+        assert row_after["text1"] == "Aktualisiert"
 
     def test_delete_note(self, write_client):
         # Create
