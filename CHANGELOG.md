@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.2] - 2026-07-05
+
 ### Fixed
 
 - **Statistik-Endpunkte: 500 statt 400 bei extremem Jahr.** `GET /api/statistics` (Jahr/Monat-
