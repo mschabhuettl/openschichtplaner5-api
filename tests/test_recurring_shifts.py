@@ -321,6 +321,52 @@ class TestGenerateShifts:
         )
         assert resp.status_code == 403
 
+    def test_generate_lands_on_exact_weekday_dates(self, write_client):
+        """Deckungslücke: die Generate-Tests prüften nur {created,skipped}-Struktur
+        und Randfälle, NIE die tatsächlich erzeugten DATEN. Der Wochentag-/Step-
+        Rechenweg (``days_ahead=(target-weekday)%7``, step 7) ist die fragile Stelle —
+        hier gegen eine naive Referenz (alle Tage im Zeitraum mit passendem
+        Wochentag) im ansonsten leeren Jahr 2035 geprüft."""
+        import calendar
+        from datetime import date, timedelta
+
+        emp_id, shift_id, dow = 40, 1, 2  # Mittwoch
+        y, m = 2035, 3
+        pattern_id = write_client.post(
+            "/api/shifts/recurring",
+            json=_pattern_body(
+                employee_id=emp_id, shift_id=shift_id, recurrence="weekly",
+                day_of_week=dow, valid_from="2035-01-01", valid_until="2035-12-31",
+            ),
+        ).json()["id"]
+
+        frm = date(y, m, 1)
+        to = date(y, m, calendar.monthrange(y, m)[1])
+        resp = write_client.post(
+            f"/api/shifts/recurring/{pattern_id}/generate",
+            json={"from_date": frm.isoformat(), "to_date": to.isoformat()},
+        )
+        assert resp.status_code == 200
+
+        # Naive Referenz: alle Tage im Zeitraum mit Wochentag == dow
+        expected, d = set(), frm
+        while d <= to:
+            if d.weekday() == dow:
+                expected.add(d.isoformat())
+            d += timedelta(days=1)
+        assert expected, "Testaufbau erwartet Zieltage"
+
+        # exakte Anzahl erzeugt (kein Off-by-one, richtiger 7-Tage-Step)
+        assert resp.json()["created"] == len(expected), resp.json()
+
+        # Plan-Effekt: genau diese Tage tragen die Muster-Schicht (leeres Jahr → exakt)
+        entries = write_client.get(f"/api/schedule?year={y}&month={m}").json()
+        got = {
+            e["date"] for e in entries
+            if e.get("employee_id") == emp_id and e.get("shift_id") == shift_id
+        }
+        assert got == expected, f"erzeugte Tage != Ziel-Wochentage: +{got - expected} -{expected - got}"
+
 
 class TestRecurringShiftValidationAndErrors:
     """Validator inner branches and generation failure paths."""
