@@ -87,6 +87,20 @@ class TestUpdateEmployee:
         )
         assert res2.status_code == 200
 
+    def test_update_employee_changes_field(self, admin_client: TestClient):
+        """test_update_employee schickt denselben Namen und prüft nur status==200 —
+        nie, ob PUT ein Feld über die HTTP-Schicht WIRKLICH ändert. Readback via GET."""
+        emps = admin_client.get("/api/employees").json()
+        if not emps:
+            pytest.skip("No employees")
+        emp_id = emps[0]["ID"]
+        res = admin_client.put(
+            f"/api/employees/{emp_id}", json={"FIRSTNAME": "Zzytest"}
+        )
+        assert res.status_code == 200, res.text
+        got = admin_client.get(f"/api/employees/{emp_id}").json()
+        assert got["FIRSTNAME"] == "Zzytest"  # Feld tatsächlich persistiert
+
     def test_update_employee_invalid_id_returns_404(self, admin_client: TestClient):
         """PUT /api/employees/99999 → 404."""
         res = admin_client.put("/api/employees/99999", json={"NAME": "Test"})
