@@ -1692,6 +1692,32 @@ class TestAPIWriteEndpoints:
             del_resp = write_client.delete(f"/api/einsatzplan/{entry_id}")
             assert del_resp.status_code == 200
 
+    def test_delete_einsatzplan_removes_from_view(self, write_client):
+        """Querschnitt-Konsistenz: test_einsatzplan_crud prüft beim Delete nur
+        HTTP 200. Ein gelöschter Einsatzplan-Eintrag muss auch aus der
+        Einsatzplan-Sicht (GET /api/einsatzplan?date=…) verschwinden — die
+        eigentliche Wirkung war ungetestet (gleiche Klasse wie Abwesenheits-Delete)."""
+        emps = write_client.get("/api/employees").json()
+        if not emps:
+            pytest.skip("No employees")
+        emp_id = emps[0]["ID"]
+        date = "2033-03-09"
+        resp = write_client.post("/api/einsatzplan", json={
+            "employee_id": emp_id, "date": date, "name": "Messe", "startend": "0800-1600",
+        })
+        assert resp.status_code == 200
+        entry_id = resp.json()["record"]["id"]
+
+        def in_view():
+            return [
+                e for e in write_client.get(f"/api/einsatzplan?date={date}").json()
+                if e["id"] == entry_id
+            ]
+
+        assert len(in_view()) == 1  # erscheint in der Sicht
+        assert write_client.delete(f"/api/einsatzplan/{entry_id}").status_code == 200
+        assert in_view() == []      # weg aus der Sicht
+
     def test_einsatzplan_noextra(self, write_client):
         """Freier Sonderdienst mit Flag „keine Arbeitszeitzuschläge" (5SPSHI.NOEXTRA)."""
         emps = write_client.get("/api/employees").json()
