@@ -15,6 +15,40 @@ class TestAbsenceErrorPaths:
         r = admin_client.delete("/api/absences/9999/2025-01-01")
         assert r.status_code == 200
 
+    def test_delete_absence_removes_from_schedule_view(self, admin_client):
+        """Querschnitt-Konsistenz: eine gelöschte Abwesenheit verschwindet nicht nur
+        aus /api/absences, sondern auch aus /api/schedule (die Plan-Sicht mergt
+        Abwesenheiten). test_delete_absence_only_api prüft nur HTTP 200 — die
+        eigentliche Wirkung (weg aus der Plan-Sicht) war ungetestet."""
+        emp_id = admin_client.get("/api/employees").json()[0]["ID"]
+        lt_id = admin_client.get("/api/leave-types").json()[0]["ID"]
+        date, year, month = "2033-04-17", 2033, 4
+
+        def in_schedule():
+            s = admin_client.get(f"/api/schedule?year={year}&month={month}").json()
+            rows = s if isinstance(s, list) else []
+            return [
+                e for e in rows
+                if e.get("employee_id") == emp_id
+                and e.get("date") == date
+                and e.get("kind") == "absence"
+            ]
+
+        # anlegen → erscheint in der Plan-Sicht
+        assert admin_client.post("/api/absences", json={
+            "employee_id": emp_id, "date": date, "leave_type_id": lt_id,
+        }).status_code == 200
+        assert len(in_schedule()) == 1
+
+        # löschen → weg aus /api/absences UND aus der Plan-Sicht
+        assert admin_client.delete(f"/api/absences/{emp_id}/{date}").status_code == 200
+        remaining = [
+            a for a in admin_client.get(f"/api/absences?employee_id={emp_id}").json()
+            if a.get("date") == date
+        ]
+        assert remaining == []
+        assert in_schedule() == []
+
     def test_create_absence_invalid_employee(self, admin_client):
         """Lines 122-125: employee not found → 404."""
         r = admin_client.post("/api/absences", json={
