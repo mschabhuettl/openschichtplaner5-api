@@ -67,6 +67,25 @@ class TestAbsenceErrorPaths:
         })
         assert r.status_code == 404
 
+    def test_bulk_absence_writes_all_target_employees(self, admin_client):
+        """bulk-absence meldet `created==N`, aber nur der 404-Fall war getestet —
+        nie der Erfolgsfall: trägt es die Abwesenheit WIRKLICH für JEDEN Ziel-MA am
+        Datum in 5ABSEN ein (Effekt statt Selbst-Zähler)?"""
+        ids = [e["ID"] for e in admin_client.get("/api/employees").json()[:3]]
+        lts = admin_client.get("/api/leave-types").json()
+        lt = (lts if isinstance(lts, list) else lts.get("leave_types"))[0]
+        r = admin_client.post("/api/absences/bulk", json={
+            "employee_ids": ids, "date": "2031-07-15", "leave_type_id": lt["ID"]})
+        assert r.status_code == 200, r.text
+        assert r.json()["created"] == len(ids)
+
+        absences = admin_client.get("/api/absences?year=2031&month=7").json()
+        got = {
+            a["employee_id"] for a in absences
+            if a["date"] == "2031-07-15" and a["leave_type_id"] == lt["ID"]
+        }
+        assert got == set(ids), f"fehlend: {set(ids) - got}, unerwartet: {got - set(ids)}"
+
 
 class TestWishErrorPaths:
     """Konsistenz zu POST /api/schedule und /api/absences: der Wunsch-Endpunkt

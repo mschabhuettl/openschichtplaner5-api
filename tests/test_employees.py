@@ -220,6 +220,30 @@ class TestBulkOperations:
         )
         assert res.status_code == 200
 
+    def test_bulk_assign_group_adds_all_members(self, admin_client: TestClient):
+        """test_bulk_assign_group prüft nur status==200; kein Test las die
+        Mitgliedschaft zurück. Werden die MA WIRKLICH der Gruppe zugeordnet
+        (Effekt statt `affected`-Zähler)? Frische, leere Gruppe → isolierter Effekt."""
+        emps = admin_client.get("/api/employees").json()
+        if len(emps) < 2:
+            pytest.skip("Need >=2 employees")
+        ids = [emps[0]["ID"], emps[1]["ID"]]
+        gid = admin_client.post(
+            "/api/groups", json={"NAME": "BulkAssignTest", "SHORTNAME": "BAT"}
+        ).json()["record"]["ID"]
+        try:
+            res = admin_client.post(
+                "/api/employees/bulk",
+                json={"employee_ids": ids, "action": "assign_group", "group_id": gid},
+            )
+            assert res.status_code == 200, res.text
+            members = {
+                m["ID"] for m in admin_client.get(f"/api/groups/{gid}/members").json()
+            }
+            assert members == set(ids), f"erwartet {set(ids)}, bekam {members}"
+        finally:
+            admin_client.delete(f"/api/groups/{gid}")
+
     def test_bulk_remove_group_missing_group_id(self, admin_client: TestClient):
         """Verify bulk remove group missing group id."""
         res = admin_client.post(
