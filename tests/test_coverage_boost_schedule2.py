@@ -76,6 +76,39 @@ class TestScheduleEntryAndCapture:
         )
         assert res.status_code == 200
 
+    def test_bulk_schedule_create_overwrite_delete_roundtrip(self, planer_client: TestClient):
+        """schedule/bulk (create / overwrite / delete via shift_id=null) war nur auf
+        200/Zähler getestet, nie 5MASHI. Voller Round-Trip je über GET /api/schedule
+        zurückgelesen — inkl. Löschen per null-shift_id (der riskante, ungetestete Zweig)."""
+        emp_id = planer_client.get("/api/employees").json()[0]["ID"]
+        shifts = planer_client.get("/api/shifts").json()
+        assert len(shifts) >= 2, "Fixture braucht >=2 Schichten"
+        s1, s2 = shifts[0]["ID"], shifts[1]["ID"]
+        date = "2032-04-09"
+
+        def shift_on(d):
+            sched = planer_client.get("/api/schedule?year=2032&month=4").json()
+            hits = [
+                x for x in sched
+                if x["employee_id"] == emp_id and x["date"] == d and x.get("kind") == "shift"
+            ]
+            return hits[0]["shift_id"] if hits else None
+
+        def bulk(sid):
+            return planer_client.post("/api/schedule/bulk", json={
+                "entries": [{"employee_id": emp_id, "date": date, "shift_id": sid}],
+                "overwrite": True,
+            })
+
+        assert shift_on(date) is None  # leerer Ausgangszustand
+        assert bulk(s1).status_code == 200
+        assert shift_on(date) == s1                       # angelegt
+        assert bulk(s2).status_code == 200
+        assert shift_on(date) == s2                       # überschrieben
+        r = bulk(None)
+        assert r.status_code == 200 and r.json()["deleted"] == 1
+        assert shift_on(date) is None                     # per null-shift_id gelöscht
+
     def test_bulk_create_no_overwrite(self, planer_client: TestClient, emp_and_shift):
         """Bulk create without overwrite → created=1 or skipped."""
         emp_id, shift_id = emp_and_shift
