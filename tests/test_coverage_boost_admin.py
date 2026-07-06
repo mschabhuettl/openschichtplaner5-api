@@ -208,6 +208,38 @@ class TestBackups:
         assert "restored" in data
         assert data["restored"] > 0
 
+    def test_backup_restore_reverts_data_change(self, admin_client: TestClient):
+        """test_backup_restore_success prüft nur `restored>0` (Datei-Zähler); der
+        Handler zählt eine Datei sogar VOR dem bestätigten Write. Kritische
+        Datensicherheit: Restore stellt den gesicherten Stand WIRKLICH wieder her
+        und ist SOFORT sichtbar (Content-Hash-Cache invalidiert sich selbst beim
+        Überschreiben) — genau das war ungetestet."""
+        emps = admin_client.get("/api/employees").json()
+        emp_id = emps[0]["ID"]
+        orig = emps[0]["FIRSTNAME"]
+
+        dl = admin_client.get("/api/backup/download")
+        assert dl.status_code == 200
+
+        # Stand NACH dem Backup verändern …
+        admin_client.put(f"/api/employees/{emp_id}", json={"FIRSTNAME": "ChangedXY"})
+        assert (
+            admin_client.get(f"/api/employees/{emp_id}").json()["FIRSTNAME"]
+            == "ChangedXY"
+        )
+
+        # … Backup zurückspielen …
+        res = admin_client.post(
+            "/api/backup/restore",
+            files={"file": ("backup.zip", io.BytesIO(dl.content), "application/zip")},
+        )
+        assert res.status_code == 200
+
+        # … Änderung ist rückgängig UND sofort sichtbar (kein Neustart nötig).
+        assert (
+            admin_client.get(f"/api/employees/{emp_id}").json()["FIRSTNAME"] == orig
+        )
+
     def test_backup_restore_too_large(self, admin_client: TestClient):
         """POST /api/backup/restore with >50MB → 413."""
         big = b"\x00" * (51 * 1024 * 1024)
