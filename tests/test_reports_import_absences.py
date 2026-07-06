@@ -60,3 +60,29 @@ def test_import_absences_csv_row_validation(monkeypatch):
         assert all("row" in e and "reason" in e for e in data["errors"])
     finally:
         _sessions.pop(tok, None)
+
+
+def test_import_absences_csv_persists_correct_values(admin_client):
+    """Der Fake-DB-Test oben prüft nur `imported==1` — er kann NICHT sehen, ob
+    die Abwesenheit mit dem richtigen Mitarbeiter/Datum/Abwesenheitsart landet.
+    Zahlungs-/urlaubsrelevant: gegen die echte Golden-DB importieren und per
+    Readback bestätigen, dass emp_id, date UND leave_type_id exakt stimmen."""
+    emps = admin_client.get("/api/employees").json()
+    emp = next((e for e in emps if str(e.get("NUMBER", "")).strip()), emps[0])
+    number = str(emp["NUMBER"]).strip()
+    lt = admin_client.get("/api/leave-types").json()[0]
+    short = lt["SHORTNAME"].strip()
+
+    csv = f"Personalnummer,Datum,Abwesenheitsart\r\n{number},2033-05-10,{short}\r\n".encode()
+    r = admin_client.post(
+        "/api/import/absences-csv",
+        files={"file": ("abs.csv", io.BytesIO(csv), "text/csv")},
+    )
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+
+    rows = admin_client.get(f"/api/absences?employee_id={emp['ID']}").json()
+    hit = [a for a in rows if a.get("date") == "2033-05-10"]
+    assert len(hit) == 1, "importierte Abwesenheit nicht (korrekt) persistiert"
+    assert hit[0]["employee_id"] == emp["ID"]
+    assert hit[0]["leave_type_id"] == lt["ID"]
