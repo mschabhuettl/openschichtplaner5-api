@@ -48,6 +48,21 @@ class TestCSVImportEndpoint:
         data = resp.json()
         assert data["created"] == 1
 
+        # `created==1` allein sagt NICHTS über die Werte — vertauschte/leere
+        # Spalten zählten trotzdem als "1 created". Readback: die optionalen
+        # Spalten müssen in den richtigen Feldern landen (email→EMAIL, phone→
+        # PHONE, contract_hours→HRSWEEK, qualifications→NOTE1).
+        emps = write_client.get("/api/employees").json()
+        lisa = next(
+            (e for e in emps if e.get("FIRSTNAME") == "Lisa" and e.get("NAME") == "Volltest"),
+            None,
+        )
+        assert lisa is not None, "importierter MA nicht wiederauffindbar"
+        assert lisa["EMAIL"] == "lisa@test.at"
+        assert lisa["PHONE"] == "+43123456"
+        assert lisa["HRSWEEK"] == 38.5
+        assert lisa["NOTE1"] == "Ersthelfer"
+
     def test_import_semicolon_delimiter(self, write_client):
         """Import CSV using semicolon delimiter (common in German locale)."""
         csv_data = _make_csv(
