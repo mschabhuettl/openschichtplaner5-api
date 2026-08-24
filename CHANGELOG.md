@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **500 bei extremen Jahres-Parametern unter CPython 3.12.14+.** Der zentrale
+  ValueError-Handler erkannte die neue CPython-Formulierung
+  „year 0 is out of range" nicht — `?year=0`/`?year=999999` lieferten wieder
+  500 statt 400. Match jetzt versionsrobust per Regex; Unit-Test deckt die
+  bekannten CPython-Varianten ab.
+
 - **Sollplan-Ebene nimmt nicht mehr an der Ist-Konfliktprüfung teil (Original-Parität).**
   `POST /api/schedule` blockierte Sollplan-Ziele (`schedule_type=1`) fälschlich mit 409,
   wenn am Tag eine Abwesenheit stand (`absence_conflict`) oder ein Sonderdienst (5SPSHI)

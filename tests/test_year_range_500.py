@@ -66,3 +66,23 @@ class TestDateDomainMatcher:
         from sp5api.main import _date_domain_value_error
 
         assert _date_domain_value_error(ValueError(msg)) is None
+
+
+def test_date_domain_matcher_covers_cpython_variants():
+    """Der Marker-Match muss alle bekannten CPython-Formulierungen treffen
+    (3.12.14: "year 0 is out of range"; ältere/neuere: "year is out of range",
+    "year must be in 1..9999"), aber fremde ValueErrors nicht anfassen."""
+    from sp5api.main import _date_domain_value_error
+
+    for msg in (
+        "year 0 is out of range",
+        "year 999999 is out of range",
+        "year is out of range",
+        "year must be in 1..9999, not 0",
+        "month must be in 1..12",
+        "day is out of range for month",
+    ):
+        assert _date_domain_value_error(ValueError(msg)) is not None, msg
+    for msg in ("index out of range", "invalid literal for int()", "some other error"):
+        assert _date_domain_value_error(ValueError(msg)) is None, msg
+

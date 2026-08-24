@@ -1,6 +1,7 @@
 """FastAPI-Anwendung für OpenSchichtplaner5."""
 
 import os
+import re
 import threading
 import time as _startup_time_module
 from collections import deque
@@ -652,18 +653,19 @@ async def global_exception_handler(request: Request, exc: Exception):
 # datetime wirft bei out-of-range Jahr/Monat einen ValueError (versionsabhängige
 # Formulierung). Nur diese klar eingrenzbaren Meldungen werden auf 400 gemappt; alle
 # übrigen ValueErrors bleiben unerwartet und laufen in den generischen 500-Handler.
-_DATE_DOMAIN_MARKERS = (
-    "year must be in",  # CPython: "year must be in 1..9999, not X"
-    "year is out of range",  # ältere CPython-Formulierung
-    "month must be in",  # "month must be in 1..12, not X"
+_DATE_DOMAIN_RE = re.compile(
+    # CPython formuliert je nach Version unterschiedlich:
+    #   "year must be in 1..9999, not X" / "year is out of range" /
+    #   "year 0 is out of range" (3.12.14) / "month must be in 1..12" …
+    r"^(year|month|day)\b.*(must be in|out of range)"
 )
 
 
 def _date_domain_value_error(exc: ValueError) -> str | None:
-    """Saubere 400-Meldung, wenn der ValueError ein out-of-range Jahr/Monat aus einer
-    ``date(year, month, …)``-Konstruktion ist (z. B. ungeprüftes ``?year=0``), sonst None."""
-    msg = str(exc)
-    if any(marker in msg for marker in _DATE_DOMAIN_MARKERS):
+    """Saubere 400-Meldung, wenn der ValueError ein out-of-range Jahr/Monat/Tag aus
+    einer ``date(year, month, …)``-Konstruktion ist (z. B. ungeprüftes ``?year=0``),
+    sonst None."""
+    if _DATE_DOMAIN_RE.match(str(exc)):
         return "Ungültiges Jahr bzw. Datum außerhalb des gültigen Bereichs (Jahr 1..9999, Monat 1..12)."
     return None
 
