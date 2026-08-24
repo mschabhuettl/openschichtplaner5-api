@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Sollplan-Ebene nimmt nicht mehr an der Ist-Konfliktprüfung teil (Original-Parität).**
+  `POST /api/schedule` blockierte Sollplan-Ziele (`schedule_type=1`) fälschlich mit 409,
+  wenn am Tag eine Abwesenheit stand (`absence_conflict`) oder ein Sonderdienst (5SPSHI)
+  zeitlich überlappte (`overlapping_shift`) — beide Guards greifen jetzt nur noch für
+  Istplan-Einträge (`schedule_type=0`). Ebenso blockierte die Tauschbörse den Kreuz-Tausch,
+  wenn am Ziel-Datum nur ein reines Sollplan-Ziel (5MASHI.TYPE=1) stand; die Belegt-Prüfung
+  nimmt Soll-Einträge jetzt aus (Abwesenheiten unverändert).
+### Changed
+
+- **Konfliktbericht: totes `emp_day_shifts`-Dict entfernt** (samt irreführendem Kommentar);
+  die Unterbesetzungs-Prüfung nutzte bereits nur die Ist-Schichten. Reine Aufräumung,
+  kein Verhaltensunterschied.
+
 ## [1.32.2] - 2026-07-05
 
 ### Fixed

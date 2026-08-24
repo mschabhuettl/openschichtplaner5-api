@@ -124,6 +124,34 @@ class TestSwapDutyValidation:
         assert res.status_code == 400
         assert "bereits einen Dienst" in res.json()["detail"]
 
+    def test_create_ok_when_target_date_has_only_soll_entry(
+        self, planer_client: TestClient, ensure_duty, write_db_path
+    ):
+        """REGRESSION (Konflikt-Semantik): ein reines Sollplan-Ziel
+        (5MASHI.TYPE=1) am Ziel-Datum belegt den Tag nicht — die Soll-Ebene
+        nimmt an der Ist-Konfliktprüfung nicht teil, der Kreuz-Tausch bleibt
+        zulässig."""
+        from sp5lib.database import SP5Database
+
+        emp1, emp2 = _two_employees(planer_client)
+        ensure_duty(emp1, "2031-09-02")
+        ensure_duty(emp2, "2031-09-03")
+        # Reines Sollplan-Ziel des Anfragenden am Datum des Partners
+        db = SP5Database(write_db_path)
+        db.add_schedule_entry(
+            emp1, "2031-09-03", db.get_shifts()[0]["ID"], schedule_type=1
+        )
+        res = planer_client.post(
+            "/api/swap-requests",
+            json={
+                "requester_id": emp1,
+                "requester_date": "2031-09-02",
+                "partner_id": emp2,
+                "partner_date": "2031-09-03",
+            },
+        )
+        assert res.status_code == 200, res.text
+
     def test_approve_conflicts_on_target_collision_and_loses_nothing(
         self, planer_client: TestClient, ensure_duty, write_db_path
     ):

@@ -748,10 +748,15 @@ def _swap_target_conflict(
     db = get_db()
     names = {e.get("ID"): f"{e.get('FIRSTNAME', '')} {e.get('NAME', '')}".strip()
              for e in db.get_employees(include_hidden=True)}
+    # Reine Sollplan-Ziele (5MASHI.TYPE=1, Spec 4.12) belegen den Tag nicht:
+    # die Soll-Ebene nimmt an der Ist-Konfliktprüfung nicht teil.
     occupied = {
         (r.get("EMPLOYEEID"), r.get("DATE"))
-        for table in ("MASHI", "ABSEN")
-        for r in db._read(table)
+        for r in db._read("MASHI")
+        if int(r.get("TYPE") or 0) != 1
+    } | {
+        (r.get("EMPLOYEEID"), r.get("DATE"))
+        for r in db._read("ABSEN")
     }
     # Anfragender übernimmt den Dienst des Partners AN DESSEN Datum — und umgekehrt.
     for emp_id, incoming_date in ((requester_id, partner_date), (partner_id, requester_date)):

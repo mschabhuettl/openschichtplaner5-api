@@ -88,12 +88,11 @@ def _detect_conflicts(
     to_str = to_date.isoformat()
 
     # Schichtliste je MA und Datum bauen: {(emp_id, date_str): [shift_id, ...]}
-    # emp_day_shifts = alle Schichten (für die Unterbesetzungs-Prüfung weiter unten);
-    # emp_day_ist_shifts = nur Ist-Schichten (5MASHI.TYPE != 1) für Doppelbelegung/Overlap.
-    # Ein Sollplan-Ziel (TYPE=1, Spec 4.12/D-58) ist eine Planvorgabe, kein tatsächlicher
-    # Dienst — eine Soll-/Ist-Überlagerung am selben Tag ist die normale Zwei-Ebenen-Ansicht
-    # und KEINE Doppelbelegung.
-    emp_day_shifts: dict[tuple[int, str], list[int]] = {}
+    # Nur Ist-Schichten (5MASHI.TYPE != 1) — für Doppelbelegung/Overlap wie für
+    # die Unterbesetzungs-Prüfung. Ein Sollplan-Ziel (TYPE=1, Spec 4.12/D-58)
+    # ist eine Planvorgabe, kein tatsächlicher Dienst — eine Soll-/Ist-
+    # Überlagerung am selben Tag ist die normale Zwei-Ebenen-Ansicht und
+    # KEINE Doppelbelegung.
     emp_day_ist_shifts: dict[tuple[int, str], list[int]] = {}
 
     # Read MASHI entries
@@ -107,11 +106,8 @@ def _detect_conflicts(
         if member_ids is not None and eid not in member_ids:
             continue
         sid = r.get("SHIFTID")
-        if sid:
-            key = (eid, d[:10])
-            emp_day_shifts.setdefault(key, []).append(sid)
-            if int(r.get("TYPE") or 0) != 1:
-                emp_day_ist_shifts.setdefault(key, []).append(sid)
+        if sid and int(r.get("TYPE") or 0) != 1:
+            emp_day_ist_shifts.setdefault((eid, d[:10]), []).append(sid)
 
     # Read SPSHI entries (special shifts, TYPE==0 = shift, not absence)
     try:
@@ -128,9 +124,7 @@ def _detect_conflicts(
                 continue
             sid = r.get("SHIFTID")
             if sid:
-                key = (eid, d[:10])
-                emp_day_shifts.setdefault(key, []).append(sid)
-                emp_day_ist_shifts.setdefault(key, []).append(sid)
+                emp_day_ist_shifts.setdefault((eid, d[:10]), []).append(sid)
     except Exception:
         pass
 

@@ -681,12 +681,16 @@ def create_schedule_entry(
                                     "new_shift_id": body.shift_id,
                                 },
                             )
-        # Auch SPSHI (Sonderdienste) auf Überlappungen prüfen
-        spshi_entries = [
-            rec
-            for rec in db._read("SPSHI")
-            if rec.get("EMPLOYEEID") == body.employee_id and rec.get("DATE") == body.date
-        ]
+        # Auch SPSHI (Sonderdienste) auf Überlappungen prüfen — nur für
+        # Istplan-Einträge: die Soll-Ebene ist reine Planvorgabe und nimmt an
+        # der Ist-Konfliktprüfung nicht teil (Original-Parität, Spec 4.12).
+        spshi_entries = []
+        if body.schedule_type == 0:
+            spshi_entries = [
+                rec
+                for rec in db._read("SPSHI")
+                if rec.get("EMPLOYEEID") == body.employee_id and rec.get("DATE") == body.date
+            ]
         if new_windows and spshi_entries:
             for rec in spshi_entries:
                 spshi_windows = _startend_windows(rec.get("STARTEND", ""))
@@ -712,12 +716,16 @@ def create_schedule_entry(
         pass  # best-effort — don't block on unexpected errors
 
     # ── Conflict Check 3: Absence/vacation on same day ──
+    # Nur für Istplan-Einträge: ein Sollplan-Ziel (schedule_type 1) darf auch
+    # auf einem Abwesenheitstag stehen (Original-Parität, Spec 4.12).
     try:
-        absence_entries = [
-            rec
-            for rec in db._read("ABSEN")
-            if rec.get("EMPLOYEEID") == body.employee_id and rec.get("DATE") == body.date
-        ]
+        absence_entries = []
+        if body.schedule_type == 0:
+            absence_entries = [
+                rec
+                for rec in db._read("ABSEN")
+                if rec.get("EMPLOYEEID") == body.employee_id and rec.get("DATE") == body.date
+            ]
         if absence_entries:
             absence_rec = absence_entries[0]
             leave_type_id = absence_rec.get("LEAVETYPID")
