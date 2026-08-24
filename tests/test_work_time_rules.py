@@ -484,3 +484,224 @@ class TestRuleEngine:
         violations = _check_employee(db, 1, date(2024, 1, 1), date(2024, 1, 31), rules)
         types = [v["type"] for v in violations]
         assert "max_hours_per_day" in types
+
+
+# ── Per-Aufruf-Überschreibungen (Query-Parameter) ─────────────────────────────
+
+
+class TestEffectiveRules:
+    """_effective_rules: gespeicherte Regeln + optionale Überschreibungen."""
+
+    def test_none_keeps_stored_values(self):
+        from sp5api.routers.work_time_rules import _DEFAULT_RULES, _effective_rules
+        rules = _effective_rules(None, None, None, None, "fixed", 1.0)
+        for key, val in _DEFAULT_RULES.items():
+            assert rules[key] == val
+        assert rules["week_limit_mode"] == "fixed"
+        assert rules["week_limit_factor"] == 1.0
+
+    def test_overrides_replace_stored_values(self):
+        from sp5api.routers.work_time_rules import _effective_rules
+        rules = _effective_rules(8.0, 40.0, 12.0, 5, "model", 0.5)
+        assert rules["max_hours_per_day"] == 8.0
+        assert rules["max_hours_per_week"] == 40.0
+        assert rules["min_rest_hours_between_shifts"] == 12.0
+        assert rules["max_consecutive_days"] == 5
+        assert rules["week_limit_mode"] == "model"
+        assert rules["week_limit_factor"] == 0.5
+
+
+class TestCheckParamOverrides:
+    """Endpunkt-Ebene: Grenzen als Query-Parameter, Defaults unverändert."""
+
+    @pytest.fixture()
+    def emp_id(self, app):
+        client, _ = _admin_client(app)
+        emp_res = client.get("/api/v1/employees")
+        if emp_res.status_code != 200 or not emp_res.json():
+            pytest.skip("No employees in DB")
+        return emp_res.json()[0]["ID"]
+
+    @pytest.fixture()
+    def fixed_plan(self, monkeypatch):
+        """Deterministischer Plan: Mo–Do je 9.5h (2024-01-01 ist ein Montag),
+        zwei Dienstblöcke mit 12h Ruhezeit dazwischen."""
+        from datetime import datetime as dt
+
+        day_hours = {date(2024, 1, d): 9.5 for d in (1, 2, 3, 4)}
+        blocks = [
+            {"date": date(2024, 1, 1), "start": dt(2024, 1, 1, 8), "end": dt(2024, 1, 1, 20)},
+            {"date": date(2024, 1, 2), "start": dt(2024, 1, 2, 8), "end": dt(2024, 1, 2, 20)},
+        ]
+        monkeypatch.setattr(
+            "sp5api.routers.work_time_rules._collect_day_data",
+            lambda db, employee_id, from_date, to_date: (dict(day_hours), list(blocks)),
+        )
+
+    def _check(self, app, emp_id: int, params: str = "") -> dict:
+        client, _ = _admin_client(app)
+        res = client.post(
+            f"/api/v1/work-time-rules/check?employee_id={emp_id}"
+            f"&from=2024-01-01&to=2024-01-07{params}"
+        )
+        assert res.status_code == 200
+        return res.json()
+
+    def test_no_params_identical_to_explicit_defaults(self, app, emp_id, fixed_plan):
+        """Regression: ohne Parameter == gespeicherte Defaults explizit gesetzt."""
+        implicit = self._check(app, emp_id)
+        explicit = self._check(
+            app, emp_id,
+            "&max_hours_per_day=10&max_hours_per_week=48"
+            "&min_rest_hours_between_shifts=11&max_consecutive_days=6"
+            "&week_limit_mode=fixed&week_limit_factor=1.0",
+        )
+        assert implicit == explicit
+        assert implicit["summary"]["total"] == 0  # 9.5h/Tag, 38h/Woche: alles im Rahmen
+
+    def test_max_day_override_effective(self, app, emp_id, fixed_plan):
+        data = self._check(app, emp_id, "&max_hours_per_day=8")
+        day_violations = [v for v in data["violations"] if v["type"] == "max_hours_per_day"]
+        assert len(day_violations) == 4
+        assert day_violations[0]["limit"] == 8.0
+
+    def test_max_week_override_effective(self, app, emp_id, fixed_plan):
+        data = self._check(app, emp_id, "&max_hours_per_week=30")
+        types = [v["type"] for v in data["violations"]]
+        assert "max_hours_per_week" in types
+
+    def test_min_rest_override_effective(self, app, emp_id, fixed_plan):
+        # 12h Ruhe zwischen den Blöcken: Default 11h ok, 16h-Vorgabe verletzt.
+        data = self._check(app, emp_id, "&min_rest_hours_between_shifts=16")
+        types = [v["type"] for v in data["violations"]]
+        assert "min_rest_hours_between_shifts" in types
+
+    def test_max_consecutive_override_effective(self, app, emp_id, fixed_plan):
+        data = self._check(app, emp_id, "&max_consecutive_days=3")
+        types = [v["type"] for v in data["violations"]]
+        assert "max_consecutive_days" in types
+
+    def test_invalid_week_limit_mode_returns_422(self, app, emp_id):
+        client, _ = _admin_client(app)
+        res = client.post(
+            f"/api/v1/work-time-rules/check?employee_id={emp_id}"
+            "&from=2024-01-01&to=2024-01-07&week_limit_mode=banana"
+        )
+        assert res.status_code == 422
+
+    def test_check_all_accepts_overrides(self, app, fixed_plan):
+        client, _ = _admin_client(app)
+        emp_res = client.get("/api/v1/employees")
+        if emp_res.status_code != 200 or not emp_res.json():
+            pytest.skip("No employees in DB")
+        res = client.post(
+            "/api/v1/work-time-rules/check-all?from=2024-01-01&to=2024-01-07"
+            "&max_hours_per_day=8"
+        )
+        assert res.status_code == 200
+        data = res.json()
+        # Der gemockte Plan gilt für jeden MA: 9.5h > 8h ⇒ Verstöße vorhanden.
+        assert data["summary"]["total"] > 0
+        assert all(
+            v["limit"] == 8.0
+            for v in data["violations"]
+            if v["type"] == "max_hours_per_day"
+        )
+
+
+# ── Wochengrenze relativ zum Wochenstundenmodell (week_limit_mode=model) ──────
+
+
+class TestWeekLimitModelMode:
+    """Modell-Modus: Grenze = CALCBASE-Wochenstunden der lib × Faktor."""
+
+    def _make_db(self, employee: dict, mashi: list, shifts: list):
+        class ModelDB:
+            def _read(self, table: str):
+                if table == "MASHI":
+                    return mashi
+                if table == "SHIFT":
+                    return shifts
+                return []
+
+            def get_employee(self, eid: int):
+                return employee if eid == employee.get("ID") else None
+
+        return ModelDB()
+
+    def _week_plan(self):
+        """Mo–Fr 2024-01-01..05 je 8h (ISO-Woche 2024-W01) = 40h."""
+        mashi = [
+            {"EMPLOYEEID": 1, "DATE": f"2024-01-{d:02d}", "SHIFTID": 10}
+            for d in range(1, 6)
+        ]
+        shifts = [_spec_shift(10, "08:00", "16:00", 8.0)]
+        return mashi, shifts
+
+    def _rules(self, mode: str = "model", factor: float = 1.0) -> dict:
+        return {
+            "max_hours_per_day": 24, "max_hours_per_week": 1000,
+            "min_rest_hours_between_shifts": 0, "max_consecutive_days": 365,
+            "enabled": True,
+            "week_limit_mode": mode, "week_limit_factor": factor,
+        }
+
+    def test_calcbase_week_model_violated(self):
+        """CALCBASE=1 (Woche), 20h-Modell: 40h Ist ⇒ Verstoß mit Limit 20."""
+        from sp5api.routers.work_time_rules import _check_employee
+        emp = {"ID": 1, "CALCBASE": 1, "HRSWEEK": 20.0, "HRSDAY": 4.0,
+               "WORKDAYS": "1 1 1 1 1 0 0 0"}
+        mashi, shifts = self._week_plan()
+        db = self._make_db(emp, mashi, shifts)
+        violations = _check_employee(db, 1, date(2024, 1, 1), date(2024, 1, 7), self._rules())
+        week = [v for v in violations if v["type"] == "max_hours_per_week"]
+        assert len(week) == 1
+        assert week[0]["limit"] == 20.0
+        assert week[0]["value"] == 40.0
+        assert "weekly model" in week[0]["description"]
+
+    def test_calcbase_day_model_not_violated(self):
+        """CALCBASE=0 (Tag), 8h × Mo–Fr = 40h-Modell: 40h Ist ⇒ kein Verstoß."""
+        from sp5api.routers.work_time_rules import _check_employee
+        emp = {"ID": 1, "CALCBASE": 0, "HRSDAY": 8.0,
+               "WORKDAYS": "1 1 1 1 1 0 0 0"}
+        mashi, shifts = self._week_plan()
+        db = self._make_db(emp, mashi, shifts)
+        violations = _check_employee(db, 1, date(2024, 1, 1), date(2024, 1, 7), self._rules())
+        assert [v for v in violations if v["type"] == "max_hours_per_week"] == []
+
+    def test_factor_scales_model_limit(self):
+        """Faktor 0.5 halbiert das 40h-Modell ⇒ 40h Ist verletzt 20h-Grenze."""
+        from sp5api.routers.work_time_rules import _check_employee
+        emp = {"ID": 1, "CALCBASE": 0, "HRSDAY": 8.0,
+               "WORKDAYS": "1 1 1 1 1 0 0 0"}
+        mashi, shifts = self._week_plan()
+        db = self._make_db(emp, mashi, shifts)
+        violations = _check_employee(
+            db, 1, date(2024, 1, 1), date(2024, 1, 7), self._rules(factor=0.5)
+        )
+        week = [v for v in violations if v["type"] == "max_hours_per_week"]
+        assert len(week) == 1
+        assert week[0]["limit"] == 20.0
+
+    def test_no_model_configured_skips_week(self):
+        """Ohne hinterlegtes Modell (Soll 0) prüft der Modell-Modus nicht."""
+        from sp5api.routers.work_time_rules import _check_employee
+        emp = {"ID": 1, "CALCBASE": 1, "HRSWEEK": 0.0, "HRSDAY": 0.0,
+               "WORKDAYS": "0 0 0 0 0 0 0 0"}
+        mashi, shifts = self._week_plan()
+        db = self._make_db(emp, mashi, shifts)
+        violations = _check_employee(db, 1, date(2024, 1, 1), date(2024, 1, 7), self._rules())
+        assert [v for v in violations if v["type"] == "max_hours_per_week"] == []
+
+    def test_fixed_mode_ignores_model(self):
+        """Regression: fester Modus nutzt weiterhin max_hours_per_week."""
+        from sp5api.routers.work_time_rules import _check_employee
+        emp = {"ID": 1, "CALCBASE": 1, "HRSWEEK": 20.0, "HRSDAY": 4.0,
+               "WORKDAYS": "1 1 1 1 1 0 0 0"}
+        mashi, shifts = self._week_plan()
+        db = self._make_db(emp, mashi, shifts)
+        violations = _check_employee(
+            db, 1, date(2024, 1, 1), date(2024, 1, 7), self._rules(mode="fixed")
+        )
+        assert [v for v in violations if v["type"] == "max_hours_per_week"] == []

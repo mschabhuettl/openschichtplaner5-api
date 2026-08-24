@@ -1,5 +1,20 @@
 """Work Time Rules router — Q079.
 
+EXTRA-Werkzeug der App: das Original-Schichtplaner5 kennt KEINE solche
+Arbeitszeitprüfung (keine Original-Parität angestrebt). Unter SP5_CORE_ONLY
+ist der komplette Funktionsbereich deshalb abgeschaltet (404 via
+_EXTRA_PREFIXES in main.py, /api/work-time-rules).
+
+Die Grenzen sind bewusst KEIN starrer Schwellwert: die persistierte
+Konfiguration liefert nur die Defaults; beide Check-Endpunkte nehmen die
+Grenzen zusätzlich als optionale Query-Parameter entgegen. Für die
+Wochengrenze gibt es neben dem festen Wert den Modus
+``week_limit_mode=model``: die Grenze ist dann je Kalenderwoche das
+Wochenstundenmodell des Mitarbeiters (CALCBASE-Sollstunden der lib für
+Mo–So, ohne 5BOOK-Korrekturen) mal ``week_limit_factor``. Wochen ohne
+hinterlegtes Modell (Soll <= 0) werden im Modell-Modus übersprungen.
+Ohne Parameter bleibt das Verhalten unverändert (Rückwärtskompatibilität).
+
 Endpoints:
   GET  /api/v1/work-time-rules          — get current rules config
   PUT  /api/v1/work-time-rules          — update rules (Admin only)
@@ -12,7 +27,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -203,6 +218,8 @@ def _check_employee(
     max_week = float(rules.get("max_hours_per_week", 48))
     min_rest = float(rules.get("min_rest_hours_between_shifts", 11))
     max_consec = int(rules.get("max_consecutive_days", 6))
+    week_mode = str(rules.get("week_limit_mode", "fixed"))
+    week_factor = float(rules.get("week_limit_factor", 1.0))
 
     day_hours, shift_blocks = _collect_day_data(db, employee_id, from_date, to_date)
 
@@ -227,18 +244,40 @@ def _check_employee(
         key = (iso[0], iso[1])
         week_hours[key] = week_hours.get(key, 0.0) + hrs
 
+    # Modell-Modus: Grenze je Woche = CALCBASE-Sollstunden (lib) × Faktor.
+    model_ctx = None
+    model_holidays: dict[date, int] = {}
+    if week_mode == "model":
+        model_ctx = calc.EmployeeContext.from_record(
+            db.get_employee(employee_id) or {}
+        )
+        model_holidays = calc.holiday_calendar(db._read("HOLID"))
+
     for (yr, wk), hrs in sorted(week_hours.items()):
-        if hrs > max_week:
-            # Montag dieser Woche fürs Datumsfeld bestimmen
-            mon = date.fromisocalendar(yr, wk, 1)
+        # Montag dieser Woche fürs Datumsfeld bestimmen
+        mon = date.fromisocalendar(yr, wk, 1)
+        if week_mode == "model":
+            week_limit = week_factor * calc.get_nominal_hours(
+                model_ctx, mon, mon + timedelta(days=6), holidays=model_holidays
+            )
+            if week_limit <= 0:
+                continue  # kein Wochenmodell hinterlegt → keine relative Grenze
+            desc = (
+                f"Worked {hrs:.1f}h in week {yr}-W{wk:02d} "
+                f"(max {week_limit:.1f}h = weekly model x {week_factor:g})"
+            )
+        else:
+            week_limit = max_week
+            desc = f"Worked {hrs:.1f}h in week {yr}-W{wk:02d} (max {max_week}h)"
+        if hrs > week_limit:
             violations.append({
                 "type": "max_hours_per_week",
                 "date": mon.isoformat(),
                 "employee_id": employee_id,
-                "description": f"Worked {hrs:.1f}h in week {yr}-W{wk:02d} (max {max_week}h)",
-                "severity": "error" if hrs > max_week * 1.05 else "warning",
+                "description": desc,
+                "severity": "error" if hrs > week_limit * 1.05 else "warning",
                 "value": hrs,
-                "limit": max_week,
+                "limit": round(week_limit, 2),
             })
 
     # ── Min rest between shifts ───────────────────────────────────
@@ -285,6 +324,34 @@ def _check_employee(
     return violations
 
 
+def _effective_rules(
+    max_hours_per_day: float | None,
+    max_hours_per_week: float | None,
+    min_rest_hours_between_shifts: float | None,
+    max_consecutive_days: int | None,
+    week_limit_mode: str,
+    week_limit_factor: float,
+) -> dict:
+    """Gespeicherte Regeln + optionale Überschreibungen des Aufrufs.
+
+    ``None`` lässt den gespeicherten Wert unangetastet; ohne Parameter ist
+    das Ergebnis identisch zu ``_load_rules()`` plus Default-Modus "fixed".
+    """
+    rules = _load_rules()
+    overrides = {
+        "max_hours_per_day": max_hours_per_day,
+        "max_hours_per_week": max_hours_per_week,
+        "min_rest_hours_between_shifts": min_rest_hours_between_shifts,
+        "max_consecutive_days": max_consecutive_days,
+    }
+    for key, val in overrides.items():
+        if val is not None:
+            rules[key] = val
+    rules["week_limit_mode"] = week_limit_mode
+    rules["week_limit_factor"] = week_limit_factor
+    return rules
+
+
 def _build_result(violations: list[dict]) -> dict:
     warnings = sum(1 for v in violations if v["severity"] == "warning")
     errors = sum(1 for v in violations if v["severity"] == "error")
@@ -318,6 +385,12 @@ def check_employee(
     employee_id: int = Query(...),
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
+    max_hours_per_day: float | None = Query(default=None, ge=0, description="Override the stored daily limit for this check"),
+    max_hours_per_week: float | None = Query(default=None, ge=0, description="Override the stored weekly limit for this check (fixed mode)"),
+    min_rest_hours_between_shifts: float | None = Query(default=None, ge=0, description="Override the stored minimum rest for this check"),
+    max_consecutive_days: int | None = Query(default=None, ge=0, description="Override the stored consecutive-days limit for this check"),
+    week_limit_mode: Literal["fixed", "model"] = Query(default="fixed", description="'fixed' uses the weekly limit as-is; 'model' derives it per week from the employee's contractual weekly hours"),
+    week_limit_factor: float = Query(default=1.0, gt=0, description="Multiplier on the contractual weekly hours (model mode only)"),
     _user: dict = Depends(require_planer),
     scope: set[int] | None = Depends(visible_employee_ids),
 ) -> dict:
@@ -334,7 +407,14 @@ def check_employee(
     if emp is None:
         raise HTTPException(status_code=404, detail=f"Employee {employee_id} not found")
 
-    rules = _load_rules()
+    rules = _effective_rules(
+        max_hours_per_day,
+        max_hours_per_week,
+        min_rest_hours_between_shifts,
+        max_consecutive_days,
+        week_limit_mode,
+        week_limit_factor,
+    )
     violations = _check_employee(db, employee_id, from_date, to_date, rules)
     return _build_result(violations)
 
@@ -344,6 +424,12 @@ def check_all(
     group_id: int | None = Query(default=None),
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
+    max_hours_per_day: float | None = Query(default=None, ge=0, description="Override the stored daily limit for this check"),
+    max_hours_per_week: float | None = Query(default=None, ge=0, description="Override the stored weekly limit for this check (fixed mode)"),
+    min_rest_hours_between_shifts: float | None = Query(default=None, ge=0, description="Override the stored minimum rest for this check"),
+    max_consecutive_days: int | None = Query(default=None, ge=0, description="Override the stored consecutive-days limit for this check"),
+    week_limit_mode: Literal["fixed", "model"] = Query(default="fixed", description="'fixed' uses the weekly limit as-is; 'model' derives it per week from each employee's contractual weekly hours"),
+    week_limit_factor: float = Query(default=1.0, gt=0, description="Multiplier on the contractual weekly hours (model mode only)"),
     _user: dict = Depends(require_planer),
     scope: set[int] | None = Depends(visible_employee_ids),
 ) -> dict:
@@ -361,7 +447,14 @@ def check_all(
     else:
         employees = list(all_employees)
 
-    rules = _load_rules()
+    rules = _effective_rules(
+        max_hours_per_day,
+        max_hours_per_week,
+        min_rest_hours_between_shifts,
+        max_consecutive_days,
+        week_limit_mode,
+        week_limit_factor,
+    )
     all_violations: list[dict] = []
     for emp in employees:
         eid = emp.get("ID")

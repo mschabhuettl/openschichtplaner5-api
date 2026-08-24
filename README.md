@@ -36,6 +36,20 @@ guides. Architecture notes are in [docs/architecture.md](docs/architecture.md).
 | `sp5api.schemas` / `sp5api.types` | Pydantic models / type aliases |
 | `sp5api.cache` / `sp5api.rate_limit_store` | Response caching, rate-limit event log |
 
+### Work-time rule checks (app extra)
+
+`/api/v1/work-time-rules` is an **extra tool of this app** — the original
+Schichtplaner5 has no such check, so no original parity is claimed, and under
+`SP5_CORE_ONLY=1` the whole feature area is disabled (404). The limits are not
+a hard-wired threshold: the stored configuration only provides the defaults,
+and both check endpoints accept the limits as optional query parameters
+(`max_hours_per_day`, `max_hours_per_week`, `min_rest_hours_between_shifts`,
+`max_consecutive_days`). With `week_limit_mode=model` the weekly limit is
+derived per calendar week from the employee's contractual weekly hours
+(the library's CALCBASE nominal-hours formula) times `week_limit_factor`
+(default 1.0) instead of the fixed value; weeks without a configured model
+are skipped in that mode. Without parameters the behavior is unchanged.
+
 ## Permissions
 
 Roles (`Leser` < `Planer` < `Admin`) gate read/write access; on top of that the

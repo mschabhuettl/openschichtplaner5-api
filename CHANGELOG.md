@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Arbeitszeitprüfung: Grenzen pro Aufruf statt starrem Schwellwert.**
+  `POST /api/work-time-rules/check` und `/check-all` nehmen die Grenzen jetzt
+  als optionale Query-Parameter entgegen (`max_hours_per_day`,
+  `max_hours_per_week`, `min_rest_hours_between_shifts`,
+  `max_consecutive_days`; Default = gespeicherte Konfiguration). NEU zudem
+  `week_limit_mode=model`: die Wochengrenze ist dann je Kalenderwoche das
+  Wochenstundenmodell des Mitarbeiters (CALCBASE-Sollstunden der lib,
+  Mo–So, ohne 5BOOK-Korrekturen) mal `week_limit_factor` (Default 1.0);
+  Wochen ohne hinterlegtes Modell werden übersprungen. Ohne Parameter
+  identisches Verhalten wie bisher (Regressionstest). Die Prüfung bleibt ein
+  EXTRA-Werkzeug der App ohne Original-Vorbild und ist unter `SP5_CORE_ONLY`
+  weiterhin abgeschaltet.
+
 ## [1.32.3] - 2026-08-24
 
 ### Fixed
