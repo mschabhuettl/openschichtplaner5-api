@@ -627,7 +627,8 @@ def export_schedule(
     if group_id is not None:
         member_ids = set(db.get_group_members(group_id))
         employees = [e for e in employees if e["ID"] in member_ids]
-    employees.sort(key=lambda x: x.get("POSITION", 0))
+    # Zeilenfolge = Original-Default-Ordnung aus get_employees (NAME, FIRSTNAME)
+    # wie in allen Plan-Ansichten — keine Umsortierung nach POSITION.
 
     # Build lookup: (emp_id, date) -> entry
     entry_map: dict = {}

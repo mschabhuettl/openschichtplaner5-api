@@ -130,6 +130,34 @@ class TestExportEndpoints:
         assert row["15"] == expected
         assert row["14"] == "" and row["16"] == ""
 
+    def test_export_schedule_row_order_follows_default_sort(
+        self, planer_client: TestClient, write_db_path
+    ):
+        """REGRESSION: der Export sortierte die Mitarbeiterzeilen nach POSITION
+        um, während alle Ansichten die Original-Default-Ordnung (NAME,
+        FIRSTNAME aus get_employees) nutzen — die Export-Zeilenfolge muss der
+        get_employees-Folge entsprechen."""
+        import csv as _csv
+        import io
+
+        from sp5lib.database import SP5Database
+
+        db = SP5Database(write_db_path)
+        employees = db.get_employees()
+        assert len(employees) >= 2, "Testaufbau: mindestens 2 Mitarbeiter nötig"
+        # POSITION absichtlich ENTGEGEN der Namensordnung setzen
+        for pos, emp in enumerate(reversed(employees), start=1):
+            db.update_employee(emp["ID"], {"POSITION": pos})
+
+        exp = planer_client.get("/api/export/schedule?month=2027-06&format=csv")
+        assert exp.status_code == 200
+        rows = list(_csv.DictReader(io.StringIO(exp.text)))
+        expected = [
+            f"{e.get('NAME', '')}, {e.get('FIRSTNAME', '')}".strip(", ")
+            for e in db.get_employees()
+        ]
+        assert [r["Mitarbeiter"] for r in rows] == expected
+
     def test_export_schedule_bad_month(self, planer_client: TestClient):
         """GET /api/export/schedule with bad month → 400."""
         res = planer_client.get("/api/export/schedule?month=2024-13&format=csv")
